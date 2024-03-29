@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PDF to Images with OCR</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.min.js"></script>
+  <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
+  <style>
+    body {
+      padding: 2em;
+    }
+    .dropzone {
+      width: 100%;
+      height: 10em;
+      border: 2px dashed #ccc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    .dropzone.drag-over {
+      background-color: pink;
+    }
+    .image-container img {
+      margin-bottom: 10px;
+    }
+    .textarea-alt {
+      width: 100%;
+      height: 10em;
+      margin-bottom: 20px;
+    }
+    .full-document {
+      width: 100%;
+      height: 30em;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <input type="file" id="fileInput" accept=".pdf" style="display: none;" />
+  <div class="dropzone" id="dropzone">
+    Drag and drop PDF file here or click to select a file
+  </div>
+  <div class="image-container"></div>
+  <h2>Full document</h2>
+  <textarea class="full-document" id="fullDocument"></textarea>
+
+  <script>
+    const desiredWidth = 800;
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const imageContainer = document.querySelector('.image-container');
+    const fullDocumentTextarea = document.getElementById('fullDocument');
+
+    dropzone.addEventListener('dragover', handleDragOver);
+    dropzone.addEventListener('dragleave', handleDragLeave);
+    dropzone.addEventListener('drop', handleDrop);
+    dropzone.addEventListener('click', handleClick);
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.worker.min.js';
+
+    async function handleDragOver(event) {
+      event.preventDefault();
+      dropzone.classList.add('drag-over');
+    }
+
+    async function handleDragLeave(event) {
+      event.preventDefault();
+      dropzone.classList.remove('drag-over');
+    }
+
+    async function handleDrop(event) {
+      event.preventDefault();
+      dropzone.classList.remove('drag-over');
+      const file = event.dataTransfer.files[0];
+      fileInput.files = event.dataTransfer.files;
+      processFile(file);
+    }
+
+    async function handleClick() {
+      fileInput.click();
+    }
+
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      processFile(file);
+    });
+
+    async function processFile(file) {
+      const imageIterator = convertPDFToImages(file);
+      let fullText = '';
+
+      for await (const { imageURL } of imageIterator) {
+        const imgElement = document.createElement('img');
+        imgElement.src = imageURL;
+        imageContainer.appendChild(imgElement);
+
+        const altTextarea = document.createElement('textarea');
+        altTextarea.classList.add('textarea-alt');
+        altTextarea.placeholder = 'Processing...';
+        imageContainer.appendChild(altTextarea);
+
+        const { text } = await ocrImage(imageURL);
+        altTextarea.value = text;
+        altTextarea.placeholder = '';
+        fullText += text + '\n\n';
+      }
+
+      fullDocumentTextarea.value = fullText.trim();
+    }
+
+    async function* convertPDFToImages(file) {
+      try {
+        const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
+        const numPages = pdf.numPages;
+
+        for (let i = 1; i <= numPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 1 });
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          canvas.width = desiredWidth;
+          canvas.height = (desiredWidth / viewport.width) * viewport.height;
+          const renderContext = {
+            canvasContext: context,
+            viewport: page.getViewport({ scale: desiredWidth / viewport.width }),
+          };
+          await page.render(renderContext).promise;
+          const imageURL = canvas.toDataURL('image/jpeg', 0.8);
+          yield { imageURL };
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    }
+
+    async function ocrImage(imageUrl) {
+      const worker = Tesseract.createWorker();
+      await worker.load();
+      await worker.loadLanguage("eng");
+      await worker.initialize("eng");
+
+      const {
+        data: { text },
+      } = await worker.recognize(imageUrl);
+
+      await worker.terminate();
+      return { text };
+    }
+  </script>
+</body>
+</html>
