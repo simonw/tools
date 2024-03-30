@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script defer data-domain="tools.simonwillison.net" src="https://plausible.io/js/script.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.min.js"></script>
-  <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     body {
       padding: 1em;
@@ -92,8 +92,6 @@
       ta.style.height = (ta.scrollHeight + 5) + 'px';
     }
 
-    const worker = Tesseract.createWorker();
-
     dropzone.addEventListener('dragover', handleDragOver);
     dropzone.addEventListener('dragleave', handleDragLeave);
     dropzone.addEventListener('drop', handleDrop);
@@ -137,6 +135,7 @@
     });
 
     async function processFile(file) {
+      const worker = await Tesseract.createWorker();
       fullDocumentTextarea.value = '';
       fullDocumentSection.style.display = 'none';
       imageContainer.innerHTML = '';
@@ -145,17 +144,13 @@
       dropzone.classList.add('disabled');
       fileSelectionAllowed = false;
 
-      await worker.load();
-      await worker.loadLanguage("eng");
-      await worker.initialize("eng");
-
       if (file.type === 'application/pdf') {
         const { numPages, imageIterator } = await convertPDFToImages(file);
         let done = 0;
         dropzone.innerText = `Processing ${numPages} page${numPages > 1 ? 's' : ''}`;
         for await (const { imageURL } of imageIterator) {
-          const ta = await processImage(imageURL);
-          const { text } = await ocrImage(imageURL);
+          const ta = await displayImage(imageURL);
+          const { text } = await ocrImage(worker, imageURL);
           setTextarea(ta, text);
           showFullDocument();
           done += 1;
@@ -163,8 +158,8 @@
         }
       } else {
         const imageURL = URL.createObjectURL(file);
-        const ta = await processImage(imageURL);
-        const { text } = await ocrImage(imageURL);
+        const ta = await displayImage(imageURL);
+        const { text } = await ocrImage(worker, imageURL);
         setTextarea(ta, text);
         showFullDocument();
       }
@@ -175,7 +170,7 @@
       fileSelectionAllowed = true;
     }
 
-    async function processImage(imageURL) {
+    async function displayImage(imageURL) {
       const imgElement = document.createElement('img');
       imgElement.src = imageURL;
       imageContainer.appendChild(imgElement);
@@ -216,7 +211,7 @@
       return {numPages: numPages, imageIterator: images()};
     }
 
-    async function ocrImage(imageUrl) {
+    async function ocrImage(worker, imageUrl) {
       const {
         data: { text },
       } = await worker.recognize(imageUrl);
