@@ -1,3 +1,3 @@
 # tools
 
-- [PDF OCR](https://tools.simonwillison.net/pdf-ocr) that runs in your browser
+- [OCR](https://tools.simonwillison.net/ocr) for PDF files and images that runs entirely in your browser
