@@ -55,6 +55,7 @@ textarea {
   <h1>OCR PDFs and images directly in your browser</h1>
   <p>This tool runs entirely in your browser. No files are uploaded to a server.</p>
   <p>It uses <a href="https://tesseract.projectnaptha.com/">Tesseract.js</a> for OCR and <a href="https://mozilla.github.io/pdf.js/">PDF.js</a> to convert PDFs into images.</p>
+  <p><label>Language: <select id="id_language"><option>ENG</option></select></label></p>
   <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.gif" style="display: none;" />
   <div class="dropzone" id="dropzone">
     Drag and drop a PDF, JPG, PNG, or GIF file here or click to select a file
@@ -74,8 +75,130 @@ const fileInput = document.getElementById('fileInput');
 const imageContainer = document.querySelector('.image-container');
 const fullDocumentTextarea = document.getElementById('fullDocument');
 const fullDocumentSection = document.getElementById('fullDocumentSection');
+const languageSelect = document.getElementById('id_language');
 
 let fileSelectionAllowed = true;
+
+const LANGUAGES = {
+  "afr": "Afrikaans",
+  "amh": "Amharic",
+  "ara": "Arabic",
+  "asm": "Assamese",
+  "aze": "Azerbaijani",
+  "aze_cyrl": "Azerbaijani - Cyrillic",
+  "bel": "Belarusian",
+  "ben": "Bengali",
+  "bod": "Tibetan",
+  "bos": "Bosnian",
+  "bul": "Bulgarian",
+  "cat": "Catalan; Valencian",
+  "ceb": "Cebuano",
+  "ces": "Czech",
+  "chi_sim": "Chinese - Simplified",
+  "chi_tra": "Chinese - Traditional",
+  "chr": "Cherokee",
+  "cym": "Welsh",
+  "dan": "Danish",
+  "deu": "German",
+  "dzo": "Dzongkha",
+  "ell": "Greek, Modern (1453-)",
+  "eng": "English",
+  "enm": "English, Middle (1100-1500)",
+  "epo": "Esperanto",
+  "est": "Estonian",
+  "eus": "Basque",
+  "fas": "Persian",
+  "fin": "Finnish",
+  "fra": "French",
+  "frk": "German Fraktur",
+  "frm": "French, Middle (ca. 1400-1600)",
+  "gle": "Irish",
+  "glg": "Galician",
+  "grc": "Greek, Ancient (-1453)",
+  "guj": "Gujarati",
+  "hat": "Haitian; Haitian Creole",
+  "heb": "Hebrew",
+  "hin": "Hindi",
+  "hrv": "Croatian",
+  "hun": "Hungarian",
+  "iku": "Inuktitut",
+  "ind": "Indonesian",
+  "isl": "Icelandic",
+  "ita": "Italian",
+  "ita_old": "Italian - Old",
+  "jav": "Javanese",
+  "jpn": "Japanese",
+  "kan": "Kannada",
+  "kat": "Georgian",
+  "kat_old": "Georgian - Old",
+  "kaz": "Kazakh",
+  "khm": "Central Khmer",
+  "kir": "Kirghiz; Kyrgyz",
+  "kor": "Korean",
+  "kur": "Kurdish",
+  "lao": "Lao",
+  "lat": "Latin",
+  "lav": "Latvian",
+  "lit": "Lithuanian",
+  "mal": "Malayalam",
+  "mar": "Marathi",
+  "mkd": "Macedonian",
+  "mlt": "Maltese",
+  "msa": "Malay",
+  "mya": "Burmese",
+  "nep": "Nepali",
+  "nld": "Dutch; Flemish",
+  "nor": "Norwegian",
+  "ori": "Oriya",
+  "pan": "Panjabi; Punjabi",
+  "pol": "Polish",
+  "por": "Portuguese",
+  "pus": "Pushto; Pashto",
+  "ron": "Romanian; Moldavian; Moldovan",
+  "rus": "Russian",
+  "san": "Sanskrit",
+  "sin": "Sinhala; Sinhalese",
+  "slk": "Slovak",
+  "slv": "Slovenian",
+  "spa": "Spanish; Castilian",
+  "spa_old": "Spanish; Castilian - Old",
+  "sqi": "Albanian",
+  "srp": "Serbian",
+  "srp_latn": "Serbian - Latin",
+  "swa": "Swahili",
+  "swe": "Swedish",
+  "syr": "Syriac",
+  "tam": "Tamil",
+  "tel": "Telugu",
+  "tgk": "Tajik",
+  "tgl": "Tagalog",
+  "tha": "Thai",
+  "tir": "Tigrinya",
+  "tur": "Turkish",
+  "uig": "Uighur; Uyghur",
+  "ukr": "Ukrainian",
+  "urd": "Urdu",
+  "uzb": "Uzbek",
+  "uzb_cyrl": "Uzbek - Cyrillic",
+  "vie": "Vietnamese",
+  "yid": "Yiddish"
+}
+
+// Populate the languages select box
+while (languageSelect.firstChild) {
+  languageSelect.removeChild(languageSelect.firstChild);
+}
+
+for (const code of Object.values(Tesseract.languages)) {
+  const name = LANGUAGES[code];
+  const option = document.createElement('option');
+  option.value = code;
+  option.textContent = name;
+  if (option.value == 'eng') {
+    option.selected = true;
+  }
+  languageSelect.appendChild(option);
+}
 
 function showFullDocument() {
   // Only shows if there are multiple populated textareas
@@ -139,7 +262,7 @@ fileInput.addEventListener('change', (event) => {
 });
 
 async function processFile(file) {
-  const worker = await Tesseract.createWorker();
+  const worker = await Tesseract.createWorker(languageSelect.value);
   fullDocumentTextarea.value = '';
   fullDocumentSection.style.display = 'none';
   imageContainer.innerHTML = '';
