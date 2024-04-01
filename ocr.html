@@ -311,7 +311,6 @@ async function displayImage(imageURL) {
 }
 
 async function rerunOCR() {
-  const worker = await Tesseract.createWorker(languageSelect.value);
   const textareas = document.querySelectorAll('.image-container textarea');
   const images = document.querySelectorAll('.image-container img');
 
@@ -319,17 +318,25 @@ async function rerunOCR() {
   Array.from(textareas).forEach(ta => ta.value = '');
   showFullDocument();
 
-  for (let i = 0; i < images.length; i++) {
+  const numImages = images.length;
+  let done = 0;
+  dropzone.innerText = `Processing ${numImages} image${numImages > 1 ? 's' : ''}`;
+
+  const worker = await Tesseract.createWorker(languageSelect.value);
+
+  for (let i = 0; i < numImages; i++) {
     const imageURL = images[i].src;
     const ta = textareas[i];
     ta.placeholder = 'OCRing image...';
     const { text } = await ocrImage(worker, imageURL);
     setTextarea(ta, text);
     showFullDocument();
+    done += 1;
+    dropzone.innerText = `Done ${done} of ${numImages}`;
   }
-
   await worker.terminate();
 }
+
 
 document.addEventListener('paste', (event) => {
   const items = (event.clipboardData || event.originalEvent.clipboardData).items;
