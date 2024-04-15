@@ -1,0 +1,204 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Haiku</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      video {
+        width: 100vw;
+        height: 100vh;
+        background-color: black;
+      }
+      .button-container {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+      }
+      button {
+        margin: 5px;
+      }
+      #response {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: white;
+        background-color: rgba(0, 0, 0, 0.5);
+        padding: 10px;
+        font-size: 14px;
+        max-width: 80%;
+        max-height: 80%;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="video" autoplay="" muted="" playsinline=""></video>
+    <div class="button-container">
+      <button
+        id="captureBtn"
+        style="background-color: transparent; border: none; cursor: pointer"
+      >
+        <svg
+          viewBox="0 0 24.00 24.00"
+          xmlns="http://www.w3.org/2000/svg"
+          width="60px"
+          height="60px"
+        >
+          <g>
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355C4.92893 22 7.28595 22 12 22C16.714 22 19.0711 22 20.5355 20.5355C22 19.0711 22 16.714 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447ZM7.25 12C7.25 9.37665 9.37665 7.25 12 7.25C14.6234 7.25 16.75 9.37665 16.75 12C16.75 14.6234 14.6234 16.75 12 16.75C9.37665 16.75 7.25 14.6234 7.25 12ZM8.75 12C8.75 10.2051 10.2051 8.75 12 8.75C13.7949 8.75 15.25 10.2051 15.25 12C15.25 13.7949 13.7949 15.25 12 15.25C10.2051 15.25 8.75 13.7949 8.75 12Z"
+              fill="#ffffff"
+            ></path>
+          </g>
+        </svg></button
+      ><br />
+      <button
+        id="switchCameraBtn"
+        style="background-color: transparent; border: none; cursor: pointer"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          style="width: 40px; height: 40px"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke="#ffffff"
+          width="24"
+          style="height: 40px; width: 40px"
+        >
+          <path d="M11 19H4a2 2 0 01-2-2V7a2 2 0 012-2h5"></path>
+          <path d="M13 5h7a2 2 0 012 2v10a2 2 0 01-2 2h-5"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M18 22l-3-3 3-3"></path>
+          <path d="M6 2l3 3-3 3"></path>
+        </svg>
+      </button>
+    </div>
+    <pre id="response"></pre>
+    <script>
+      const video = document.getElementById("video");
+      video.setAttribute("autoplay", "");
+      video.setAttribute("muted", "");
+      video.setAttribute("playsinline", "");
+      const switchCameraBtn = document.getElementById("switchCameraBtn");
+      const captureBtn = document.getElementById("captureBtn");
+      switchCameraBtn.style.display = "none";
+      const responseElement = document.getElementById("response");
+      let currentStream;
+      let currentCamera = "front";
+
+      // Request access to the webcam
+      function startCamera() {
+        const constraints = {
+          video: {
+            facingMode: currentCamera === "front" ? "user" : "environment",
+          },
+        };
+        navigator.mediaDevices
+          .getUserMedia(constraints)
+          .then((stream) => {
+            currentStream = stream;
+            // Show switchCameraBtn if multiple cameras are available
+            if (currentStream.getTracks().length > 1) {
+              switchCameraBtn.style.display = "block";
+            }
+            video.srcObject = stream;
+          })
+          .catch((error) => {
+            console.error("Error accessing the camera:", error);
+          });
+      }
+
+      // Switch between front and rear-facing cameras
+      function switchCamera() {
+        if (currentStream) {
+          currentStream.getTracks().forEach((track) => track.stop());
+        }
+        currentCamera = currentCamera === "front" ? "rear" : "front";
+        startCamera();
+      }
+
+      switchCameraBtn.addEventListener("click", switchCamera);
+
+      // Get the API key from localStorage or prompt the user to enter it
+      function getApiKey() {
+        let apiKey = localStorage.getItem("ANTHROPIC_API_KEY");
+        if (!apiKey) {
+          apiKey = prompt("Please enter your Anthropic API key:");
+          if (apiKey) {
+            localStorage.setItem("ANTHROPIC_API_KEY", apiKey);
+          }
+        }
+        return apiKey;
+      }
+
+      // Capture the current image and send it to the Anthropic API
+      captureBtn.addEventListener("click", () => {
+        const apiKey = getApiKey();
+        if (!apiKey) {
+          alert("API key not found. Please enter your Anthropic API key.");
+          return;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth / 2;
+        canvas.height = video.videoHeight / 2;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL("image/jpeg");
+        const base64Image = imageData.split(",")[1];
+        const requestBody = {
+          model: "claude-3-haiku-20240307",
+          max_tokens: 1024,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: "image/jpeg",
+                    data: base64Image,
+                  },
+                },
+                { type: "text", text: "Return a haiku inspired by this image" },
+              ],
+            },
+          ],
+        };
+        fetch("https://anthropic-proxy.vercel.app/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            console.log(JSON.stringify(data, null, 2));
+            const haiku = data.content[0].text;
+            responseElement.innerText += haiku + "\n\n";
+          })
+          .catch((error) => {
+            console.error("Error sending image to the Anthropic API:", error);
+          });
+      });
+      // Start the camera when the page loads
+      startCamera();
+    </script>
+  </body>
+</html>
