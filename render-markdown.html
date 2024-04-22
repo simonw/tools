@@ -1,0 +1,246 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Render Markdown</title>
+<script defer data-domain="tools.simonwillison.net" src="https://plausible.io/js/plausible.js"></script>
+<style>
+body {
+    padding: 1em;
+    margin: 0
+}
+#preview {
+    padding: 0.5em;
+    border: 1px dotted black;
+}
+
+button {
+    font-size: 1.4em;
+}
+
+/*!
+ * GitHub Light v0.5.0
+ * Copyright (c) 2012 - 2017 GitHub, Inc.
+ * Licensed under MIT (https://github.com/primer/github-syntax-theme-generator/blob/master/LICENSE)
+ */
+
+ .pl-c /* comment, punctuation.definition.comment, string.comment */ {
+  color: #6a737d;
+}
+
+.pl-c1 /* constant, entity.name.constant, variable.other.constant, variable.language, support, meta.property-name, support.constant, support.variable, meta.module-reference, markup.raw, meta.diff.header, meta.output */,
+.pl-s .pl-v /* string variable */ {
+  color: #005cc5;
+}
+
+.pl-e /* entity */,
+.pl-en /* entity.name */ {
+  color: #6f42c1;
+}
+
+.pl-smi /* variable.parameter.function, storage.modifier.package, storage.modifier.import, storage.type.java, variable.other */,
+.pl-s .pl-s1 /* string source */ {
+  color: #24292e;
+}
+
+.pl-ent /* entity.name.tag, markup.quote */ {
+  color: #22863a;
+}
+
+.pl-k /* keyword, storage, storage.type */ {
+  color: #d73a49;
+}
+
+.pl-s /* string */,
+.pl-pds /* punctuation.definition.string, source.regexp, string.regexp.character-class */,
+.pl-s .pl-pse .pl-s1 /* string punctuation.section.embedded source */,
+.pl-sr /* string.regexp */,
+.pl-sr .pl-cce /* string.regexp constant.character.escape */,
+.pl-sr .pl-sre /* string.regexp source.ruby.embedded */,
+.pl-sr .pl-sra /* string.regexp string.regexp.arbitrary-repitition */ {
+  color: #032f62;
+}
+
+.pl-v /* variable */,
+.pl-smw /* sublimelinter.mark.warning */ {
+  color: #e36209;
+}
+
+.pl-bu /* invalid.broken, invalid.deprecated, invalid.unimplemented, message.error, brackethighlighter.unmatched, sublimelinter.mark.error */ {
+  color: #b31d28;
+}
+
+.pl-ii /* invalid.illegal */ {
+  color: #fafbfc;
+  background-color: #b31d28;
+}
+
+.pl-c2 /* carriage-return */ {
+  color: #fafbfc;
+  background-color: #d73a49;
+}
+
+.pl-c2::before /* carriage-return */ {
+  content: "^M";
+}
+
+.pl-sr .pl-cce /* string.regexp constant.character.escape */ {
+  font-weight: bold;
+  color: #22863a;
+}
+
+.pl-ml /* markup.list */ {
+  color: #735c0f;
+}
+
+.pl-mh /* markup.heading */,
+.pl-mh .pl-en /* markup.heading entity.name */,
+.pl-ms /* meta.separator */ {
+  font-weight: bold;
+  color: #005cc5;
+}
+
+.pl-mi /* markup.italic */ {
+  font-style: italic;
+  color: #24292e;
+}
+
+.pl-mb /* markup.bold */ {
+  font-weight: bold;
+  color: #24292e;
+}
+
+.pl-md /* markup.deleted, meta.diff.header.from-file, punctuation.definition.deleted */ {
+  color: #b31d28;
+  background-color: #ffeef0;
+}
+
+.pl-mi1 /* markup.inserted, meta.diff.header.to-file, punctuation.definition.inserted */ {
+  color: #22863a;
+  background-color: #f0fff4;
+}
+
+.pl-mc /* markup.changed, punctuation.definition.changed */ {
+  color: #e36209;
+  background-color: #ffebda;
+}
+
+.pl-mi2 /* markup.ignored, markup.untracked */ {
+  color: #f6f8fa;
+  background-color: #005cc5;
+}
+
+.pl-mdr /* meta.diff.range */ {
+  font-weight: bold;
+  color: #6f42c1;
+}
+
+.pl-ba /* brackethighlighter.tag, brackethighlighter.curly, brackethighlighter.round, brackethighlighter.square, brackethighlighter.angle, brackethighlighter.quote */ {
+  color: #586069;
+}
+
+.pl-sg /* sublimelinter.gutter-mark */ {
+  color: #959da5;
+}
+
+.pl-corl /* constant.other.reference.link, string.other.link */ {
+  text-decoration: underline;
+  color: #032f62;
+}
+</style>
+</head>
+<body>
+<h1>Render Markdown</h1>
+<p>Using GitHub's API, see <a href="/til/til/markdown_github-markdown-api.md">Rendering Markdown with the GitHub Markdown API</a></p>
+<p><textarea id="input" style="width: 80%; height: 10em"></textarea></p>
+<p>
+  <button>Render</button>
+  <label><input type="checkbox" id="strip_hidden" checked> Strip hidden and cleanup HTML</label>
+  <label><input type="checkbox" id="gfm_mode"> Use GitHub Flavored Markdown (GFM)</label>
+</p>
+<p><textarea id="output" style="width: 80%; height: 10em"></textarea></p>
+<div id="preview"></div>  
+<script>
+const button = document.getElementsByTagName('button')[0];
+const strip_hidden = document.getElementById('strip_hidden');
+const input = document.getElementById('input');
+const output = document.getElementById('output');
+const preview = document.getElementById('preview');
+button.addEventListener('click', async function() {
+    const rendered = await render(input.value);
+    output.value = rendered;
+    preview.innerHTML = rendered;
+    if (strip_hidden.checked) {
+        Array.from(
+            preview.querySelectorAll('[aria-hidden]')
+        ).forEach(el => el.parentNode.removeChild(el));
+        Array.from(
+            preview.querySelectorAll('[rel="nofollow"]')
+        ).forEach(el => el.removeAttribute('rel'));
+        // <div class="highlight highlight-source-python">
+        Array.from(
+            preview.querySelectorAll('div.highlight-source-python')
+        ).forEach(el => el.replaceWith(el.firstChild));
+        /* Remove <a href="https://camo.githubusercontent.com"... wrapper
+        links around images, and replace src= with data-canonical-src= */
+        Array.from(
+            preview.querySelectorAll(
+              'a[href^="https://camo.githubusercontent.com"]'
+            )
+        ).forEach(el => el.replaceWith(el.firstChild));
+        Array.from(
+            preview.querySelectorAll(
+              'img[data-canonical-src]'
+            )
+        ).forEach(
+            el => {
+                el.setAttribute('src', el.getAttribute('data-canonical-src'));
+                el.removeAttribute('data-canonical-src');
+            }
+        );
+        // Remove <a class="heading-link"> links, replace with their content
+        Array.from(
+            preview.querySelectorAll('a.heading-link')
+        ).forEach(el => el.replaceWith(el.firstChild));
+        // Output it to the textarea
+        output.value = preview.innerHTML.replace(
+            /<h([1-6])>\n/g, '<h$1>'
+        ).replace(
+            /<br>/g, '<br />'
+        ).replace(
+            /<img ([^>].+?)>/g, '<img $1 />'
+        );
+    }
+    // And prepend the menu as well
+    const menu = '<ul>\n' + (
+      Array.from(
+        document.querySelectorAll('h2[id],h3[id],h4[id],h5[id],h6[id]')
+      ).map(el => `  <li><a href="#${el.id}">${el.innerText}</a></li>`).join('\n')
+    ) + '\n</ul>';
+    output.value = menu + '\n\n' + output.value;
+    preview.innerHTML = menu + '\n\n' + preview.innerHTML;
+});
+
+async function render(markdown) {
+    const mode = document.getElementById('gfm_mode').checked ? 'gfm' : 'markdown';
+    return (await fetch('https://api.github.com/markdown', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({'mode': mode, 'text': markdown})
+    })).text();
+}
+
+/* Populate textarea from localStorage */
+if (!input.value && localStorage.getItem('saved')) {
+    input.value = localStorage.getItem('saved');
+    button.click();
+}
+input.addEventListener('input', () => {
+    localStorage.setItem('saved', input.value);
+});
+
+</script>
+
+</body>
+</html>
