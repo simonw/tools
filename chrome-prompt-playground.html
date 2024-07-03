@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chrome Prompt Playground</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #error-message {
+            color: darkred;
+            font-weight: bold;
+        }
+        #prompt-area {
+            display: none;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+        }
+        #response-area {
+            white-space: pre-wrap;
+            background-color: #f0f0f0;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .history-item {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .history-item .response {
+          white-space: pre-wrap;
+        }
+        .timestamp {
+            font-size: 0.8em;
+            color: #666;
+        }
+        label[for="prompt-input"] {
+            display: block;
+            margin-bottom: 0.3em;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="error-message"></div>
+    <div id="prompt-area">
+        <h1>Chrome window.ai prompt playground</h1>
+        <p>Run prompts against the Gemini Nano experimental model in Chrome Canary.</p>
+        <label for="prompt-input">Prompt:</label>
+        <textarea id="prompt-input"></textarea>
+        <button id="submit-button">Execute prompt</button>
+        <div id="response-area"></div>
+    </div>
+    <div id="history-area"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const errorMessage = document.getElementById('error-message');
+            const promptArea = document.getElementById('prompt-area');
+            const promptInput = document.getElementById('prompt-input');
+            const submitButton = document.getElementById('submit-button');
+            const responseArea = document.getElementById('response-area');
+            const historyArea = document.getElementById('history-area');
+            responseArea.style.display = 'none';
+
+            if (!window.ai) {
+                errorMessage.innerHTML = `
+                <h2>window.ai not found</h2>
+                <p>Try this in Chrome Canary with "Prompt API for Gemini Nano" enabled in <code>chrome://flags</code></p>
+                <p>You may also need to wait several hours for the model to download.</p>
+                `;
+                return;
+            }
+
+            promptArea.style.display = 'block';
+
+            submitButton.addEventListener('click', async () => {
+                const prompt = promptInput.value.trim();
+                if (!prompt) return;
+                responseArea.style.display = 'block';
+                responseArea.textContent = 'Generating response...';
+                let fullResponse = '';
+
+                try {
+                    const model = await window.ai.createTextSession();
+                    const stream = await model.promptStreaming(prompt);
+
+                    for await (const chunk of stream) {
+                        fullResponse = chunk;
+                        responseArea.textContent = fullResponse;
+                    }
+
+                    saveToHistory(prompt, fullResponse);
+                    displayHistory();
+                } catch (error) {
+                    responseArea.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            function saveToHistory(prompt, response) {
+                const history = JSON.parse(localStorage.getItem('aiPromptHistory') || '[]');
+                history.unshift({
+                    prompt,
+                    response,
+                    timestamp: new Date().toISOString()
+                });
+                localStorage.setItem('aiPromptHistory', JSON.stringify(history));
+            }
+
+            function displayHistory() {
+                const history = JSON.parse(localStorage.getItem('aiPromptHistory') || '[]');
+                if (!history.length) {
+                  historyArea.innerHTML = '';
+                  return;
+                }
+                historyArea.innerHTML = '<h2>History</h2>';
+
+                history.forEach((item, index) => {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'history-item';
+                    historyItem.innerHTML = `
+                        <p><strong>Prompt:</strong> ${item.prompt}</p>
+                        <p class="response"><strong>Response:</strong> ${item.response}</p>
+                        <p class="timestamp">Timestamp: ${new Date(item.timestamp).toLocaleString()}</p>
+                        <button class="delete-button" data-index="${index}">Delete</button>
+                    `;
+                    historyArea.appendChild(historyItem);
+                });
+
+                document.querySelectorAll('.delete-button').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const index = e.target.getAttribute('data-index');
+                        deleteHistoryItem(index);
+                    });
+                });
+            }
+
+            function deleteHistoryItem(index) {
+                const history = JSON.parse(localStorage.getItem('aiPromptHistory') || '[]');
+                history.splice(index, 1);
+                localStorage.setItem('aiPromptHistory', JSON.stringify(history));
+                displayHistory();
+            }
+
+            displayHistory();
+        });
+    </script>
+</body>
+</html>
