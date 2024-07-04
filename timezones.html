@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timezone Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        label {
+            margin-right: 5px;
+        }
+        #error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Timezone Converter</h1>
+    <form id="timeForm">
+        <label for="dateTime">Select Date and Time:</label>
+        <input type="datetime-local" id="dateTime" required>
+        <label for="timezone">in timezone:</label>
+        <select id="timezone"></select>
+    </form>
+    <div id="error"></div>
+    <div id="result"></div>
+
+    <script>
+        const dateTimeInput = document.getElementById('dateTime');
+        const timezoneSelect = document.getElementById('timezone');
+        const resultDiv = document.getElementById('result');
+        const errorDiv = document.getElementById('error');
+
+        const timezones = [
+            { name: 'UTC', zone: 'UTC' },
+            { name: 'New York', zone: 'America/New_York' },
+            { name: 'Los Angeles', zone: 'America/Los_Angeles' },
+            { name: 'Chicago', zone: 'America/Chicago' },
+            { name: 'London', zone: 'Europe/London' },
+            { name: 'Paris', zone: 'Europe/Paris' },
+            { name: 'Tokyo', zone: 'Asia/Tokyo' },
+            { name: 'Sydney', zone: 'Australia/Sydney' },
+            { name: 'Dubai', zone: 'Asia/Dubai' },
+            { name: 'Moscow', zone: 'Europe/Moscow' }
+        ];
+
+        try {
+            const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            console.log('User timezone:', userTimezone);
+
+            // Populate timezone select
+            timezones.forEach(tz => {
+                const option = document.createElement('option');
+                option.value = tz.zone;
+                option.textContent = `${tz.name} (${tz.zone})`;
+                timezoneSelect.appendChild(option);
+            });
+
+            // Set default timezone to user's timezone
+            timezoneSelect.value = userTimezone;
+
+            function updateUrlHash(dateTime, timezone) {
+                const timestamp = dateTime.getTime();
+                history.replaceState(null, null, `#${timestamp},${timezone}`);
+            }
+
+            function getDateTimeFromHash() {
+                const hash = window.location.hash.slice(1);
+                if (hash) {
+                    const [timestamp, timezone] = hash.split(',');
+                    return {
+                        dateTime: new Date(parseInt(timestamp)),
+                        timezone: timezone || userTimezone
+                    };
+                }
+                return null;
+            }
+
+            function formatDate(date, timezone) {
+                return date.toLocaleString('en-US', { timeZone: timezone, dateStyle: 'full', timeStyle: 'long' });
+            }
+
+            function displayResults(dateTime, inputTimezone) {
+                let html = '<table><tr><th>Timezone</th><th>Date & Time</th></tr>';
+                timezones.forEach(tz => {
+                    html += `<tr><td>${tz.name} (${tz.zone})</td><td>${formatDate(dateTime, tz.zone)}</td></tr>`;
+                });
+                html += '</table>';
+                resultDiv.innerHTML = html;
+            }
+
+            function updateResults() {
+                try {
+                    console.log('Updating results...');
+                    const inputDate = new Date(dateTimeInput.value);
+                    console.log('Input date:', inputDate);
+                    const inputTimezone = timezoneSelect.value;
+                    console.log('Input timezone:', inputTimezone);
+                    const utcDate = new Date(inputDate.toLocaleString('en-US', { timeZone: 'UTC' }));
+                    console.log('UTC date:', utcDate);
+                    updateUrlHash(utcDate, inputTimezone);
+                    displayResults(utcDate, inputTimezone);
+                    errorDiv.textContent = '';
+                } catch (error) {
+                    console.error('Error in updateResults:', error);
+                    errorDiv.textContent = 'Error updating results: ' + error.message;
+                }
+            }
+
+            function setDateTimeInputValue(date, timezone) {
+                const localDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
+                dateTimeInput.value = localDate.toISOString().slice(0, 16);
+            }
+
+            // Event listeners for real-time updates
+            dateTimeInput.addEventListener('input', updateResults);
+            timezoneSelect.addEventListener('change', updateResults);
+
+            window.addEventListener('load', () => {
+                try {
+                    console.log('Window loaded');
+                    const hashData = getDateTimeFromHash();
+                    if (hashData) {
+                        console.log('Hash data:', hashData);
+                        timezoneSelect.value = hashData.timezone;
+                        setDateTimeInputValue(hashData.dateTime, hashData.timezone);
+                        displayResults(hashData.dateTime, hashData.timezone);
+                    } else {
+                        console.log('No hash data, using current time');
+                        setDateTimeInputValue(new Date(), userTimezone);
+                        updateResults();
+                    }
+                } catch (error) {
+                    console.error('Error in load event:', error);
+                    errorDiv.textContent = 'Error loading initial data: ' + error.message;
+                }
+            });
+
+            window.addEventListener('hashchange', () => {
+                try {
+                    console.log('Hash changed');
+                    const hashData = getDateTimeFromHash();
+                    if (hashData) {
+                        console.log('New hash data:', hashData);
+                        timezoneSelect.value = hashData.timezone;
+                        setDateTimeInputValue(hashData.dateTime, hashData.timezone);
+                        displayResults(hashData.dateTime, hashData.timezone);
+                    }
+                } catch (error) {
+                    console.error('Error in hashchange event:', error);
+                    errorDiv.textContent = 'Error processing URL: ' + error.message;
+                }
+            });
+
+        } catch (error) {
+            console.error('Initialization error:', error);
+            errorDiv.textContent = 'Initialization error: ' + error.message;
+        }
+    </script>
+</body>
+</html>
