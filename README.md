@@ -7,7 +7,7 @@
 - [Arena animated](https://tools.simonwillison.net/arena-animated) animates the progression of the LMSYS Chatbot Arena, inspired by [this visualization](https://public.flourish.studio/visualisation/17992181/) by [Peter Gostev](https://www.linkedin.com/posts/peter-gostev_how-companies-llms-compare-over-the-course-activity-7196899934615257090-zilk) (via [Time-Winter-4319 on Reddit](https://www.reddit.com/r/LocalLLaMA/comments/1bp4j19/gpt4_is_no_longer_the_top_dog_timelapse_of/))
 - [Compare PDFs](https://tools.simonwillison.net/compare-pdfs) provides a visual comparison of the pages of two PDF files
 - [Chrome Prompt Playground](https://tools.simonwillison.net/chrome-prompt-playground) is a UI for running prompts through the Google Chrome Canary experimental Gemini Nano LLM and saving the results in local storage
-
+- [Box shadow CSS generator](https://tools.simonwillison.net/chrome-prompt-playground) generates the CSS for a box shadow with interactive settings
 
 On Observable:
 
