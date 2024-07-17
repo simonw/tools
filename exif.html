@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EXIF Data Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        #file-input {
+            margin-bottom: 20px;
+        }
+        #coordinates, #exif-data {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e9e9e9;
+            border-radius: 5px;
+        }
+        #exif-data {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>EXIF Data Viewer</h1>
+        <input type="file" id="file-input" accept="image/*">
+        <div id="coordinates"></div>
+        <div id="exif-data"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('file-input');
+            const coordinatesDiv = document.getElementById('coordinates');
+            const exifDataDiv = document.getElementById('exif-data');
+
+            fileInput.addEventListener('change', handleFileSelect);
+
+            function handleFileSelect(event) {
+                const file = event.target.files[0];
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        EXIF.getData(this, function() {
+                            const allTags = EXIF.getAllTags(this);
+                            displayExifData(allTags);
+                        });
+                    };
+                    img.src = e.target.result;
+                };
+
+                reader.readAsDataURL(file);
+            }
+
+            function displayExifData(tags) {
+                let lat = null;
+                let lon = null;
+
+                if (tags.GPSLatitude && tags.GPSLongitude) {
+                    lat = convertDMSToDD(tags.GPSLatitude, tags.GPSLatitudeRef);
+                    lon = convertDMSToDD(tags.GPSLongitude, tags.GPSLongitudeRef);
+                }
+
+                if (lat !== null && lon !== null) {
+                    coordinatesDiv.innerHTML = `
+                        <h2>GPS Coordinates</h2>
+                        <p>Latitude: ${lat.toFixed(6)}</p>
+                        <p>Longitude: ${lon.toFixed(6)}</p>
+                    `;
+                } else {
+                    coordinatesDiv.innerHTML = '<p>No GPS coordinates found in the image.</p>';
+                }
+
+                exifDataDiv.innerHTML = `
+                    <h2>All EXIF Data</h2>
+                    <pre>${JSON.stringify(tags, null, 2)}</pre>
+                `;
+            }
+
+            function convertDMSToDD(dms, ref) {
+                let dd = dms[0] + dms[1] / 60 + dms[2] / 3600;
+                if (ref === "S" || ref === "W") {
+                    dd = dd * -1;
+                }
+                return dd;
+            }
+        });
+    </script>
+</body>
+</html>
