@@ -57,6 +57,11 @@
     <div id="output"></div>
 
     <script>
+        const config = {
+          qualities: [1, 0.9, 0.7, 0.5, 0.3],
+          widths: [1, 0.5],
+        };
+
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const output = document.getElementById('output');
@@ -89,53 +94,71 @@
             reader.readAsDataURL(file);
         }
 
-        function processImage(img) {
-            output.innerHTML = '';
-            const qualities = [1, 0.9, 0.7, 0.5, 0.3];
-            const widths = [img.width, img.width / 2];
+        const getImgVariants = () => {
+          const variants = [];
 
-            widths.forEach(width => {
-                const heightRatio = width / img.width;
-                const height = img.height * heightRatio;
+          for (let width of config.widths) {
+            for (let quality of config.qualities) {
+              variants.push({width, quality});
+            }
+          }
 
-                qualities.forEach(quality => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
+          return variants;
+        };
 
-                    canvas.toBlob(blob => {
-                        const url = URL.createObjectURL(blob);
-                        const container = document.createElement('div');
-                        container.className = 'image-container';
-                        const resultImg = document.createElement('img');
-                        resultImg.src = url;
-                        resultImg.addEventListener('click', () => {
-                            resultImg.classList.toggle('full-width');
-                        });
+        async function processImage(img) {
+          const variants = getImgVariants();
 
-                        const infoDiv = document.createElement('div');
-                        infoDiv.className = 'image-info';
-                        infoDiv.innerHTML = `
-                            Width: ${width}px<br>
-                            Quality: ${quality.toFixed(1)}<br>
-                            Size: ${(blob.size / 1024).toFixed(2)} KB
-                        `;
+          const pending = variants.map((item) => {
+            const width = img.width * item.width;
+            const heightRatio = width / img.width;
+            const height = img.height * heightRatio;
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
 
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = url;
-                        downloadLink.download = `image_w${width}_q${quality.toFixed(1)}.jpg`;
-                        downloadLink.textContent = 'Download';
-
-                        container.appendChild(resultImg);
-                        container.appendChild(infoDiv);
-                        container.appendChild(downloadLink);
-                        output.appendChild(container);
-                    }, 'image/jpeg', quality);
-                });
+            return new Promise((resolve) => {
+              canvas.toBlob((blob) => {
+                resolve({blob, width, quality: item.quality});
+              }, 'image/jpeg', item.quality);
             });
-        }
+          });
+
+          const images = await Promise.all(pending);
+
+          for (let {blob, width, quality} of images) {
+            const url = URL.createObjectURL(blob);
+            const container = document.createElement('div');
+            container.className = 'image-container';
+            const resultImg = document.createElement('img');
+            resultImg.src = url;
+            resultImg.addEventListener('click', () => {
+                resultImg.classList.toggle('full-width');
+            });
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'image-info';
+            const kb = blob.size / 1024;
+            const fileSize = kb >= 1024 ? `${(kb / 1024).toFixed(2)} MB` : `${kb.toFixed(2)} KB`;
+            infoDiv.innerHTML = `
+                Width: ${width}px<br>
+                Quality: ${quality.toFixed(1)}<br>
+                Size: ${fileSize}
+            `;
+
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = `image_w${width}_q${quality.toFixed(1)}.jpg`;
+            downloadLink.textContent = 'Download';
+
+            container.appendChild(resultImg);
+            container.appendChild(infoDiv);
+            container.appendChild(downloadLink);
+            output.appendChild(container);
+          }
+        };
     </script>
 </body>
 </html>
