@@ -10,7 +10,8 @@
 - [Box shadow CSS generator](https://tools.simonwillison.net/box-shadow) generates the CSS for a box shadow with interactive settings
 - [Image resize and quality comparison](https://tools.simonwillison.net/image-resize-quality) converts an image to JPEGs using a number of different quality settings so you can select the smallest file size that is still usefully legible ([about](https://simonwillison.net/2024/Jul/26/image-resize-and-quality-comparison/))
 
-On Observable:
+On [Observable](https://observablehq.com/):
 
 - [Blog to newsletter](https://observablehq.com/@simonw/blog-to-newsletter) helps me turn my blog into a [newsletter](https://simonw.substack.com)
 - [Weeknotes](https://observablehq.com/@simonw/weeknotes) helps me write my [weeknotes](https://simonwillison.net/tags/weeknotes/)
+- [Convert Claude JSON to Markdown](https://observablehq.com/@simonw/convert-claude-json-to-markdown) for sharing Claude conversation transcripts
