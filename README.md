@@ -15,3 +15,4 @@ On [Observable](https://observablehq.com/):
 - [Blog to newsletter](https://observablehq.com/@simonw/blog-to-newsletter) helps me turn my blog into a [newsletter](https://simonw.substack.com)
 - [Weeknotes](https://observablehq.com/@simonw/weeknotes) helps me write my [weeknotes](https://simonwillison.net/tags/weeknotes/)
 - [Convert Claude JSON to Markdown](https://observablehq.com/@simonw/convert-claude-json-to-markdown) for sharing Claude conversation transcripts
+- [Hacker News homepage with links to comments ordered by most recent first](https://observablehq.com/@simonw/hacker-news-homepage)
