@@ -36,6 +36,18 @@
         max-height: 80%;
         overflow: auto;
       }
+      #generating {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        background-color: rgba(0, 0, 0, 0.7);
+        padding: 10px;
+        border-radius: 5px;
+        display: none;
+        font-family:'Courier New', Courier, monospace;
+      }
     </style>
   </head>
   <body>
@@ -87,6 +99,7 @@
       </button>
     </div>
     <pre id="response"></pre>
+    <div id="generating">Generating...</div>
     <script>
       const video = document.getElementById("video");
       video.setAttribute("autoplay", "");
@@ -96,6 +109,7 @@
       const captureBtn = document.getElementById("captureBtn");
       switchCameraBtn.style.display = "none";
       const responseElement = document.getElementById("response");
+      const generatingElement = document.getElementById("generating");
       let currentStream;
       let currentCamera = "front";
 
@@ -181,12 +195,17 @@
             },
           ],
         };
-        fetch("https://anthropic-proxy.vercel.app/v1/messages", {
+
+        // Show "Generating..." message
+        generatingElement.style.display = "block";
+
+        fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
             "x-api-key": apiKey,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
+            "anthropic-dangerous-direct-browser-access": "true"
           },
           body: JSON.stringify(requestBody),
         })
@@ -198,6 +217,10 @@
           })
           .catch((error) => {
             console.error("Error sending image to the Anthropic API:", error);
+          })
+          .finally(() => {
+            // Hide "Generating..." message
+            generatingElement.style.display = "none";
           });
       });
       // Start the camera when the page loads
