@@ -74,29 +74,38 @@
             const fileInput = document.getElementById('imageInput');
             const promptInput = document.getElementById('promptInput');
             const resultDiv = document.getElementById('result');
+            const modelSelect = document.getElementById('modelSelect');
             
-            if (!fileInput.files[0] || !promptInput.value) {
-                alert('Please select an image and enter a prompt.');
+            if (!promptInput.value) {
+                alert('Please enter a prompt.');
                 return;
             }
 
             resultDiv.innerHTML = 'Processing...';
             
             try {
-                const model = await getGenerativeModel({ model: "gemini-1.5-pro" });
-                const compressedImage = await resizeAndCompressImage(fileInput.files[0]);
-                const imagePart = await fileToGenerativePart(compressedImage);
+                const model = await getGenerativeModel({ model: modelSelect.value });
+                let content = [promptInput.value];
+
+                if (fileInput.files[0]) {
+                    const compressedImage = await resizeAndCompressImage(fileInput.files[0]);
+                    const imagePart = await fileToGenerativePart(compressedImage);
+                    content.push(imagePart);
+                }
                 
-                const result = await model.generateContent([promptInput.value, imagePart]);
+                const result = await model.generateContent(content);
                 const response = await result.response;
                 const text = response.text();
                 
                 resultDiv.innerHTML = marked.parse(text);
+                document.getElementById('imagePreview').style.display = 'none';
 
-                // Extract coordinates from the response
-                const coordinates = extractCoordinates(text);
-                if (coordinates.length > 0) {
-                    displayImageWithBoundingBoxes(compressedImage, coordinates);
+                if (fileInput.files[0]) {
+                    // Extract coordinates from the response
+                    const coordinates = extractCoordinates(text);
+                    if (coordinates.length > 0) {
+                        displayImageWithBoundingBoxes(fileInput.files[0], coordinates);
+                    }
                 }
             } catch (error) {
                 resultDiv.innerHTML = `Error: ${error.message}`;
@@ -201,8 +210,30 @@
             reader.readAsDataURL(file);
         }
 
-        // Attach event listener to the submit button
+        function clearImage() {
+            document.getElementById('imageInput').value = '';
+            document.getElementById('canvas').getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('imagePreview').src = '';
+            document.getElementById('imagePreview').style.display = 'none';
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.getElementById('imagePreview');
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Attach event listeners
         document.getElementById('submitBtn').addEventListener('click', processImageAndPrompt);
+        document.getElementById('clearImageBtn').addEventListener('click', clearImage);
+        document.getElementById('imageInput').addEventListener('change', previewImage);
     </script>
     <style>
         body {
@@ -224,16 +255,29 @@
             max-width: 100%;
             height: auto;
         }
+        #imagePreview {
+            max-width: 100%;
+            display: none;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
     <h1>Gemini API Image Bounding Box Visualization</h1>
+    <select id="modelSelect">
+        <option value="gemini-1.5-pro">gemini-1.5-pro (default)</option>
+        <option value="gemini-1.5-pro-exp-0827">gemini-1.5-pro-exp-0827</option>
+        <option value="gemini-1.5-flash-exp-0827">gemini-1.5-flash-exp-0827</option>
+        <option value="gemini-1.5-flash-8b-exp-0827">gemini-1.5-flash-8b-exp-0827</option>
+    </select>
     <input type="file" id="imageInput" accept="image/*">
+    <button id="clearImageBtn">Clear Image</button>
     <textarea id="promptInput">Return bounding boxes as JSON arrays [ymin, xmin, ymax, xmax]
 </textarea>
     <button id="submitBtn">Process</button>
     <div id="result"></div>
     <div id="imageContainer">
+        <img id="imagePreview" alt="Image preview" />
         <canvas id="canvas"></canvas>
     </div>
 </body>
