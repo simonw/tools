@@ -82,9 +82,10 @@
         const resetBtn = document.getElementById('resetBtn');
         const durationSelect = document.getElementById('durationSelect');
 
-        let timer;
+        let startTime;
         let timeLeft = 25 * 60; // Default to 25 minutes in seconds
         let isRunning = false;
+        let duration = 25 * 60; // Default duration in seconds
 
         function updateDisplay() {
             const minutes = Math.floor(timeLeft / 60);
@@ -97,28 +98,37 @@
                 isRunning = true;
                 startBtn.textContent = 'Pause';
                 durationSelect.disabled = true;
-                timer = setInterval(() => {
-                    timeLeft--;
-                    updateDisplay();
-                    if (timeLeft === 0) {
-                        clearInterval(timer);
-                        isRunning = false;
-                        startBtn.textContent = 'Start';
-                        durationSelect.disabled = false;
-                        alert('Pomodoro session complete!');
-                    }
-                }, 1000);
+                startTime = Date.now() - ((duration - timeLeft) * 1000);
+                requestAnimationFrame(updateTimer);
             } else {
-                clearInterval(timer);
                 isRunning = false;
                 startBtn.textContent = 'Resume';
             }
         }
 
+        function updateTimer() {
+            if (isRunning) {
+                const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+                timeLeft = duration - elapsedTime;
+
+                if (timeLeft <= 0) {
+                    timeLeft = 0;
+                    isRunning = false;
+                    startBtn.textContent = 'Start';
+                    durationSelect.disabled = false;
+                    alert('Pomodoro session complete!');
+                } else {
+                    requestAnimationFrame(updateTimer);
+                }
+
+                updateDisplay();
+            }
+        }
+
         function resetTimer() {
-            clearInterval(timer);
             isRunning = false;
-            timeLeft = parseInt(durationSelect.value) * 60;
+            duration = parseInt(durationSelect.value) * 60;
+            timeLeft = duration;
             updateDisplay();
             startBtn.textContent = 'Start';
             durationSelect.disabled = false;
@@ -126,7 +136,8 @@
 
         function changeDuration() {
             if (!isRunning) {
-                timeLeft = parseInt(durationSelect.value) * 60;
+                duration = parseInt(durationSelect.value) * 60;
+                timeLeft = duration;
                 updateDisplay();
             }
         }
