@@ -95,6 +95,17 @@
             margin-top: 2rem;
             font-family: monospace;
         }
+        .deleteBtn {
+            background-color: transparent;
+            border: none;
+            color: #f44336;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0.2rem 0.5rem;
+        }
+        .deleteBtn:hover {
+            color: #da190b;
+        }
     </style>
 </head>
 <body>
@@ -128,6 +139,7 @@
                     <th>End Time</th>
                     <th>Duration</th>
                     <th>Pauses</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody id="sessionLogBody"></tbody>
@@ -283,7 +295,7 @@
 
         function updateSessionLog() {
             sessionLogBody.innerHTML = '';
-            sessions.forEach(session => {
+            sessions.forEach((session, index) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${session.goal}</td>
@@ -291,10 +303,23 @@
                     <td>${session.endTime ? formatDate(session.endTime) : 'In progress'}</td>
                     <td>${formatDuration(session.duration)}</td>
                     <td>${formatPauses(session.pauses)}</td>
+                    <td><button class="deleteBtn" data-index="${index}">❌</button></td>
                 `;
                 sessionLogBody.appendChild(row);
             });
             jsonOutput.value = JSON.stringify(sessions, null, 2);
+
+            // Add event listeners to delete buttons
+            document.querySelectorAll('.deleteBtn').forEach(btn => {
+                btn.addEventListener('click', deleteSession);
+            });
+        }
+
+        function deleteSession(event) {
+            const index = parseInt(event.target.getAttribute('data-index'));
+            sessions.splice(index, 1);
+            updateSessionLog();
+            saveSessions();
         }
 
         function formatDuration(seconds) {
