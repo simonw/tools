@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Thumbnail Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 1em;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            font-size: 18px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+        .thumbnail-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .thumbnail {
+            text-align: center;
+        }
+        .thumbnail img {
+            max-width: 90%;
+            width: auto;
+            height: auto;
+            border: 1px solid #ddd;
+            padding: 5px;
+            transition: max-width 0.3s ease;
+        }
+        .thumbnail img.expanded {
+            max-width: none;
+        }
+        .thumbnail p {
+            margin-top: 5px;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        .thumbnail-url {
+            background-color: #f9f9f9;
+            padding: 5px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .copy-icon {
+            margin-left: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>YouTube Thumbnail Viewer</h1>
+    <p>Enter a YouTube URL or Video ID:</p>
+    <input type="text" id="videoInput" placeholder="Paste YouTube URL or video ID here" oninput="updateThumbnails()">
+
+    <div id="thumbnails" class="thumbnail-container"></div>
+
+    <script>
+        function extractVideoID(url) {
+            const regex = /(?:https?:\/\/(?:www\.)?youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|embed)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+            const match = url.match(regex);
+            return match ? match[1] : url;
+        }
+
+        function updateThumbnails() {
+            const input = document.getElementById("videoInput").value.trim();
+            const videoID = extractVideoID(input);
+            if (videoID.length === 11) {
+                const imageTypes = ['default', 'hqdefault', 'mqdefault', 'sddefault', 'maxresdefault', '0', '1', '2', '3'];
+                const container = document.getElementById("thumbnails");
+                container.innerHTML = '';
+
+                imageTypes.forEach(type => {
+                    const imageUrl = `https://img.youtube.com/vi/${videoID}/${type}.jpg`;
+                    const thumbnailHTML = `
+                        <div class="thumbnail">
+                            <img src="${imageUrl}" alt="Thumbnail ${type}" onclick="toggleExpand(this)">
+                            <p class="image-size"></p>
+                            <div class="thumbnail-url">
+                                <span>${imageUrl}</span>
+                                <span class="copy-icon" onclick="copyText('${imageUrl}')">📋</span>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += thumbnailHTML;
+                });
+
+                // Get actual image sizes after they've loaded
+                document.querySelectorAll('.thumbnail img').forEach(img => {
+                    img.onload = function() {
+                        this.nextElementSibling.textContent = `Width: ${this.naturalWidth}px`;
+                    }
+                });
+            }
+        }
+
+        function toggleExpand(img) {
+            img.classList.toggle('expanded');
+        }
+
+        function copyText(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                console.log('Copied to clipboard');
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+    </script>
+
+</body>
+</html>
