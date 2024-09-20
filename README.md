@@ -9,6 +9,7 @@
 - [Chrome Prompt Playground](https://tools.simonwillison.net/chrome-prompt-playground) is a UI for running prompts through the Google Chrome Canary experimental Gemini Nano LLM and saving the results in local storage
 - [Box shadow CSS generator](https://tools.simonwillison.net/box-shadow) generates the CSS for a box shadow with interactive settings
 - [Image resize and quality comparison](https://tools.simonwillison.net/image-resize-quality) converts an image to JPEGs using a number of different quality settings so you can select the smallest file size that is still usefully legible ([about](https://simonwillison.net/2024/Jul/26/image-resize-and-quality-comparison/))
+- [YouTube Thumbnails](https://tools.simonwillison.net/youtube-thumbnails) - paste in the URL to a YouTube video, get back all of the URLs to thumbnail images of different sizes for that video
 
 On [Observable](https://observablehq.com/):
 
