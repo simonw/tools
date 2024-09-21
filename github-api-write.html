@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub API File/Image Writer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        form {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="password"], select, textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #3498db;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #clearImage {
+            background-color: #e74c3c;
+        }
+        #clearImage:hover {
+            background-color: #c0392b;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        #result:not(:empty) {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <h1>GitHub API File/Image Writer</h1>
+    <form id="fileForm">
+        <label for="token">GitHub Token:</label>
+        <input type="password" id="token" required>
+        
+        <label for="owner">Repository Owner:</label>
+        <input type="text" id="owner" required>
+        
+        <label for="repo">Repository Name:</label>
+        <input type="text" id="repo" required>
+        
+        <label for="path">File Path:</label>
+        <input type="text" id="path" required>
+        
+        <label for="contentType">Content Type:</label>
+        <select id="contentType">
+            <option value="text">Text</option>
+            <option value="image">Image</option>
+        </select>
+        
+        <div id="textContent">
+            <label for="content">File Content:</label>
+            <textarea id="content" rows="10"></textarea>
+        </div>
+        
+        <div id="imageContent" style="display:none;">
+            <label for="image">Select Image:</label>
+            <input type="file" id="image" accept="image/*">
+            <button type="button" id="clearImage">Clear Image</button>
+        </div>
+        
+        <button type="submit">Create File/Upload Image</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        const contentTypeSelect = document.getElementById('contentType');
+        const textContent = document.getElementById('textContent');
+        const imageContent = document.getElementById('imageContent');
+        const clearImageBtn = document.getElementById('clearImage');
+        const imageInput = document.getElementById('image');
+
+        contentTypeSelect.addEventListener('change', function() {
+            if (this.value === 'text') {
+                textContent.style.display = 'block';
+                imageContent.style.display = 'none';
+            } else {
+                textContent.style.display = 'none';
+                imageContent.style.display = 'block';
+            }
+        });
+
+        clearImageBtn.addEventListener('click', function() {
+            imageInput.value = '';
+        });
+
+        document.getElementById('fileForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const token = document.getElementById('token').value;
+            const owner = document.getElementById('owner').value;
+            const repo = document.getElementById('repo').value;
+            const path = document.getElementById('path').value;
+            const contentType = document.getElementById('contentType').value;
+
+            const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+            let content;
+            if (contentType === 'text') {
+                content = document.getElementById('content').value;
+                uploadToGitHub(url, token, btoa(content));
+            } else {
+                const file = document.getElementById('image').files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        content = e.target.result.split(',')[1]; // Get base64 data
+                        uploadToGitHub(url, token, content);
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    document.getElementById('result').innerHTML = 'Please select an image file.';
+                }
+            }
+        });
+
+        function uploadToGitHub(url, token, content) {
+            fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: 'Create file/image via API',
+                    content: content
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.content) {
+                    document.getElementById('result').innerHTML = `File/Image created successfully. <a href="${data.content.html_url}" target="_blank">View file</a>`;
+                } else {
+                    document.getElementById('result').innerHTML = `Error: ${JSON.stringify(data)}`;
+                }
+            })
+            .catch(error => {
+                document.getElementById('result').innerHTML = `Error: ${error.message}`;
+            });
+        }
+    </script>
+</body>
+</html>
