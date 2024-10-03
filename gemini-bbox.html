@@ -9,14 +9,14 @@
         import { marked } from "https://esm.run/marked";
 
         function getApiKey() {
-          let apiKey = localStorage.getItem("GEMINI_API_KEY");
-          if (!apiKey) {
-            apiKey = prompt("Please enter your Gemini API key:");
-            if (apiKey) {
-              localStorage.setItem("GEMINI_API_KEY", apiKey);
+            let apiKey = localStorage.getItem("GEMINI_API_KEY");
+            if (!apiKey) {
+                apiKey = prompt("Please enter your Gemini API key:");
+                if (apiKey) {
+                    localStorage.setItem("GEMINI_API_KEY", apiKey);
+                }
             }
-          }
-          return apiKey;
+            return apiKey;
         }
 
         async function getGenerativeModel(params) {
@@ -83,6 +83,9 @@
 
             resultDiv.innerHTML = 'Processing...';
             
+            // Clear previous bounding box images
+            document.getElementById('boundingBoxImages').innerHTML = '';
+            
             try {
                 const model = await getGenerativeModel({ model: modelSelect.value });
                 let content = [promptInput.value];
@@ -98,7 +101,6 @@
                 const text = response.text();
                 
                 resultDiv.innerHTML = marked.parse(text);
-                document.getElementById('imagePreview').style.display = 'none';
 
                 if (fileInput.files[0]) {
                     // Extract coordinates from the response
@@ -155,6 +157,9 @@
 
                     // Draw bounding boxes
                     const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'];
+                    const boundingBoxImages = document.getElementById('boundingBoxImages');
+                    boundingBoxImages.innerHTML = ''; // Clear previous bounding box images
+
                     coordinates.forEach((box, index) => {
                         const [ymin, xmin, ymax, xmax] = box.map(coord => coord / 1000);
                         
@@ -164,6 +169,31 @@
                         ctx.strokeStyle = colors[index % colors.length];
                         ctx.lineWidth = 5;
                         ctx.strokeRect(xmin * image.width + 80, ymin * image.height + 20, width, height);
+
+                        // Extract bounding box image
+                        const boundingBoxCanvas = document.createElement('canvas');
+                        boundingBoxCanvas.width = width;
+                        boundingBoxCanvas.height = height;
+                        const bbCtx = boundingBoxCanvas.getContext('2d');
+                        bbCtx.drawImage(image, xmin * image.width, ymin * image.height, width, height, 0, 0, width, height);
+
+                        // Convert canvas to JPEG base64 data URI
+                        const dataURI = boundingBoxCanvas.toDataURL('image/jpeg');
+
+                        const boundingBoxContainer = document.createElement('div');
+                        boundingBoxContainer.className = 'bounding-box-container';
+
+                        const title = document.createElement('p');
+                        title.textContent = `Bounding Box: [${box.join(', ')}]`;
+                        boundingBoxContainer.appendChild(title);
+
+                        const img = document.createElement('img');
+                        img.src = dataURI;
+                        img.style.width = `${Math.round(width)}px`;
+                        img.style.height = `${Math.round(height)}px`;
+                        boundingBoxContainer.appendChild(img);
+
+                        boundingBoxImages.appendChild(boundingBoxContainer);
                     });
 
                     // Draw axes and labels
@@ -215,6 +245,7 @@
             document.getElementById('canvas').getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
             document.getElementById('imagePreview').src = '';
             document.getElementById('imagePreview').style.display = 'none';
+            document.getElementById('boundingBoxImages').innerHTML = '';
         }
 
         function previewImage(event) {
@@ -260,6 +291,24 @@
             display: none;
             margin-top: 10px;
         }
+        #boundingBoxImages {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .bounding-box-container {
+            display: block;
+            margin-bottom: 20px;
+        }
+        .bounding-box-container p {
+            margin: 0 0 5px 0;
+            font-weight: bold;
+        }
+        .bounding-box-container img {
+            display: block;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
@@ -279,5 +328,6 @@
         <img id="imagePreview" alt="Image preview" />
         <canvas id="canvas"></canvas>
     </div>
+    <div id="boundingBoxImages"></div>
 </body>
 </html>
