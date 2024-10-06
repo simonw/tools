@@ -21,17 +21,20 @@
             border: 2px dashed #ccc;
             border-radius: 5px;
             padding: 10px;
-            margin-bottom: 10px;
+            margin: 10px 0;
             position: relative;
+            box-sizing: border-box;
         }
         #dropZone.dragover {
             border-color: #000;
             background-color: #f0f0f0;
         }
         #svgInput {
-            width: 90%;
-            height: 10em;
+            width: 100%;
+            height: 100%;
             border: none;
+            resize: none;
+            box-sizing: border-box;
         }
         #imageContainer {
             margin-top: 20px;
@@ -46,8 +49,8 @@
             max-width: unset;
         }
         #base64Output {
-            overflow-wrap: break-word;
             word-break: break-all;
+            white-space: pre-wrap;
         }
         .option-group {
             margin-bottom: 10px;
@@ -83,14 +86,14 @@
             <input type="radio" name="format" value="image/jpeg" checked> JPEG
         </label>
         <label>
-            <input type="radio" name="format" value="image/png"> PNG
+            <input id="pngRadio" type="radio" name="format" value="image/png"> PNG
         </label>
     </div>
     <div class="option-group">
         <label for="bgColor">Background Color:</label>
         <input type="color" id="bgColor" value="#ffffff">
         <label>
-            <input type="checkbox" id="transparentBg" checked> Transparent
+            <input type="checkbox" id="transparentBg"> Transparent
         </label>
     </div>
     <div class="option-group">
@@ -101,10 +104,11 @@
     <div id="imageContainer"></div>
     <a id="downloadLink" style="display: none;">Download Image</a>
     <span id="fileSize"></span>
-    <h2>Base64 Image Tag:</h2>
-    <pre id="base64Output"></pre>
-    <button onclick="copyBase64Tag()">Copy Image Tag</button>
-
+    <div id="output" style="display: none;">
+      <h2>Base64 Image Tag:</h2>
+      <button id="copyImageButton" onclick="copyBase64Tag()">Copy image tag</button>
+      <pre id="base64Output"></pre>
+    </div>
     <script>
         const dropZone = document.getElementById('dropZone');
         const svgInput = document.getElementById('svgInput');
@@ -114,6 +118,8 @@
         const bgColor = document.getElementById('bgColor');
         const transparentBg = document.getElementById('transparentBg');
         const fileSizeSpan = document.getElementById('fileSize');
+        const outputDiv = document.getElementById('output');
+        const copyImageButton = document.getElementById('copyImageButton');
 
         // Load example image functionality
         loadExampleLink.addEventListener('click', (e) => {
@@ -138,6 +144,7 @@
         transparentBg.addEventListener('change', () => {
             if (transparentBg.checked) {
                 bgColor.value = "#ffffff";
+                pngRadio.click();
             }
         });
 
@@ -264,6 +271,7 @@
                 // Display base64 image tag
                 const imgTag = `<img src="${imageDataUrl}" alt="Converted ${format === 'image/jpeg' ? 'JPEG' : 'PNG'}" width="${newWidth}" height="${newHeight}">`;
                 base64Output.textContent = imgTag;
+                outputDiv.style.display = 'block';
             };
             img.src = svgUrl;
         }
@@ -281,7 +289,11 @@
             window.getSelection().addRange(range);
             document.execCommand('copy');
             window.getSelection().removeAllRanges();
-            alert('Image tag copied to clipboard!');
+            const origText = copyImageButton.innerText;
+            copyImageButton.innerText = 'Copied to clipboard';
+            setTimeout(() => {
+              copyImageButton.innerText = origText;
+            }, 2000);
         }
     </script>
 </body>
