@@ -8,10 +8,10 @@
 - [Compare PDFs](https://tools.simonwillison.net/compare-pdfs) provides a visual comparison of the pages of two PDF files
 - [Chrome Prompt Playground](https://tools.simonwillison.net/chrome-prompt-playground) is a UI for running prompts through the Google Chrome Canary experimental Gemini Nano LLM and saving the results in local storage
 - [Box shadow CSS generator](https://tools.simonwillison.net/box-shadow) generates the CSS for a box shadow with interactive settings
-- [Image resize and quality comparison](https://tools.simonwillison.net/image-resize-quality) converts an image to JPEGs using a number of different quality settings so you can select the smallest file size that is still usefully legible ([about](https://simonwillison.net/2024/Jul/26/image-resize-and-quality-comparison/))
+- [Image resize and quality comparison](https://tools.simonwillison.net/image-resize-quality) converts an image to JPEGs using a number of different quality settings so you can select the smallest file size that is still usefully legible ([how I built this](https://simonwillison.net/2024/Jul/26/image-resize-and-quality-comparison/))
 - [YouTube Thumbnails](https://tools.simonwillison.net/youtube-thumbnails) - paste in the URL to a YouTube video, get back all of the URLs to thumbnail images of different sizes for that video
 - [Gemini API Image Bounding Box Visualizer](https://tools.simonwillison.net/gemini-bbox) - run prompts against Google Gemini models that return bounding box co-ordinates and visualize them against the original image, see [this post](https://simonwillison.net/2024/Aug/26/gemini-bounding-box-visualization/) for details
-- [SVG to JPEG/PNG](https://tools.simonwillison.net/svg-render) - turn an SVG file into a rendered JPEG or PNG
+- [SVG to JPEG/PNG](https://tools.simonwillison.net/svg-render) - turn an SVG file into a rendered JPEG or PNG ([how I built this](https://simonwillison.net/2024/Oct/6/svg-to-jpg-png/))
 
 On [Observable](https://observablehq.com/):
 
