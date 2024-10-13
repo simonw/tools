@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Improved Interactive CSS Grid Layout with Symmetric Animation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 100px);
+            gap: 10px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            width: 800px;
+            height: 210px;
+            position: relative;
+        }
+        .grid-item {
+            background-color: #ffffff;
+            border: 2px solid #333;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .item1 {
+            grid-column: span 2;
+            grid-row: span 2;
+            background-color: #ffcccb;
+        }
+        .item2 {
+            grid-column: span 1;
+            grid-row: span 2;
+            background-color: #c1e1c1;
+            cursor: pointer;
+        }
+        .item3 {
+            grid-column: span 1;
+            grid-row: span 1;
+            background-color: #add8e6;
+        }
+        .item4 {
+            grid-column: span 1;
+            grid-row: span 1;
+            background-color: #fffacd;
+        }
+        .expanded-overlay {
+            position: absolute;
+            background-color: #c1e1c1;
+            border: 2px solid #333;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-container" id="gridContainer">
+        <div class="grid-item item1">2x2</div>
+        <div class="grid-item item2" id="expandable">1x2<br>(Click to expand)</div>
+        <div class="grid-item item3">1x1</div>
+        <div class="grid-item item4">1x1</div>
+    </div>
+
+    <script>
+        const gridContainer = document.getElementById('gridContainer');
+        const expandable = document.getElementById('expandable');
+        let isExpanded = false;
+        let overlay;
+        let originalRect;
+
+        function createOverlay(element) {
+            originalRect = element.getBoundingClientRect();
+            const containerRect = gridContainer.getBoundingClientRect();
+
+            overlay = document.createElement('div');
+            overlay.className = 'expanded-overlay';
+            overlay.textContent = 'Expanded!\nClick to shrink';
+            overlay.style.left = `${originalRect.left - containerRect.left}px`;
+            overlay.style.top = `${originalRect.top - containerRect.top}px`;
+            overlay.style.width = `${originalRect.width}px`;
+            overlay.style.height = `${originalRect.height}px`;
+
+            gridContainer.appendChild(overlay);
+
+            // Force reflow
+            overlay.offsetHeight;
+
+            // Animate to full size
+            overlay.style.left = '0';
+            overlay.style.top = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+
+            overlay.addEventListener('click', toggleExpansion);
+        }
+
+        function removeOverlay() {
+            if (overlay) {
+                const containerRect = gridContainer.getBoundingClientRect();
+
+                // Animate back to original size
+                overlay.style.left = `${originalRect.left - containerRect.left}px`;
+                overlay.style.top = `${originalRect.top - containerRect.top}px`;
+                overlay.style.width = `${originalRect.width}px`;
+                overlay.style.height = `${originalRect.height}px`;
+
+                // Remove overlay after animation completes
+                overlay.addEventListener('transitionend', function handler() {
+                    overlay.removeEventListener('transitionend', handler);
+                    overlay.removeEventListener('click', toggleExpansion);
+                    gridContainer.removeChild(overlay);
+                    overlay = null;
+                    expandable.style.visibility = 'visible';
+                });
+            }
+        }
+
+        function toggleExpansion() {
+            if (!isExpanded) {
+                expandable.style.visibility = 'hidden';
+                createOverlay(expandable);
+            } else {
+                removeOverlay();
+            }
+            isExpanded = !isExpanded;
+        }
+
+        expandable.addEventListener('click', toggleExpansion);
+    </script>
+</body>
+</html>
