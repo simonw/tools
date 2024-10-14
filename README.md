@@ -12,6 +12,7 @@
 - [YouTube Thumbnails](https://tools.simonwillison.net/youtube-thumbnails) - paste in the URL to a YouTube video, get back all of the URLs to thumbnail images of different sizes for that video
 - [Gemini API Image Bounding Box Visualizer](https://tools.simonwillison.net/gemini-bbox) - run prompts against Google Gemini models that return bounding box co-ordinates and visualize them against the original image, see [this post](https://simonwillison.net/2024/Aug/26/gemini-bounding-box-visualization/) for details
 - [SVG to JPEG/PNG](https://tools.simonwillison.net/svg-render) - turn an SVG file into a rendered JPEG or PNG ([how I built this](https://simonwillison.net/2024/Oct/6/svg-to-jpg-png/))
+- [Jina Reader](https://tools.simonwillison.net/jina-reader) - convert any URL to copyable Markdown using the [Jina Reader API](https://jina.ai/reader/)
 
 On [Observable](https://observablehq.com/):
 
