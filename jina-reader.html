@@ -47,6 +47,18 @@
             padding: 10px;
             overflow-wrap: break-word;
         }
+        #loading {
+            display: none;
+            margin-top: 20px;
+        }
+        #result {
+            display: none;
+        }
+        iframe {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ccc;
+        }
         @media (min-width: 768px) {
             #url-input {
                 width: 70%;
@@ -65,32 +77,60 @@
 <body>
     <h1>Jina Reader</h1>
     <p>An interface for the <a href="https://jina.ai/reader/">Jina Reader API</a>.</p>
-    <input type="text" id="url-input" placeholder="Enter URL">
-    <button id="submit-btn">Submit</button>
-    <textarea id="markdown-raw" readonly></textarea>
-    <button id="copy-btn">Copy to clipboard</button>
-    <div id="markdown-rendered"></div>
+    <form id="url-form">
+        <input type="text" id="url-input" placeholder="Enter URL" required>
+        <button type="submit" id="submit-btn">Submit</button>
+    </form>
+    <div id="loading">Loading...</div>
+    <div id="result">
+        <textarea id="markdown-raw" readonly></textarea>
+        <button id="copy-btn">Copy to clipboard</button>
+        <iframe id="markdown-rendered" sandbox></iframe>
+    </div>
 
     <script>
+        const urlForm = document.getElementById('url-form');
         const urlInput = document.getElementById('url-input');
-        const submitBtn = document.getElementById('submit-btn');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
         const markdownRaw = document.getElementById('markdown-raw');
         const copyBtn = document.getElementById('copy-btn');
         const markdownRendered = document.getElementById('markdown-rendered');
 
-        submitBtn.addEventListener('click', async () => {
+        urlForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
             const url = urlInput.value;
             if (!url) return;
+
+            loading.style.display = 'block';
+            result.style.display = 'none';
 
             try {
                 const response = await fetch(`https://r.jina.ai/${url}`);
                 const markdown = await response.text();
                 markdownRaw.value = markdown;
-                markdownRendered.innerHTML = marked.parse(markdown);
+                const htmlContent = `
+                    <html>
+                        <head>
+                            <style>
+                                body { font-family: Helvetica, sans-serif; line-height: 1.6; color: #333; }
+                                img { max-width: 100%; height: auto; }
+                            </style>
+                        </head>
+                        <body>
+                            ${marked.parse(markdown)}
+                        </body>
+                    </html>
+                `;
+                markdownRendered.srcdoc = htmlContent;
+                result.style.display = 'block';
             } catch (error) {
                 console.error('Error fetching markdown:', error);
                 markdownRaw.value = 'Error fetching markdown. Please try again.';
-                markdownRendered.innerHTML = '';
+                markdownRendered.srcdoc = '<p>Error fetching markdown. Please try again.</p>';
+                result.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
             }
         });
 
