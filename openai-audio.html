@@ -20,7 +20,7 @@
             padding: 2rem;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            max-width: 600px;
+            max-width: 800px;
             width: 100%;
         }
         button {
@@ -44,7 +44,15 @@
         #apiResponse {
             margin-top: 1rem;
             text-align: left;
-            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        #formattedResponse {
+            background-color: #f8f8f8;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        #jsonResponse {
             background-color: #f8f8f8;
             padding: 1rem;
             border-radius: 4px;
@@ -60,10 +68,15 @@
         <audio id="audioPlayback" controls></audio>
         <textarea id="prompt" placeholder="Enter your prompt here"></textarea>
         <button id="submitButton">Submit to API</button>
-        <div id="apiResponse"></div>
+        <div id="apiResponse">
+            <div id="formattedResponse"></div>
+            <pre id="jsonResponse"></pre>
+        </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { marked } from "https://esm.run/marked";
+
         let audioContext;
         let recorder;
         let audioChunks = [];
@@ -76,7 +89,8 @@
         const audioPlayback = document.getElementById('audioPlayback');
         const promptTextarea = document.getElementById('prompt');
         const submitButton = document.getElementById('submitButton');
-        const apiResponse = document.getElementById('apiResponse');
+        const formattedResponse = document.getElementById('formattedResponse');
+        const jsonResponse = document.getElementById('jsonResponse');
 
         recordButton.addEventListener('click', toggleRecording);
         submitButton.addEventListener('click', submitToAPI);
@@ -217,6 +231,9 @@
                 return;
             }
 
+            submitButton.textContent = 'Processing prompt...';
+            submitButton.disabled = true;
+
             const base64Audio = await blobToBase64(audioBlob);
             const prompt = promptTextarea.value;
 
@@ -251,11 +268,46 @@
                 });
 
                 const data = await response.json();
-                apiResponse.textContent = JSON.stringify(data, null, 2);
+                displayFormattedResponse(data);
             } catch (error) {
                 console.error('Error:', error);
-                apiResponse.textContent = `Error: ${error.message}`;
+                formattedResponse.innerHTML = marked(`Error: ${error.message}`);
+                jsonResponse.textContent = '';
+            } finally {
+                submitButton.textContent = 'Submit to API';
+                submitButton.disabled = false;
             }
+        }
+
+        function displayFormattedResponse(data) {
+            let mdResponse = '';
+
+            // Display content from choices
+            if (data.choices && data.choices.length > 0) {
+                const contents = data.choices.map(choice => choice.message.content).join('\n\n');
+                mdResponse += `### Response Content\n\n${contents}\n\n`;
+            }
+
+            // Calculate and display token usage and cost
+            if (data.usage) {
+                const textTokens = data.usage.prompt_tokens_details.text_tokens || 0;
+                const audioTokens = data.usage.prompt_tokens_details.audio_tokens || 0;
+                const textCost = (textTokens * 2.50) / 1000000;
+                const audioCost = (audioTokens * 100.00) / 1000000;
+                const totalCostDollars = textCost + audioCost;
+                const totalCostCents = totalCostDollars * 100;
+
+                mdResponse += `### Token Usage and Cost\n\n`;
+                mdResponse += `- Text input tokens: ${textTokens}\n`;
+                mdResponse += `- Audio input tokens: ${audioTokens}\n`;
+                mdResponse += `- Total cost: ${totalCostCents.toFixed(4)} cents\n\n`;
+            }
+
+            // Render markdown response
+            formattedResponse.innerHTML = marked(mdResponse);
+
+            // Display full JSON response
+            jsonResponse.textContent = JSON.stringify(data, null, 2);
         }
 
         function getAPIKey() {
