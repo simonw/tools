@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAI Audio</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            text-align: center;
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+        }
+        button {
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+            margin: 0.5rem;
+            cursor: pointer;
+        }
+        #timer {
+            font-size: 1.5rem;
+            margin: 1rem 0;
+        }
+        #audioPlayback, #prompt {
+            margin-top: 1rem;
+            width: 100%;
+        }
+        #prompt {
+            height: 100px;
+            resize: vertical;
+        }
+        #apiResponse {
+            margin-top: 1rem;
+            text-align: left;
+            white-space: pre-wrap;
+            background-color: #f8f8f8;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OpenAI Audio</h1>
+        <button id="recordButton">Start Recording</button>
+        <div id="timer">00:00</div>
+        <audio id="audioPlayback" controls></audio>
+        <textarea id="prompt" placeholder="Enter your prompt here"></textarea>
+        <button id="submitButton">Submit to API</button>
+        <div id="apiResponse"></div>
+    </div>
+
+    <script>
+        let audioContext;
+        let recorder;
+        let audioChunks = [];
+        let startTime;
+        let timerInterval;
+        let audioBlob;
+        let isRecording = false;
+        const recordButton = document.getElementById('recordButton');
+        const timer = document.getElementById('timer');
+        const audioPlayback = document.getElementById('audioPlayback');
+        const promptTextarea = document.getElementById('prompt');
+        const submitButton = document.getElementById('submitButton');
+        const apiResponse = document.getElementById('apiResponse');
+
+        recordButton.addEventListener('click', toggleRecording);
+        submitButton.addEventListener('click', submitToAPI);
+
+        async function toggleRecording() {
+            if (!isRecording) {
+                await startRecording();
+            } else {
+                stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(1024, 1, 1);
+
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+
+                audioChunks = [];
+
+                processor.onaudioprocess = (e) => {
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    audioChunks.push(new Float32Array(inputData));
+                };
+
+                isRecording = true;
+                startTime = Date.now();
+                updateTimer();
+                timerInterval = setInterval(updateTimer, 1000);
+                recordButton.textContent = 'Stop Recording';
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                alert('Error starting recording. Please make sure you have given permission to use the microphone.');
+            }
+        }
+
+        function stopRecording() {
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            clearInterval(timerInterval);
+            recordButton.textContent = 'Start Recording';
+            isRecording = false;
+
+            // Convert to WAV
+            const wavBlob = createWavBlob(audioChunks);
+            audioBlob = wavBlob;
+
+            const audioUrl = URL.createObjectURL(audioBlob);
+            audioPlayback.src = audioUrl;
+        }
+
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const seconds = (elapsed % 60).toString().padStart(2, '0');
+            timer.textContent = `${minutes}:${seconds}`;
+        }
+
+        function createWavBlob(audioChunks) {
+            const sampleRate = 44100;
+            const numChannels = 1;
+            const bitsPerSample = 16;
+            const bytesPerSample = bitsPerSample / 8;
+            const blockAlign = numChannels * bytesPerSample;
+
+            const buffer = mergeAudioBuffers(audioChunks);
+            const dataLength = buffer.length * bytesPerSample;
+            const wavDataLength = 36 + dataLength;
+
+            const headerBuffer = new ArrayBuffer(44);
+            const view = new DataView(headerBuffer);
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, wavDataLength, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * blockAlign, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitsPerSample, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataLength, true);
+
+            const wavBuffer = new Int16Array(headerBuffer.byteLength + dataLength);
+            wavBuffer.set(new Int16Array(headerBuffer));
+            wavBuffer.set(convertToInt16(buffer), headerBuffer.byteLength / 2);
+
+            return new Blob([wavBuffer], { type: 'audio/wav' });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        function mergeAudioBuffers(buffers) {
+            let totalLength = 0;
+            for (let buffer of buffers) {
+                totalLength += buffer.length;
+            }
+            const result = new Float32Array(totalLength);
+            let offset = 0;
+            for (let buffer of buffers) {
+                result.set(buffer, offset);
+                offset += buffer.length;
+            }
+            return result;
+        }
+
+        function convertToInt16(float32Array) {
+            const int16Array = new Int16Array(float32Array.length);
+            for (let i = 0; i < float32Array.length; i++) {
+                const s = Math.max(-1, Math.min(1, float32Array[i]));
+                int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            return int16Array;
+        }
+
+        async function submitToAPI() {
+            if (!audioBlob) {
+                alert('Please record audio first.');
+                return;
+            }
+
+            const apiKey = getAPIKey();
+            if (!apiKey) {
+                alert('API Key is required.');
+                return;
+            }
+
+            const base64Audio = await blobToBase64(audioBlob);
+            const prompt = promptTextarea.value;
+
+            const payload = {
+                model: "gpt-4o-audio-preview",
+                modalities: ["text"],
+                messages: [
+                    {
+                        role: "user",
+                        content: [
+                            {type: "text", text: prompt},
+                            {
+                                type: "input_audio",
+                                input_audio: {
+                                    data: base64Audio,
+                                    format: "wav"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            };
+
+            try {
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                apiResponse.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                console.error('Error:', error);
+                apiResponse.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function getAPIKey() {
+            let apiKey = localStorage.getItem('openai_api_key');
+            if (!apiKey) {
+                apiKey = prompt('Please enter your OpenAI API Key:');
+                if (apiKey) {
+                    localStorage.setItem('openai_api_key', apiKey);
+                }
+            }
+            return apiKey;
+        }
+
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+    </script>
+</body>
+</html>
