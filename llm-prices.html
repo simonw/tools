@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Pricing Calculator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .calculator, .presets, .disclaimer {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        @media (min-width: 768px) {
+            .flex-container {
+                display: flex;
+                gap: 20px;
+            }
+            .calculator {
+                flex: 1;
+            }
+            .presets {
+                flex: 1;
+            }
+        }
+        h1, h2 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9f7ef;
+            border-radius: 4px;
+        }
+        .result p {
+            margin: 5px 0;
+            font-size: 18px;
+            color: #2ecc71;
+        }
+        .preset-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .preset-btn {
+            flex: 0 0 auto;
+            margin-right: 10px;
+            padding: 8px 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .preset-btn:hover {
+            background-color: #2980b9;
+        }
+        .preset-info {
+            flex: 1;
+            font-size: 14px;
+            color: #666;
+        }
+        .disclaimer {
+            font-size: 14px;
+            color: #777;
+            text-align: center;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="flex-container">
+            <div class="calculator">
+                <h1>LLM Pricing Calculator</h1>
+                <div class="input-group">
+                    <label for="inputTokens">Number of Input Tokens:</label>
+                    <input type="number" id="inputTokens" min="0" onkeyup="calculateCost()" onchange="calculateCost()">
+                </div>
+                <div class="input-group">
+                    <label for="outputTokens">Number of Output Tokens:</label>
+                    <input type="number" id="outputTokens" min="0" onkeyup="calculateCost()" onchange="calculateCost()">
+                </div>
+                <div class="input-group">
+                    <label for="inputCost">Cost per Million Input Tokens ($):</label>
+                    <input type="number" id="inputCost" min="0" step="0.000001" onkeyup="calculateCost()" onchange="calculateCost()">
+                </div>
+                <div class="input-group">
+                    <label for="outputCost">Cost per Million Output Tokens ($):</label>
+                    <input type="number" id="outputCost" min="0" step="0.000001" onkeyup="calculateCost()" onchange="calculateCost()">
+                </div>
+                <div class="result">
+                    <p>Total Cost: $<span id="costDollars">0.000000</span></p>
+                    <p>Total Cost: <span id="costCents">0</span> cents</p>
+                </div>
+            </div>
+
+            <div class="presets">
+                <h2>Presets</h2>
+                <div id="presetList"></div>
+            </div>
+        </div>
+
+        <div class="disclaimer">
+            Prices were correct as of 16th October 2024, they may have changed.
+        </div>
+    </div>
+
+    <script>
+        const presets = {
+            'gemini-1.5-flash': { name: 'Gemini 1.5 Flash ≤128k', input: 0.075, output: 0.30 },
+            'gemini-1.5-flash-128k': { name: 'Gemini 1.5 Flash >128k', input: 0.15, output: 0.60 },
+            'gemini-1.5-flash-8b': { name: 'Gemini 1.5 Flash-8B ≤128k', input: 0.0375, output: 0.15 },
+            'gemini-1.5-flash-8b-128k': { name: 'Gemini 1.5 Flash-8B >128k', input: 0.075, output: 0.30 },
+            'gemini-1.5-pro': { name: 'Gemini 1.5 Pro ≤128k', input: 1.25, output: 5.00 },
+            'gemini-1.5-pro-128k': { name: 'Gemini 1.5 Pro >128k', input: 2.50, output: 10.00 },
+            'claude-3.5-sonnet': { name: 'Claude 3.5 Sonnet', input: 3.00, output: 15.00 },
+            'claude-3-opus': { name: 'Claude 3 Opus', input: 15.00, output: 75.00 },
+            'claude-3-haiku': { name: 'Claude 3 Haiku', input: 0.25, output: 1.25 },
+            'gpt-4o': { name: 'GPT-4o', input: 2.50, output: 10.00 },
+            'gpt-4o-mini': { name: 'GPT-4o Mini', input: 0.150, output: 0.600 }
+        };
+
+        function calculateCost() {
+            const inputTokens = parseFloat(document.getElementById('inputTokens').value) || 0;
+            const outputTokens = parseFloat(document.getElementById('outputTokens').value) || 0;
+            const inputCost = parseFloat(document.getElementById('inputCost').value) || 0;
+            const outputCost = parseFloat(document.getElementById('outputCost').value) || 0;
+
+            const totalCost = (inputTokens * inputCost / 1000000) + (outputTokens * outputCost / 1000000);
+            
+            document.getElementById('costDollars').textContent = totalCost.toFixed(6);
+            document.getElementById('costCents').textContent = trimZeros((totalCost * 100).toFixed(4));
+        }
+
+        function trimZeros(num) {
+            return num.replace(/\.?0+$/, '');
+        }
+
+        function setPreset(model) {
+            const preset = presets[model];
+            document.getElementById('inputCost').value = preset.input;
+            document.getElementById('outputCost').value = preset.output;
+            calculateCost();
+        }
+
+        function formatPrice(price) {
+            if (Number.isInteger(price)) {
+                return `$${price}`;
+            } else {
+                return `$${price.toFixed(2).replace(/\.?0+$/, '')}`;
+            }
+        }
+
+        function createPresetButtons() {
+            const presetList = document.getElementById('presetList');
+            for (const [key, preset] of Object.entries(presets)) {
+                const presetItem = document.createElement('div');
+                presetItem.className = 'preset-item';
+                presetItem.innerHTML = `
+                    <button class="preset-btn" onclick="setPreset('${key}')">${preset.name}</button>
+                    <span class="preset-info">Input: ${formatPrice(preset.input)} / Output: ${formatPrice(preset.output)} per 1M tokens</span>
+                `;
+                presetList.appendChild(presetItem);
+            }
+        }
+
+        // Create preset buttons and run initial calculation
+        createPresetButtons();
+        calculateCost();
+    </script>
+</body>
+</html>
