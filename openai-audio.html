@@ -65,6 +65,9 @@
         pre {
             white-space: pre-wrap;
         }
+        #downloadButton {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -73,6 +76,7 @@
         <button id="recordButton">Start Recording</button>
         <div id="timer">00:00</div>
         <audio id="audioPlayback" controls></audio>
+        <button id="downloadButton">Download Audio</button>
         <textarea id="prompt" placeholder="Enter your prompt here"></textarea>
         <button id="submitButton">Submit to API</button>
         <div id="apiResponse">
@@ -98,9 +102,11 @@
         const submitButton = document.getElementById('submitButton');
         const formattedResponse = document.getElementById('formattedResponse');
         const jsonResponse = document.getElementById('jsonResponse');
+        const downloadButton = document.getElementById('downloadButton');
 
         recordButton.addEventListener('click', toggleRecording);
         submitButton.addEventListener('click', submitToAPI);
+        downloadButton.addEventListener('click', downloadAudio);
 
         async function toggleRecording() {
             if (!isRecording) {
@@ -132,6 +138,7 @@
                 updateTimer();
                 timerInterval = setInterval(updateTimer, 1000);
                 recordButton.textContent = 'Stop Recording';
+                downloadButton.style.display = 'none';
             } catch (error) {
                 console.error('Error starting recording:', error);
                 alert('Error starting recording. Please make sure you have given permission to use the microphone.');
@@ -153,6 +160,7 @@
 
             const audioUrl = URL.createObjectURL(audioBlob);
             audioPlayback.src = audioUrl;
+            downloadButton.style.display = 'inline-block';
         }
 
         function updateTimer() {
@@ -335,6 +343,22 @@
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
             });
+        }
+
+        function downloadAudio() {
+            if (audioBlob) {
+                const url = URL.createObjectURL(audioBlob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'recorded_audio.wav';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 100);
+            }
         }
     </script>
 </body>
