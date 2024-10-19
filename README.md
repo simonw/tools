@@ -14,6 +14,7 @@
 - [SVG to JPEG/PNG](https://tools.simonwillison.net/svg-render) - turn an SVG file into a rendered JPEG or PNG ([how I built this](https://simonwillison.net/2024/Oct/6/svg-to-jpg-png/))
 - [Jina Reader](https://tools.simonwillison.net/jina-reader) - convert any URL to copyable Markdown using the [Jina Reader API](https://jina.ai/reader/)
 - [Extract URLs](https://tools.simonwillison.net/extract-urls) - copy a section from a web page to your clipboard, paste it in here and get back a plain text list of all of the linked URLs from that section
+- [EXIF Data Viewer](https://tools.simonwillison.net/exif) - view EXIF data for an image
 
 On [Observable](https://observablehq.com/):
 
