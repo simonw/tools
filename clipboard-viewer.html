@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clipboard Format Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        #paste-area {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 2px dashed #aaa;
+            border-radius: 5px;
+            resize: vertical;
+        }
+        #output {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .format {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .format h2 {
+            color: #0066cc;
+            margin-bottom: 10px;
+        }
+        .format-content {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 10px;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <h1>Clipboard Format Viewer</h1>
+    <textarea id="paste-area" placeholder="Paste here or anywhere on the page"></textarea>
+    <div id="output"></div>
+
+    <script>
+        const pasteArea = document.getElementById('paste-area');
+        const output = document.getElementById('output');
+
+        function handlePaste(event) {
+            event.preventDefault();
+            const clipboardData = event.clipboardData || window.clipboardData;
+            output.innerHTML = '';
+
+            // Get available formats
+            const formats = clipboardData.types;
+            
+            formats.forEach(format => {
+                const formatDiv = document.createElement('div');
+                formatDiv.className = 'format';
+                
+                const formatTitle = document.createElement('h2');
+                formatTitle.textContent = format;
+                formatDiv.appendChild(formatTitle);
+
+                const formatContentWrapper = document.createElement('div');
+                formatContentWrapper.className = 'format-content';
+                
+                const formatContent = document.createElement('pre');
+                let content = clipboardData.getData(format);
+                
+                // Special handling for certain formats
+                if (format === 'text/html') {
+                    const tempElement = document.createElement('div');
+                    tempElement.innerHTML = content;
+                    content = tempElement.innerHTML;
+                } else if (format === 'Files') {
+                    const files = clipboardData.files;
+                    content = Array.from(files).map(file => `${file.name} (${file.type}, ${file.size} bytes)`).join('\n');
+                }
+
+                formatContent.textContent = content;
+                formatContentWrapper.appendChild(formatContent);
+                formatDiv.appendChild(formatContentWrapper);
+
+                output.appendChild(formatDiv);
+            });
+
+            // Additional information about the clipboard event
+            const eventInfo = document.createElement('div');
+            eventInfo.className = 'format';
+            eventInfo.innerHTML = `
+                <h2>Clipboard Event Information</h2>
+                <div class="format-content">
+                    <pre>
+Event type: ${event.type}
+Formats available: ${formats.join(', ')}
+                    </pre>
+                </div>
+            `;
+            output.appendChild(eventInfo);
+        }
+
+        // Listen for paste events on the textarea
+        pasteArea.addEventListener('paste', handlePaste);
+
+        // Listen for paste events on the entire document
+        document.addEventListener('paste', handlePaste);
+    </script>
+</body>
+</html>
