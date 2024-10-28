@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenAI Text-to-Speech</title>
+    <title>Prompt GPT-4o audio</title>
     <style>
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -27,12 +27,23 @@
         }
         textarea {
             width: 100%;
-            min-height: 150px;
             padding: 12px;
             font-size: 16px;
             border: 1px solid #ccc;
             border-radius: 4px;
             resize: vertical;
+            font-family: inherit;
+        }
+        #systemPrompt {
+            min-height: 60px;
+        }
+        #promptInput {
+            min-height: 150px;
+        }
+        #responseJson {
+            min-height: 200px;
+            font-family: monospace;
+            background: #f5f5f5;
         }
         select {
             padding: 8px 12px;
@@ -78,15 +89,31 @@
             color: #666;
             font-style: italic;
         }
+        .json-container {
+            margin-top: 20px;
+        }
+        .copy-button {
+            margin-top: 8px;
+            background: #4CAF50;
+        }
+        .copy-button:hover:not(:disabled) {
+            background: #45a049;
+        }
     </style>
 </head>
-<body><h1>Prompt gpt-4o-audio-preview</h1>
+<body>
+    <h1>Prompt GPT-4o audio</h1>
     <div class="info">
         Enter a prompt below and execute against <code>gpt-4o-audio-preview</code> to hear the results.
     </div>
 
     <div class="input-group">
+        <label for="systemPrompt">System Prompt (optional):</label>
+        <textarea id="systemPrompt" placeholder="Enter system prompt here..." aria-label="System prompt"></textarea>
+        
+        <label for="promptInput">User Prompt:</label>
         <textarea id="promptInput" placeholder="Enter your text here..." aria-label="Input text"></textarea>
+        
         <select id="voiceSelect" aria-label="Voice selection">
             <option value="alloy">Alloy</option>
             <option value="echo">Echo</option>
@@ -105,8 +132,15 @@
         <div id="transcript" class="transcript"></div>
     </div>
 
+    <div id="jsonContainer" class="json-container" style="display: none;">
+        <h3>API Response:</h3>
+        <textarea id="responseJson" readonly></textarea>
+        <button id="copyJsonBtn" class="copy-button">Copy to clipboard</button>
+    </div>
+
     <script>
         const promptInput = document.getElementById('promptInput');
+        const systemPrompt = document.getElementById('systemPrompt');
         const voiceSelect = document.getElementById('voiceSelect');
         const submitBtn = document.getElementById('submitBtn');
         const errorDiv = document.getElementById('error');
@@ -114,11 +148,15 @@
         const audioPlayer = document.getElementById('audioPlayer');
         const downloadBtn = document.getElementById('downloadBtn');
         const transcriptDiv = document.getElementById('transcript');
+        const jsonContainer = document.getElementById('jsonContainer');
+        const responseJson = document.getElementById('responseJson');
+        const copyJsonBtn = document.getElementById('copyJsonBtn');
 
         function showError(message) {
             errorDiv.textContent = message;
             errorDiv.style.display = 'block';
             playerContainer.style.display = 'none';
+            jsonContainer.style.display = 'none';
         }
 
         function clearError() {
@@ -136,6 +174,21 @@
             return apiKey;
         }
 
+        copyJsonBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(responseJson.value);
+                const originalText = copyJsonBtn.textContent;
+                copyJsonBtn.textContent = 'Copied!';
+                copyJsonBtn.disabled = true;
+                setTimeout(() => {
+                    copyJsonBtn.textContent = originalText;
+                    copyJsonBtn.disabled = false;
+                }, 1500);
+            } catch (err) {
+                console.error('Failed to copy text:', err);
+            }
+        });
+
         async function submitToAPI() {
             const apiKey = getAPIKey();
             if (!apiKey) {
@@ -146,7 +199,18 @@
             const voice = voiceSelect.value;
             submitBtn.textContent = 'Processing...';
             submitBtn.disabled = true;
-            const prompt = promptInput.value;
+            
+            const messages = [];
+            if (systemPrompt.value.trim()) {
+                messages.push({
+                    "role": "system",
+                    "content": systemPrompt.value
+                });
+            }
+            messages.push({
+                "role": "user",
+                "content": promptInput.value
+            });
 
             const payload = {
                 "model": "gpt-4o-audio-preview",
@@ -158,12 +222,7 @@
                     "voice": voice,
                     "format": "wav"
                 },
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                "messages": messages
             };
 
             try {
@@ -181,6 +240,10 @@
                 if (!response.ok) {
                     throw new Error(data.error?.message || 'API request failed');
                 }
+
+                // Display raw JSON response
+                responseJson.value = JSON.stringify(data, null, 2);
+                jsonContainer.style.display = 'block';
 
                 // Extract audio data and transcript
                 const audioData = data.choices[0].message.audio.data;
