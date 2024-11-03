@@ -65,6 +65,24 @@
             line-height: 1.6;
             color: #c53030;
         }
+        .body-clock {
+            background: #ebf8ff;
+            border: 2px solid #4299e1;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            font-size: 1.2rem;
+            line-height: 1.6;
+        }
+        .past-change {
+            background: #faf5ff;
+            border: 2px solid #805ad5;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            font-size: 1.2rem;
+            line-height: 1.6;
+        }
         @media (max-width: 480px) {
             .container {
                 padding: 1.5rem;
@@ -72,7 +90,7 @@
             h1 {
                 font-size: 1.5rem;
             }
-            .info-box {
+            .info-box, .body-clock, .past-change {
                 font-size: 1.1rem;
                 padding: 1rem;
             }
@@ -83,7 +101,9 @@
     <div class="container">
         <h1>California Clock Change</h1>
         <div class="subtitle">For Pacific Time (PST/PDT) only</div>
-        <div id="content">Loading...</div>
+        <div id="past-change"></div>
+        <div id="future-change"></div>
+        <div id="body-clock"></div>
     </div>
 
     <script>
@@ -95,31 +115,33 @@
                    timezone === "PST8PDT";
         }
 
-        function getNextCaliforniaChange() {
+        function getClockChanges() {
             const now = new Date();
             const year = now.getFullYear();
             
-            // Second Sunday in March
-            const springForward = new Date(year, 2, 1 + (14 - new Date(year, 2, 1).getDay()));
-            // First Sunday in November
-            const fallBack = new Date(year, 10, 1 + (7 - new Date(year, 10, 1).getDay()));
-            
-            if (now > fallBack) {
-                return {
-                    date: new Date(year + 1, 2, 1 + (14 - new Date(year + 1, 2, 1).getDay())),
-                    isSpringForward: true
-                };
-            } else if (now > springForward) {
-                return {
-                    date: fallBack,
-                    isSpringForward: false
-                };
-            } else {
-                return {
-                    date: springForward,
-                    isSpringForward: true
-                };
+            // Get changes for current and adjacent years to handle year boundaries
+            function getYearChanges(y) {
+                // Second Sunday in March
+                const springForward = new Date(y, 2, 1 + (14 - new Date(y, 2, 1).getDay()));
+                // First Sunday in November
+                const fallBack = new Date(y, 10, 1 + (7 - new Date(y, 10, 1).getDay()));
+                return [
+                    { date: springForward, isSpringForward: true },
+                    { date: fallBack, isSpringForward: false }
+                ];
             }
+
+            const changes = [
+                ...getYearChanges(year - 1),
+                ...getYearChanges(year),
+                ...getYearChanges(year + 1)
+            ].sort((a, b) => a.date - b.date);
+
+            // Find the most recent past change and next future change
+            const pastChange = changes.filter(change => change.date < now).pop();
+            const futureChange = changes.find(change => change.date > now);
+
+            return { pastChange, futureChange };
         }
 
         function formatDate(date) {
@@ -128,41 +150,103 @@
             return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
         }
 
-        function updateInfo() {
-            const content = document.getElementById('content');
+        function formatTime(date) {
+            return date.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true 
+            });
+        }
+
+        function getDaysSince(date) {
+            const now = new Date();
+            const diffTime = Math.abs(now - date);
+            return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        function updateBodyClockInfo(pastChange) {
+            const bodyClockDiv = document.getElementById('body-clock');
+            const daysSince = getDaysSince(pastChange.date);
             
+            if (daysSince <= 7) {  // Show message for a week after the change
+                const now = new Date();
+                const dogClock = new Date(now);
+                
+                if (pastChange.isSpringForward) {
+                    dogClock.setHours(now.getHours() - 1);
+                } else {
+                    dogClock.setHours(now.getHours() + 1);
+                }
+                
+                bodyClockDiv.className = 'body-clock';
+                bodyClockDiv.innerHTML = `
+                    <p>🐺 Is your dog confused about meal or walk times?</p>
+                    <p>While your clock says it's <span class="highlight">${formatTime(now)}</span>, 
+                    your dog's internal clock thinks it's <span class="highlight">${formatTime(dogClock)}</span>!</p>
+                    <p>Dogs have very reliable internal clocks and don't automatically adjust to Daylight Saving Time. 
+                    Don't worry - your pup's schedule should adjust naturally over the next few days.</p>
+                `;
+            } else {
+                bodyClockDiv.innerHTML = '';
+            }
+        }
+
+        function updateInfo() {
             if (!isCaliforniaTimezone()) {
-                content.className = 'wrong-timezone';
-                content.innerHTML = 'You appear to be outside of California/Pacific Time.<br>This tool only works for Pacific Time (PST/PDT).';
+                document.getElementById('future-change').className = 'wrong-timezone';
+                document.getElementById('future-change').innerHTML = 'You appear to be outside of California/Pacific Time.<br>This tool only works for Pacific Time (PST/PDT).';
                 return;
             }
 
-            const change = getNextCaliforniaChange();
-            const saturday = new Date(change.date);
-            saturday.setDate(change.date.getDate() - 1);
+            const { pastChange, futureChange } = getClockChanges();
+            
+            // Show past change
+            const pastChangeDiv = document.getElementById('past-change');
+            const pastSaturday = new Date(pastChange.date);
+            pastSaturday.setDate(pastChange.date.getDate() - 1);
+            
+            pastChangeDiv.className = 'past-change';
+            pastChangeDiv.innerHTML = `
+                <div>Most recent change:</div>
+                On <span class="highlight">Sunday, ${formatDate(pastChange.date)}</span>, 
+                clocks ${pastChange.isSpringForward ? 'sprang forward' : 'fell back'} 
+                (${pastChange.isSpringForward ? 'lost' : 'gained'} one hour).
+            `;
+
+            // Show future change
+            const futureChangeDiv = document.getElementById('future-change');
+            const futureSaturday = new Date(futureChange.date);
+            futureSaturday.setDate(futureChange.date.getDate() - 1);
 
             const now = new Date();
-            const isTonight = now.getDate() === saturday.getDate() && 
-                            now.getMonth() === saturday.getMonth() && 
-                            now.getFullYear() === saturday.getFullYear();
+            const isTonight = now.getDate() === futureSaturday.getDate() && 
+                            now.getMonth() === futureSaturday.getMonth() && 
+                            now.getFullYear() === futureSaturday.getFullYear();
 
-            const sleepEffect = change.isSpringForward ? 'lose an hour of sleep' : 'get an extra hour of sleep';
-            const clockEffect = change.isSpringForward ? 
+            const sleepEffect = futureChange.isSpringForward ? 'lose an hour of sleep' : 'get an extra hour of sleep';
+            const clockEffect = futureChange.isSpringForward ? 
                 'clocks spring forward from 2:00 AM to 3:00 AM' : 
                 'clocks fall back from 2:00 AM to 1:00 AM';
 
             const tonightBadge = isTonight ? '<span class="tonight">That\'s tonight!</span>' : '';
 
-            content.className = 'info-box';
-            content.innerHTML = `
-                When you go to bed on <span class="highlight">Saturday, ${formatDate(saturday)}</span>${tonightBadge}, 
+            futureChangeDiv.className = 'info-box';
+            futureChangeDiv.innerHTML = `
+                <div>Next change:</div>
+                When you go to bed on <span class="highlight">Saturday, ${formatDate(futureSaturday)}</span>${tonightBadge}, 
                 you will ${sleepEffect}!<br><br>
                 The ${clockEffect} on 
-                <span class="highlight">Sunday, ${formatDate(change.date)}</span>.
+                <span class="highlight">Sunday, ${formatDate(futureChange.date)}</span>.
             `;
+
+            // Update body clock info based on past change
+            updateBodyClockInfo(pastChange);
         }
 
         updateInfo();
+        
+        // Update the times every minute
+        setInterval(updateInfo, 60000);
     </script>
 </body>
 </html>
