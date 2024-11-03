@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>California Clock Change - PST/PDT Only</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f4f8;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 90%;
+            text-align: center;
+        }
+        h1 {
+            color: #1a365d;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: #4a5568;
+            margin-bottom: 1.5rem;
+        }
+        .info-box {
+            background: #e6fffa;
+            border: 2px solid #38b2ac;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            font-size: 1.2rem;
+            line-height: 1.6;
+        }
+        .highlight {
+            color: #2b6cb0;
+            font-weight: bold;
+        }
+        .tonight {
+            display: inline-block;
+            background: #f6e05e;
+            color: #744210;
+            padding: 0.2em 0.5em;
+            border-radius: 4px;
+            margin-left: 0.5em;
+            font-weight: bold;
+        }
+        .wrong-timezone {
+            background: #fed7d7;
+            border: 2px solid #f56565;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            font-size: 1.2rem;
+            line-height: 1.6;
+            color: #c53030;
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 1.5rem;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            .info-box {
+                font-size: 1.1rem;
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>California Clock Change</h1>
+        <div class="subtitle">For Pacific Time (PST/PDT) only</div>
+        <div id="content">Loading...</div>
+    </div>
+
+    <script>
+        function isCaliforniaTimezone() {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            return timezone === "America/Los_Angeles" || 
+                   timezone === "America/Pacific" || 
+                   timezone === "US/Pacific" ||
+                   timezone === "PST8PDT";
+        }
+
+        function getNextCaliforniaChange() {
+            const now = new Date();
+            const year = now.getFullYear();
+            
+            // Second Sunday in March
+            const springForward = new Date(year, 2, 1 + (14 - new Date(year, 2, 1).getDay()));
+            // First Sunday in November
+            const fallBack = new Date(year, 10, 1 + (7 - new Date(year, 10, 1).getDay()));
+            
+            if (now > fallBack) {
+                return {
+                    date: new Date(year + 1, 2, 1 + (14 - new Date(year + 1, 2, 1).getDay())),
+                    isSpringForward: true
+                };
+            } else if (now > springForward) {
+                return {
+                    date: fallBack,
+                    isSpringForward: false
+                };
+            } else {
+                return {
+                    date: springForward,
+                    isSpringForward: true
+                };
+            }
+        }
+
+        function formatDate(date) {
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+            return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+        }
+
+        function updateInfo() {
+            const content = document.getElementById('content');
+            
+            if (!isCaliforniaTimezone()) {
+                content.className = 'wrong-timezone';
+                content.innerHTML = 'You appear to be outside of California/Pacific Time.<br>This tool only works for Pacific Time (PST/PDT).';
+                return;
+            }
+
+            const change = getNextCaliforniaChange();
+            const saturday = new Date(change.date);
+            saturday.setDate(change.date.getDate() - 1);
+
+            const now = new Date();
+            const isTonight = now.getDate() === saturday.getDate() && 
+                            now.getMonth() === saturday.getMonth() && 
+                            now.getFullYear() === saturday.getFullYear();
+
+            const sleepEffect = change.isSpringForward ? 'lose an hour of sleep' : 'get an extra hour of sleep';
+            const clockEffect = change.isSpringForward ? 
+                'clocks spring forward from 2:00 AM to 3:00 AM' : 
+                'clocks fall back from 2:00 AM to 1:00 AM';
+
+            const tonightBadge = isTonight ? '<span class="tonight">That\'s tonight!</span>' : '';
+
+            content.className = 'info-box';
+            content.innerHTML = `
+                When you go to bed on <span class="highlight">Saturday, ${formatDate(saturday)}</span>${tonightBadge}, 
+                you will ${sleepEffect}!<br><br>
+                The ${clockEffect} on 
+                <span class="highlight">Sunday, ${formatDate(change.date)}</span>.
+            `;
+        }
+
+        updateInfo();
+    </script>
+</body>
+</html>
