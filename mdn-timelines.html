@@ -212,12 +212,23 @@ async function fetchAllFiles() {
 }
 
 function updateUrlHash(filePath) {
-  history.pushState(null, '', `#${filePath}`);
+  if (filePath) {
+    history.pushState({ filePath }, '', `#${filePath}`);
+  } else {
+    history.pushState({ filePath: null }, '', window.location.pathname);
+  }
+}
+
+function clearDisplay() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('timeline').innerHTML = '';
+  document.getElementById('api-details').innerHTML = '';
+  document.getElementById('suggestions').innerHTML = '';
 }
 
 function getHashPath() {
   const hash = window.location.hash.slice(1);
-  return hash ? hash : null;
+  return hash ? decodeURIComponent(hash) : null;
 }
 
 function setupAutocomplete() {
@@ -469,11 +480,13 @@ async function init() {
 }
 
 // Handle back/forward navigation
-window.addEventListener('popstate', () => {
+window.addEventListener('popstate', (event) => {
   const hashPath = getHashPath();
   if (hashPath) {
     document.getElementById('search-input').value = hashPath;
     fetchBrowserCompatData(hashPath);
+  } else {
+    clearDisplay();
   }
 });
 
