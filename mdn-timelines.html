@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+* {
+  box-sizing: border-box;
+}
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  margin: 2rem 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+#autocomplete-container {
+  position: relative;
+  width: 100%;
+}
+#search-input {
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+}
+#suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  background: white;
+  z-index: 10;
+  margin: 0 15px;
+}
+.suggestion-item {
+  padding: 10px;
+  cursor: pointer;
+}
+.suggestion-item:hover, .suggestion-item.selected {
+  background-color: #f0f0f0;
+}
+#timeline {
+  position: relative;
+  border-left: 2px solid #ccc;
+  margin-left: 20px;
+  padding-left: 20px;
+  margin-top: 2em;
+}
+.event {
+  margin-bottom: 20px;
+  position: relative;
+}
+.event::before {
+  content: '';
+  position: absolute;
+  left: -26px;
+  top: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #3b82f6;
+}
+.event-date {
+  font-size: 0.875rem;
+  color: #666;
+}
+.event-browser {
+  font-weight: 600;
+  color: #1f2937;
+}
+.event-version {
+  color: #059669;
+  margin-left: 4px;
+}
+.error {
+  color: #dc2626;
+  margin-top: 8px;
+  display: none;
+  padding: 8px;
+  background: #fef2f2;
+  border-radius: 4px;
+}
+.not-supported {
+  margin-top: 20px;
+  padding: 12px;
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+@media (max-width: 600px) {
+  body {
+    margin: 1rem;
+    font-size: 14px;
+  }
+  #timeline {
+    margin-left: 10px;
+    padding-left: 10px;
+  }
+  .event::before {
+    left: -16px;
+  }
+}
+</style>
+</head>
+<body>
+<body>
+<h1>MDN Browser Support Timelines</h1>
+
+<div id="autocomplete-container">
+  <input type="text" id="search-input" placeholder="Search files...">
+  <div id="suggestions"></div>
+</div>
+
+<div id="timeline-section">
+  <div id="timeline"></div>
+</div>
+
+<script>
+let allFiles = [];
+let selectedFiles = [];
+
+async function fetchAllFiles(repo, path = 'api', page = 1, allFiles = []) {
+  const token = ''; // Optional: Add GitHub Personal Access Token for higher rate limits
+  const headers = token ? { 'Authorization': `token ${token}` } : {};
+  
+  try {
+    const url = `https://api.github.com/repos/${repo}/contents/${path}?page=${page}&per_page=100`;
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const files = await response.json();
+    
+    // Add files to our collection
+    allFiles.push(...files.map(file => file.path));
+    
+    // If we got 100 files, there might be more pages
+    if (files.length === 100) {
+      return fetchAllFiles(repo, path, page + 1, allFiles);
+    }
+    
+    return allFiles;
+  } catch (error) {
+    console.error('Error fetching files:', error);
+    return allFiles;
+  }
+}
+
+function setupAutocomplete() {
+  const searchInput = document.getElementById('search-input');
+  const suggestionsContainer = document.getElementById('suggestions');
+
+  searchInput.addEventListener('input', () => {
+    const searchTerm = searchInput.value.toLowerCase();
+    const filteredFiles = allFiles.filter(file => 
+      file.toLowerCase().includes(searchTerm)
+    ).slice(0, 20); // Limit to 20 suggestions
+
+    // Clear previous suggestions
+    suggestionsContainer.innerHTML = '';
+
+    // Create suggestion items
+    filteredFiles.forEach((file, index) => {
+      const suggestionItem = document.createElement('div');
+      suggestionItem.textContent = file;
+      suggestionItem.className = 'suggestion-item';
+      suggestionItem.setAttribute('data-index', index);
+
+      suggestionItem.addEventListener('click', () => {
+        searchInput.value = file;
+        suggestionsContainer.innerHTML = '';
+        fetchBrowserCompatData(file);
+      });
+
+      suggestionsContainer.appendChild(suggestionItem);
+    });
+  });
+
+  // Keyboard navigation
+  searchInput.addEventListener('keydown', (e) => {
+    const suggestions = suggestionsContainer.children;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (suggestions.length > 0) {
+        const currentSelected = suggestionsContainer.querySelector('.selected');
+        const nextIndex = currentSelected 
+          ? Math.min(parseInt(currentSelected.getAttribute('data-index')) + 1, suggestions.length - 1)
+          : 0;
+        
+        if (currentSelected) currentSelected.classList.remove('selected');
+        suggestions[nextIndex].classList.add('selected');
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (suggestions.length > 0) {
+        const currentSelected = suggestionsContainer.querySelector('.selected');
+        const prevIndex = currentSelected
+          ? Math.max(parseInt(currentSelected.getAttribute('data-index')) - 1, 0)
+          : suggestions.length - 1;
+        
+        if (currentSelected) currentSelected.classList.remove('selected');
+        suggestions[prevIndex].classList.add('selected');
+      }
+    } else if (e.key === 'Enter') {
+      const selectedItem = suggestionsContainer.querySelector('.selected') || 
+                           suggestionsContainer.children[0];
+      
+      if (selectedItem) {
+        searchInput.value = selectedItem.textContent;
+        suggestionsContainer.innerHTML = '';
+        fetchBrowserCompatData(selectedItem.textContent);
+      }
+    }
+  });
+}
+
+async function fetchBrowserCompatData(filePath) {
+  try {
+    const url = `https://bcd.developer.mozilla.org/bcd/api/v0/current/${filePath.replace('/', '.')}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    renderTimeline(extractSupportData(data));
+  } catch (error) {
+    console.error('Error fetching browser compat data:', error);
+    renderErrorMessage(error.message);
+  }
+}
+
+function extractSupportData(data) {
+  const browsers = data.browsers;
+  const support = data.data.__compat.support;
+        
+  const supportData = [];
+  const notSupported = [];
+        
+  for (const [browserName, supportInfo] of Object.entries(support)) {
+    if (!supportInfo[0]) continue;
+        
+    if (supportInfo[0].version_added === false) {
+      notSupported.push(browsers[browserName]?.name || browserName);
+      continue;
+    }
+        
+    if (!supportInfo[0].version_added || !supportInfo[0].release_date) continue;
+        
+    supportData.push({
+      browser: browsers[browserName]?.name || browserName,
+      version: supportInfo[0].version_added,
+      date: supportInfo[0].release_date
+    });
+  }
+        
+  return {
+    supported: supportData.sort((a, b) => new Date(a.date) - new Date(b.date)),
+    notSupported
+  };
+}
+
+function formatDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
+function renderTimeline(data) {
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = '';
+        
+  // Add supported browsers timeline
+  data.supported.forEach(item => {
+    const event = document.createElement('div');
+    event.className = 'event';
+    event.innerHTML = `
+      <div class="event-date">${formatDate(item.date)}</div>
+      <div>
+        <span class="event-browser">${item.browser}</span>
+        <span class="event-version">v${item.version}</span>
+      </div>
+    `;
+    timeline.appendChild(event);
+  });
+   
+  // Add not supported browsers section if any
+  if (data.notSupported.length > 0) {
+    const notSupportedDiv = document.createElement('div');
+    notSupportedDiv.className = 'not-supported';
+    notSupportedDiv.innerHTML = `
+      <strong>Not Supported:</strong> ${data.notSupported.join(', ')}
+    `;
+    timeline.appendChild(notSupportedDiv);
+  }
+}
+
+function renderErrorMessage(message) {
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = `
+    <div class="error">
+      Error: ${message}
+    </div>
+  `;
+}
+
+// Initialize the app
+async function init() {
+  allFiles = await fetchAllFiles('mdn/browser-compat-data', 'api');
+  setupAutocomplete();
+}
+
+init();
+</script>
+</body>
+</body>
+</html>
