@@ -12,6 +12,7 @@ body {
   margin: 2rem 1rem;
   max-width: 800px;
   margin: 0 auto;
+  line-height: 1.2;
 }
 #autocomplete-container {
   position: relative;
@@ -98,6 +99,8 @@ body {
   margin-top: 0;
   color: #1f2937;
   font-size: 1.5rem;
+  word-break: break-word;
+  line-height: 1.4;
 }
 .api-info {
   margin: 1rem 0;
@@ -161,40 +164,60 @@ body {
 let allFiles = [];
 let selectedFiles = [];
 
-async function fetchAllFiles(repo, path = 'api', page = 1, allFiles = []) {
-  const token = '';
-  const headers = token ? { 'Authorization': `token ${token}` } : {};
-  
+async function fetchAllFiles() {
   try {
-    const url = `https://api.github.com/repos/${repo}/contents/${path}?page=${page}&per_page=100`;
-    const response = await fetch(url, { headers });
+    // First API call to get repository contents
+    const contentsResponse = await fetch('https://api.github.com/repos/mdn/browser-compat-data/contents');
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (!contentsResponse.ok) {
+      throw new Error(`HTTP error! status: ${contentsResponse.status}`);
     }
     
-    const files = await response.json();
-    allFiles.push(...files.map(file => file.path));
+    const contentsData = await contentsResponse.json();
     
-    if (files.length === 100) {
-      return fetchAllFiles(repo, path, page + 1, allFiles);
+    // Find the object with name: "api"
+    const apiObject = contentsData.find(item => item.name === "api");
+    
+    if (!apiObject) {
+      throw new Error('Could not find object with name "api"');
     }
     
-    return allFiles;
+    // Extract the git URL from _links
+    const gitUrl = apiObject._links?.git;
+    
+    if (!gitUrl) {
+      throw new Error('Git URL not found in _links');
+    }
+    
+    // Second API call to fetch the git data
+    const gitResponse = await fetch(gitUrl);
+    
+    if (!gitResponse.ok) {
+      throw new Error(`HTTP error! status: ${gitResponse.status}`);
+    }
+    
+    const gitData = await gitResponse.json();
+    
+    // Return the tree array from the git data
+    if (!gitData.tree) {
+      throw new Error('Tree data not found in git response');
+    }
+    
+    return gitData.tree;
+    
   } catch (error) {
-    console.error('Error fetching files:', error);
-    return allFiles;
+    console.error('Error fetching GitHub data:', error);
+    throw error;
   }
 }
 
 function updateUrlHash(filePath) {
-  const cleanPath = filePath.replace(/^api\//, '');
-  history.pushState(null, '', `#${cleanPath}`);
+  history.pushState(null, '', `#${filePath}`);
 }
 
 function getHashPath() {
   const hash = window.location.hash.slice(1);
-  return hash ? `api/${hash}` : null;
+  return hash ? hash : null;
 }
 
 function setupAutocomplete() {
@@ -203,9 +226,16 @@ function setupAutocomplete() {
 
   searchInput.addEventListener('input', () => {
     const searchTerm = searchInput.value.toLowerCase();
+    const regexPattern = searchTerm
+      .split(' ')
+      .filter(term => term.length > 0)  // Remove empty strings from multiple spaces
+      .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))  // Escape regex special chars
+      .join('.*');
+    const searchRegex = new RegExp(regexPattern);
+
     const filteredFiles = allFiles.filter(file => 
-      file.toLowerCase().includes(searchTerm)
-    ).slice(0, 20);
+      searchRegex.test(file.toLowerCase())
+      ).slice(0, 20);
 
     suggestionsContainer.innerHTML = '';
 
@@ -337,7 +367,7 @@ function createApiSection(compat, title) {
 async function fetchBrowserCompatData(filePath) {
   try {
     updateUrlHash(filePath);
-    const url = `https://bcd.developer.mozilla.org/bcd/api/v0/current/${filePath.replace('/', '.')}`;
+    const url = `https://bcd.developer.mozilla.org/bcd/api/v0/current/api.${filePath}.json`;
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -428,7 +458,7 @@ function renderErrorMessage(message) {
 
 // Initialize the app
 async function init() {
-  allFiles = await fetchAllFiles('mdn/browser-compat-data', 'api');
+  allFiles = (await fetchAllFiles('mdn/browser-compat-data', 'api')).map(file => file.path.split(".json")[0]);
   setupAutocomplete();
 
   // Check for hash in URL and load that file if present
