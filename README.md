@@ -17,6 +17,7 @@ Prompts used are linked to from [the commit messages](https://github.com/simonw/
 - [Jina Reader](https://tools.simonwillison.net/jina-reader) - convert any URL to copyable Markdown using the [Jina Reader API](https://jina.ai/reader/)
 - [Extract URLs](https://tools.simonwillison.net/extract-urls) - copy a section from a web page to your clipboard, paste it in here and get back a plain text list of all of the linked URLs from that section
 - [EXIF Data Viewer](https://tools.simonwillison.net/exif) - view EXIF data for an image
+- [MDN Browser Support Timelines](https://tools.simonwillison.net/mdn-timelines) - search for web features and view the browser support timeline pulled from [MDN](https://developer.mozilla.org/)
 
 
 ## LLM playgrounds and debuggers
