@@ -41,7 +41,7 @@ body {
 .suggestion-item:hover, .suggestion-item.selected {
   background-color: #f0f0f0;
 }
-#timeline {
+#timeline, .timeline {
   position: relative;
   border-left: 2px solid #ccc;
   margin-left: 20px;
@@ -88,6 +88,46 @@ body {
   background: #f3f4f6;
   border-radius: 4px;
 }
+.api-section {
+  margin-top: 2rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.api-section h2 {
+  margin-top: 0;
+  color: #1f2937;
+  font-size: 1.5rem;
+}
+.api-info {
+  margin: 1rem 0;
+}
+.api-info-item {
+  margin: 0.5rem 0;
+}
+.api-info-label {
+  font-weight: 600;
+  color: #4b5563;
+}
+.status-indicator {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  margin-right: 0.5rem;
+}
+.status-experimental {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+.status-deprecated {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+.status-standard {
+  background-color: #d1fae5;
+  color: #065f46;
+}
 @media (max-width: 600px) {
   body {
     margin: 1rem;
@@ -104,7 +144,6 @@ body {
 </style>
 </head>
 <body>
-<body>
 <h1>MDN Browser Support Timelines</h1>
 
 <div id="autocomplete-container">
@@ -116,12 +155,14 @@ body {
   <div id="timeline"></div>
 </div>
 
+<div id="api-details"></div>
+
 <script>
 let allFiles = [];
 let selectedFiles = [];
 
 async function fetchAllFiles(repo, path = 'api', page = 1, allFiles = []) {
-  const token = ''; // Optional: Add GitHub Personal Access Token for higher rate limits
+  const token = '';
   const headers = token ? { 'Authorization': `token ${token}` } : {};
   
   try {
@@ -133,11 +174,8 @@ async function fetchAllFiles(repo, path = 'api', page = 1, allFiles = []) {
     }
     
     const files = await response.json();
-    
-    // Add files to our collection
     allFiles.push(...files.map(file => file.path));
     
-    // If we got 100 files, there might be more pages
     if (files.length === 100) {
       return fetchAllFiles(repo, path, page + 1, allFiles);
     }
@@ -149,6 +187,16 @@ async function fetchAllFiles(repo, path = 'api', page = 1, allFiles = []) {
   }
 }
 
+function updateUrlHash(filePath) {
+  const cleanPath = filePath.replace(/^api\//, '');
+  history.pushState(null, '', `#${cleanPath}`);
+}
+
+function getHashPath() {
+  const hash = window.location.hash.slice(1);
+  return hash ? `api/${hash}` : null;
+}
+
 function setupAutocomplete() {
   const searchInput = document.getElementById('search-input');
   const suggestionsContainer = document.getElementById('suggestions');
@@ -157,12 +205,10 @@ function setupAutocomplete() {
     const searchTerm = searchInput.value.toLowerCase();
     const filteredFiles = allFiles.filter(file => 
       file.toLowerCase().includes(searchTerm)
-    ).slice(0, 20); // Limit to 20 suggestions
+    ).slice(0, 20);
 
-    // Clear previous suggestions
     suggestionsContainer.innerHTML = '';
 
-    // Create suggestion items
     filteredFiles.forEach((file, index) => {
       const suggestionItem = document.createElement('div');
       suggestionItem.textContent = file;
@@ -179,47 +225,118 @@ function setupAutocomplete() {
     });
   });
 
-  // Keyboard navigation
-  searchInput.addEventListener('keydown', (e) => {
-    const suggestions = suggestionsContainer.children;
-    
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (suggestions.length > 0) {
-        const currentSelected = suggestionsContainer.querySelector('.selected');
-        const nextIndex = currentSelected 
-          ? Math.min(parseInt(currentSelected.getAttribute('data-index')) + 1, suggestions.length - 1)
-          : 0;
-        
-        if (currentSelected) currentSelected.classList.remove('selected');
-        suggestions[nextIndex].classList.add('selected');
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (suggestions.length > 0) {
-        const currentSelected = suggestionsContainer.querySelector('.selected');
-        const prevIndex = currentSelected
-          ? Math.max(parseInt(currentSelected.getAttribute('data-index')) - 1, 0)
-          : suggestions.length - 1;
-        
-        if (currentSelected) currentSelected.classList.remove('selected');
-        suggestions[prevIndex].classList.add('selected');
-      }
-    } else if (e.key === 'Enter') {
-      const selectedItem = suggestionsContainer.querySelector('.selected') || 
-                           suggestionsContainer.children[0];
+  searchInput.addEventListener('keydown', handleKeyboardNavigation);
+}
+
+function handleKeyboardNavigation(e) {
+  const suggestionsContainer = document.getElementById('suggestions');
+  const suggestions = suggestionsContainer.children;
+  
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (suggestions.length > 0) {
+      const currentSelected = suggestionsContainer.querySelector('.selected');
+      const nextIndex = currentSelected 
+        ? Math.min(parseInt(currentSelected.getAttribute('data-index')) + (e.key === 'ArrowDown' ? 1 : -1), suggestions.length - 1)
+        : 0;
       
-      if (selectedItem) {
-        searchInput.value = selectedItem.textContent;
-        suggestionsContainer.innerHTML = '';
-        fetchBrowserCompatData(selectedItem.textContent);
-      }
+      if (currentSelected) currentSelected.classList.remove('selected');
+      suggestions[nextIndex].classList.add('selected');
+    }
+  } else if (e.key === 'Enter') {
+    const selectedItem = suggestionsContainer.querySelector('.selected') || 
+                         suggestionsContainer.children[0];
+    
+    if (selectedItem) {
+      e.preventDefault();
+      const searchInput = document.getElementById('search-input');
+      searchInput.value = selectedItem.textContent;
+      suggestionsContainer.innerHTML = '';
+      fetchBrowserCompatData(selectedItem.textContent);
+    }
+  }
+}
+
+function renderApiSection(data) {
+  const apiDetails = document.getElementById('api-details');
+  apiDetails.innerHTML = '';
+
+  // Render main API section
+  const mainSection = createApiSection(data.data.__compat, data.query);
+  apiDetails.appendChild(mainSection);
+
+  // Render sub-features
+  Object.entries(data.data).forEach(([key, value]) => {
+    if (key !== '__compat' && value.__compat) {
+      const subSection = createApiSection(value.__compat, `${data.query}.${key}`);
+      apiDetails.appendChild(subSection);
     }
   });
 }
 
+function createApiSection(compat, title) {
+  const section = document.createElement('section');
+  section.className = 'api-section';
+
+  const heading = document.createElement('h2');
+  heading.textContent = title;
+  section.appendChild(heading);
+
+  const info = document.createElement('div');
+  info.className = 'api-info';
+
+  // Add MDN link if available
+  if (compat.mdn_url) {
+    const mdnLink = document.createElement('div');
+    mdnLink.className = 'api-info-item';
+    const mdnUrl = compat.mdn_url.replace('/en-US/docs/Web/API/', 'https://developer.mozilla.org/en-US/docs/Web/API/');
+    mdnLink.innerHTML = `<span class="api-info-label">MDN Documentation:</span> <a href="${mdnUrl}" target="_blank">${mdnUrl}</a>`;
+    info.appendChild(mdnLink);
+  }
+
+  // Add specification link if available
+  if (compat.spec_url) {
+    const specLink = document.createElement('div');
+    specLink.className = 'api-info-item';
+    specLink.innerHTML = `<span class="api-info-label">Specification:</span> <a href="${compat.spec_url}" target="_blank">${compat.spec_url}</a>`;
+    info.appendChild(specLink);
+  }
+
+  // Add status indicators
+  if (compat.status) {
+    const statusDiv = document.createElement('div');
+    statusDiv.className = 'api-info-item';
+    
+    Object.entries(compat.status).forEach(([key, value]) => {
+      if (value) {
+        const status = document.createElement('span');
+        status.className = `status-indicator status-${key}`;
+        status.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+        statusDiv.appendChild(status);
+      }
+    });
+    
+    info.appendChild(statusDiv);
+  }
+
+  section.appendChild(info);
+
+  // Add timeline for this section
+  const timelineDiv = document.createElement('div');
+  timelineDiv.className = 'timeline';
+  console.log({compat});
+  const supportData = extractSupportData({ 
+    browsers: compat.support
+  });
+  renderTimeline(supportData, timelineDiv);
+  section.appendChild(timelineDiv);
+
+  return section;
+}
+
 async function fetchBrowserCompatData(filePath) {
   try {
+    updateUrlHash(filePath);
     const url = `https://bcd.developer.mozilla.org/bcd/api/v0/current/${filePath.replace('/', '.')}`;
     const response = await fetch(url);
     
@@ -228,7 +345,9 @@ async function fetchBrowserCompatData(filePath) {
     }
     
     const data = await response.json();
-    renderTimeline(extractSupportData(data));
+    const timelineData = extractSupportData(data);
+    renderTimeline(timelineData);
+    renderApiSection(data);
   } catch (error) {
     console.error('Error fetching browser compat data:', error);
     renderErrorMessage(error.message);
@@ -237,12 +356,11 @@ async function fetchBrowserCompatData(filePath) {
 
 function extractSupportData(data) {
   const browsers = data.browsers;
-  const support = data.data.__compat.support;
         
   const supportData = [];
   const notSupported = [];
         
-  for (const [browserName, supportInfo] of Object.entries(support)) {
+  for (const [browserName, supportInfo] of Object.entries(browsers)) {
     if (!supportInfo[0]) continue;
         
     if (supportInfo[0].version_added === false) {
@@ -273,11 +391,9 @@ function formatDate(dateStr) {
   });
 }
 
-function renderTimeline(data) {
-  const timeline = document.getElementById('timeline');
-  timeline.innerHTML = '';
+function renderTimeline(data, container = document.getElementById('timeline')) {
+  container.innerHTML = '';
         
-  // Add supported browsers timeline
   data.supported.forEach(item => {
     const event = document.createElement('div');
     event.className = 'event';
@@ -288,24 +404,23 @@ function renderTimeline(data) {
         <span class="event-version">v${item.version}</span>
       </div>
     `;
-    timeline.appendChild(event);
+    container.appendChild(event);
   });
    
-  // Add not supported browsers section if any
   if (data.notSupported.length > 0) {
     const notSupportedDiv = document.createElement('div');
     notSupportedDiv.className = 'not-supported';
     notSupportedDiv.innerHTML = `
       <strong>Not Supported:</strong> ${data.notSupported.join(', ')}
     `;
-    timeline.appendChild(notSupportedDiv);
+    container.appendChild(notSupportedDiv);
   }
 }
 
 function renderErrorMessage(message) {
   const timeline = document.getElementById('timeline');
   timeline.innerHTML = `
-    <div class="error">
+    <div class="error" style="display: block;">
       Error: ${message}
     </div>
   `;
@@ -315,10 +430,25 @@ function renderErrorMessage(message) {
 async function init() {
   allFiles = await fetchAllFiles('mdn/browser-compat-data', 'api');
   setupAutocomplete();
+
+  // Check for hash in URL and load that file if present
+  const hashPath = getHashPath();
+  if (hashPath) {
+    document.getElementById('search-input').value = hashPath;
+    fetchBrowserCompatData(hashPath);
+  }
 }
+
+// Handle back/forward navigation
+window.addEventListener('popstate', () => {
+  const hashPath = getHashPath();
+  if (hashPath) {
+    document.getElementById('search-input').value = hashPath;
+    fetchBrowserCompatData(hashPath);
+  }
+});
 
 init();
 </script>
-</body>
 </body>
 </html>
