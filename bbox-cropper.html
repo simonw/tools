@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BBox Tool - CropperJS Version</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        
+        .image-container {
+            position: relative;
+            display: inline-block;
+            margin: 20px 0;
+            border: 2px dashed #ccc;
+            min-width: 320px;
+            min-height: 240px;
+            cursor: crosshair;
+        }
+        
+        .image-container.dragover {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+        
+        #targetImage {
+            max-width: 100%;
+            display: block;
+        }
+        
+        .output {
+            font-family: monospace;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        
+        .instructions {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            line-height: 1.5;
+        }
+
+        /* Hide default aspect ratio boxes that CropperJS shows */
+        .cropper-view-box {
+            outline: none !important;
+        }
+        
+        /* Customize the crop box appearance */
+        .cropper-crop-box {
+            background: rgba(76, 175, 80, 0.1) !important;
+        }
+        
+        .cropper-line, .cropper-point {
+            background-color: #4CAF50 !important;
+        }
+        
+        .cropper-point {
+            width: 10px !important;
+            height: 10px !important;
+            opacity: 1 !important;
+        }
+        
+        .cropper-point.point-n,
+        .cropper-point.point-s,
+        .cropper-point.point-e,
+        .cropper-point.point-w {
+            width: 10px !important;
+            height: 10px !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Bounding Box Drawing Tool (CropperJS)</h2>
+        
+        <div class="instructions">
+            <p><strong>Instructions:</strong></p>
+            <ul>
+                <li>Paste an image (Ctrl+V/Cmd+V), drag & drop, or click to select a file</li>
+                <li>Click and drag to create a bounding box</li>
+                <li>Drag the corners or edges to resize</li>
+                <li>Drag inside the box to move it</li>
+                <li>Coordinates are in percentages of image dimensions</li>
+            </ul>
+        </div>
+        
+        <div id="imageContainer" class="image-container">
+            <img id="targetImage" style="max-width: 100%;">
+            <input type="file" id="fileInput" style="display: none" accept="image/*">
+        </div>
+        
+        <div class="output">
+            <code>--box '<span id="bboxOutput">0,0,0,0</span>'</code>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <script>
+        const container = document.getElementById('imageContainer');
+        const img = document.getElementById('targetImage');
+        const fileInput = document.getElementById('fileInput');
+        const output = document.getElementById('bboxOutput');
+        let cropper = null;
+
+        // Handle image upload via click
+        container.addEventListener('click', () => {
+            if (!img.src) fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) loadImage(file);
+        });
+
+        // Handle drag and drop
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            container.classList.add('dragover');
+        });
+
+        container.addEventListener('dragleave', () => {
+            container.classList.remove('dragover');
+        });
+
+        container.addEventListener('drop', (e) => {
+            e.preventDefault();
+            container.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                loadImage(file);
+            }
+        });
+
+        // Handle paste
+        document.addEventListener('paste', (e) => {
+            const items = e.clipboardData.items;
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    loadImage(file);
+                    break;
+                }
+            }
+        });
+
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                img.src = e.target.result;
+                img.style.display = 'block';
+                
+                // Destroy existing cropper if it exists
+                if (cropper) {
+                    cropper.destroy();
+                }
+                
+                // Initialize Cropper.js
+                cropper = new Cropper(img, {
+                    viewMode: 1,
+                    dragMode: 'crop',
+                    autoCrop: true,
+                    movable: true,
+                    scalable: false,
+                    zoomable: false,
+                    rotatable: false,
+                    cropBoxResizable: true,
+                    cropBoxMovable: true,
+                    background: false,
+                    toggleDragModeOnDblclick: false,
+                    crop: updateOutput
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updateOutput(e) {
+            const imageData = cropper.getImageData();
+            
+            // Calculate percentages
+            const x1 = Math.round((e.detail.x / imageData.naturalWidth) * 100);
+            const y1 = Math.round((e.detail.y / imageData.naturalHeight) * 100);
+            const x2 = Math.round(((e.detail.x + e.detail.width) / imageData.naturalWidth) * 100);
+            const y2 = Math.round(((e.detail.y + e.detail.height) / imageData.naturalHeight) * 100);
+            
+            output.textContent = `${x1},${y1},${x2},${y2}`;
+        }
+    </script>
+</body>
+</html>
