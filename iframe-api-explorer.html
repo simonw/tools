@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Explorer</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        iframe {
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            transition: height 0.2s ease;
+        }
+    </style>
+</head>
+<body>
+    <iframe id="explorerFrame" sandbox="allow-scripts"></iframe>
+
+    <script>
+        // Create the HTML content for the iframe
+        const iframeContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {
+                        font-family: system-ui, -apple-system, sans-serif;
+                        margin: 0;
+                        padding: 20px;
+                    }
+                    .container {
+                        max-width: 800px;
+                        margin: 0 auto;
+                    }
+                    .input-group {
+                        display: flex;
+                        gap: 8px;
+                        margin-bottom: 20px;
+                    }
+                    input[type="text"] {
+                        flex: 1;
+                        padding: 8px;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                        font-size: 16px;
+                    }
+                    button {
+                        padding: 8px 16px;
+                        background: #0066cc;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 16px;
+                    }
+                    button:hover {
+                        background: #0052a3;
+                    }
+                    pre {
+                        background: #f5f5f5;
+                        padding: 20px;
+                        border-radius: 4px;
+                        overflow-x: auto;
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                    }
+                    .error {
+                        color: #cc0000;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>API Explorer</h1>
+                    <form onsubmit="makeRequest(); return false;">
+                        <div class="input-group">    
+                            <input type="text" id="urlInput" placeholder="Enter API URL" value="https://datasette.io/content/stats.json?_size=1">
+                            <button onclick="makeRequest()">Submit</button>
+                        </div>
+                    </form>
+                    <pre id="output">// Response will appear here</pre>
+                </div>
+
+                <script>
+                    let currentHeight = null;
+                    function updateParentHeight() {
+                        // Borrowed from https://github.com/FaiblUG/setIframeHeight/blob/5509feb0f281251d03065991b1c5f451f40fa8bd/dist/set-iframe-height-child.js#L31C1-L31C220
+                        let newHeight = Math.min(
+                            Math.max(
+                                document.body.offsetHeight, document.documentElement.offsetHeight
+                            ),
+                            Math.max(
+                                Math.max(
+                                    document.body.scrollHeight, document.documentElement.scrollHeight
+                                ),
+                                Math.max(
+                                    document.body.clientHeight, document.documentElement.clientHeight
+                                )
+                            )
+                        );
+                        if (currentHeight === newHeight) {
+                            return;
+                        }
+                        currentHeight = newHeight;
+                        window.parent.postMessage({
+                            type: 'resize',
+                            height: newHeight
+                        }, '*');
+                    }
+
+                    updateParentHeight();
+
+                    setInterval(updateParentHeight, 1000);
+
+                    function makeRequest() {
+                        const url = document.getElementById('urlInput').value;
+                        const output = document.getElementById('output');
+                        
+                        // Send message to parent window
+                        window.parent.postMessage({
+                            type: 'api-request',
+                            url: url,
+                            method: 'GET'
+                        }, '*');
+
+                        output.textContent = 'Loading...';
+                    }
+
+                    // Listen for response from parent
+                    window.addEventListener('message', function(event) {
+                        const output = document.getElementById('output');
+                        
+                        if (event.data.type === 'api-response') {
+                            if (event.data.error) {
+                                output.textContent = 'Error: ' + event.data.error;
+                                output.classList.add('error');
+                            } else {
+                                output.textContent = JSON.stringify(event.data.response, null, 2);
+                                output.classList.remove('error');
+                            }
+                            // Content has changed, update height
+                            setTimeout(() => {
+                                updateParentHeight();
+                            }, 100);
+                        }
+                    });
+                SCUB
+            </body>
+            </html>
+        `.replace('SCUB', '</' + 'script>');
+
+        // Set up the iframe with the content
+        const iframe = document.getElementById('explorerFrame');
+        iframe.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(iframeContent);
+
+        // Listen for messages from the iframe
+        window.addEventListener('message', async function(event) {
+            if (event.data.type === 'api-request') {
+                try {
+                    const response = await fetch(event.data.url, {
+                        method: event.data.method
+                    });
+                    
+                    const data = await response.json();
+                    
+                    // Send response back to iframe
+                    iframe.contentWindow.postMessage({
+                        type: 'api-response',
+                        response: data
+                    }, '*');
+                } catch (error) {
+                    // Send error back to iframe
+                    iframe.contentWindow.postMessage({
+                        type: 'api-response',
+                        error: error.message
+                    }, '*');
+                }
+            } else if (event.data.type === 'resize') {
+                // Update iframe height when child requests it
+                iframe.style.height = event.data.height + 'px';
+            }
+        });
+    </script>
+</body>
+</html>
