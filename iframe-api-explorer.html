@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -19,7 +20,7 @@
     </style>
 </head>
 <body>
-    <iframe id="explorerFrame" sandbox="allow-scripts"></iframe>
+    <iframe id="explorerFrame" sandbox="allow-scripts allow-forms"></iframe>
 
     <script>
         // Create the HTML content for the iframe
@@ -81,16 +82,76 @@
                     <form onsubmit="makeRequest(); return false;">
                         <div class="input-group">    
                             <input type="text" id="urlInput" placeholder="Enter API URL" value="https://datasette.io/content/stats.json?_size=1">
-                            <button onclick="makeRequest()">Submit</button>
+                            <button type="submit">Submit</button>
                         </div>
                     </form>
                     <pre id="output">// Response will appear here</pre>
                 </div>
 
                 <script>
+                    class APIClient {
+                        constructor(targetOrigin = '*') {
+                            this.targetOrigin = targetOrigin;
+                            this.pendingRequests = new Map();
+                            this.requestId = 0;
+                            
+                            // Set up message listener
+                            window.addEventListener('message', this.handleMessage.bind(this));
+                        }
+                        
+                        handleMessage(event) {
+                            if (event.data?.type !== 'api-response' || !event.data?.requestId) {
+                                return;
+                            }
+                            
+                            const { requestId, error, response } = event.data;
+                            const pendingRequest = this.pendingRequests.get(requestId);
+                            
+                            if (!pendingRequest) {
+                                return;
+                            }
+                            
+                            this.pendingRequests.delete(requestId);
+                            
+                            if (error) {
+                                pendingRequest.reject(new Error(error));
+                            } else {
+                                pendingRequest.resolve(response);
+                            }
+                        }
+                        
+                        async callAPI(url) {
+                            const requestId = ++this.requestId;
+                            
+                            const promise = new Promise((resolve, reject) => {
+                                this.pendingRequests.set(requestId, { resolve, reject });
+                                
+                                // Set a timeout to prevent hanging promises
+                                setTimeout(() => {
+                                    if (this.pendingRequests.has(requestId)) {
+                                        this.pendingRequests.delete(requestId);
+                                        reject(new Error('Request timed out'));
+                                    }
+                                }, 30000); // 30 second timeout
+                            });
+                            
+                            // Send the request to parent
+                            window.parent.postMessage({
+                                type: 'api-request',
+                                requestId,
+                                url,
+                                method: 'GET'
+                            }, this.targetOrigin);
+                            
+                            return promise;
+                        }
+                    }
+
+                    const api = new APIClient();
+                    
+                    // Height management
                     let currentHeight = null;
                     function updateParentHeight() {
-                        // Borrowed from https://github.com/FaiblUG/setIframeHeight/blob/5509feb0f281251d03065991b1c5f451f40fa8bd/dist/set-iframe-height-child.js#L31C1-L31C220
                         let newHeight = Math.min(
                             Math.max(
                                 document.body.offsetHeight, document.documentElement.offsetHeight
@@ -103,7 +164,7 @@
                                     document.body.clientHeight, document.documentElement.clientHeight
                                 )
                             )
-                        );
+                        ) + 10;
                         if (currentHeight === newHeight) {
                             return;
                         }
@@ -115,41 +176,26 @@
                     }
 
                     updateParentHeight();
-
                     setInterval(updateParentHeight, 1000);
 
-                    function makeRequest() {
+                    async function makeRequest() {
                         const url = document.getElementById('urlInput').value;
                         const output = document.getElementById('output');
                         
-                        // Send message to parent window
-                        window.parent.postMessage({
-                            type: 'api-request',
-                            url: url,
-                            method: 'GET'
-                        }, '*');
-
                         output.textContent = 'Loading...';
-                    }
-
-                    // Listen for response from parent
-                    window.addEventListener('message', function(event) {
-                        const output = document.getElementById('output');
                         
-                        if (event.data.type === 'api-response') {
-                            if (event.data.error) {
-                                output.textContent = 'Error: ' + event.data.error;
-                                output.classList.add('error');
-                            } else {
-                                output.textContent = JSON.stringify(event.data.response, null, 2);
-                                output.classList.remove('error');
-                            }
-                            // Content has changed, update height
-                            setTimeout(() => {
-                                updateParentHeight();
-                            }, 100);
+                        try {
+                            const response = await api.callAPI(url);
+                            output.textContent = JSON.stringify(response, null, 2);
+                            output.classList.remove('error');
+                        } catch (error) {
+                            output.textContent = 'Error: ' + error.message;
+                            output.classList.add('error');
                         }
-                    });
+                        
+                        // Content has changed, update height
+                        setTimeout(updateParentHeight, 100);
+                    }
                 SCUB
             </body>
             </html>
@@ -172,12 +218,14 @@
                     // Send response back to iframe
                     iframe.contentWindow.postMessage({
                         type: 'api-response',
+                        requestId: event.data.requestId,
                         response: data
                     }, '*');
                 } catch (error) {
                     // Send error back to iframe
                     iframe.contentWindow.postMessage({
                         type: 'api-response',
+                        requestId: event.data.requestId,
                         error: error.message
                     }, '*');
                 }
