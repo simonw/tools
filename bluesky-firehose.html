@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bluesky WebSocket Feed Monitor</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        #output {
+            width: 100%;
+            height: 400px;
+            margin-top: 20px;
+            padding: 10px;
+            font-family: monospace;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            padding: 8px 16px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bluesky WebSocket Feed Monitor</h1>
+    <div class="controls">
+        <button id="connect">Connect</button>
+        <button id="disconnect">Disconnect</button>
+        <button id="clear">Clear Log</button>
+    </div>
+    <textarea id="output" readonly></textarea>
+
+    <script>
+        let ws = null;
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            const timestamp = new Date().toISOString();
+            output.value += `[${timestamp}] ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function connect() {
+            if (ws) {
+                log('Already connected!');
+                return;
+            }
+
+            try {
+                ws = new WebSocket('wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post');
+                
+                ws.onopen = () => {
+                    log('Connected to Bluesky WebSocket');
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        log(`Received: ${JSON.stringify(data, null, 2)}`);
+                    } catch (e) {
+                        log(`Raw message: ${event.data}`);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    log(`WebSocket Error: ${error.message}`);
+                };
+
+                ws.onclose = () => {
+                    log('Disconnected from Bluesky WebSocket');
+                    ws = null;
+                };
+
+            } catch (error) {
+                log(`Connection Error: ${error.message}`);
+                ws = null;
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                log('Disconnected by user');
+            } else {
+                log('Not connected');
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('connect').addEventListener('click', connect);
+        document.getElementById('disconnect').addEventListener('click', disconnect);
+        document.getElementById('clear').addEventListener('click', () => {
+            output.value = '';
+        });
+    </script>
+</body>
+</html>
