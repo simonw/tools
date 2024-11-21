@@ -4,6 +4,8 @@ Miscellaneous HTML+JavaScript tools I have built, almost all with the assistance
 
 Prompts used are linked to from [the commit messages](https://github.com/simonw/tools/commits) for each tool.
 
+[Everything I built with Claude Artifacts this week](https://simonwillison.net/2024/Oct/21/claude-artifacts/) describes how I built a lot of these.
+
 ## Tools
 
 - [OCR](https://tools.simonwillison.net/ocr) for PDF files and images that runs entirely in your browser
