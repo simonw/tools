@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bluesky Timeline Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            background-color: #f5f5f5;
+            color: #333;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #2563eb;
+            font-size: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-container, .cursor-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            font-size: 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            transition: border-color 0.15s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        input[readonly] {
+            background-color: #f3f4f6;
+            cursor: not-allowed;
+        }
+
+        .cursor-container {
+            display: none;
+        }
+
+        .refresh-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+
+        button {
+            padding: 0.75rem;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+        }
+
+        button:hover {
+            background-color: #1d4ed8;
+        }
+
+        button:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5);
+        }
+
+        button.stop {
+            background-color: #ef4444;
+        }
+
+        button.stop:hover {
+            background-color: #dc2626;
+        }
+
+        #loadingIndicator {
+            display: none;
+            justify-content: center;
+            margin: 2rem 0;
+        }
+
+        .loading-dots {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .dot {
+            width: 0.75rem;
+            height: 0.75rem;
+            background-color: #2563eb;
+            border-radius: 50%;
+            animation: pulse 1.4s infinite ease-in-out;
+        }
+
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(0.75); opacity: 0.5; }
+            50% { transform: scale(1); opacity: 1; }
+        }
+
+        #errorDisplay {
+            display: none;
+            padding: 1rem;
+            background-color: #fee2e2;
+            border-left: 4px solid #ef4444;
+            color: #991b1b;
+            margin-bottom: 2rem;
+            border-radius: 4px;
+        }
+
+        /* Rendered feed styles */
+        #renderedFeed {
+            display: none;
+            margin-bottom: 2rem;
+        }
+
+        .post {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 1.5rem;
+        }
+
+        .post-avatar {
+            width: 200px;
+            height: 200px;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        .post-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .post-author {
+            margin-bottom: 0.5rem;
+        }
+
+        .post-display-name {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .post-handle {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .post-timestamp {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .post-text {
+            color: #374151;
+            font-size: 1rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        #output {
+            background-color: #1f2937;
+            color: #f3f4f6;
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.875rem;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 1rem;
+            }
+
+            .form-container, .cursor-container {
+                padding: 1rem;
+            }
+
+            .post {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .post-avatar {
+                width: 100%;
+                max-width: 200px;
+                margin: 0 auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bluesky Timeline Viewer</h1>
+        
+        <div class="cursor-container" id="cursorContainer">
+            <label for="cursor">Current Cursor</label>
+            <input type="text" id="cursor" readonly>
+            <div class="refresh-info">
+                <span id="countdown"></span>
+                <button class="stop" id="stopRefresh">Stop Auto-refresh</button>
+            </div>
+        </div>
+
+        <div class="form-container">
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="identifier">Username or Email</label>
+                    <input type="text" id="identifier" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">App Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                
+                <button type="submit">Get Timeline</button>
+            </form>
+        </div>
+
+        <div id="loadingIndicator">
+            <div class="loading-dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+
+        <div id="errorDisplay"></div>
+
+        <div id="renderedFeed"></div>
+
+        <h2 style="font-size: 1.5rem; color: #4b5563; margin: 2rem 0 1rem;">Raw JSON</h2>
+        <pre id="output"></pre>
+    </div>
+
+    <script>
+        // Load saved credentials
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedIdentifier = localStorage.getItem('bluesky_identifier');
+            const savedPassword = localStorage.getItem('bluesky_password');
+            
+            if (savedIdentifier) {
+                document.getElementById('identifier').value = savedIdentifier;
+            }
+            if (savedPassword) {
+                document.getElementById('password').value = savedPassword;
+            }
+
+            // No toggle handler needed anymore
+        });
+
+        let refreshInterval;
+        let currentCursor = null;
+        const REFRESH_INTERVAL = 10000; // 10 seconds
+        let nextRefreshTime = 0;
+
+        function updateCountdown() {
+            if (nextRefreshTime > Date.now()) {
+                const secondsLeft = Math.ceil((nextRefreshTime - Date.now()) / 1000);
+                document.getElementById('countdown').textContent = 
+                    `Next refresh in ${secondsLeft} seconds`;
+            }
+        }
+
+        function renderFeed(feed) {
+            const feedContainer = document.getElementById('renderedFeed');
+            feedContainer.innerHTML = ''; // Clear existing posts
+            feedContainer.style.display = 'block';
+
+            feed.forEach(item => {
+                const post = document.createElement('div');
+                post.className = 'post';
+                
+                // Use a placeholder if no avatar is available
+                const avatarUrl = item.post.author.avatar || '/api/placeholder/200/200';
+                
+                post.innerHTML = `
+                    <img src="${avatarUrl}" alt="Avatar" class="post-avatar">
+                    <div class="post-content">
+                        <div class="post-author">
+                            <span class="post-display-name">${item.post.author.displayName}</span>
+                            <span class="post-handle">@${item.post.author.handle}</span>
+                        </div>
+                        <div class="post-timestamp">${new Date(item.post.record.createdAt).toLocaleString()}</div>
+                        <div class="post-text">${item.post.record.text}</div>
+                    </div>
+                `;
+                
+                feedContainer.appendChild(post);
+            });
+        }
+
+        function startRefreshTimer() {
+            nextRefreshTime = Date.now() + REFRESH_INTERVAL;
+            
+            // Update countdown every second
+            const countdownInterval = setInterval(updateCountdown, 1000);
+            
+            refreshInterval = setInterval(async () => {
+                nextRefreshTime = Date.now() + REFRESH_INTERVAL;
+                await fetchTimeline(currentCursor);
+            }, REFRESH_INTERVAL);
+
+            document.getElementById('cursorContainer').style.display = 'block';
+            document.getElementById('stopRefresh').addEventListener('click', () => {
+                clearInterval(refreshInterval);
+                clearInterval(countdownInterval);
+                document.getElementById('cursorContainer').style.display = 'none';
+                document.getElementById('countdown').textContent = '';
+            });
+        }
+
+        async function getBlueskyTimeline(identifier, appPassword, cursor = null) {
+            const authResponse = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    identifier: identifier,
+                    password: appPassword,
+                }),
+            });
+
+            if (!authResponse.ok) {
+                const errorData = await authResponse.json();
+                throw new Error(errorData.message || `Authentication failed: ${authResponse.status}`);
+            }
+
+            const authData = await authResponse.json();
+            const accessJwt = authData.accessJwt;
+
+            const url = new URL('https://bsky.social/xrpc/app.bsky.feed.getTimeline');
+            if (cursor) {
+                url.searchParams.append('cursor', cursor);
+            }
+
+            const timelineResponse = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessJwt}`,
+                },
+            });
+
+            if (!timelineResponse.ok) {
+                throw new Error(`Timeline request failed: ${timelineResponse.status}`);
+            }
+
+            return timelineResponse.json();
+        }
+
+        async function fetchTimeline(cursor = null) {
+            const identifier = document.getElementById('identifier').value;
+            const password = document.getElementById('password').value;
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const errorDisplay = document.getElementById('errorDisplay');
+            const output = document.getElementById('output');
+            
+            loadingIndicator.style.display = 'flex';
+            errorDisplay.style.display = 'none';
+
+            try {
+                const timeline = await getBlueskyTimeline(identifier, password, cursor);
+                
+                // Update cursor
+                currentCursor = timeline.cursor;
+                document.getElementById('cursor').value = currentCursor;
+                
+                // Render the feed
+                renderFeed(timeline.feed);
+                
+                // Update raw JSON display
+                output.textContent = JSON.stringify(timeline, null, 2);
+                
+                return timeline;
+            } catch (error) {
+                errorDisplay.textContent = error.message;
+                errorDisplay.style.display = 'block';
+                throw error;
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const identifier = document.getElementById('identifier').value;
+            const password = document.getElementById('password').value;
+            
+            // Save credentials
+            localStorage.setItem('bluesky_identifier', identifier);
+            localStorage.setItem('bluesky_password', password);
+            
+            try {
+                // Clear any existing intervals
+                if (refreshInterval) {
+                    clearInterval(refreshInterval);
+                }
+                
+                // Initial fetch
+                await fetchTimeline();
+                
+                // Start refresh timer
+                startRefreshTimer();
+            } catch (error) {
+                console.error('Failed to fetch timeline:', error);
+            }
+        });
+    </script>
+</body>
+</html>
