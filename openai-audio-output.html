@@ -102,6 +102,26 @@
         .copy-button:hover:not(:disabled) {
             background: #45a049;
         }
+        .gist-button {
+            background: #2ea44f;
+            margin-right: 10px;
+        }
+        .gist-button:hover:not(:disabled) {
+            background: #2c974b;
+        }
+        .gist-links {
+            margin: 10px 0;
+        }
+        .gist-links a {
+            display: block;
+            margin: 5px 0;
+            color: #0066cc;
+        }
+        #authLink {
+            color: #0066cc;
+            cursor: pointer;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -136,6 +156,13 @@
     </div>
 
     <div id="jsonContainer" class="json-container" style="display: none;">
+        <div id="gistContainer">
+            <span id="authLinkContainer" style="display: none;">
+                <a id="authLink">Authenticate with GitHub</a>
+            </span>
+            <button id="saveGistBtn" class="gist-button" style="display: none;">Save as Gist</button>
+            <div id="gistLinks" class="gist-links"></div>
+        </div>
         <h3>API Response:</h3>
         <textarea id="responseJson" readonly></textarea>
         <button id="copyJsonBtn" class="copy-button">Copy to clipboard</button>
@@ -154,6 +181,10 @@
         const jsonContainer = document.getElementById('jsonContainer');
         const responseJson = document.getElementById('responseJson');
         const copyJsonBtn = document.getElementById('copyJsonBtn');
+        const saveGistBtn = document.getElementById('saveGistBtn');
+        const authLinkContainer = document.getElementById('authLinkContainer');
+        const authLink = document.getElementById('authLink');
+        const gistLinks = document.getElementById('gistLinks');
 
         function showError(message) {
             errorDiv.textContent = message;
@@ -165,6 +196,84 @@
         function clearError() {
             errorDiv.style.display = 'none';
         }
+
+        function checkGithubAuth() {
+            const token = localStorage.getItem('github_token');
+            if (token) {
+                authLinkContainer.style.display = 'none';
+                saveGistBtn.style.display = 'inline-block';
+            } else {
+                authLinkContainer.style.display = 'inline-block';
+                saveGistBtn.style.display = 'none';
+            }
+        }
+
+        function startAuthPoll() {
+            const pollInterval = setInterval(() => {
+                if (localStorage.getItem('github_token')) {
+                    checkGithubAuth();
+                    clearInterval(pollInterval);
+                }
+            }, 1000);
+        }
+
+        authLink.addEventListener('click', () => {
+            window.open('https://tools.simonwillison.net/github-auth', 'github-auth', 'width=600,height=800');
+            startAuthPoll();
+        });
+
+        async function createGist() {
+            const token = localStorage.getItem('github_token');
+            if (!token) {
+                checkGithubAuth();
+                return;
+            }
+
+            try {
+                saveGistBtn.disabled = true;
+                saveGistBtn.textContent = 'Saving...';
+
+                const response = await fetch('https://api.github.com/gists', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        description: 'GPT-4o audio response',
+                        public: true,
+                        files: {
+                            'response.json': {
+                                content: responseJson.value
+                            }
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to create gist');
+                }
+
+                const data = await response.json();
+                const gistId = data.id;
+                const gistUrl = data.html_url;
+                const playerUrl = `https://tools.simonwillison.net/gpt-4o-audio-player?gist=${gistId}`;
+
+                gistLinks.innerHTML = `
+                    <a href="${gistUrl}" target="_blank">View Gist</a>
+                    <a href="${playerUrl}" target="_blank">Audio player</a>
+                `;
+            } catch (error) {
+                console.error('Gist creation failed:', error);
+                localStorage.removeItem('github_token');
+                checkGithubAuth();
+            } finally {
+                saveGistBtn.disabled = false;
+                saveGistBtn.textContent = 'Save as Gist';
+            }
+        }
+
+        saveGistBtn.addEventListener('click', createGist);
 
         function getAPIKey() {
             let apiKey = localStorage.getItem('openai_api_key');
@@ -244,15 +353,14 @@
                     throw new Error(data.error?.message || 'API request failed');
                 }
 
-                // Display raw JSON response
                 responseJson.value = JSON.stringify(data, null, 2);
                 jsonContainer.style.display = 'block';
+                gistLinks.innerHTML = '';
+                checkGithubAuth();
 
-                // Extract audio data and transcript
                 const audioData = data.choices[0].message.audio.data;
                 const transcript = data.choices[0].message.audio.transcript;
 
-                // Create audio blob and URL
                 const binaryData = atob(audioData);
                 const arrayBuffer = new ArrayBuffer(binaryData.length);
                 const uint8Array = new Uint8Array(arrayBuffer);
@@ -262,13 +370,11 @@
                 const blob = new Blob([uint8Array], { type: 'audio/wav' });
                 const audioUrl = URL.createObjectURL(blob);
 
-                // Update UI
                 audioPlayer.src = audioUrl;
                 transcriptDiv.textContent = transcript;
                 playerContainer.style.display = 'block';
                 clearError();
 
-                // Set up download button
                 downloadBtn.onclick = () => {
                     const a = document.createElement('a');
                     a.href = audioUrl;
@@ -286,7 +392,6 @@
             }
         }
 
-        // Handle form submission
         submitBtn.addEventListener('click', submitToAPI);
 
         promptInput.addEventListener('keypress', (e) => {
@@ -294,6 +399,9 @@
                 submitToAPI();
             }
         });
+
+        // Initial GitHub auth check
+        checkGithubAuth();
     </script>
 </body>
 </html>
