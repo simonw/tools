@@ -1,6 +1,6 @@
 export default {
   async fetch(request, env) {
-    const generateHTML = ({ title, content, isError = false }) => {
+    const generateHTML = ({ title, content, isError = false, headers = {} }) => {
       return new Response(`
         <!DOCTYPE html>
         <html>
@@ -32,7 +32,10 @@ export default {
           </body>
         </html>
       `, {
-        headers: { 'Content-Type': 'text/html' },
+        headers: {
+          'Content-Type': 'text/html',
+          ...headers
+        },
         status: isError ? 400 : 200
       });
     };
@@ -44,12 +47,50 @@ export default {
       const redirectUri = env.GITHUB_REDIRECT_URI;
       
       if (!url.searchParams.has('code')) {
+        // Initial authorization request
+        const state = crypto.randomUUID();
         const githubAuthUrl = new URL('https://github.com/login/oauth/authorize');
         githubAuthUrl.searchParams.set('client_id', clientId);
         githubAuthUrl.searchParams.set('redirect_uri', redirectUri);
         githubAuthUrl.searchParams.set('scope', 'gist');
-        githubAuthUrl.searchParams.set('state', crypto.randomUUID());
-        return Response.redirect(githubAuthUrl.toString(), 302);
+        githubAuthUrl.searchParams.set('state', state);
+
+        // Create headers object with the state cookie
+        const headers = new Headers({
+          'Location': githubAuthUrl.toString(),
+          'Set-Cookie': `github_auth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600`
+        });
+
+        return new Response(null, {
+          status: 302,
+          headers
+        });
+      }
+
+      // Callback handling
+      const returnedState = url.searchParams.get('state');
+      const cookies = request.headers.get('Cookie') || '';
+      const stateCookie = cookies.split(';')
+        .map(cookie => cookie.trim())
+        .find(cookie => cookie.startsWith('github_auth_state='));
+      const savedState = stateCookie ? stateCookie.split('=')[1] : null;
+
+      // Cookie cleanup header
+      const clearStateCookie = {
+        'Set-Cookie': 'github_auth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0'
+      };
+
+      // Validate state parameter
+      if (!savedState || savedState !== returnedState) {
+        return generateHTML({
+          title: 'Invalid State Parameter',
+          content: `
+            <h3>Security Error</h3>
+            <p>Invalid state parameter detected. This could indicate a CSRF attempt.</p>
+          `,
+          isError: true,
+          headers: clearStateCookie
+        });
       }
 
       const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
@@ -62,7 +103,8 @@ export default {
           client_id: clientId,
           client_secret: clientSecret,
           code: url.searchParams.get('code'),
-          redirect_uri: redirectUri
+          redirect_uri: redirectUri,
+          state: returnedState
         })
       });
       
@@ -76,10 +118,12 @@ export default {
             <p>Error: ${tokenData.error}</p>
             ${tokenData.error_description ? `<p>Description: ${tokenData.error_description}</p>` : ''}
           `,
-          isError: true
+          isError: true,
+          headers: clearStateCookie
         });
       }
       
+      // Success response with cookie cleanup
       return generateHTML({
         title: 'GitHub OAuth Success',
         content: `
@@ -92,10 +136,12 @@ export default {
               document.body.innerHTML += '<p style="color: #c62828;">Warning: Unable to store token in localStorage</p>';
             }
           </script>
-        `
+        `,
+        headers: clearStateCookie
       });
 
     } catch (error) {
+      // Error response with cookie cleanup
       return generateHTML({
         title: 'Unexpected Error',
         content: `
@@ -103,7 +149,10 @@ export default {
           <p>An unexpected error occurred during authentication.</p>
           <p>Details: ${error.message}</p>
         `,
-        isError: true
+        isError: true,
+        headers: {
+          'Set-Cookie': 'github_auth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0'
+        }
       });
     }
   }
