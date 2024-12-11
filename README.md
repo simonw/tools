@@ -21,6 +21,7 @@ Prompts used are linked to from [the commit messages](https://github.com/simonw/
 - [EXIF Data Viewer](https://tools.simonwillison.net/exif) - view EXIF data for an image
 - [MDN Browser Support Timelines](https://tools.simonwillison.net/mdn-timelines) - search for web features and view the browser support timeline pulled from [MDN](https://developer.mozilla.org/)
 - [Timestamp Converter](https://tools.simonwillison.net/unix-timestamp) - convert between Unix timestamps and human-readable dates
+- [Timezones](https://tools.simonwillison.net/timezones) - select two timezones to see a table comparing their times for the next 48 hours
 
 ## LLM playgrounds and debuggers
 
