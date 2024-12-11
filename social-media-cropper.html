@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Social Media Card Cropper</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 4px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: #fafafa;
+            cursor: pointer;
+        }
+        .drop-zone.dragover {
+            border-color: #666;
+            background: #eee;
+        }
+        .img-container {
+            max-width: 100%;
+            margin-bottom: 20px;
+        }
+        #image {
+            display: block;
+            max-width: 100%;
+        }
+        .preview-container {
+            margin-top: 20px;
+            padding: 10px;
+            background: #fafafa;
+            border-radius: 4px;
+        }
+        #preview {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            display: block;
+        }
+        .download-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #0066cc;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .download-btn:hover {
+            background: #0052a3;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Social Media Card Cropper</h1>
+        <p>Drop an image or click to select. The crop area is fixed to 2:1 ratio.</p>
+        
+        <div class="drop-zone" id="dropZone">
+            Drop image here, click to select, or paste from clipboard
+            <input type="file" id="fileInput" accept="image/*" class="hidden">
+        </div>
+
+        <div class="img-container">
+            <img id="image" class="hidden">
+        </div>
+
+        <div class="preview-container hidden" id="previewContainer">
+            <h3>Preview (0.7 quality JPEG)</h3>
+            <img id="preview">
+            <div style="text-align: center; margin-top: 10px;">
+                <a href="#" id="downloadBtn" class="download-btn">Download Social Media Card</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <script>
+        let cropper = null;
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        
+        // Handle paste events
+        document.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (const item of items) {
+                if (item.type.indexOf('image') === 0) {
+                    const file = item.getAsFile();
+                    handleFile(file);
+                    break;
+                }
+            }
+        });
+        const image = document.getElementById('image');
+        const preview = document.getElementById('preview');
+        const previewContainer = document.getElementById('previewContainer');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // Handle drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFile(e.dataTransfer.files[0]);
+        });
+
+        // Handle click to select
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                image.src = e.target.result;
+                image.classList.remove('hidden');
+                initCropper();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function initCropper() {
+            if (cropper) {
+                cropper.destroy();
+            }
+
+            cropper = new Cropper(image, {
+                aspectRatio: 2,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                restore: false,
+                guides: true,
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: false,
+                toggleDragModeOnDblclick: false,
+                crop: updatePreview
+            });
+        }
+
+        function updatePreview() {
+            if (!cropper) return;
+
+            const canvas = cropper.getCroppedCanvas();
+            if (!canvas) return;
+
+            // Convert to JPEG with 0.7 quality
+            const previewUrl = canvas.toDataURL('image/jpeg', 0.7);
+            preview.src = previewUrl;
+            previewContainer.classList.remove('hidden');
+
+            // Update download link
+            downloadBtn.href = previewUrl;
+            downloadBtn.download = 'social-media-card.jpg';
+        }
+    </script>
+</body>
+</html>

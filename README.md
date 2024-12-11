@@ -22,6 +22,7 @@ Prompts used are linked to from [the commit messages](https://github.com/simonw/
 - [MDN Browser Support Timelines](https://tools.simonwillison.net/mdn-timelines) - search for web features and view the browser support timeline pulled from [MDN](https://developer.mozilla.org/)
 - [Timestamp Converter](https://tools.simonwillison.net/unix-timestamp) - convert between Unix timestamps and human-readable dates
 - [Timezones](https://tools.simonwillison.net/timezones) - select two timezones to see a table comparing their times for the next 48 hours
+- [Social media cropper](https://tools.simonwillison.net/social-media-cropper) - open or paste in an image, crop it to 2x1 and download a compressed JPEG for use as a social media card
 
 ## LLM playgrounds and debuggers
 
