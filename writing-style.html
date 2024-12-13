@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Writing Style Analyzer</title>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  margin-top: 0;
+  color: #333;
+}
+
+textarea {
+  width: 100%;
+  height: 200px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-size: 16px;
+  font-family: inherit;
+}
+
+.results {
+  margin-top: 20px;
+}
+
+.category {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.category h2 {
+  margin-top: 0;
+  color: #444;
+  font-size: 1.2em;
+}
+
+.highlight {
+  background: #ffd700;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.warning {
+  color: #856404;
+  background-color: #fff3cd;
+  border: 1px solid #ffeeba;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+}
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Writing Style Analyzer</h1>
+    <p>Adapted from <a href="https://matt.might.net/articles/shell-scripts-for-passive-voice-weasel-words-duplicates/">these shell scripts</a> published by Matt Might.</p>
+    <p>Paste your text below to check for weasel words, passive voice, and duplicate words:</p>
+    <textarea id="input" placeholder="Enter your text here..."></textarea>
+    <div id="results" class="results"></div>
+  </div>
+
+<script type="module">
+// Weasel words from the bash script
+const weaselWords = [
+  'many', 'various', 'very', 'fairly', 'several', 'extremely',
+  'exceedingly', 'quite', 'remarkably', 'few', 'surprisingly',
+  'mostly', 'largely', 'huge', 'tiny', 'excellent', 'interestingly',
+  'significantly', 'substantially', 'clearly', 'vast', 'relatively',
+  'completely'
+]
+
+// Common irregular verbs for passive voice detection
+const irregularVerbs = [
+  'awoken', 'been', 'born', 'beat', 'become', 'begun', 'bent',
+  'bound', 'bitten', 'bled', 'blown', 'broken', 'brought',
+  'built', 'burnt', 'bought', 'caught', 'chosen', 'come',
+  'dealt', 'done', 'drawn', 'driven', 'eaten', 'fallen',
+  'fought', 'found', 'flown', 'forgotten', 'given', 'gone',
+  'grown', 'hung', 'heard', 'hidden', 'held', 'kept', 'known',
+  'laid', 'led', 'left', 'lost', 'made', 'meant', 'met', 'paid',
+  'put', 'read', 'run', 'said', 'seen', 'sold', 'sent', 'set',
+  'shown', 'shut', 'sung', 'sat', 'slept', 'spoken', 'spent',
+  'stood', 'taken', 'taught', 'told', 'thought', 'thrown',
+  'understood', 'worn', 'won', 'written'
+]
+
+function findWeaselWords(text) {
+  const results = []
+  const words = text.toLowerCase().split(/\b/)
+  
+  words.forEach((word, index) => {
+    if (weaselWords.includes(word.trim())) {
+      results.push({
+        word: word.trim(),
+        index: index,
+        context: getContext(text, index)
+      })
+    }
+  })
+  
+  return results
+}
+
+function findPassiveVoice(text) {
+  const results = []
+  const beVerbs = ['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being']
+  const words = text.toLowerCase().split(/\s+/)
+  
+  words.forEach((word, index) => {
+    if (beVerbs.includes(word)) {
+      const nextWord = words[index + 1]
+      if (nextWord && (
+        nextWord.endsWith('ed') ||
+        irregularVerbs.includes(nextWord)
+      )) {
+        results.push({
+          construction: `${word} ${nextWord}`,
+          context: getContext(text, index)
+        })
+      }
+    }
+  })
+  
+  return results
+}
+
+function findDuplicateWords(text) {
+  const results = []
+  const words = text.toLowerCase().split(/\s+/)
+  
+  words.forEach((word, index) => {
+    if (index > 0 && word === words[index - 1]) {
+      results.push({
+        word: word,
+        context: getContext(text, index)
+      })
+    }
+  })
+  
+  return results
+}
+
+function getContext(text, index) {
+  const words = text.split(/\s+/)
+  const start = Math.max(0, index - 3)
+  const end = Math.min(words.length, index + 4)
+  return words.slice(start, end).join(' ')
+}
+
+function displayResults(weasels, passives, duplicates) {
+  const resultsDiv = document.getElementById('results')
+  resultsDiv.innerHTML = ''
+  
+  // Weasel Words
+  const weaselDiv = document.createElement('div')
+  weaselDiv.className = 'category'
+  weaselDiv.innerHTML = `
+    <h2>Weasel Words</h2>
+    ${weasels.length === 0 ? 'No weasel words found.' : 
+      weasels.map(w => `
+        <div class="warning">
+          Found "<span class="highlight">${w.word}</span>" in: "${w.context}"
+        </div>
+      `).join('')}
+  `
+  resultsDiv.appendChild(weaselDiv)
+  
+  // Passive Voice
+  const passiveDiv = document.createElement('div')
+  passiveDiv.className = 'category'
+  passiveDiv.innerHTML = `
+    <h2>Passive Voice</h2>
+    ${passives.length === 0 ? 'No passive voice constructions found.' :
+      passives.map(p => `
+        <div class="warning">
+          Found passive voice "<span class="highlight">${p.construction}</span>" in: "${p.context}"
+        </div>
+      `).join('')}
+  `
+  resultsDiv.appendChild(passiveDiv)
+  
+  // Duplicate Words
+  const duplicateDiv = document.createElement('div')
+  duplicateDiv.className = 'category'
+  duplicateDiv.innerHTML = `
+    <h2>Duplicate Words</h2>
+    ${duplicates.length === 0 ? 'No duplicate words found.' :
+      duplicates.map(d => `
+        <div class="warning">
+          Found duplicate word "<span class="highlight">${d.word}</span>" in: "${d.context}"
+        </div>
+      `).join('')}
+  `
+  resultsDiv.appendChild(duplicateDiv)
+}
+
+// Set up event listener
+document.getElementById('input').addEventListener('input', (e) => {
+  const text = e.target.value
+  const weasels = findWeaselWords(text)
+  const passives = findPassiveVoice(text)
+  const duplicates = findDuplicateWords(text)
+  displayResults(weasels, passives, duplicates)
+})
+</script>
+</body>
+</html>
