@@ -109,6 +109,12 @@ const irregularVerbs = [
   'understood', 'worn', 'won', 'written'
 ];
 
+// Helper function to strip punctuation from words
+function stripPunctuation(word) {
+  // Remove all punctuation from the word, preserving internal hyphens
+  return word.replace(/^[^\w\s-]+|[^\w\s-]+$/g, '');
+}
+
 // Helper function to get word positions with their original text
 function getWordPositions(text) {
   const words = [];
@@ -151,7 +157,8 @@ function findWeaselWords(text) {
   const wordPositions = getWordPositions(text);
   
   wordPositions.forEach(pos => {
-    if (weaselWords.includes(pos.word.toLowerCase())) {
+    const strippedWord = stripPunctuation(pos.word.toLowerCase());
+    if (weaselWords.includes(strippedWord)) {
       results.push({
         word: pos.word,
         context: getContext(text, pos)
@@ -168,13 +175,13 @@ function findPassiveVoice(text) {
   const wordPositions = getWordPositions(text);
   
   for (let i = 0; i < wordPositions.length - 1; i++) {
-    const currentWord = wordPositions[i].word.toLowerCase();
-    const nextWord = wordPositions[i + 1].word.toLowerCase();
+    const currentWord = stripPunctuation(wordPositions[i].word.toLowerCase());
+    const nextWord = stripPunctuation(wordPositions[i + 1].word.toLowerCase());
     
     if (beVerbs.includes(currentWord)) {
       if (nextWord.endsWith('ed') || irregularVerbs.includes(nextWord)) {
         results.push({
-          construction: `${currentWord} ${nextWord}`,
+          construction: `${wordPositions[i].word} ${wordPositions[i + 1].word}`,
           context: getContext(text, wordPositions[i])
         });
       }
@@ -189,7 +196,10 @@ function findDuplicateWords(text) {
   const wordPositions = getWordPositions(text);
   
   for (let i = 1; i < wordPositions.length; i++) {
-    if (wordPositions[i].word.toLowerCase() === wordPositions[i - 1].word.toLowerCase()) {
+    const currentWordStripped = stripPunctuation(wordPositions[i].word.toLowerCase());
+    const prevWordStripped = stripPunctuation(wordPositions[i - 1].word.toLowerCase());
+    
+    if (currentWordStripped === prevWordStripped && currentWordStripped.length > 0) {
       results.push({
         word: wordPositions[i].word,
         context: getContext(text, wordPositions[i])
