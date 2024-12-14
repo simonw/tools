@@ -23,6 +23,7 @@ Prompts used are linked to from [the commit messages](https://github.com/simonw/
 - [Timestamp Converter](https://tools.simonwillison.net/unix-timestamp) - convert between Unix timestamps and human-readable dates
 - [Timezones](https://tools.simonwillison.net/timezones) - select two timezones to see a table comparing their times for the next 48 hours
 - [Social media cropper](https://tools.simonwillison.net/social-media-cropper) - open or paste in an image, crop it to 2x1 and download a compressed JPEG for use as a social media card
+- [Writing Style Analyzer](https://tools.simonwillison.net/writing-style) - identify weasel words, passive voice, duplicate words - adapted from [these shell scripts](https://matt.might.net/articles/shell-scripts-for-passive-voice-weasel-words-duplicates/) published by Matt Might
 
 ## LLM playgrounds and debuggers
 
