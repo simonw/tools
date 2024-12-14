@@ -92,7 +92,7 @@ const weaselWords = [
   'mostly', 'largely', 'huge', 'tiny', 'excellent', 'interestingly',
   'significantly', 'substantially', 'clearly', 'vast', 'relatively',
   'completely'
-]
+];
 
 // Common irregular verbs for passive voice detection
 const irregularVerbs = [
@@ -107,106 +107,106 @@ const irregularVerbs = [
   'shown', 'shut', 'sung', 'sat', 'slept', 'spoken', 'spent',
   'stood', 'taken', 'taught', 'told', 'thought', 'thrown',
   'understood', 'worn', 'won', 'written'
-]
+];
 
 // Helper function to get word positions with their original text
 function getWordPositions(text) {
-  const words = []
-  const regex = /\S+/g
-  let match
+  const words = [];
+  const regex = /\S+/g;
+  let match;
   
   while ((match = regex.exec(text)) !== null) {
     words.push({
       word: match[0],
       index: match.index,
       length: match[0].length
-    })
+    });
   }
   
-  return words
+  return words;
 }
 
 function getContext(text, wordPosition, prevWords = 3) {
-  // Find start position for previous words
-  let start = wordPosition.index
-  let wordCount = 0
-  for (let i = start - 1; i >= 0 && wordCount < prevWords; i--) {
-    if (i === 0 || text[i - 1] === ' ') {
-      wordCount++
-      if (wordCount === prevWords) {
-        start = i
-        break
-      }
-    }
+  const allWords = text.split(/\s+/);
+  
+  // Find which word index we're at
+  let currentWordIndex = 0;
+  let currentPos = 0;
+  while (currentPos < wordPosition.index && currentWordIndex < allWords.length) {
+    currentPos += allWords[currentWordIndex].length;
+    // Account for the space after the word
+    if (currentPos < text.length) currentPos++;
+    currentWordIndex++;
   }
   
-  const end = Math.min(text.length, wordPosition.index + wordPosition.length + 50)
-  const context = text.slice(start, end).trim()
+  // Get the previous N words and next few words
+  const start = Math.max(0, currentWordIndex - prevWords);
+  const end = Math.min(allWords.length, currentWordIndex + 4);
   
-  return context
+  return allWords.slice(start, end).join(' ');
 }
 
 function findWeaselWords(text) {
-  const results = []
-  const wordPositions = getWordPositions(text)
+  const results = [];
+  const wordPositions = getWordPositions(text);
   
   wordPositions.forEach(pos => {
     if (weaselWords.includes(pos.word.toLowerCase())) {
       results.push({
         word: pos.word,
         context: getContext(text, pos)
-      })
+      });
     }
-  })
+  });
   
-  return results
+  return results;
 }
 
 function findPassiveVoice(text) {
-  const results = []
-  const beVerbs = ['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being']
-  const wordPositions = getWordPositions(text)
+  const results = [];
+  const beVerbs = ['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being'];
+  const wordPositions = getWordPositions(text);
   
   for (let i = 0; i < wordPositions.length - 1; i++) {
-    const currentWord = wordPositions[i].word.toLowerCase()
-    const nextWord = wordPositions[i + 1].word.toLowerCase()
+    const currentWord = wordPositions[i].word.toLowerCase();
+    const nextWord = wordPositions[i + 1].word.toLowerCase();
     
     if (beVerbs.includes(currentWord)) {
       if (nextWord.endsWith('ed') || irregularVerbs.includes(nextWord)) {
         results.push({
           construction: `${currentWord} ${nextWord}`,
           context: getContext(text, wordPositions[i])
-        })
+        });
       }
     }
   }
   
-  return results
+  return results;
 }
 
 function findDuplicateWords(text) {
-  const results = []
-  const wordPositions = getWordPositions(text)
+  const results = [];
+  const wordPositions = getWordPositions(text);
   
   for (let i = 1; i < wordPositions.length; i++) {
     if (wordPositions[i].word.toLowerCase() === wordPositions[i - 1].word.toLowerCase()) {
       results.push({
         word: wordPositions[i].word,
         context: getContext(text, wordPositions[i])
-      })
+      });
     }
   }
   
-  return results
+  return results;
 }
 
 function displayResults(weasels, passives, duplicates) {
-  const resultsDiv = document.getElementById('results')
-  resultsDiv.innerHTML = ''
+  const resultsDiv = document.getElementById('results');
+  resultsDiv.innerHTML = '';
   
   // Weasel Words
-  const weaselDiv = document.createElement('div')
-  weaselDiv.className = 'category'
+  const weaselDiv = document.createElement('div');
+  weaselDiv.className = 'category';
   weaselDiv.innerHTML = `
     <h2>Weasel Words</h2>
     ${weasels.length === 0 ? 'No weasel words found.' : 
@@ -215,12 +215,12 @@ function displayResults(weasels, passives, duplicates) {
           Found "<span class="highlight">${w.word}</span>" in: "${w.context}"
         </div>
       `).join('')}
-  `
-  resultsDiv.appendChild(weaselDiv)
+  `;
+  resultsDiv.appendChild(weaselDiv);
   
   // Passive Voice
-  const passiveDiv = document.createElement('div')
-  passiveDiv.className = 'category'
+  const passiveDiv = document.createElement('div');
+  passiveDiv.className = 'category';
   passiveDiv.innerHTML = `
     <h2>Passive Voice</h2>
     ${passives.length === 0 ? 'No passive voice constructions found.' :
@@ -229,12 +229,12 @@ function displayResults(weasels, passives, duplicates) {
           Found passive voice "<span class="highlight">${p.construction}</span>" in: "${p.context}"
         </div>
       `).join('')}
-  `
-  resultsDiv.appendChild(passiveDiv)
+  `;
+  resultsDiv.appendChild(passiveDiv);
   
   // Duplicate Words
-  const duplicateDiv = document.createElement('div')
-  duplicateDiv.className = 'category'
+  const duplicateDiv = document.createElement('div');
+  duplicateDiv.className = 'category';
   duplicateDiv.innerHTML = `
     <h2>Duplicate Words</h2>
     ${duplicates.length === 0 ? 'No duplicate words found.' :
@@ -243,18 +243,18 @@ function displayResults(weasels, passives, duplicates) {
           Found duplicate word "<span class="highlight">${d.word}</span>" in: "${d.context}"
         </div>
       `).join('')}
-  `
-  resultsDiv.appendChild(duplicateDiv)
+  `;
+  resultsDiv.appendChild(duplicateDiv);
 }
 
 // Set up event listener
 document.getElementById('input').addEventListener('input', (e) => {
-  const text = e.target.value
-  const weasels = findWeaselWords(text)
-  const passives = findPassiveVoice(text)
-  const duplicates = findDuplicateWords(text)
-  displayResults(weasels, passives, duplicates)
-})
+  const text = e.target.value;
+  const weasels = findWeaselWords(text);
+  const passives = findPassiveVoice(text);
+  const duplicates = findDuplicateWords(text);
+  displayResults(weasels, passives, duplicates);
+});
 </script>
 </body>
 </html>
