@@ -109,16 +109,52 @@ const irregularVerbs = [
   'understood', 'worn', 'won', 'written'
 ]
 
+// Helper function to get word positions with their original text
+function getWordPositions(text) {
+  const words = []
+  const regex = /\S+/g
+  let match
+  
+  while ((match = regex.exec(text)) !== null) {
+    words.push({
+      word: match[0],
+      index: match.index,
+      length: match[0].length
+    })
+  }
+  
+  return words
+}
+
+function getContext(text, wordPosition, prevWords = 3) {
+  // Find start position for previous words
+  let start = wordPosition.index
+  let wordCount = 0
+  for (let i = start - 1; i >= 0 && wordCount < prevWords; i--) {
+    if (i === 0 || text[i - 1] === ' ') {
+      wordCount++
+      if (wordCount === prevWords) {
+        start = i
+        break
+      }
+    }
+  }
+  
+  const end = Math.min(text.length, wordPosition.index + wordPosition.length + 50)
+  const context = text.slice(start, end).trim()
+  
+  return context
+}
+
 function findWeaselWords(text) {
   const results = []
-  const words = text.toLowerCase().split(/\b/)
+  const wordPositions = getWordPositions(text)
   
-  words.forEach((word, index) => {
-    if (weaselWords.includes(word.trim())) {
+  wordPositions.forEach(pos => {
+    if (weaselWords.includes(pos.word.toLowerCase())) {
       results.push({
-        word: word.trim(),
-        index: index,
-        context: getContext(text, index)
+        word: pos.word,
+        context: getContext(text, pos)
       })
     }
   })
@@ -129,47 +165,39 @@ function findWeaselWords(text) {
 function findPassiveVoice(text) {
   const results = []
   const beVerbs = ['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being']
-  const words = text.toLowerCase().split(/\s+/)
+  const wordPositions = getWordPositions(text)
   
-  words.forEach((word, index) => {
-    if (beVerbs.includes(word)) {
-      const nextWord = words[index + 1]
-      if (nextWord && (
-        nextWord.endsWith('ed') ||
-        irregularVerbs.includes(nextWord)
-      )) {
+  for (let i = 0; i < wordPositions.length - 1; i++) {
+    const currentWord = wordPositions[i].word.toLowerCase()
+    const nextWord = wordPositions[i + 1].word.toLowerCase()
+    
+    if (beVerbs.includes(currentWord)) {
+      if (nextWord.endsWith('ed') || irregularVerbs.includes(nextWord)) {
         results.push({
-          construction: `${word} ${nextWord}`,
-          context: getContext(text, index)
+          construction: `${currentWord} ${nextWord}`,
+          context: getContext(text, wordPositions[i])
         })
       }
     }
-  })
+  }
   
   return results
 }
 
 function findDuplicateWords(text) {
   const results = []
-  const words = text.toLowerCase().split(/\s+/)
+  const wordPositions = getWordPositions(text)
   
-  words.forEach((word, index) => {
-    if (index > 0 && word === words[index - 1]) {
+  for (let i = 1; i < wordPositions.length; i++) {
+    if (wordPositions[i].word.toLowerCase() === wordPositions[i - 1].word.toLowerCase()) {
       results.push({
-        word: word,
-        context: getContext(text, index)
+        word: wordPositions[i].word,
+        context: getContext(text, wordPositions[i])
       })
     }
-  })
+  }
   
   return results
-}
-
-function getContext(text, index) {
-  const words = text.split(/\s+/)
-  const start = Math.max(0, index - 3)
-  const end = Math.min(words.length, index + 4)
-  return words.slice(start, end).join(' ')
 }
 
 function displayResults(weasels, passives, duplicates) {
