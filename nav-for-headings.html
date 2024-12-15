@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML Header Processor</title>
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    line-height: 1.4;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  .input-group {
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+  }
+
+  input, textarea {
+    width: 100%;
+    font-size: 16px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+
+  textarea {
+    min-height: 200px;
+    font-family: monospace;
+  }
+
+  button {
+    background: #0066cc;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  button:hover {
+    background: #0052a3;
+  }
+  </style>
+</head>
+<body>
+  <div class="input-group">
+    <label for="urlInput">Page URL:</label>
+    <input type="url" id="urlInput" placeholder="https://example.com/page">
+  </div>
+
+  <div class="input-group">
+    <label for="htmlInput">Input HTML:</label>
+    <textarea id="htmlInput" placeholder="Paste HTML here..."></textarea>
+  </div>
+
+  <div class="input-group">
+    <button onclick="processHTML()">Process Headers</button>
+  </div>
+
+  <div class="input-group">
+    <label for="processedHtml">Processed HTML with IDs:</label>
+    <textarea id="processedHtml" readonly></textarea>
+  </div>
+
+  <div class="input-group">
+    <label for="headerLinks">Header Links:</label>
+    <textarea id="headerLinks" readonly></textarea>
+  </div>
+
+<script type="module">
+function createSlug(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim()
+}
+
+function generateUniqueId(text, existingIds) {
+  let baseId = createSlug(text)
+  let id = baseId
+  let counter = 1
+
+  while (existingIds.has(id)) {
+    id = `${baseId}-${counter}`
+    counter++
+  }
+
+  existingIds.add(id)
+  return id
+}
+
+window.processHTML = function() {
+  const html = document.getElementById('htmlInput').value
+  const url = document.getElementById('urlInput').value
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+  const existingIds = new Set()
+  const headers = doc.querySelectorAll('h1, h2, h3, h4, h5, h6')
+  const headerLinks = []
+
+  headers.forEach(header => {
+    if (!header.id) {
+      header.id = generateUniqueId(header.textContent, existingIds)
+    }
+    headerLinks.push(`  <li><a href="${url}#${header.id}">${header.textContent}</a></li>`)
+  })
+
+  document.getElementById('processedHtml').value = doc.body.innerHTML
+  document.getElementById('headerLinks').value = '<ul>\n' + headerLinks.join('\n') + '\n</ul>'
+}
+</script>
+</body>
+</html>
