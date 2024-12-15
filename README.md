@@ -25,6 +25,7 @@ Prompts used are linked to from [the commit messages](https://github.com/simonw/
 - [Social media cropper](https://tools.simonwillison.net/social-media-cropper) - open or paste in an image, crop it to 2x1 and download a compressed JPEG for use as a social media card
 - [Writing Style Analyzer](https://tools.simonwillison.net/writing-style) - identify weasel words, passive voice, duplicate words - adapted from [these shell scripts](https://matt.might.net/articles/shell-scripts-for-passive-voice-weasel-words-duplicates/) published by Matt Might
 - [Navigation for headings](https://tools.simonwillison.net/nav-for-headings) - paste in an HTML document with headings, each heading is assigned a unique ID and the tool then generates a navigation `<ul>`
+- [JSON to YAML](https://tools.simonwillison.net/json-to-yaml) - convert JSON to YAML, showing different styles of YAML output
 
 ## LLM playgrounds and debuggers
 

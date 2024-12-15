@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSON to YAML Converter</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #f5f5f5;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .panel {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+  }
+
+  textarea {
+    width: 100%;
+    height: 200px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 16px;
+    resize: vertical;
+    line-height: 1.4;
+  }
+
+  .output-section {
+    margin-top: 16px;
+  }
+
+  .output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+  }
+
+  button {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  button:hover {
+    background: #1d4ed8;
+  }
+
+  .error {
+    color: #dc2626;
+    margin-top: 8px;
+    font-size: 14px;
+  }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <label for="jsonInput">JSON Input</label>
+    <textarea id="jsonInput" placeholder="Paste your JSON here..."></textarea>
+    <div id="error" class="error"></div>
+  </div>
+
+  <div class="panel">
+    <div class="output-section">
+      <div class="output-header">
+        <label>Block Style YAML</label>
+        <button data-copy="block">Copy</button>
+      </div>
+      <textarea id="blockOutput" readonly></textarea>
+    </div>
+
+    <div class="output-section">
+      <div class="output-header">
+        <label>Flow Style YAML (Compact)</label>
+        <button data-copy="flow">Copy</button>
+      </div>
+      <textarea id="flowOutput" readonly></textarea>
+    </div>
+
+    <div class="output-section">
+      <div class="output-header">
+        <label>Quoted Strings YAML</label>
+        <button data-copy="quote">Copy</button>
+      </div>
+      <textarea id="quoteOutput" readonly></textarea>
+    </div>
+  </div>
+
+<script type="module">
+const jsonInput = document.getElementById('jsonInput')
+const blockOutput = document.getElementById('blockOutput')
+const flowOutput = document.getElementById('flowOutput')
+const quoteOutput = document.getElementById('quoteOutput')
+const errorDiv = document.getElementById('error')
+
+function convertToYaml() {
+  const jsonStr = jsonInput.value
+  errorDiv.textContent = ''
+  
+  if (!jsonStr.trim()) {
+    blockOutput.value = ''
+    flowOutput.value = ''
+    quoteOutput.value = ''
+    return
+  }
+
+  try {
+    const jsonObj = JSON.parse(jsonStr)
+    
+    // Block style
+    blockOutput.value = jsyaml.dump(jsonObj, { 
+      indent: 2,
+      noArrayIndent: true
+    })
+    
+    // Flow style (compact)
+    flowOutput.value = jsyaml.dump(jsonObj, { 
+      flowLevel: 1,
+      noArrayIndent: true
+    })
+    
+    // Quoted strings
+    quoteOutput.value = jsyaml.dump(jsonObj, { 
+      styles: {
+        '!!str': 'double'
+      },
+      noArrayIndent: true
+    })
+  } catch (err) {
+    errorDiv.textContent = 'Invalid JSON: ' + err.message
+  }
+}
+
+jsonInput.addEventListener('input', convertToYaml)
+
+document.querySelectorAll('button[data-copy]').forEach(button => {
+  button.addEventListener('click', async () => {
+    const style = button.dataset.copy
+    const output = document.getElementById(style + 'Output')
+    
+    try {
+      await navigator.clipboard.writeText(output.value)
+      const originalText = button.textContent
+      button.textContent = 'Copied!'
+      setTimeout(() => {
+        button.textContent = originalText
+      }, 2000)
+    } catch (err) {
+      errorDiv.textContent = 'Failed to copy: ' + err.message
+    }
+  })
+})
+
+// Add some example JSON on load
+jsonInput.value = `{
+  "models": [
+    {
+      "provider": "gemini",
+      "model_id": "gemini-1.5-flash",
+      "tiers": [
+        {
+          "max_tokens": 128000,
+          "input_cost": 7,
+          "output_cost": 30
+        }
+      ]
+    }
+  ]
+}`
+convertToYaml()
+</script>
+</body>
+</html>
