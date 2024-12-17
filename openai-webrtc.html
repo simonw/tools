@@ -21,20 +21,6 @@
     margin: 0 auto;
   }
 
-  .messages {
-    width: 100%;
-    height: 300px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 10px;
-    margin: 20px 0;
-    font-size: 16px;
-    font-family: monospace;
-    resize: vertical;
-    overflow-y: scroll;
-  }
-
   .audio-indicator {
     display: inline-block;
     width: 20px;
@@ -60,13 +46,22 @@
     margin: 20px 0;
   }
 
+  .form-group {
+    margin-bottom: 15px;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+  }
+
   input {
     width: 100%;
     padding: 8px;
     font-size: 16px;
     border: 1px solid #ddd;
     border-radius: 4px;
-    margin-bottom: 10px;
   }
 
   button {
@@ -107,11 +102,12 @@
       <span id="audioIndicator" class="audio-indicator"></span>
       OpenAI WebRTC Audio Session
     </h1>
-    
-    <div class="messages" id="messages"></div>
 
     <div class="controls">
-      <input type="password" id="tokenInput" placeholder="Enter your API token">
+      <div class="form-group">
+        <label for="tokenInput">OpenAI API Token</label>
+        <input type="password" id="tokenInput">
+      </div>
       <button id="startButton">Start Session</button>
     </div>
 
@@ -136,7 +132,7 @@ async function createRealtimeSession(inStream, token) {
   pc.ondatachannel = event => {
     const channel = event.channel
     channel.onmessage = msg => {
-      appendMessage(decoder.decode(msg.data))
+      console.log(decoder.decode(msg.data))
     }
   }
   
@@ -167,7 +163,6 @@ async function createRealtimeSession(inStream, token) {
 
 const startButton = document.getElementById('startButton')
 const tokenInput = document.getElementById('tokenInput')
-const messages = document.getElementById('messages')
 const status = document.getElementById('status')
 const audioIndicator = document.getElementById('audioIndicator')
 
@@ -175,12 +170,13 @@ let peerConnection = null
 let audioContext = null
 let audioStream = null
 
-function appendMessage(text) {
-  const div = document.createElement('div')
-  div.textContent = text
-  messages.appendChild(div)
-  messages.scrollTop = messages.scrollHeight
-}
+// Load saved API key on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const savedToken = localStorage.getItem('openai_api_key')
+  if (savedToken) {
+    tokenInput.value = savedToken
+  }
+})
 
 // Audio visualization
 function setupAudioVisualization(stream) {
@@ -209,6 +205,9 @@ function setupAudioVisualization(stream) {
 
 async function startSession() {
   try {
+    // Save API key to localStorage
+    localStorage.setItem('openai_api_key', tokenInput.value)
+    
     status.className = 'status'
     status.textContent = 'Requesting microphone access...'
     
