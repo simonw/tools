@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenAI WebRTC Audio Session</title>
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #f5f5f5;
+  }
+
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .messages {
+    width: 100%;
+    height: 300px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin: 20px 0;
+    font-size: 16px;
+    font-family: monospace;
+    resize: vertical;
+    overflow-y: scroll;
+  }
+
+  .audio-indicator {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ccc;
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+
+  .audio-indicator.active {
+    background: #4CAF50;
+    animation: pulse 1s infinite;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+
+  .controls {
+    margin: 20px 0;
+  }
+
+  input {
+    width: 100%;
+    padding: 8px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+
+  button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+
+  .status {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 4px;
+  }
+
+  .error {
+    background: #fee;
+    color: #c00;
+  }
+
+  .success {
+    background: #efe;
+    color: #0a0;
+  }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      <span id="audioIndicator" class="audio-indicator"></span>
+      OpenAI WebRTC Audio Session
+    </h1>
+    
+    <div class="messages" id="messages"></div>
+
+    <div class="controls">
+      <input type="password" id="tokenInput" placeholder="Enter your API token">
+      <button id="startButton">Start Session</button>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script type="module">
+// Text decoder for incoming messages
+const decoder = new TextDecoder()
+
+async function createRealtimeSession(inStream, token) {
+  const pc = new RTCPeerConnection()
+  
+  // Handle incoming audio
+  pc.ontrack = e => {
+    const audio = new Audio()
+    audio.srcObject = e.streams[0]
+    audio.play()
+  }
+
+  // Handle incoming text messages via data channel
+  pc.ondatachannel = event => {
+    const channel = event.channel
+    channel.onmessage = msg => {
+      appendMessage(decoder.decode(msg.data))
+    }
+  }
+  
+  pc.addTrack(inStream.getTracks()[0])
+  
+  const offer = await pc.createOffer()
+  await pc.setLocalDescription(offer)
+  
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/sdp'
+  }
+  
+  const opts = {
+    method: 'POST',
+    body: offer.sdp,
+    headers
+  }
+  
+  const resp = await fetch('https://api.openai.com/v1/realtime', opts)
+  await pc.setRemoteDescription({
+    type: 'answer',
+    sdp: await resp.text()
+  })
+  
+  return pc
+}
+
+const startButton = document.getElementById('startButton')
+const tokenInput = document.getElementById('tokenInput')
+const messages = document.getElementById('messages')
+const status = document.getElementById('status')
+const audioIndicator = document.getElementById('audioIndicator')
+
+let peerConnection = null
+let audioContext = null
+let audioStream = null
+
+function appendMessage(text) {
+  const div = document.createElement('div')
+  div.textContent = text
+  messages.appendChild(div)
+  messages.scrollTop = messages.scrollHeight
+}
+
+// Audio visualization
+function setupAudioVisualization(stream) {
+  audioContext = new AudioContext()
+  const source = audioContext.createMediaStreamSource(stream)
+  const analyzer = audioContext.createAnalyser()
+  analyzer.fftSize = 256
+  
+  source.connect(analyzer)
+  
+  const bufferLength = analyzer.frequencyBinCount
+  const dataArray = new Uint8Array(bufferLength)
+  
+  function updateIndicator() {
+    if (!audioContext) return
+    
+    analyzer.getByteFrequencyData(dataArray)
+    const average = dataArray.reduce((a, b) => a + b) / bufferLength
+    
+    audioIndicator.classList.toggle('active', average > 30)
+    requestAnimationFrame(updateIndicator)
+  }
+  
+  updateIndicator()
+}
+
+async function startSession() {
+  try {
+    status.className = 'status'
+    status.textContent = 'Requesting microphone access...'
+    
+    audioStream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false
+    })
+    
+    setupAudioVisualization(audioStream)
+    
+    status.textContent = 'Establishing connection...'
+    
+    peerConnection = await createRealtimeSession(
+      audioStream,
+      tokenInput.value
+    )
+    
+    status.className = 'status success'
+    status.textContent = 'Session established successfully!'
+    startButton.textContent = 'Stop Session'
+    
+  } catch (err) {
+    status.className = 'status error'
+    status.textContent = `Error: ${err.message}`
+    console.error('Session error:', err)
+    stopSession()
+  }
+}
+
+function stopSession() {
+  if (peerConnection) {
+    peerConnection.close()
+    peerConnection = null
+  }
+  
+  if (audioContext) {
+    audioContext.close()
+    audioContext = null
+  }
+  
+  if (audioStream) {
+    audioStream.getTracks().forEach(track => track.stop())
+    audioStream = null
+  }
+  
+  audioIndicator.classList.remove('active')
+  startButton.textContent = 'Start Session'
+}
+
+startButton.addEventListener('click', () => {
+  if (peerConnection) {
+    stopSession()
+  } else {
+    if (!tokenInput.value) {
+      status.className = 'status error'
+      status.textContent = 'Please enter an API token'
+      return
+    }
+    startSession()
+  }
+})
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', stopSession)
+  </script>
+</body>
+</html>
