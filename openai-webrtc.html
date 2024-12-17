@@ -56,7 +56,7 @@
     font-weight: bold;
   }
 
-  input {
+  input, select {
     width: 100%;
     padding: 8px;
     font-size: 16px;
@@ -108,6 +108,16 @@
         <label for="tokenInput">OpenAI API Token</label>
         <input type="password" id="tokenInput">
       </div>
+      <div class="form-group">
+        <label for="voiceSelect">Voice</label>
+        <select id="voiceSelect">
+          <option value="ash">Ash</option>
+          <option value="ballad">Ballad</option>
+          <option value="coral">Coral</option>
+          <option value="sage">Sage</option>
+          <option value="verse">Verse</option>
+        </select>
+      </div>
       <button id="startButton">Start Session</button>
     </div>
 
@@ -115,163 +125,156 @@
   </div>
 
   <script type="module">
-// Text decoder for incoming messages
-const decoder = new TextDecoder()
-
-async function createRealtimeSession(inStream, token) {
-  const pc = new RTCPeerConnection()
-  
-  // Handle incoming audio
-  pc.ontrack = e => {
-    const audio = new Audio()
-    audio.srcObject = e.streams[0]
-    audio.play()
-  }
-
-  // Handle incoming text messages via data channel
-  pc.ondatachannel = event => {
-    const channel = event.channel
-    channel.onmessage = msg => {
-      console.log(decoder.decode(msg.data))
+    async function createRealtimeSession(inStream, token, voice) {
+      const pc = new RTCPeerConnection()
+      
+      // Handle incoming audio
+      pc.ontrack = e => {
+        const audio = new Audio()
+        audio.srcObject = e.streams[0]
+        audio.play()
+      }
+      
+      pc.addTrack(inStream.getTracks()[0])
+      
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/sdp'
+      }
+      
+      const opts = {
+        method: 'POST',
+        body: offer.sdp,
+        headers
+      }
+      
+      const model = 'gpt-4o-realtime-preview-2024-12-17'
+      const resp = await fetch(`https://api.openai.com/v1/realtime?model=${model}&voice=${voice}`, opts)
+      
+      await pc.setRemoteDescription({
+        type: 'answer',
+        sdp: await resp.text()
+      })
+      
+      return pc
     }
-  }
-  
-  pc.addTrack(inStream.getTracks()[0])
-  
-  const offer = await pc.createOffer()
-  await pc.setLocalDescription(offer)
-  
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/sdp'
-  }
-  
-  const opts = {
-    method: 'POST',
-    body: offer.sdp,
-    headers
-  }
-  
-  const resp = await fetch('https://api.openai.com/v1/realtime', opts)
-  await pc.setRemoteDescription({
-    type: 'answer',
-    sdp: await resp.text()
-  })
-  
-  return pc
-}
 
-const startButton = document.getElementById('startButton')
-const tokenInput = document.getElementById('tokenInput')
-const status = document.getElementById('status')
-const audioIndicator = document.getElementById('audioIndicator')
+    const startButton = document.getElementById('startButton')
+    const tokenInput = document.getElementById('tokenInput')
+    const voiceSelect = document.getElementById('voiceSelect')
+    const status = document.getElementById('status')
+    const audioIndicator = document.getElementById('audioIndicator')
 
-let peerConnection = null
-let audioContext = null
-let audioStream = null
+    let peerConnection = null
+    let audioContext = null
+    let audioStream = null
 
-// Load saved API key on page load
-document.addEventListener('DOMContentLoaded', () => {
-  const savedToken = localStorage.getItem('openai_api_key')
-  if (savedToken) {
-    tokenInput.value = savedToken
-  }
-})
-
-// Audio visualization
-function setupAudioVisualization(stream) {
-  audioContext = new AudioContext()
-  const source = audioContext.createMediaStreamSource(stream)
-  const analyzer = audioContext.createAnalyser()
-  analyzer.fftSize = 256
-  
-  source.connect(analyzer)
-  
-  const bufferLength = analyzer.frequencyBinCount
-  const dataArray = new Uint8Array(bufferLength)
-  
-  function updateIndicator() {
-    if (!audioContext) return
-    
-    analyzer.getByteFrequencyData(dataArray)
-    const average = dataArray.reduce((a, b) => a + b) / bufferLength
-    
-    audioIndicator.classList.toggle('active', average > 30)
-    requestAnimationFrame(updateIndicator)
-  }
-  
-  updateIndicator()
-}
-
-async function startSession() {
-  try {
-    // Save API key to localStorage
-    localStorage.setItem('openai_api_key', tokenInput.value)
-    
-    status.className = 'status'
-    status.textContent = 'Requesting microphone access...'
-    
-    audioStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: false
+    // Load saved API key on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      const savedToken = localStorage.getItem('openai_api_key')
+      if (savedToken) {
+        tokenInput.value = savedToken
+      }
     })
-    
-    setupAudioVisualization(audioStream)
-    
-    status.textContent = 'Establishing connection...'
-    
-    peerConnection = await createRealtimeSession(
-      audioStream,
-      tokenInput.value
-    )
-    
-    status.className = 'status success'
-    status.textContent = 'Session established successfully!'
-    startButton.textContent = 'Stop Session'
-    
-  } catch (err) {
-    status.className = 'status error'
-    status.textContent = `Error: ${err.message}`
-    console.error('Session error:', err)
-    stopSession()
-  }
-}
 
-function stopSession() {
-  if (peerConnection) {
-    peerConnection.close()
-    peerConnection = null
-  }
-  
-  if (audioContext) {
-    audioContext.close()
-    audioContext = null
-  }
-  
-  if (audioStream) {
-    audioStream.getTracks().forEach(track => track.stop())
-    audioStream = null
-  }
-  
-  audioIndicator.classList.remove('active')
-  startButton.textContent = 'Start Session'
-}
-
-startButton.addEventListener('click', () => {
-  if (peerConnection) {
-    stopSession()
-  } else {
-    if (!tokenInput.value) {
-      status.className = 'status error'
-      status.textContent = 'Please enter an API token'
-      return
+    // Audio visualization
+    function setupAudioVisualization(stream) {
+      audioContext = new AudioContext()
+      const source = audioContext.createMediaStreamSource(stream)
+      const analyzer = audioContext.createAnalyser()
+      analyzer.fftSize = 256
+      
+      source.connect(analyzer)
+      
+      const bufferLength = analyzer.frequencyBinCount
+      const dataArray = new Uint8Array(bufferLength)
+      
+      function updateIndicator() {
+        if (!audioContext) return
+        
+        analyzer.getByteFrequencyData(dataArray)
+        const average = dataArray.reduce((a, b) => a + b) / bufferLength
+        
+        audioIndicator.classList.toggle('active', average > 30)
+        requestAnimationFrame(updateIndicator)
+      }
+      
+      updateIndicator()
     }
-    startSession()
-  }
-})
 
-// Cleanup on page unload
-window.addEventListener('beforeunload', stopSession)
+    async function startSession() {
+      try {
+        // Save API key to localStorage
+        localStorage.setItem('openai_api_key', tokenInput.value)
+        
+        status.className = 'status'
+        status.textContent = 'Requesting microphone access...'
+        
+        audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: false
+        })
+        
+        setupAudioVisualization(audioStream)
+        
+        status.textContent = 'Establishing connection...'
+        
+        peerConnection = await createRealtimeSession(
+          audioStream,
+          tokenInput.value,
+          voiceSelect.value
+        )
+        
+        status.className = 'status success'
+        status.textContent = 'Session established successfully!'
+        startButton.textContent = 'Stop Session'
+        
+      } catch (err) {
+        status.className = 'status error'
+        status.textContent = `Error: ${err.message}`
+        console.error('Session error:', err)
+        stopSession()
+      }
+    }
+
+    function stopSession() {
+      if (peerConnection) {
+        peerConnection.close()
+        peerConnection = null
+      }
+      
+      if (audioContext) {
+        audioContext.close()
+        audioContext = null
+      }
+      
+      if (audioStream) {
+        audioStream.getTracks().forEach(track => track.stop())
+        audioStream = null
+      }
+      
+      audioIndicator.classList.remove('active')
+      startButton.textContent = 'Start Session'
+    }
+
+    startButton.addEventListener('click', () => {
+      if (peerConnection) {
+        stopSession()
+      } else {
+        if (!tokenInput.value) {
+          status.className = 'status error'
+          status.textContent = 'Please enter an API token'
+          return
+        }
+        startSession()
+      }
+    })
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', stopSession)
   </script>
 </body>
 </html>
