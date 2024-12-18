@@ -67,6 +67,12 @@
             color: #666;
             font-style: italic;
         }
+        .progress {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -80,6 +86,7 @@
         <button id="fetchBtn">Fetch</button>
     </div>
     <div id="error" class="error" style="display: none;"></div>
+    <div id="progress" class="progress" style="display: none;"></div>
     <div id="playerContainer" class="player-container" style="display: none;">
         <audio id="audioPlayer" controls></audio>
         <button id="downloadBtn">Download Audio</button>
@@ -90,6 +97,7 @@
         const gistInput = document.getElementById('gistUrl');
         const fetchBtn = document.getElementById('fetchBtn');
         const errorDiv = document.getElementById('error');
+        const progressDiv = document.getElementById('progress');
         const playerContainer = document.getElementById('playerContainer');
         const audioPlayer = document.getElementById('audioPlayer');
         const downloadBtn = document.getElementById('downloadBtn');
@@ -99,6 +107,15 @@
             errorDiv.textContent = message;
             errorDiv.style.display = 'block';
             playerContainer.style.display = 'none';
+        }
+
+        function showProgress(message) {
+            progressDiv.textContent = message;
+            progressDiv.style.display = 'block';
+        }
+
+        function hideProgress() {
+            progressDiv.style.display = 'none';
         }
 
         function clearError() {
@@ -118,44 +135,75 @@
             history.pushState({}, '', newUrl);
         }
 
+        async function fetchWithRetry(url, options = {}, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response;
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+                }
+            }
+        }
+
+        async function fetchGistContent(gistId) {
+            showProgress('Fetching Gist metadata...');
+            const gistResponse = await fetchWithRetry(`https://api.github.com/gists/${gistId}`);
+            const gistData = await gistResponse.json();
+            
+            const files = gistData.files;
+            if (!files || Object.keys(files).length === 0) {
+                throw new Error('No files found in Gist');
+            }
+
+            const firstFile = Object.values(files)[0];
+            
+            // Check if content is truncated
+            if (firstFile.truncated) {
+                showProgress('Content is truncated, fetching raw content...');
+                const rawResponse = await fetchWithRetry(firstFile.raw_url);
+                return await rawResponse.text();
+            }
+            
+            return firstFile.content;
+        }
+
         async function processGistUrl(url) {
             try {
                 fetchBtn.disabled = true;
+                clearError();
+                hideProgress();
+                
                 const gistId = extractGistId(url);
                 if (!gistId) throw new Error('Invalid Gist URL');
 
-                // Update URL with gist ID
                 updateURL(gistId);
-
-                // Update input field if it doesn't match
                 if (gistInput.value !== url) {
                     gistInput.value = url;
                 }
 
-                // Fetch gist data
-                const gistResponse = await fetch(`https://api.github.com/gists/${gistId}`);
-                if (!gistResponse.ok) throw new Error('Failed to fetch Gist');
+                const content = await fetchGistContent(gistId);
                 
-                const gistData = await gistResponse.json();
-                const files = gistData.files;
-                if (!files || Object.keys(files).length === 0) {
-                    throw new Error('No files found in Gist');
+                showProgress('Parsing JSON content...');
+                let jsonContent;
+                try {
+                    jsonContent = JSON.parse(content);
+                } catch (e) {
+                    throw new Error('Failed to parse JSON content. The content might be corrupted or incomplete.');
                 }
 
-                // Get content from first file
-                const firstFile = Object.values(files)[0];
-                const content = JSON.parse(firstFile.content);
-
-                // Verify this is an audio response
-                if (!content?.choices?.[0]?.message?.audio?.data) {
+                if (!jsonContent?.choices?.[0]?.message?.audio?.data) {
                     throw new Error('This Gist does not contain a valid GPT-4 audio response');
                 }
 
-                // Extract audio data and transcript
-                const audioData = content.choices[0].message.audio.data;
-                const transcript = content.choices[0].message.audio.transcript;
+                showProgress('Processing audio data...');
+                const audioData = jsonContent.choices[0].message.audio.data;
+                const transcript = jsonContent.choices[0].message.audio.transcript;
 
-                // Create audio blob and URL
                 const binaryData = atob(audioData);
                 const arrayBuffer = new ArrayBuffer(binaryData.length);
                 const uint8Array = new Uint8Array(arrayBuffer);
@@ -165,13 +213,11 @@
                 const blob = new Blob([uint8Array], { type: 'audio/wav' });
                 const audioUrl = URL.createObjectURL(blob);
 
-                // Update UI
                 audioPlayer.src = audioUrl;
                 transcriptDiv.textContent = transcript;
                 playerContainer.style.display = 'block';
-                clearError();
+                hideProgress();
 
-                // Set up download button
                 downloadBtn.onclick = () => {
                     const a = document.createElement('a');
                     a.href = audioUrl;
@@ -184,10 +230,10 @@
                 showError(error.message || 'An error occurred');
             } finally {
                 fetchBtn.disabled = false;
+                hideProgress();
             }
         }
 
-        // Handle form submission
         fetchBtn.addEventListener('click', () => {
             const url = gistInput.value.trim();
             if (!url) {
@@ -203,19 +249,16 @@
             }
         });
 
-        // Check for gist ID in URL on page load
         window.addEventListener('load', () => {
             const params = new URLSearchParams(window.location.search);
             const gistId = params.get('gist');
             if (gistId) {
-                // If it's just an ID, construct the full URL
                 const fullUrl = `https://gist.github.com/${gistId}`;
                 gistInput.value = fullUrl;
                 processGistUrl(fullUrl);
             }
         });
 
-        // Handle browser back/forward
         window.addEventListener('popstate', () => {
             const params = new URLSearchParams(window.location.search);
             const gistId = params.get('gist');
@@ -223,7 +266,6 @@
                 const fullUrl = `https://gist.github.com/${gistId}`;
                 processGistUrl(fullUrl);
             } else {
-                // Clear everything if there's no gist ID
                 gistInput.value = '';
                 playerContainer.style.display = 'none';
                 clearError();
