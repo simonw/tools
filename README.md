@@ -2,7 +2,7 @@
 
 Miscellaneous HTML+JavaScript tools I have built, almost all with the assistance of LLMs.
 
-Prompts used are linked to from [the commit messages](https://github.com/simonw/tools/commits) for each tool.
+Prompts used are linked to from [the commit messages](https://github.com/simonw/tools/commits) for each tool. Most of them used a version of the custom instructions [described here](https://simonwillison.net/2024/Dec/19/one-shot-python-tools/#custom-instructions).
 
 [Everything I built with Claude Artifacts this week](https://simonwillison.net/2024/Oct/21/claude-artifacts/) describes how I built a lot of these.
 
