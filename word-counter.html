@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word counter</title>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+h1 {
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.writing-area {
+  width: 100%;
+  min-height: 400px;
+  padding: 20px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  font-size: 16px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.stats {
+  color: #666;
+  font-size: 14px;
+}
+
+.save-status {
+  color: #888;
+  font-style: italic;
+  margin-left: 15px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Word counter</h1>
+  <textarea class="writing-area" placeholder="Start writing here..."></textarea>
+  <div class="stats">
+    Words: <span id="wordCount">0</span>
+    <span class="save-status" id="saveStatus"></span>
+  </div>
+</div>
+
+<script type="module">
+const STORAGE_KEY = 'writing-content'
+const textarea = document.querySelector('.writing-area')
+const wordCountElement = document.getElementById('wordCount')
+const saveStatus = document.getElementById('saveStatus')
+
+let saveTimeout
+
+function countWords(text) {
+  return text.trim() ? text.trim().split(/\s+/).length : 0
+}
+
+function updateWordCount() {
+  const count = countWords(textarea.value)
+  wordCountElement.textContent = count
+}
+
+function showSavedStatus() {
+  saveStatus.textContent = 'Saved'
+  setTimeout(() => {
+    saveStatus.textContent = ''
+  }, 2000)
+}
+
+function saveToLocalStorage() {
+  localStorage.setItem(STORAGE_KEY, textarea.value)
+  showSavedStatus()
+}
+
+function debouncedSave() {
+  clearTimeout(saveTimeout)
+  saveStatus.textContent = 'Saving...'
+  saveTimeout = setTimeout(saveToLocalStorage, 1000)
+}
+
+// Load saved content
+const savedContent = localStorage.getItem(STORAGE_KEY)
+if (savedContent) {
+  textarea.value = savedContent
+  updateWordCount()
+}
+
+// Event listeners
+textarea.addEventListener('input', () => {
+  updateWordCount()
+  debouncedSave()
+})
+
+textarea.addEventListener('paste', () => {
+  setTimeout(updateWordCount, 0)
+})
+</script>
+</body>
+</html>
