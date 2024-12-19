@@ -26,9 +26,17 @@ h1 {
   margin-bottom: 20px;
 }
 
+.writing-section {
+  margin-bottom: 30px;
+  background: white;
+  padding: 20px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 .writing-area {
   width: 100%;
-  min-height: 400px;
+  min-height: 200px;
   padding: 20px;
   margin-bottom: 15px;
   border: 1px solid #ccc;
@@ -37,6 +45,12 @@ h1 {
   font-size: 16px;
   line-height: 1.5;
   resize: vertical;
+}
+
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .stats {
@@ -49,68 +63,150 @@ h1 {
   font-style: italic;
   margin-left: 15px;
 }
+
+.add-btn {
+  background-color: #4CAF50;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.add-btn:hover {
+  background-color: #45a049;
+}
+
+.remove-btn {
+  background-color: #ff4444;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.remove-btn:hover {
+  background-color: #ff6666;
+}
 </style>
 </head>
 <body>
 <div class="container">
   <h1>Word counter</h1>
-  <textarea class="writing-area" placeholder="Start writing here..."></textarea>
-  <div class="stats">
-    Words: <span id="wordCount">0</span>
-    <span class="save-status" id="saveStatus"></span>
-  </div>
+  <div id="writing-container"></div>
+  <button class="add-btn" id="addSection">Add new section</button>
 </div>
 
 <script type="module">
-const STORAGE_KEY = 'writing-content'
-const textarea = document.querySelector('.writing-area')
-const wordCountElement = document.getElementById('wordCount')
-const saveStatus = document.getElementById('saveStatus')
+const STORAGE_KEY = 'writing-sections'
+const container = document.getElementById('writing-container')
+const addButton = document.getElementById('addSection')
 
-let saveTimeout
+let saveTimeouts = new Map()
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2)
+}
+
+function createSection(id, content = '') {
+  const section = document.createElement('div')
+  section.className = 'writing-section'
+  section.dataset.id = id
+
+  section.innerHTML = `
+    <textarea class="writing-area" placeholder="Start writing here...">${content}</textarea>
+    <div class="controls">
+      <div class="stats">
+        Words: <span class="word-count">0</span>
+        <span class="save-status"></span>
+      </div>
+      <button class="remove-btn">Remove</button>
+    </div>
+  `
+
+  const textarea = section.querySelector('textarea')
+  const wordCount = section.querySelector('.word-count')
+  const saveStatus = section.querySelector('.save-status')
+  const removeBtn = section.querySelector('.remove-btn')
+
+  updateWordCount(textarea, wordCount)
+
+  textarea.addEventListener('input', () => {
+    updateWordCount(textarea, wordCount)
+    debouncedSave()
+  })
+
+  removeBtn.addEventListener('click', () => {
+    section.remove()
+    debouncedSave()
+  })
+
+  return section
+}
 
 function countWords(text) {
   return text.trim() ? text.trim().split(/\s+/).length : 0
 }
 
-function updateWordCount() {
+function updateWordCount(textarea, wordCountElement) {
   const count = countWords(textarea.value)
   wordCountElement.textContent = count
 }
 
-function showSavedStatus() {
-  saveStatus.textContent = 'Saved'
-  setTimeout(() => {
-    saveStatus.textContent = ''
-  }, 2000)
-}
-
 function saveToLocalStorage() {
-  localStorage.setItem(STORAGE_KEY, textarea.value)
-  showSavedStatus()
+  const sectionsData = Array.from(container.children).map(section => ({
+    id: section.dataset.id,
+    content: section.querySelector('textarea').value
+  }))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(sectionsData))
+  
+  // Update save status for all sections
+  document.querySelectorAll('.save-status').forEach(status => {
+    status.textContent = 'Saved'
+    setTimeout(() => {
+      status.textContent = ''
+    }, 2000)
+  })
 }
 
 function debouncedSave() {
-  clearTimeout(saveTimeout)
-  saveStatus.textContent = 'Saving...'
-  saveTimeout = setTimeout(saveToLocalStorage, 1000)
+  // Clear any existing save timeout
+  if (saveTimeouts.has('save')) {
+    clearTimeout(saveTimeouts.get('save'))
+  }
+  
+  // Show 'Saving...' status
+  document.querySelectorAll('.save-status').forEach(status => {
+    status.textContent = 'Saving...'
+  })
+  
+  // Set new save timeout
+  saveTimeouts.set('save', setTimeout(() => {
+    saveTimeouts.delete('save')
+    saveToLocalStorage()
+  }, 1000))
 }
 
 // Load saved content
 const savedContent = localStorage.getItem(STORAGE_KEY)
 if (savedContent) {
-  textarea.value = savedContent
-  updateWordCount()
+  const savedSections = JSON.parse(savedContent)
+  savedSections.forEach(section => {
+    const newSection = createSection(section.id, section.content)
+    container.appendChild(newSection)
+  })
 }
 
-// Event listeners
-textarea.addEventListener('input', () => {
-  updateWordCount()
-  debouncedSave()
-})
-
-textarea.addEventListener('paste', () => {
-  setTimeout(updateWordCount, 0)
+// Add new section button handler
+addButton.addEventListener('click', () => {
+  const newSection = createSection(generateId())
+  container.appendChild(newSection)
+  newSection.querySelector('textarea').focus()
 })
 </script>
 </body>
