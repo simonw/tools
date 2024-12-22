@@ -26,6 +26,7 @@ Prompts used are linked to from [the commit messages](https://github.com/simonw/
 - [Writing Style Analyzer](https://tools.simonwillison.net/writing-style) - identify weasel words, passive voice, duplicate words - adapted from [these shell scripts](https://matt.might.net/articles/shell-scripts-for-passive-voice-weasel-words-duplicates/) published by Matt Might
 - [Navigation for headings](https://tools.simonwillison.net/nav-for-headings) - paste in an HTML document with headings, each heading is assigned a unique ID and the tool then generates a navigation `<ul>`
 - [JSON to YAML](https://tools.simonwillison.net/json-to-yaml) - convert JSON to YAML, showing different styles of YAML output
+- [YAML Explorer](https://tools.simonwillison.net/yaml-explorer) - nested hierarchy explorer for YAML files, which can be loaded from an external URL and have their expand/collapse state persisted in the URL to the tool
 
 ## LLM playgrounds and debuggers
 

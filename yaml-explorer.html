@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>YAML Explorer</title>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  line-height: 1.4;
+  margin: 0;
+  padding: 20px;
+}
+
+textarea, input[type="url"] {
+  width: 100%;
+  margin-bottom: 20px;
+  padding: 8px;
+  font-size: 16px;
+  font-family: monospace;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+button {
+  font-size: 16px;
+  padding: 0 20px;
+  background: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  min-width: 80px;
+  height: 37px; /* Match input height */
+}
+
+button:hover {
+  background: #0052a3;
+}
+
+button:active {
+  background: #004080;
+}
+
+textarea {
+  height: 200px;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.output {
+  border: 1px solid #eee;
+  padding: 20px;
+  border-radius: 4px;
+}
+
+details {
+  margin: 0.5em 0;
+  padding-left: 20px;
+}
+
+summary {
+  margin-left: -20px;
+  cursor: pointer;
+}
+
+summary > span {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.expand-all {
+  color: #0066cc;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 0.9em;
+  margin-left: 8px;
+}
+
+.key {
+  color: #0066cc;
+  font-weight: bold;
+}
+
+.string {
+  color: #008000;
+}
+
+.number {
+  color: #ff6600;
+}
+
+.boolean {
+  color: #9933cc;
+}
+
+.null {
+  color: #999;
+}
+
+.error {
+  color: red;
+  margin: 1em 0;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>YAML Explorer</h1>
+  <div style="display: flex; gap: 8px;">
+    <input type="url" placeholder="Optional: Enter URL to YAML file" style="flex: 1;" />
+    <button type="button" style="font-size: 16px; padding: 0 16px;">Load</button>
+  </div>
+  <textarea placeholder="Paste your YAML here..."></textarea>
+  <div class="output"></div>
+</div>
+
+<script type="module">
+import { load } from 'https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.mjs'
+
+const urlInput = document.querySelector('input[type="url"]')
+const textarea = document.querySelector('textarea')
+const output = document.querySelector('.output')
+
+// Create unique IDs for details elements to track state
+let detailsCounter = 0
+
+function createValueSpan(value) {
+  const span = document.createElement('span')
+  if (value === null) {
+    span.className = 'null'
+    span.textContent = 'null'
+  } else if (typeof value === 'string') {
+    span.className = 'string'
+    span.textContent = `"${value}"`
+  } else if (typeof value === 'number') {
+    span.className = 'number'
+    span.textContent = value
+  } else if (typeof value === 'boolean') {
+    span.className = 'boolean'
+    span.textContent = value
+  }
+  return span
+}
+
+function createExpandAllButton(parent) {
+  const button = document.createElement('span')
+  button.className = 'expand-all'
+  button.textContent = 'expand all'
+  button.onclick = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const allDetails = parent.querySelectorAll('details')
+    allDetails.forEach(d => d.open = true)
+    updateUrlState()
+  }
+  return button
+}
+
+function renderObject(obj) {
+  if (typeof obj !== 'object' || obj === null) {
+    return createValueSpan(obj)
+  }
+
+  const details = document.createElement('details')
+  const detailsId = `d${detailsCounter++}`
+  details.dataset.id = detailsId
+  
+  details.addEventListener('toggle', updateUrlState)
+
+  const summary = document.createElement('summary')
+  const isArray = Array.isArray(obj)
+  
+  const text = document.createElement('span')
+  text.textContent = isArray ? 
+    `Array (${obj.length} items)` : 
+    `Object (${Object.keys(obj).length} properties)`
+  
+  summary.appendChild(text)
+  summary.appendChild(createExpandAllButton(details))
+  details.appendChild(summary)
+
+  const items = isArray ? obj : Object.entries(obj)
+  
+  items.forEach((item, index) => {
+    const div = document.createElement('div')
+    if (isArray) {
+      div.appendChild(renderObject(item))
+    } else {
+      const [key, value] = item
+      const keySpan = document.createElement('span')
+      keySpan.className = 'key'
+      keySpan.textContent = `${key}: `
+      div.appendChild(keySpan)
+      div.appendChild(renderObject(value))
+    }
+    details.appendChild(div)
+  })
+
+  return details
+}
+
+function showError(message) {
+  const error = document.createElement('div')
+  error.className = 'error'
+  error.textContent = message
+  output.appendChild(error)
+}
+
+function updateUrlState() {
+  const url = urlInput.value
+  const openDetails = [...document.querySelectorAll('details[data-id]')]
+    .filter(d => d.open)
+    .map(d => d.dataset.id)
+  
+  const state = {
+    url: url || undefined,
+    open: openDetails.length ? openDetails : undefined
+  }
+  
+  const fragment = '#' + btoa(JSON.stringify(state))
+  window.history.replaceState(null, '', fragment)
+}
+
+function parseUrlState() {
+  try {
+    const fragment = window.location.hash.slice(1)
+    if (!fragment) return {}
+    return JSON.parse(atob(fragment))
+  } catch (e) {
+    console.warn('Failed to parse URL state:', e)
+    return {}
+  }
+}
+
+async function loadYaml(yaml) {
+  try {
+    output.innerHTML = ''
+    detailsCounter = 0
+    
+    if (!yaml) return
+    
+    const data = load(yaml)
+    const tree = renderObject(data)
+    output.appendChild(tree)
+    
+    // Restore open state from URL if present
+    const state = parseUrlState()
+    if (state.open) {
+      state.open.forEach(id => {
+        const details = document.querySelector(`details[data-id="${id}"]`)
+        if (details) details.open = true
+      })
+    }
+  } catch (err) {
+    showError(`Error parsing YAML: ${err.message}`)
+  }
+}
+
+async function fetchAndLoadUrl(url) {
+  if (!url) return
+  
+  try {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    const yaml = await response.text()
+    textarea.value = yaml
+    await loadYaml(yaml)
+    updateUrlState()
+  } catch (err) {
+    showError(`Error fetching YAML: ${err.message}`)
+  }
+}
+
+textarea.addEventListener('input', () => {
+  loadYaml(textarea.value.trim())
+  updateUrlState()
+})
+
+const loadButton = document.querySelector('button')
+loadButton.addEventListener('click', () => {
+  fetchAndLoadUrl(urlInput.value)
+})
+
+// Initial load from URL state
+const initialState = parseUrlState()
+if (initialState.url) {
+  urlInput.value = initialState.url
+  fetchAndLoadUrl(initialState.url)
+}
+</script>
+</body>
+</html>
