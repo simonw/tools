@@ -196,6 +196,13 @@
           <option value="verse">Verse</option>
         </select>
       </div>
+      <div class="form-group">
+        <label for="modelSelect">Model</label>
+        <select id="modelSelect">
+          <option value="gpt-4o-realtime-preview-2024-12-17">GPT-4 Realtime</option>
+          <option value="gpt-4o-mini-realtime-preview-2024-12-17">GPT-4 Mini</option>
+        </select>
+      </div>
       <button id="startButton">Start Session</button>
     </div>
 
@@ -270,7 +277,7 @@ let sessionTotals = {
   totalCost: 0
 }
 
-async function createRealtimeSession(inStream, token, voice) {
+async function createRealtimeSession(inStream, token, voice, model) {
   const pc = new RTCPeerConnection()
   
   pc.ontrack = e => {
@@ -331,7 +338,6 @@ async function createRealtimeSession(inStream, token, voice) {
     headers
   }
   
-  const model = 'gpt-4o-realtime-preview-2024-12-17'
   const resp = await fetch(`https://api.openai.com/v1/realtime?model=${model}&voice=${voice}`, opts)
   
   await pc.setRemoteDescription({
@@ -343,17 +349,35 @@ async function createRealtimeSession(inStream, token, voice) {
 }
 
 function calculateCosts({audioInputTokens, textInputTokens, cachedInputTokens, audioOutputTokens, textOutputTokens}) {
-  const AUDIO_INPUT_COST = 0.00004
-  const AUDIO_OUTPUT_COST = 0.00008
-  const CACHED_AUDIO_COST = 0.0000025
-  const TEXT_INPUT_COST = 0.0000025
-  const TEXT_OUTPUT_COST = 0.00001
+  // Get the currently selected model
+  const selectedModel = document.getElementById('modelSelect').value;
+  
+  // Define pricing for both models
+  const PRICING = {
+    'gpt-4o-realtime-preview-2024-12-17': {
+      AUDIO_INPUT_COST: 0.00004,  // $40/1M tokens
+      AUDIO_OUTPUT_COST: 0.00008, // $80/1M tokens
+      CACHED_AUDIO_COST: 0.0000025, // $2.50/1M tokens
+      TEXT_INPUT_COST: 0.0000025,   // $2.50/1M tokens
+      TEXT_OUTPUT_COST: 0.00001     // $10/1M tokens
+    },
+    'gpt-4o-mini-realtime-preview-2024-12-17': {
+      AUDIO_INPUT_COST: 0.00001,    // $10/1M tokens
+      AUDIO_OUTPUT_COST: 0.00002,   // $20/1M tokens
+      CACHED_AUDIO_COST: 0.0000003, // $0.30/1M tokens
+      TEXT_INPUT_COST: 0.0000006,   // $0.60/1M tokens
+      TEXT_OUTPUT_COST: 0.0000024   // $2.40/1M tokens
+    }
+  };
 
-  const audioInputCost = audioInputTokens * AUDIO_INPUT_COST
-  const cachedInputCost = cachedInputTokens * CACHED_AUDIO_COST
-  const textInputCost = textInputTokens * TEXT_INPUT_COST
-  const audioOutputCost = audioOutputTokens * AUDIO_OUTPUT_COST
-  const textOutputCost = textOutputTokens * TEXT_OUTPUT_COST
+  // Get the pricing for the selected model
+  const rates = PRICING[selectedModel];
+
+  const audioInputCost = audioInputTokens * rates.AUDIO_INPUT_COST;
+  const cachedInputCost = cachedInputTokens * rates.CACHED_AUDIO_COST;
+  const textInputCost = textInputTokens * rates.TEXT_INPUT_COST;
+  const audioOutputCost = audioOutputTokens * rates.AUDIO_OUTPUT_COST;
+  const textOutputCost = textOutputTokens * rates.TEXT_OUTPUT_COST;
 
   return {
     inputCost: audioInputCost + cachedInputCost + textInputCost,
@@ -482,7 +506,8 @@ function addEventToLog(eventData) {
         peerConnection = await createRealtimeSession(
           audioStream,
           tokenInput.value,
-          voiceSelect.value
+          voiceSelect.value,
+          modelSelect.value
         )
         
         status.className = 'status success'
