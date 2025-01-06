@@ -11,14 +11,20 @@
             margin: 20px auto;
             padding: 0 20px;
         }
-        #output {
+        .textarea-container {
+            margin: 20px 0;
+        }
+        textarea {
             width: 100%;
-            height: 400px;
-            margin-top: 20px;
+            height: 200px;
+            margin-top: 10px;
             padding: 10px;
             font-family: monospace;
             border: 1px solid #ccc;
             border-radius: 4px;
+        }
+        #output {
+            height: 400px;
         }
         .controls {
             margin: 20px 0;
@@ -27,6 +33,11 @@
             padding: 8px 16px;
             margin-right: 10px;
             cursor: pointer;
+        }
+        .error {
+            color: red;
+            margin-top: 5px;
+            font-size: 14px;
         }
     </style>
 </head>
@@ -37,11 +48,34 @@
         <button id="disconnect">Disconnect</button>
         <button id="clear">Clear Log</button>
     </div>
-    <textarea id="output" readonly></textarea>
+    
+    <div class="textarea-container">
+        <h3>Send Message</h3>
+        <textarea id="input" placeholder="Paste your JSON message here..."></textarea>
+        <div id="jsonError" class="error"></div>
+        <button id="send">Send Message</button>
+<p>Example message to filter for only specific DID handles (<a href="https://tools.simonwillison.net/bluesky-resolve">resolve those here</a>):</p>
+<pre><code>
+{
+  "type": "options_update",
+  "payload": {
+    "wantedCollections": ["app.bsky.feed.post"],
+    "wantedDids": ["did:plc:kft6lu4trxowqmter2b6vg6z"],
+    "maxMessageSizeBytes": 1000000
+  }
+}</code></pre>
+    </div>
+
+    <div class="textarea-container">
+        <h3>Log Output</h3>
+        <textarea id="output" readonly></textarea>
+    </div>
 
     <script>
         let ws = null;
         const output = document.getElementById('output');
+        const input = document.getElementById('input');
+        const jsonError = document.getElementById('jsonError');
         
         function log(message) {
             const timestamp = new Date().toISOString();
@@ -96,11 +130,45 @@
             }
         }
 
+        function sendMessage() {
+            if (!ws) {
+                log('Not connected to WebSocket');
+                return;
+            }
+
+            const message = input.value.trim();
+            if (!message) {
+                jsonError.textContent = 'Please enter a message';
+                return;
+            }
+
+            try {
+                // Validate JSON
+                const jsonMessage = JSON.parse(message);
+                
+                // Send the message
+                ws.send(JSON.stringify(jsonMessage));
+                log(`Sent: ${message}`);
+                jsonError.textContent = '';
+            } catch (error) {
+                jsonError.textContent = 'Invalid JSON format';
+                log(`Failed to send message: Invalid JSON format`);
+            }
+        }
+
         // Event Listeners
         document.getElementById('connect').addEventListener('click', connect);
         document.getElementById('disconnect').addEventListener('click', disconnect);
         document.getElementById('clear').addEventListener('click', () => {
             output.value = '';
+        });
+        document.getElementById('send').addEventListener('click', sendMessage);
+
+        // Add keyboard shortcut (Ctrl/Cmd + Enter) to send message
+        input.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                sendMessage();
+            }
         });
     </script>
 </body>
