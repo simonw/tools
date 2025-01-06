@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 0 20px;
+  }
+
+  input {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    margin: 8px 0;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+
+  button {
+    background: #0070ff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #0060df;
+  }
+
+  #result {
+    margin-top: 20px;
+    padding: 16px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    word-break: break-all;
+  }
+
+  .error {
+    color: #d00;
+  }
+  </style>
+</head>
+<body>
+  <h1>Resolve Bluesky handle to DID</h1>
+  
+  <form id="resolve-form">
+    <input type="text" id="handle" name="handle" placeholder="Enter Bluesky handle (e.g. jay.bsky.social)" required>
+    <button type="submit">Resolve</button>
+  </form>
+  
+  <div id="result"></div>
+
+<script type="module">
+const BSKY_URL = 'https://bsky.social/xrpc/com.atproto.identity.resolveHandle'
+const form = document.getElementById('resolve-form')
+const result = document.getElementById('result')
+
+async function resolveDid(event) {
+  if (!event?.target?.tagName === 'FORM') return
+  event.preventDefault()
+  
+  const handle = event.target.handle.value.trim()
+
+  try {
+    const response = await fetch(`${BSKY_URL}?handle=${encodeURIComponent(handle)}`)
+    if (!response.ok) throw new Error('Handle not found')
+    const data = await response.json()
+    result.textContent = data.did
+  } catch (err) {
+    result.innerHTML = `<span class="error">Error: ${err.message}</span>`
+  }
+  return false
+}
+
+form.addEventListener('submit', resolveDid)
+</script>
+</body>
+</html>

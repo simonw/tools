@@ -42,6 +42,7 @@ This collection is partly **an experiment** in how much it's possible to get don
 - [Arena animated](https://tools.simonwillison.net/arena-animated) animates the progression of the LMSYS Chatbot Arena, inspired by [this visualization](https://public.flourish.studio/visualisation/17992181/) by [Peter Gostev](https://www.linkedin.com/posts/peter-gostev_how-companies-llms-compare-over-the-course-activity-7196899934615257090-zilk) (via [Time-Winter-4319 on Reddit](https://www.reddit.com/r/LocalLLaMA/comments/1bp4j19/gpt4_is_no_longer_the_top_dog_timelapse_of/))
 - [California Clock Change](https://tools.simonwillison.net/california-clock-change) - shows when the clocks will next change for daylight saving time in California
 - [Bluesky WebSocket Firehose](https://tools.simonwillison.net/bluesky-firehose) showing a live firehose of Bluesky activity, [described here](https://simonwillison.net/2024/Nov/20/bluesky-websocket-firehose/)
+- [Bluesky resolve DID](https://tools.simonwillison.net/bluesky-resolve) turns a Bluesky ID such as `simonwillison.net` into a DID
 - [Prompts.js](https://tools.simonwillison.net/prompts-js) small JavaScript library enabling `await Prompts.alert("hi")` and `await Prompts.confirm("Continue?")` and `await Prompts.prompt("Enter your name")` 
 
 ## On Observable
