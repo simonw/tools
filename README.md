@@ -44,6 +44,7 @@ This collection is partly **an experiment** in how much it's possible to get don
 - [Bluesky WebSocket Firehose](https://tools.simonwillison.net/bluesky-firehose) showing a live firehose of Bluesky activity, [described here](https://simonwillison.net/2024/Nov/20/bluesky-websocket-firehose/)
 - [Bluesky resolve DID](https://tools.simonwillison.net/bluesky-resolve) turns a Bluesky ID such as `simonwillison.net` into a DID
 - [Prompts.js](https://tools.simonwillison.net/prompts-js) small JavaScript library enabling `await Prompts.alert("hi")` and `await Prompts.confirm("Continue?")` and `await Prompts.prompt("Enter your name")` 
+- [aria-live-regions](https://tools.simonwillison.net/aria-live-regions) demonstrates ARIA live regions
 
 ## On Observable
 
