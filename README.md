@@ -27,6 +27,7 @@ This collection is partly **an experiment** in how much it's possible to get don
 - [Navigation for headings](https://tools.simonwillison.net/nav-for-headings) - paste in an HTML document with headings, each heading is assigned a unique ID and the tool then generates a navigation `<ul>`
 - [JSON to YAML](https://tools.simonwillison.net/json-to-yaml) - convert JSON to YAML, showing different styles of YAML output
 - [YAML Explorer](https://tools.simonwillison.net/yaml-explorer) - nested hierarchy explorer for YAML files, which can be loaded from an external URL and have their expand/collapse state persisted in the URL to the tool
+- [Word Counter](https://tools.simonwillison.net/word-counter) - count words across multiple blocks of text, persisted to localStorage.
 
 ## LLM playgrounds and debuggers
 
