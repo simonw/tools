@@ -159,7 +159,19 @@
             'amazon-nova-micro': { name: 'Amazon Nova Micro', input: 0.035, output: 0.14 },
             'amazon-nova-lite': { name: 'Amazon Nova Lite', input: 0.06, output: 0.24 },
             'amazon-nova-pro': { name: 'Amazon Nova Pro', input: 0.8, output: 3.2 },
-            'deepseek-chat': { name: 'DeepSeek Chat', input: 0.14, output: 0.28 },
+            'deepseek-chat': { 
+                name: 'DeepSeek Chat',
+                getPrice: () => {
+                    const cutoffDate = new Date('2025-02-08T16:00:00Z');
+                    const currentDate = new Date();
+                    
+                    if (currentDate < cutoffDate) {
+                        return { input: 0.14, output: 0.28 };
+                    } else {
+                        return { input: 0.27, output: 1.10 };
+                    }
+                }
+            },
             'deepseek-reasoner': { name: 'DeepSeek Reasoner', input: 0.55, output: 2.19 },
         };
 
@@ -181,8 +193,16 @@
 
         function setPreset(model) {
             const preset = presets[model];
-            document.getElementById('inputCost').value = preset.input;
-            document.getElementById('outputCost').value = preset.output;
+            let prices;
+            
+            if (preset.getPrice) {
+                prices = preset.getPrice();
+            } else {
+                prices = { input: preset.input, output: preset.output };
+            }
+            
+            document.getElementById('inputCost').value = prices.input;
+            document.getElementById('outputCost').value = prices.output;
             calculateCost();
         }
 
