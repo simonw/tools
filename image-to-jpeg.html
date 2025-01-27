@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Drag and Drop Image</title>
+  <style>
+    #dropzone {
+      width: 500px;
+      height: 100px;
+      border: 2px dashed #ccc;
+      text-align: center;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    #output {
+      width: 500px;
+      margin-bottom: 20px;
+    }
+    textarea {
+      width: 500px;
+      height: 100px;
+    }
+    .container {
+      margin-bottom: 20px;
+    }
+    #fileInput {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="dropzone">Click or drag and drop an image here</div>
+  <input type="file" id="fileInput" accept="image/*">
+  <div class="container">
+    <label for="qualityRange">JPEG Quality: <span id="qualityValue">75</span></label><br>
+    <input type="range" id="qualityRange" min="0" max="100" value="75" />
+  </div>
+  <img id="output" src="" alt="Converted Image" /><br>
+  <div class="container">
+    <label for="imgDataUri">Image Data URI:</label><br>
+    <textarea id="imgDataUri" readonly></textarea>
+  </div>
+  <div id="jpegSize">JPEG Size: 0 bytes</div>
+
+  <script>
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    dropzone.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          imgSrc = e.target.result;
+          updateImage();
+        };
+        reader.readAsDataURL(file);
+      } else {
+        alert('Please select an image file.');
+      }
+    });
+    const output = document.getElementById('output');
+    const imgDataUri = document.getElementById('imgDataUri');
+    const qualityRange = document.getElementById('qualityRange');
+    const qualityValue = document.getElementById('qualityValue');
+    const jpegSize = document.getElementById('jpegSize');
+    let imgSrc;
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.style.backgroundColor = '#f0f0f0';
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.style.backgroundColor = '';
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.style.backgroundColor = '';
+
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          imgSrc = e.target.result;
+          updateImage();
+        };
+        reader.readAsDataURL(file);
+      } else {
+        alert('Please drop an image file.');
+      }
+    });
+
+    qualityRange.addEventListener('input', () => {
+      qualityValue.textContent = qualityRange.value;
+      updateImage();
+    });
+
+    function updateImage() {
+      if (!imgSrc) return;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const aspectRatio = img.height / img.width;
+        canvas.width = 500;
+        canvas.height = 500 * aspectRatio;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const quality = qualityRange.value / 100;
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        output.src = dataUrl;
+        imgDataUri.value = `<img src="${dataUrl}" alt="Converted Image" />`;
+        const size = Math.round(dataUrl.length * 3 / 4); // Approximate size in bytes
+        jpegSize.textContent = `JPEG Size: ${size.toLocaleString()} bytes`;
+      };
+      img.src = imgSrc;
+    }
+</script>
+</body>
+</html>
