@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  h1 {
+    margin-bottom: 24px;
+  }
+
+  .input-group {
+    margin-bottom: 24px;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  input {
+    width: 100%;
+    padding: 8px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+
+  button {
+    background: #2ea44f;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #2c974b;
+  }
+
+  button:disabled {
+    background: #94d3a2;
+    cursor: not-allowed;
+  }
+
+  .output {
+    margin-top: 24px;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 300px;
+    padding: 12px;
+    font-size: 16px;
+    font-family: monospace;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: vertical;
+  }
+
+  .error {
+    color: #cf222e;
+    margin-top: 8px;
+  }
+
+  .copy-button {
+    margin-top: 12px;
+  }
+  </style>
+</head>
+<body>
+  <h1>Convert GitHub issue to markdown</h1>
+
+  <div class="input-group">
+    <label for="issue-url">GitHub issue URL</label>
+    <input 
+      type="text" 
+      id="issue-url"
+      placeholder="https://github.com/owner/repo/issues/123"
+    >
+  </div>
+
+  <button id="convert">Convert to markdown</button>
+  
+  <div class="output">
+    <textarea id="markdown-output" readonly></textarea>
+    <button class="copy-button" id="copy">Copy to clipboard</button>
+  </div>
+
+  <p class="error" id="error"></p>
+
+<script type="module">
+const urlInput = document.getElementById('issue-url')
+const convertButton = document.getElementById('convert')
+const markdownOutput = document.getElementById('markdown-output')
+const copyButton = document.getElementById('copy')
+const errorElement = document.getElementById('error')
+
+function parseGitHubUrl(url) {
+  try {
+    const urlObj = new URL(url)
+    const [, owner, repo, , number] = urlObj.pathname.split('/')
+    return { owner, repo, number }
+  } catch (e) {
+    throw new Error('Invalid GitHub URL')
+  }
+}
+
+function convertToMarkdown(issue, comments) {
+  let md = `# ${issue.title}\n\n`
+  md += `*Posted by @${issue.user.login}*\n\n`
+  md += issue.body + '\n\n'
+  
+  if (comments.length > 0) {
+    md += '---\n\n'
+    comments.forEach(comment => {
+      md += `### Comment by @${comment.user.login}\n\n`
+      md += comment.body + '\n\n'
+      md += '---\n\n'
+    })
+  }
+  
+  return md
+}
+
+async function getAllPages(url) {
+  let allItems = []
+  let nextUrl = url
+  
+  while (nextUrl) {
+    const response = await fetch(nextUrl)
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch data')
+    }
+    
+    const items = await response.json()
+    allItems = allItems.concat(items)
+    
+    // Check for pagination in Link header
+    const link = response.headers.get('Link')
+    nextUrl = null
+    
+    if (link) {
+      const nextLink = link.split(',').find(s => s.includes('rel="next"'))
+      if (nextLink) {
+        nextUrl = nextLink.split(';')[0].trim().slice(1, -1)
+      }
+    }
+  }
+  
+  return allItems
+}
+
+async function fetchIssueAndComments(owner, repo, number) {
+  const issueUrl = `https://api.github.com/repos/${owner}/${repo}/issues/${number}`
+  const commentsUrl = `${issueUrl}/comments`
+  
+  const [issue, comments] = await Promise.all([
+    fetch(issueUrl).then(res => {
+      if (!res.ok) throw new Error('Failed to fetch issue')
+      return res.json()
+    }),
+    getAllPages(commentsUrl)
+  ])
+  
+  return { issue, comments }
+}
+
+convertButton.addEventListener('click', async () => {
+  errorElement.textContent = ''
+  markdownOutput.value = ''
+  convertButton.disabled = true
+  
+  try {
+    const { owner, repo, number } = parseGitHubUrl(urlInput.value)
+    const { issue, comments } = await fetchIssueAndComments(owner, repo, number)
+    const markdown = convertToMarkdown(issue, comments)
+    markdownOutput.value = markdown
+  } catch (error) {
+    errorElement.textContent = error.message
+  } finally {
+    convertButton.disabled = false
+  }
+})
+
+copyButton.addEventListener('click', () => {
+  markdownOutput.select()
+  document.execCommand('copy')
+  
+  const originalText = copyButton.textContent
+  copyButton.textContent = 'Copied'
+  copyButton.disabled = true
+  
+  setTimeout(() => {
+    copyButton.textContent = originalText
+    copyButton.disabled = false
+  }, 2000)
+})
+
+</script>
+</body>
+</html>
