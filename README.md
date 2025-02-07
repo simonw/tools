@@ -48,6 +48,7 @@ This collection is partly **an experiment** in how much it's possible to get don
 - [Bluesky resolve DID](https://tools.simonwillison.net/bluesky-resolve) turns a Bluesky ID such as `simonwillison.net` into a DID
 - [Prompts.js](https://tools.simonwillison.net/prompts-js) small JavaScript library enabling `await Prompts.alert("hi")` and `await Prompts.confirm("Continue?")` and `await Prompts.prompt("Enter your name")` 
 - [aria-live-regions](https://tools.simonwillison.net/aria-live-regions) demonstrates ARIA live regions
+- [APSW SQLite query explainer](https://tools.simonwillison.net/apsw-query) - paste in a SQLite SQL query, get back a detailed explanation created using `apsw.ext.query_info()`
 
 ## On Observable
 
