@@ -17,7 +17,7 @@
             font-size: 24px;
             margin-bottom: 20px;
         }
-        #url-input, #format-select, #submit-btn, #markdown-raw, #copy-btn {
+        #url-input, #format-select, #submit-btn, #markdown-raw, #copy-btn, #prompt-textarea, #run-prompt-btn {
             font-size: 16px;
             padding: 5px;
             margin-bottom: 10px;
@@ -29,20 +29,23 @@
         #format-select {
             width: 20%;
         }
-        #submit-btn, #copy-btn {
+        #submit-btn, .copy-btn, #run-prompt-btn {
             background-color: #4CAF50;
             color: white;
             border: 2px solid #4CAF50;
             cursor: pointer;
         }
-        #submit-btn:hover, #copy-btn:hover {
+        #submit-btn:hover, .copy-btn:hover, #run-prompt-btn:hover {
             background-color: #45a049;
         }
-        #markdown-raw {
+        #markdown-raw, #prompt-textarea {
             width: 100%;
             height: 200px;
             margin-top: 20px;
             resize: vertical;
+        }
+        #prompt-textarea {
+            height: 100px;
         }
         #markdown-rendered {
             margin-top: 20px;
@@ -50,12 +53,31 @@
             padding: 10px;
             overflow-wrap: break-word;
         }
-        #loading {
+        #loading, #prompt-loading {
             display: none;
             margin-top: 20px;
         }
-        #result {
+        #result, #prompt-result {
             display: none;
+            line-height: 1.5;
+            font-size: 16px;
+        }
+        #prompt-rendered {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 65ch;
+            margin: 1.5em 0;
+        }
+        #prompt-rendered p {
+            margin: 1em 0;
+            line-height: 1.6;
+        }
+        #prompt-rendered ul {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+        #prompt-rendered li {
+            margin: 0.5em 0;
+            line-height: 1.4;
         }
         iframe {
             width: 100%;
@@ -103,6 +125,17 @@
         <iframe id="markdown-rendered" sandbox></iframe>
     </div>
 
+    <div id="prompt-section" style="margin-top: 2em; padding-top: 2em; border-top: 1px solid #eee; display: none;">
+        <h2>Run a prompt with Claude</h2>
+        <textarea id="prompt-textarea">Respond in markdown. You summarize the pasted in text. Start with a overall summary in a single paragraph. Then show a bullet pointed list of the most interesting illustrative quotes from the piece. Then a bullet point list of the most unusual ideas. Finally provide a longer summary that covers points not included already</textarea>
+        <button id="run-prompt-btn">Run prompt</button>
+        <div id="prompt-loading" style="margin: 1em 0; font-style: italic;">Generating...</div>
+        <div id="prompt-result">
+            <div id="prompt-rendered"></div>
+            <button id="prompt-copy-btn" class="copy-btn" style="margin-top: 1em;">Copy to clipboard</button>
+        </div>
+    </div>
+
     <script>
         const urlForm = document.getElementById('url-form');
         const urlInput = document.getElementById('url-input');
@@ -112,6 +145,14 @@
         const markdownRaw = document.getElementById('markdown-raw');
         const copyBtn = document.getElementById('copy-btn');
         const markdownRendered = document.getElementById('markdown-rendered');
+
+        // Claude elements
+        const promptTextarea = document.getElementById('prompt-textarea');
+        const runPromptBtn = document.getElementById('run-prompt-btn');
+        const promptLoading = document.getElementById('prompt-loading');
+        const promptResult = document.getElementById('prompt-result');
+        const promptRendered = document.getElementById('prompt-rendered');
+        const promptCopyBtn = document.getElementById('prompt-copy-btn');
 
         urlForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -157,11 +198,13 @@
                 }
                 markdownRendered.srcdoc = htmlContent;
                 result.style.display = 'block';
+                document.getElementById('prompt-section').style.display = 'block';
             } catch (error) {
                 console.error('Error fetching content:', error);
                 markdownRaw.value = 'Error fetching content. Please try again.';
                 markdownRendered.srcdoc = '<p>Error fetching content. Please try again.</p>';
                 result.style.display = 'block';
+                document.getElementById('prompt-section').style.display = 'none';
             } finally {
                 loading.style.display = 'none';
             }
@@ -177,6 +220,87 @@
             setTimeout(() => {
                 copyBtn.textContent = originalText;
             }, 1500);
+        });
+
+        // Get the API key from localStorage or prompt the user to enter it
+        function getApiKey() {
+            let apiKey = localStorage.getItem("ANTHROPIC_API_KEY");
+            if (!apiKey) {
+                apiKey = prompt("Please enter your Anthropic API key:");
+                if (apiKey) {
+                    localStorage.setItem("ANTHROPIC_API_KEY", apiKey);
+                }
+            }
+            return apiKey;
+        }
+
+        // Handle Claude prompt
+        runPromptBtn.addEventListener('click', async () => {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                alert("API key not found. Please enter your Anthropic API key.");
+                return;
+            }
+
+            // Get the prompt and content
+            const systemPrompt = promptTextarea.value;
+            const content = markdownRaw.value;
+
+            if (!content) {
+                alert("No content to analyze. Please fetch a URL first.");
+                return;
+            }
+
+            promptLoading.style.display = 'block';
+            promptResult.style.display = 'none';
+
+            try {
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: {
+                        "x-api-key": apiKey,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                        "anthropic-dangerous-direct-browser-access": "true"
+                    },
+                    body: JSON.stringify({
+                        model: "claude-3-5-haiku-latest",
+                        max_tokens: 4096,
+                        system: systemPrompt,
+                        messages: [
+                            {
+                                role: "user",
+                                content: content
+                            }
+                        ]
+                    })
+                });
+
+                const data = await response.json();
+                console.log(JSON.stringify(data, null, 2));
+                const markdown = data.content[0].text;
+                
+                promptRendered.innerHTML = marked.parse(markdown);
+                promptResult.style.display = 'block';
+
+                let responseMarkdown = markdown;
+                promptRendered.innerHTML = marked.parse(responseMarkdown);
+
+                promptCopyBtn.onclick = () => {
+                    navigator.clipboard.writeText(responseMarkdown);
+                    const originalText = promptCopyBtn.textContent;
+                    promptCopyBtn.textContent = 'Copied';
+                    setTimeout(() => {
+                        promptCopyBtn.textContent = originalText;
+                    }, 1500);
+                };
+
+            } catch (error) {
+                console.error("Error calling Claude API:", error);
+                promptRendered.innerHTML = '<p class="error">Error generating summary. Please try again.</p>';
+            } finally {
+                promptLoading.style.display = 'none';
+            }
         });
     </script>
 </body>
