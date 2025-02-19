@@ -2,6 +2,14 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
+## highlight.py
+
+Given input text to stdin and search/highlight terms, outputs matches plus context with colors to highlight them.
+
+Example usage:
+```bash
+cat myfile.py | uv run http://tools.simonwillison.net/python/highlight.py re search
+```
 ## debug_s3_access.py
 
 Use this with a URL to an object in an S3 bucket to try and debug why that object cannot be accessed via its public URL.
