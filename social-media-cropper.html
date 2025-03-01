@@ -70,7 +70,16 @@
 <body>
     <div class="container">
         <h1>Social Media Card Cropper</h1>
-        <p>Drop an image or click to select. The crop area is fixed to 2:1 ratio.</p>
+        <p>Drop an image or click to select. Select your preferred aspect ratio below.</p>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="margin-right: 10px;">
+                <input type="radio" name="aspectRatio" value="2" checked> 2:1 ratio
+            </label>
+            <label>
+                <input type="radio" name="aspectRatio" value="1.4"> 14:10 ratio
+            </label>
+        </div>
         
         <div class="drop-zone" id="dropZone">
             Drop image here, click to select, or paste from clipboard
@@ -84,6 +93,7 @@
         <div class="preview-container hidden" id="previewContainer">
             <h3>Preview (0.7 quality JPEG)</h3>
             <img id="preview">
+            <div id="dimensionsInfo" style="text-align: center; margin-top: 5px; font-size: 14px; color: #666;"></div>
             <div style="text-align: center; margin-top: 10px;">
                 <a href="#" id="downloadBtn" class="download-btn">Download Social Media Card</a>
             </div>
@@ -139,6 +149,15 @@
                 handleFile(e.target.files[0]);
             }
         });
+        
+        // Listen for aspect ratio changes and update the cropper
+        document.querySelectorAll('input[name="aspectRatio"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (cropper) {
+                    initCropper();
+                }
+            });
+        });
 
         function handleFile(file) {
             if (!file.type.startsWith('image/')) {
@@ -160,8 +179,12 @@
                 cropper.destroy();
             }
 
+            // Get the selected aspect ratio
+            const aspectRatioValue = document.querySelector('input[name="aspectRatio"]:checked').value;
+            const ratio = parseFloat(aspectRatioValue);
+
             cropper = new Cropper(image, {
-                aspectRatio: 2,
+                aspectRatio: ratio,
                 viewMode: 1,
                 dragMode: 'move',
                 autoCropArea: 1,
@@ -186,6 +209,10 @@
             const previewUrl = canvas.toDataURL('image/jpeg', 0.7);
             preview.src = previewUrl;
             previewContainer.classList.remove('hidden');
+
+            // Show dimensions
+            const dimensionsInfo = document.getElementById('dimensionsInfo');
+            dimensionsInfo.textContent = `Dimensions: ${canvas.width} × ${canvas.height} pixels`;
 
             // Update download link
             downloadBtn.href = previewUrl;
