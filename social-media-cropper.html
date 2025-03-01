@@ -76,9 +76,17 @@
             <label style="margin-right: 10px;">
                 <input type="radio" name="aspectRatio" value="2" checked> 2:1 ratio
             </label>
-            <label>
+            <label style="margin-right: 10px;">
                 <input type="radio" name="aspectRatio" value="1.4"> 14:10 ratio
             </label>
+            <div style="margin-top: 10px;">
+                <label for="backgroundColor">Background color:</label>
+                <input type="color" id="backgroundColor" value="#ffffff">
+            </div>
+            <div style="margin-top: 10px;">
+                <button id="zoomInBtn" type="button" style="margin-right: 5px;">Zoom +</button>
+                <button id="zoomOutBtn" type="button">Zoom -</button>
+            </div>
         </div>
         
         <div class="drop-zone" id="dropZone">
@@ -105,6 +113,9 @@
         let cropper = null;
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
+        const backgroundColor = document.getElementById('backgroundColor');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
         
         // Handle paste events
         document.addEventListener('paste', (e) => {
@@ -158,6 +169,37 @@
                 }
             });
         });
+        
+        // Listen for background color changes and update the cropper
+        backgroundColor.addEventListener('change', () => {
+            if (cropper) {
+                initCropper();
+            }
+        });
+        
+        // Handle zoom buttons
+        zoomInBtn.addEventListener('click', () => {
+            if (cropper) {
+                cropper.zoom(0.1);
+            }
+        });
+        
+        zoomOutBtn.addEventListener('click', () => {
+            if (cropper) {
+                cropper.zoom(-0.1);
+                // Force update canvas size to allow zooming out beyond image boundaries
+                const canvasData = cropper.getCanvasData();
+                const newWidth = canvasData.width * 0.9;
+                const newHeight = canvasData.height * 0.9;
+                
+                cropper.setCanvasData({
+                    width: newWidth,
+                    height: newHeight,
+                    left: canvasData.left + (canvasData.width - newWidth) / 2,
+                    top: canvasData.top + (canvasData.height - newHeight) / 2
+                });
+            }
+        });
 
         function handleFile(file) {
             if (!file.type.startsWith('image/')) {
@@ -185,16 +227,21 @@
 
             cropper = new Cropper(image, {
                 aspectRatio: ratio,
-                viewMode: 1,
+                viewMode: 0, // Changed to 0 for no restrictions
                 dragMode: 'move',
-                autoCropArea: 1,
+                autoCropArea: 0.8,
                 restore: false,
                 guides: true,
                 center: true,
                 highlight: false,
                 cropBoxMovable: true,
-                cropBoxResizable: false,
+                cropBoxResizable: true,
                 toggleDragModeOnDblclick: false,
+                minCropBoxWidth: 100,
+                minCropBoxHeight: 100,
+                minCanvasWidth: 0,
+                minCanvasHeight: 0,
+                background: true,
                 crop: updatePreview
             });
         }
@@ -202,9 +249,46 @@
         function updatePreview() {
             if (!cropper) return;
 
-            const canvas = cropper.getCroppedCanvas();
-            if (!canvas) return;
-
+            // Create a larger canvas with the background color
+            const crop = cropper.getData();
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Get the selected aspect ratio
+            const aspectRatioValue = document.querySelector('input[name="aspectRatio"]:checked').value;
+            const ratio = parseFloat(aspectRatioValue);
+            
+            // Set canvas dimensions to the desired aspect ratio
+            if (ratio === 2) {
+                canvas.width = 1200;
+                canvas.height = 600;
+            } else {
+                canvas.width = 1400;
+                canvas.height = 1000;
+            }
+            
+            // Fill with background color
+            ctx.fillStyle = backgroundColor.value;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Get the cropped canvas
+            const croppedCanvas = cropper.getCroppedCanvas();
+            if (!croppedCanvas) return;
+            
+            // Calculate dimensions to center the image
+            const scale = Math.min(
+                canvas.width / croppedCanvas.width,
+                canvas.height / croppedCanvas.height
+            ) * 0.9; // Scale slightly down to add padding
+            
+            const scaledWidth = croppedCanvas.width * scale;
+            const scaledHeight = croppedCanvas.height * scale;
+            const x = (canvas.width - scaledWidth) / 2;
+            const y = (canvas.height - scaledHeight) / 2;
+            
+            // Draw the cropped image centered on the background
+            ctx.drawImage(croppedCanvas, x, y, scaledWidth, scaledHeight);
+            
             // Convert to JPEG with 0.7 quality
             const previewUrl = canvas.toDataURL('image/jpeg', 0.7);
             preview.src = previewUrl;
