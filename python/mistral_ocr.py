@@ -232,7 +232,8 @@ def ocr_pdf(
 
             if output_format == "html":
                 # Convert markdown to HTML
-                html_content = markdown.markdown(markdown_text)
+                md = markdown.Markdown(extensions=["tables"])
+                html_content = md.convert(markdown_text)
 
                 # Add minimal HTML wrapper with basic styling
                 result = f"""<!DOCTYPE html>
