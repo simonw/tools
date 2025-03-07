@@ -2,6 +2,73 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
+## mistral_ocr.py
+
+Run PDF files through the [Mistral OCR](https://mistral.ai/fr/news/mistral-ocr) API:
+
+```bash
+uv run http://tools.simonwillison.net/python/mistral_ocr.py \
+  my-file.pdf > output.md
+```
+Or to generate HTML and save images and HTML to a directory:
+```bash
+uv run http://tools.simonwillison.net/python/mistral_ocr.py \
+  my-file.pdf -d output-dir -he
+```
+`-he` is short for `--html --extract-images`.
+
+Or to create HTML with images inlined as base64 URIs:
+```bash
+uv run http://tools.simonwillison.net/python/mistral_ocr.py \
+  my-file.pdf -hi > output.html
+```
+`-hi` is short for `--html --inline-images`.
+
+Full `--help`:
+
+```
+Usage: mistral_ocr.py [OPTIONS] FILE_PATH
+
+  Process a PDF file using Mistral's OCR API and output the results.
+
+  FILE_PATH is the path to the PDF file to process.
+
+  Output Formats:
+    - Markdown (default): Plain text markdown from the OCR results
+    - HTML (--html): Converts markdown to HTML with proper formatting
+    - JSON (--json): Raw JSON response from the Mistral OCR API
+
+  Output Destinations:
+    - stdout (default): Prints results to standard output
+    - Single file (-o/--output): Writes to specified file
+    - Directory (-d/--output-dir): Creates directory structure with main file and images
+      * For HTML: Creates index.html in the directory
+      * For Markdown: Creates README.md in the directory
+
+  Image Handling:
+    - No images (default): Images are excluded
+    - Inline (-i/--inline-images): Images included as data URIs in the output
+    - Extract (-e/--extract-images): Images saved as separate files in the output directory
+
+Options:
+  --api-key TEXT         Mistral API key. If not provided, will use
+                         MISTRAL_API_KEY environment variable.
+  -o, --output PATH      Output file path for the result. If not provided,
+                         prints to stdout.
+  -d, --output-dir PATH  Save output to a directory. For HTML creates
+                         index.html, for markdown creates README.md, with
+                         images in same directory.
+  --model TEXT           Mistral OCR model to use.
+  -j, --json             Return raw JSON instead of markdown text.
+  -h, --html             Convert markdown to HTML.
+  -i, --inline-images    Include images inline as data URIs (for HTML) or
+                         base64 (for JSON).
+  -e, --extract-images   Extract images as separate files (requires --output-
+                         dir).
+  -s, --silent           Suppress all output except for the requested data.
+  --help                 Show this message and exit.
+```
+
 ## highlight.py
 
 Given input text to stdin and search/highlight terms, outputs matches plus context with colors to highlight them.
@@ -10,6 +77,7 @@ Example usage:
 ```bash
 cat myfile.py | uv run http://tools.simonwillison.net/python/highlight.py re search
 ```
+
 ## debug_s3_access.py
 
 Use this with a URL to an object in an S3 bucket to try and debug why that object cannot be accessed via its public URL.
