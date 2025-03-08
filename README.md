@@ -42,6 +42,7 @@ This collection is partly **an experiment** in how much it's possible to get don
 - [Claude Token Counter](https://tools.simonwillison.net/claude-token-counter) - counts the number of tokens in a Claude prompt
 - [OpenAI audio input](https://tools.simonwillison.net/openai-audio) - record audio through the microphone and send it to OpenAI's audio model
 - [OpenAI audio output](https://tools.simonwillison.net/openai-audio-output) - run prompts against OpenAI that produce audio output and listen to it or download it from the browser
+- [JSON schema builder](https://tools.simonwillison.net/json-schema-builder) - interactive tool for building a JSON schema
 
 ## Miscellaneous
 
