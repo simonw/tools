@@ -31,7 +31,7 @@ This collection is partly **an experiment** in how much it's possible to get don
 - [PHP Deserializer](https://tools.simonwillison.net/php-deserializer) - paste in serealized PHP data, get back JSON
 - [SQL Pretty Printer](https://tools.simonwillison.net/sql-pretty-printer) - paste in SQL to pretty print it
 - [SQL Pretty Printer](https://tools.simonwillison.net/sql-pretty-printer) - paste in SQL to pretty print it
-- [Pipfile.lock Dependency Parser](https://tools.simonwillison.net/pipfile) - paste in a `Pipfile.lock` JSON file to extract just the dependency versions
+- [Pipfile.lock Dependency Parser](https://tools.simonwillison.net/pipfile) - paste in a `Pipfile.lock` JSON file to extract just the dependency versions]
 
 ## LLM playgrounds and debuggers
 
@@ -51,6 +51,7 @@ This collection is partly **an experiment** in how much it's possible to get don
 - [Prompts.js](https://tools.simonwillison.net/prompts-js) small JavaScript library enabling `await Prompts.alert("hi")` and `await Prompts.confirm("Continue?")` and `await Prompts.prompt("Enter your name")` 
 - [aria-live-regions](https://tools.simonwillison.net/aria-live-regions) demonstrates ARIA live regions
 - [APSW SQLite query explainer](https://tools.simonwillison.net/apsw-query) - paste in a SQLite SQL query, get back a detailed explanation created using `apsw.ext.query_info()`
+- [Encrypt / decrypt message](https://tools.simonwillison.net/encrypt) - encrypt a message with a passphrase, send someone a link and they can decrypt it again
 
 ## On Observable
 
