@@ -32,6 +32,7 @@ This collection is partly **an experiment** in how much it's possible to get don
 - [SQL Pretty Printer](https://tools.simonwillison.net/sql-pretty-printer) - paste in SQL to pretty print it
 - [SQL Pretty Printer](https://tools.simonwillison.net/sql-pretty-printer) - paste in SQL to pretty print it
 - [Pipfile.lock Dependency Parser](https://tools.simonwillison.net/pipfile) - paste in a `Pipfile.lock` JSON file to extract just the dependency versions]
+- [Paste rich text](https://tools.simonwillison.net/paste-rich-text) - paste from your clipboard and see any rich text as HTML
 
 ## LLM playgrounds and debuggers
 
