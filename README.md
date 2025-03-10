@@ -2,9 +2,9 @@
 
 Miscellaneous HTML+JavaScript tools I have built, almost all with the assistance of LLMs.
 
-This collection is partly **an experiment** in how much it's possible to get done through prompting alone, against projects with extremely low stakes. The prompts I used are linked to from [the commit messages](https://github.com/simonw/tools/commits) for each tool. Most of them used a version of the custom instructions [described here](https://simonwillison.net/2024/Dec/19/one-shot-python-tools/#custom-instructions).
+This collection is partly **an experiment** in how much it's possible to get done through prompting alone, against projects with extremely low stakes. The prompts I used are linked to from [the commit messages](https://github.com/simonw/tools/commits) for each tool, or can be seen [in this colophon](https://tools.simonwillison.net/colophon).
 
-[Everything I built with Claude Artifacts this week](https://simonwillison.net/2024/Oct/21/claude-artifacts/) describes how I built a lot of these.
+Most of these used a version of the Claude custom instructions [described here](https://simonwillison.net/2024/Dec/19/one-shot-python-tools/#custom-instructions).
 
 ## Tools
 
