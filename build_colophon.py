@@ -56,7 +56,7 @@ def build_colophon():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tools Colophon</title>
+    <title>tools.simonwillison.net colophon</title>
     <style>
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -124,9 +124,9 @@ def build_colophon():
     </style>
 </head>
 <body>
-    <h1>Tools Colophon</h1>
-    <p>This page documents the creation of the tools on <a href="https://tools.simonwillison.net/">tools.simonwillison.net</a>, 
-    including links to the Claude conversations used to build them.</p>
+    <h1>tools.simonwillison.net colophon</h1>
+    <p>The tools on <a href="https://tools.simonwillison.net/">tools.simonwillison.net</a> were mostly built using <a href="https://simonwillison.net/tags/ai-assisted-programming/">AI-assisted programming</a>.</p>
+    <p>This page lists the commit messages for each tool, many of which link to the LLM transcript used to produce the code.</p>
 """
 
     # Add each page with its commits
