@@ -6,20 +6,17 @@ import html
 from pathlib import Path
 
 
-def linkify_urls(text):
-    """Convert URLs in text to clickable links."""
-    url_pattern = r"(https?://[^\s]+)"
-    return re.sub(url_pattern, r'<a href="\1" target="_blank">\1</a>', text)
-
-
 def format_commit_message(message):
     """Format commit message with line breaks and linkified URLs."""
     # Escape HTML entities
     escaped = html.escape(message)
-    # Convert newlines to <br>
-    with_breaks = escaped.replace("\n", "<br>")
-    # Linkify URLs
-    return linkify_urls(with_breaks)
+
+    # Linkify URLs first (before adding breaks)
+    url_pattern = r"(https?://[^\s]+)"
+    linkified = re.sub(url_pattern, r'<a href="\1" target="_blank">\1</a>', escaped)
+
+    # Then convert newlines to <br>
+    return linkified.replace("\n", "<br>")
 
 
 def build_colophon():
