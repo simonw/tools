@@ -2,6 +2,15 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
+## all_gcp_buckets.py
+
+View the size of the files in all of your Google Cloud buckets. You'll need to have [gcloud installed](https://cloud.google.com/sdk/docs/install) and do the `gcloud auth` dance first.
+
+```bash
+uv run http://tools.simonwillison.net/python/all_gcp_buckets.py
+```
+This will leave `.txt` files for each bucket containing a file listing, in a directory called `bucket_listings_DATE`.
+
 ## mistral_ocr.py
 
 Run PDF files through the [Mistral OCR](https://mistral.ai/fr/news/mistral-ocr) API:
