@@ -75,6 +75,7 @@ def build_colophon():
         a {
             color: #0066cc;
             text-decoration: none;
+            overflow-wrap: break-word;
         }
         a:hover {
             text-decoration: underline;
