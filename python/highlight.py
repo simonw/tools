@@ -54,9 +54,9 @@ def find_matches(
 
     # Create segments with context
     segments: List[Tuple[int, int]] = []  # List of (start, end) for context regions
-    match_positions: List[
-        Tuple[int, int]
-    ] = []  # List of (start, end) for actual matches
+    match_positions: List[Tuple[int, int]] = (
+        []
+    )  # List of (start, end) for actual matches
 
     for match in matches:
         start, end = match.span()
