@@ -136,7 +136,7 @@ def build_colophon():
         commits = list(reversed(commits))
 
         html_content += f"""
-    <div class="tool">
+    <div class="tool" id="{page_name}">
         <h2 class="tool-name"><a href="{tool_url}">{page_name}</a></h2>
 """
 
@@ -160,9 +160,9 @@ def build_colophon():
             commit_url = f"https://github.com/simonw/tools/commit/{commit_hash}"
 
             html_content += f"""
-        <div class="commit">
+        <div class="commit" id="commit-{short_hash}">
             <div>
-                <a href="{commit_url}" class="commit-hash" target="_blank">{short_hash}</a>
+                <a href="{commit_url}" class="commit-hash">{short_hash}</a>
                 <span class="commit-date">{formatted_date}</span>
             </div>
             <div class="commit-message">{formatted_message}</div>
