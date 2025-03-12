@@ -85,6 +85,14 @@ def build_colophon():
         a:hover {
             text-decoration: underline;
         }
+        a.hashref:link,
+        a.hashref:visited,
+        a.hashref:hover,
+        a.hashref:focus,
+        a.hashref:active {
+            color: #666;
+            padding-left: 0.5em;
+        }
         .tool {
             margin-bottom: 2rem;
             border-bottom: 1px solid #f0f0f0;
@@ -152,7 +160,7 @@ def build_colophon():
 
         html_content += f"""
     <div class="tool" id="{page_name}">
-        <h2 class="tool-name"><a href="{tool_url}">{page_name}</a></h2>
+        <h2 class="tool-name"><a href="{tool_url}">{page_name}</a> <a class="hashref" href="#{page_name}">#</a></h2>
 """
 
         # Add each commit
