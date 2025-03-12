@@ -115,9 +115,6 @@ def build_colophon():
         }
         .docs {
             margin-top: 1.5rem;
-            background-color: #f8f9fa;
-            padding: 1rem;
-            border-radius: 4px;
         }
         .docs pre {
             white-space: pre-wrap;
