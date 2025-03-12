@@ -115,7 +115,7 @@ def build_colophon():
         }
         .docs {
             margin-top: 1.5rem;
-        }
+        }f
         .docs pre {
             white-space: pre-wrap;
             overflow-wrap: break-word;
@@ -139,6 +139,7 @@ def build_colophon():
     <h1>tools.simonwillison.net colophon</h1>
     <p>The tools on <a href="https://tools.simonwillison.net/">tools.simonwillison.net</a> were mostly built using <a href="https://simonwillison.net/tags/ai-assisted-programming/">AI-assisted programming</a>.</p>
     <p>This page lists the commit messages for each tool, many of which link to the LLM transcript used to produce the code.</p>
+    <p>The descriptions for each of the tools were generated using Claude 3.7 Sonnet.</p>
 """
 
     # Add each page with its commits
