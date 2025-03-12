@@ -1,0 +1,3 @@
+This text editor provides a multi-section word and character counter for your writing. Enter text in the text areas to see an automatic count of words and characters update in real-time. Each writing section is independently tracked, and you can add multiple sections using the "Add new section" button or remove unwanted sections with the "Remove" button. Your writing is automatically saved to your browser's local storage after you stop typing, with "Saving..." and "Saved" indicators showing the save status. The editor maintains your work between browser sessions, so your content remains available when you return to the page.
+
+<!-- Generated from commit: cb33238bc7a9029e6453052184287dc8b1679f92 -->

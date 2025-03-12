@@ -1,0 +1,3 @@
+The Chrome Prompt Playground allows users to interact with the Gemini Nano experimental model directly in Chrome Canary. Enter your prompt in the text area and click "Execute prompt" to generate a response. The interface displays the model's output in real-time as it streams in. All your interactions are automatically saved to a history section below, where you can review past prompts and responses or delete entries you no longer need. This tool requires Chrome Canary with the "Prompt API for Gemini Nano" flag enabled in chrome://flags, and the model may take several hours to download before becoming available.
+
+<!-- Generated from commit: e16f12893a5756e5fe8c196f19d9722fde53e3be -->

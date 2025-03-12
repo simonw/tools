@@ -1,0 +1,3 @@
+This tool converts a simplified schema definition language into a standard JSON schema. Enter your schema in the text area using the concise DSL format - each field is defined with a name, type (str, int, bool, float), and optional description. The conversion happens in real-time as you type. Toggle the "Array items schema" checkbox to wrap your schema in an array definition. The converter runs Python code in your browser using Pyodide, with multiple CDN fallbacks to ensure reliability. Click the "Load example" button to see a demonstration of the proper syntax. The resulting JSON schema includes proper type mapping, required fields, and descriptions for each property.
+
+<!-- Generated from commit: e3f47637ebdf7e83155643cae1c0def78c7caf93 -->

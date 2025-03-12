@@ -1,0 +1,3 @@
+This tool allows you to browse the contents of Python package files directly in your browser. Enter a URL to a .zip, .tar.gz, or .whl file in the input field and click "Unpack File" to download and extract its contents. Once processed, a list of files contained in the package will appear. Click on any filename to view its contents in the panel below. The tool includes a sample URL to a Python wheel file that you can try with one click. The file browser supports text-based files and displays them with proper formatting for easier code review.
+
+<!-- Generated from commit: 6025f629f56b9f36f03faa1cb38286f12148963e -->

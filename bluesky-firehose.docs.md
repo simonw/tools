@@ -1,0 +1,3 @@
+The Bluesky WebSocket Feed Monitor allows you to connect to Bluesky's WebSocket API and monitor the firehose of posts in real-time. After connecting, you can send custom JSON messages to filter the feed based on specific criteria such as user DIDs or content types. The interface displays a log of all incoming messages with timestamps. You can control the connection using the connect/disconnect buttons, send filter commands using the message input area, and clear the log as needed. The tool includes an example filter message for monitoring posts from specific users, with a link to resolve Bluesky handles to DIDs. Messages can be sent using the send button or the Ctrl/Cmd+Enter keyboard shortcut.
+
+<!-- Generated from commit: 7c6af8eeabc7682b5f9ec2621e34bc771c5471d8 -->

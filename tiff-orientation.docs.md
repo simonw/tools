@@ -1,0 +1,3 @@
+This tool analyzes JPEG images to extract the TIFF orientation metadata. Upload an image by dragging and dropping it onto the designated area or by clicking to browse your files. The application parses the EXIF data embedded in the JPEG file, specifically looking for the orientation tag (0x0112) in the TIFF header. After processing, it displays the orientation value and provides a human-readable description (such as "Normal" or "Rotated 90° CW"). The debug information shows technical details about the parsing process, including file size, EXIF location, endianness, and IFD (Image File Directory) entries. This tool works entirely in your browser with no server uploads required.
+
+<!-- Generated from commit: 9b6cdd52381f1acf2c1148ed23478da1ce1f199f -->

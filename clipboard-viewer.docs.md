@@ -1,0 +1,3 @@
+The Clipboard Format Viewer allows you to examine all available formats of content when you paste data from your clipboard. Paste content either directly into the textarea or anywhere on the page to see a detailed breakdown of the clipboard data. For each format (such as plain text, HTML, or files), the tool displays the format type and its content in a scrollable container. The viewer handles special formats like HTML and files appropriately, showing HTML structure or file details. This tool is particularly useful for developers working with clipboard interactions or anyone who needs to inspect the underlying data structure of copied content.
+
+<!-- Generated from commit: 0b18227510dbd1e6bbe2dd1421b0e1c610849f07 -->

@@ -1,0 +1,3 @@
+This tool allows you to experiment with the iframe sandbox attribute by providing a code editor and a live preview. Enter HTML code in the left editor panel and see it rendered in the right preview panel. The sandbox controls below the preview let you toggle different iframe security restrictions, such as whether scripts can run, forms can be submitted, or popups can open. Each checkbox corresponds to a specific sandbox permission that can be enabled or disabled. When you modify your code or change security settings, click the "Update Preview" button to apply the changes and see how they affect the behavior of the content within the iframe.
+
+<!-- Generated from commit: e62bd12ff34fdeb7a906f9b34303c17ea63d3a41 -->

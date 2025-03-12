@@ -1,0 +1,3 @@
+This tool uses your browser to perform Optical Character Recognition (OCR) on PDF documents and images without uploading files to any server. It leverages Tesseract.js for text extraction and PDF.js to convert PDFs into images for processing. You can drag and drop files, click to select them, or paste images from your clipboard. For PDFs with multiple pages, each page is processed individually and displayed with its extracted text. The tool supports over 100 languages which can be selected from the dropdown menu. The language selection persists in the URL for easy sharing. When processing multiple pages, a "Full document" section appears with all extracted text combined for convenient copying.
+
+<!-- Generated from commit: c1233dfcddff62241dac9dd5d99e0726557350a8 -->

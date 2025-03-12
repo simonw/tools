@@ -1,0 +1,3 @@
+Prompts.js is a lightweight JavaScript library designed for creating modal dialogs with alert, confirm, and prompt functionalities. The library offers asynchronous methods that return promises, allowing for cleaner, more readable code compared to traditional browser dialogs. Users can call `Prompts.alert()` to display simple messages, `Prompts.confirm()` to ask yes/no questions that return boolean values, and `Prompts.prompt()` to collect user input as text. The example code demonstrates how to implement each dialog type and handle user responses, including displaying results in a designated area of the page after the dialog interaction is complete.
+
+<!-- Generated from commit: 3d76b539136afa6310dfc1bdcb681f4d038f5253 -->

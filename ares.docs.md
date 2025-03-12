@@ -1,0 +1,3 @@
+This converter transforms regular text into its phonetic alphabet representation using the ARES standard. Type your text in the input field and click "Convert" to see each letter and number replaced with its corresponding phonetic word (Alpha for A, Bravo for B, etc.). The converter handles both letters and numbers, and indicates spaces with "(SPACE)". Any characters not in the phonetic alphabet (like punctuation) remain unchanged. This tool is useful for radio communications, spelling out words clearly over the phone, or in situations where precise letter identification is necessary.
+
+<!-- Generated from commit: 9da6f96d4e3c886f1776cdc5b658e47087a279dd -->

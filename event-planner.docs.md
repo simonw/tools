@@ -1,0 +1,3 @@
+The Event Planner tool allows users to create and schedule events with detailed information. Users can input an event title, description, optional location, date, time, and select from multiple US timezones. After submitting the form, the tool displays comprehensive event details including the formatted date and time, a countdown showing days/hours/minutes until the event, and provides integration with Google Calendar. The Google Calendar link automatically transfers all event information, and users can either click the direct link or copy the provided URL. The form validates required fields and uses moment.js for accurate timezone handling and time calculations.
+
+<!-- Generated from commit: 1d19215d11b88842d1ee77ae6e81a4f908e76d8d -->

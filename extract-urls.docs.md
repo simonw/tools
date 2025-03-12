@@ -1,0 +1,3 @@
+This tool extracts URLs from web page content. Paste HTML content into the editable area to automatically extract all hyperlinks. The tool parses the pasted HTML, identifies anchor tags, and extracts URLs that begin with "http". The extracted links appear in a separate text area, one URL per line, for easy copying. A "Copy to clipboard" button allows you to quickly copy all extracted URLs. This functionality is particularly useful when you need to collect multiple links from a webpage for documentation, research, or sharing purposes.
+
+<!-- Generated from commit: 0f7fb49fd53d83ca1648b4db931c69acf9605529 -->

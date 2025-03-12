@@ -1,0 +1,3 @@
+This tool extracts and displays YouTube video thumbnails from a supplied URL or video ID. Enter a YouTube link or the 11-character video ID to view nine different thumbnail formats (default, hqdefault, mqdefault, sddefault, maxresdefault, and numbered formats 0-3). Each thumbnail displays with its actual width and a copyable URL. Click any thumbnail to expand it for better viewing, and click the URL area with the clipboard icon to copy the image address to your clipboard. The tool updates the browser URL with your input, allowing you to bookmark or share specific thumbnail results.
+
+<!-- Generated from commit: 8d67d6ca349fdb27f0287cfd388b9a5485cd88b5 -->

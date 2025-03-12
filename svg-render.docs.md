@@ -1,0 +1,3 @@
+This tool converts SVG images to JPEG or PNG format. You can input SVG code by pasting it directly into the text area, uploading an SVG file, or dragging and dropping an SVG file. The converter provides options to select output format (JPEG or PNG), specify background color or transparency, and adjust the output width. After conversion, the tool displays the resulting image, provides a download link, shows the file size, and generates a base64-encoded image tag you can copy. The converted image can be toggled between its default size and full size by clicking on it. For quick testing, you can load an example SVG tiger image using the provided link.
+
+<!-- Generated from commit: bc43f4cc114a31acc6680227ef4c796ce47a1e23 -->

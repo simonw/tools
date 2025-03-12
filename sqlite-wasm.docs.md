@@ -1,0 +1,3 @@
+This tool allows you to query a database of pelican sightings in Half Moon Bay using SQL commands. The interface includes a text area where you can enter SQL queries and an execute button to run them. The database contains sample data with pelican sightings records including date, location, species, and count information. Results are displayed in a formatted table below the query box. The tool uses the SQLite WASM library to process queries directly in your browser without requiring a server connection. You can modify the default query "SELECT * FROM pelican_sightings;" to filter, sort, or analyze the sighting data in different ways using standard SQL syntax.
+
+<!-- Generated from commit: 95211145625db573557d5fb279f4ebeaaf985303 -->

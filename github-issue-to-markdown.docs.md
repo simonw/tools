@@ -1,0 +1,3 @@
+This tool converts GitHub issues into formatted markdown content for documentation or sharing. Enter a GitHub issue URL in the format `https://github.com/owner/repo/issues/123`, and click "Convert to markdown" to retrieve the issue's title, author, description, and all comments through the GitHub API. The resulting markdown includes the original issue body followed by all comments with proper attribution. The content appears in the textarea below, where you can review it and copy it to your clipboard with the "Copy to clipboard" button. If the URL is invalid or the issue cannot be found, an error message will display.
+
+<!-- Generated from commit: d47fdbd7664663805b1b9be3d32d86f796c8b5c3 -->

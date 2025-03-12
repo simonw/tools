@@ -1,0 +1,3 @@
+This interactive map displays markers based on data from a CSV file. Load data by adding `?csv=URL` to the page URL, where the CSV must include `latitude` and `longitude` columns. You can customize the map with several URL parameters: `center` (coordinates in format `lat,lng`), `zoom` (zoom level), `q` (location to search for), `marker` (add individual markers at coordinates), and `color` (change the default marker color). The map automatically updates the URL as you navigate, preserving your current view. Markers from CSV files appear as small colored circles on the map, while markers specified directly in the URL use the default Leaflet marker style.
+
+<!-- Generated from commit: 82fd5da0b9ce79c2dc7c42627e81f4e320e817f0 -->

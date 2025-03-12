@@ -1,0 +1,3 @@
+The Timestamp Converter tool allows you to convert Unix timestamps into human-readable UTC and local time formats. Enter a Unix timestamp in the input field to see the corresponding date and time displayed below. The converter automatically handles both Unix time in seconds (10 digits) and milliseconds (13 digits). The UTC time shows the exact time in Coordinated Universal Time, while the local time displays the converted time in your current time zone. The tool initializes with the current Unix timestamp in seconds, making it easy to verify the current time in different formats.
+
+<!-- Generated from commit: 9c103673bb7d2f393911d7f81cfc29c16d160b53 -->

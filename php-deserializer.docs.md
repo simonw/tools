@@ -1,0 +1,3 @@
+This tool converts PHP serialized data to JSON format. Enter serialized PHP data in the text area to see the equivalent JSON structure. The converter processes your input in real-time and displays the resulting JSON in a formatted output field. If there are any errors in the serialized data, the tool will display an error message explaining the issue. You can copy the converted JSON to your clipboard using the "Copy JSON to clipboard" button. The tool uses the php-serialize library to ensure accurate deserialization of complex PHP data structures.
+
+<!-- Generated from commit: 4c11c72c3badd4f2754287461b3c3b1a5dfc8d73 -->

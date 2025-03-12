@@ -1,0 +1,3 @@
+This Audio Spectrum Visualizer captures live audio input from your microphone and displays a real-time frequency spectrum analysis. The visualization shows audio frequencies as colored bars on a canvas, with the height of each bar representing the amplitude of a specific frequency range. Louder sounds produce taller bars, while the color intensity changes based on the amplitude. The analyzer uses the Web Audio API to process the audio stream and extract frequency data through an FFT (Fast Fourier Transform) with 2048 sample points. To use the visualizer, you'll need to grant microphone access permission when prompted by your browser.
+
+<!-- Generated from commit: 1390c401fa2e7a1797dba733a059390752a8a62a -->

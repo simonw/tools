@@ -1,0 +1,3 @@
+This PDF comparison tool allows you to analyze differences between two PDF documents visually. Upload two PDF files either by dragging and dropping them onto the designated area or by clicking to select files from your device. The tool processes both documents and displays each page side by side, with a third visualization that highlights differences between corresponding pages in red. The comparison works across all pages in both documents, even if they have different page counts. For optimal results, ensure you upload valid PDF files. The tool uses PDF.js to render the documents directly in your browser without sending data to any external servers.
+
+<!-- Generated from commit: b3fcfe7df42e5fd896347c212f2b76283e047a78 -->

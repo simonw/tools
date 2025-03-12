@@ -1,0 +1,3 @@
+The EXIF Data Viewer is a web application that extracts and displays metadata from uploaded images. After selecting an image file, the tool processes it to reveal embedded EXIF information, with special attention to GPS coordinates. If location data is present, the viewer displays the precise latitude and longitude in decimal degree format. The application also provides a complete breakdown of all available EXIF tags in JSON format, allowing users to examine camera settings, device information, and other metadata contained within their images. The tool requires no server-side processing as it operates entirely in the browser using the exif-js library.
+
+<!-- Generated from commit: 687d45089606f654ee7e84f20b87d3348b301eb7 -->

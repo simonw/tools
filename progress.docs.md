@@ -1,0 +1,3 @@
+This page displays a progress tracker for the current U.S. presidential term (2025-2029). It features a visual progress bar showing how much of the term has elapsed, along with key statistics including the number of days that have passed, days remaining until the end of the term, and the percentage of the term completed. The tracker automatically calculates these values based on the current date relative to the fixed start date (January 20, 2025) and end date (January 20, 2029). The information updates automatically every hour to maintain accuracy without requiring a page refresh.
+
+<!-- Generated from commit: c90501a576651210d1404947adae7a50b36d7248 -->

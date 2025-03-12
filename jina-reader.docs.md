@@ -1,0 +1,3 @@
+Jina Reader is a web interface for the Jina Reader API that extracts content from web pages in various formats. Enter a URL and select your preferred output format (Markdown, HTML, Text, or LLM Markdown). After retrieving the content, you can view the raw text and a rendered preview in an iframe. The tool also features Claude AI integration—provide your Anthropic API key to analyze the extracted content using custom prompts. The default prompt generates a comprehensive summary with illustrative quotes and unusual ideas from the text. Both the extracted content and AI-generated analysis can be copied to your clipboard with a single click.
+
+<!-- Generated from commit: 7d7e2ce5508732ddbffd3eb285fee56d8ac5e4a6 -->

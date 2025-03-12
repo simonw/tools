@@ -1,0 +1,3 @@
+The Timezone Meeting Planner helps you coordinate times across different regions by comparing two timezones. Select locations from the dropdown menus to generate a comprehensive 48-hour time comparison table. The table displays each hour in UTC format alongside the corresponding local times for both selected locations. The comparison includes day-of-week information to help you identify optimal meeting times across international time differences. Your timezone selections are stored in the URL, making it easy to share specific timezone comparisons with others. The tool uses the browser's built-in timezone database to ensure accuracy.
+
+<!-- Generated from commit: a1420370ae38120819da3ddbb6fcefe1d9844f77 -->

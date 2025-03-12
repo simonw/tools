@@ -1,0 +1,3 @@
+This tool formats SQL queries for better readability. Enter your SQL code in the input field, and the formatter will display the cleaned-up version below. You can customize the formatting by selecting the SQL dialect (SQLite, Standard SQL, PostgreSQL, or MySQL), adjusting the tab width, choosing keyword case formatting (preserve, uppercase, or lowercase), and selecting an indent style (Standard, Tabular left, or Tabular right). The formatted SQL can be copied to your clipboard with a single click of the "Copy to clipboard" button. The tool processes your SQL in real-time as you type or change formatting options.
+
+<!-- Generated from commit: 71a762dfc7190f764785b6246e8e17f4fa9a8ecd -->

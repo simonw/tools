@@ -1,0 +1,3 @@
+This tool allows you to extract HTML code from rich text content. Paste formatted text from any webpage into the editable area using Ctrl+V (Windows) or ⌘+V (Mac). The tool automatically captures the underlying HTML structure and displays it in the code box below. You can copy the extracted HTML code to your clipboard with a single click, making it easy to reuse elsewhere. The preview section shows how the HTML renders visually. Use the Clear all button to reset the tool and start over. This utility is helpful for developers and content creators who need to analyze or repurpose formatted content while preserving its structure.
+
+<!-- Generated from commit: 49c382ea7f933d489d57cc434db2314f1120886b -->

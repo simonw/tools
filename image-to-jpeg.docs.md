@@ -1,0 +1,3 @@
+This tool allows you to convert images to JPEG format with adjustable quality settings. You can load an image by either clicking on the drop zone or dragging and dropping an image file onto it. Once loaded, use the quality slider to adjust the JPEG compression level from 0 (highest compression, lowest quality) to 100 (lowest compression, highest quality). The tool displays a preview of the converted image, its approximate file size in bytes, and generates an HTML image tag containing the data URI, which you can copy and use in your projects. The data URI format embeds the image data directly in the HTML, eliminating the need for an external image file.
+
+<!-- Generated from commit: a1245241aceb26d444387af58398ee3059520bc8 -->

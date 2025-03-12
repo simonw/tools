@@ -1,0 +1,3 @@
+This tool converts Bluesky handles to their corresponding Decentralized Identifier (DID). Enter a Bluesky handle (such as "jay.bsky.social") in the input field and click "Resolve" to retrieve the associated DID. The tool makes a request to the Bluesky API endpoint and displays the resulting DID in the box below the form. If the handle cannot be found or another error occurs, an error message will be displayed instead. DIDs are important identifiers in the AT Protocol that Bluesky uses, providing a persistent identifier for accounts regardless of handle changes.
+
+<!-- Generated from commit: 1472c5df0a4a8e97ee67543600403e642d504f0b -->

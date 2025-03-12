@@ -1,0 +1,3 @@
+The HTML Entity Escaper converts special characters in your text to their corresponding HTML entities, preventing browsers from interpreting them as HTML code. This tool handles five key characters: ampersands (&) become &amp;, less-than signs (<) become &lt;, greater-than signs (>) become &gt;, double quotes (") become &quot;, and single quotes (') become &#39;. This conversion is essential when displaying code snippets or HTML syntax examples on web pages. To use the tool, paste your text into the input field, and the escaped version appears automatically in the output field. You can then copy the result to your clipboard with the provided button for use in your HTML documents.
+
+<!-- Generated from commit: 4ac8c4fbe4b847999b7e1a78f70aa4c6673d3939 -->

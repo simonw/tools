@@ -1,0 +1,3 @@
+The MDN Browser Support Timelines tool allows you to search and explore when specific web APIs became available across different browsers. Enter an API name in the search box to see a chronological timeline of browser implementations. The tool displays release dates for each browser version that first supported the feature, along with additional information such as specification links, MDN documentation references, and API status indicators (experimental, deprecated, or standard). For each API, you can view both the main feature and any sub-features with their own compatibility data. Browsers that don't support a particular API are listed separately at the bottom of each timeline.
+
+<!-- Generated from commit: 41ce0b8bbae876c4abd9549ce34f13bb37f07c16 -->

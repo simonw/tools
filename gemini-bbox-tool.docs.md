@@ -1,0 +1,3 @@
+This page is a redirect mechanism that automatically sends users to the "/gemini-bbox" page. When a user arrives at this URL, the browser will immediately redirect them to the destination page due to the meta refresh tag set with a 0-second delay. If automatic redirection fails for any reason (such as if the user has disabled automatic redirects in their browser settings), a fallback text message is displayed with a manual link that allows users to navigate to the intended destination by clicking on it.
+
+<!-- Generated from commit: ce18cd2fb98453647fa5a2e1801ed59a012caaa9 -->

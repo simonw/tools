@@ -1,0 +1,3 @@
+This tool processes HTML content to add unique ID attributes to heading elements (h1-h6) that don't already have IDs. Enter a page URL and paste HTML code into the input fields, then click "Process Headers". The tool generates slugified IDs based on the heading text content, ensures all IDs are unique, and outputs two results: the modified HTML with added IDs and a formatted list of anchor links to each heading. The link list includes the full URL with fragment identifiers that allow direct navigation to specific sections of the page. This functionality is useful for creating table of contents, reference links, or implementing bookmark navigation within web pages.
+
+<!-- Generated from commit: 2dbdc12b1eecf73a8a8b51c3b221774e149a2048 -->

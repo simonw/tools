@@ -1,0 +1,3 @@
+This tool allows you to create bounding boxes on images to generate coordinates. You can load an image by pasting (Ctrl+V/Cmd+V), dragging and dropping a file, or clicking to select an image file. Once loaded, draw a bounding box by clicking and dragging on the image. Resize the box by dragging its corners or edges, or move it by dragging inside the box. The tool displays coordinates in percentages relative to the image dimensions in the format `x1,y1,x2,y2`, representing the top-left and bottom-right corners of the box. The generated coordinates string can be copied for use with other applications that require bounding box inputs.
+
+<!-- Generated from commit: d117432950c0c71f304ef9c89da6c91a83883df4 -->

@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 import html
 from pathlib import Path
+import markdown
 
 
 def format_commit_message(message):
@@ -72,6 +73,10 @@ def build_colophon():
             margin-top: 2rem;
             font-size: 1.4rem;
         }
+        h3 {
+            margin-top: 1.5rem;
+            font-size: 1.2rem;
+        }
         a {
             color: #0066cc;
             text-decoration: none;
@@ -107,6 +112,18 @@ def build_colophon():
         }
         .commit-message {
             margin-top: 0.5rem;
+        }
+        .docs {
+            margin-top: 1.5rem;
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+        }
+        .docs pre {
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            font-size: 0.9rem;
+            line-height: 1.4;
         }
         .urls {
             margin-top: 1rem;
@@ -168,6 +185,25 @@ def build_colophon():
             <div class="commit-message">{formatted_message}</div>
         </div>
 """
+
+        # Check for corresponding docs.md file
+        docs_file = page_name.replace(".html", ".docs.md")
+        if Path(docs_file).exists():
+            try:
+                with open(docs_file, "r") as f:
+                    docs_content = f.read()
+                    # Render markdown to HTML
+                    docs_html = markdown.markdown(docs_content)
+                    # Add docs above commits
+                    html_content = html_content.replace(
+                        f'<h2 class="tool-name"><a href="{tool_url}">{page_name}</a></h2>',
+                        f"""<h2 class="tool-name"><a href="{tool_url}">{page_name}</a></h2>
+        <div class="docs">
+            {docs_html}
+        </div>""",
+                    )
+            except Exception as e:
+                print(f"Error reading {docs_file}: {e}")
 
         html_content += """
     </div>

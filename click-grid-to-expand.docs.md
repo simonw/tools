@@ -1,0 +1,3 @@
+This page demonstrates an interactive CSS grid layout featuring a 4x2 grid with four distinct colored cells. One cell (labeled "1x2") can be clicked to trigger a smooth expansion animation that grows to fill the entire grid container. When expanded, the overlay displays "Expanded! Click to shrink" and can be clicked again to animate back to its original position and size. The animation uses CSS transitions with a 0.5-second ease effect for smooth motion in both directions. The grid showcases different-sized cells including a 2x2 cell (red), a 1x2 expandable cell (green), and two 1x1 cells (blue and yellow), all with consistent styling including rounded corners and centered text.
+
+<!-- Generated from commit: 1faccef4c2390ded2dc2db0d0ff59bf3248d4c50 -->

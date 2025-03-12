@@ -1,0 +1,3 @@
+This tool converts JSON data to YAML in three different formats. Paste your JSON in the input field to see it automatically transformed into block style YAML (standard indentation), flow style YAML (compact representation with inline arrays and objects), and quoted strings YAML (all string values are double-quoted). Each output format has a copy button for easily transferring the converted YAML to your clipboard. The converter validates JSON input and displays error messages for invalid syntax. The tool uses the js-yaml library and presents the output in separate panels for easy comparison between YAML styles.
+
+<!-- Generated from commit: 5426b541ed61cf6a9d0b74c3acce637ca60a825a -->
