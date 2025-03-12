@@ -202,8 +202,8 @@ def build_colophon():
                     docs_html = markdown.markdown(docs_content)
                     # Add docs above commits
                     html_content = html_content.replace(
-                        f'<h2 class="tool-name"><a href="{tool_url}">{page_name}</a></h2>',
-                        f"""<h2 class="tool-name"><a href="{tool_url}">{page_name}</a></h2>
+                        f'<h2 class="tool-name"><a href="{tool_url}">{page_name}</a> <a class="hashref" href="#{page_name}">#</a></h2>',
+                        f"""<h2 class="tool-name"><a href="{tool_url}">{page_name}</a> <a class="hashref" href="#{page_name}">#</a></h2>
         <div class="docs">
             {docs_html}
         </div>""",
