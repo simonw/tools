@@ -9,7 +9,7 @@ on:
 
 # Sets permissions of the GITHUB_TOKEN
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -41,9 +41,18 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           python gather_links.py
-          python build_colophon.py
           python write_docs.py
+          python build_colophon.py
       
+      - name: Commit and push if docs have changed
+        run: |-
+          git config user.name "Automated"
+          git config user.email "actions@users.noreply.github.com"
+          git add *.docs.md
+          timestamp=$(date -u)
+          git commit -m "Latest data: ${timestamp}" || exit 0
+          git push
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
