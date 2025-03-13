@@ -2,6 +2,16 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
+## whitespace_cleaner.py
+
+Replace any lines that are entirely whitespace with blank lines in specified files or folders:
+
+```bash
+uv run http://tools.simonwillison.net/python/whitespace_cleaner.py \
+  my-file.txt my-folder
+```
+Has a `--dry-run` option for seeing how many files it would modify.
+
 ## all_gcp_buckets.py
 
 View the size of the files in all of your Google Cloud buckets. You'll need to have [gcloud installed](https://cloud.google.com/sdk/docs/install) and do the `gcloud auth` dance first.
