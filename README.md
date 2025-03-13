@@ -79,14 +79,13 @@ pip install markdown
 python build_local_index.py
 ```
 
-Then open `index.html` in your browser to explore all tools. This creates:
+This creates `index.html` as a searchable and filterable index of all locally-available HTML tools with descriptions if available.
 
-1. `index.html` - A searchable index of all tools with descriptions
-2. `colophon.html` - Development history with links to LLM transcripts (if it doesn't already exist)
+You can also choose to build `colophon.html` locally, if it doesn't already exist, which contains the development history with links to LLM transcripts (if it doesn't already exist),
 
 The local index provides:
 
-- Search functionality to find tools by name or description
+- Keyboard-accessible functionality to find tools by name or description
 - Sorting by name or recent update date
 - Direct links to open tools in your browser
 - Tool descriptions from `.docs.md` files
