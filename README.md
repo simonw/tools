@@ -65,3 +65,28 @@ On [Observable](https://observablehq.com/):
 - [Weeknotes](https://observablehq.com/@simonw/weeknotes) helps me write my [weeknotes](https://simonwillison.net/tags/weeknotes/)
 - [Convert Claude JSON to Markdown](https://observablehq.com/@simonw/convert-claude-json-to-markdown) for sharing Claude conversation transcripts
 - [Hacker News homepage with links to comments ordered by most recent first](https://observablehq.com/@simonw/hacker-news-homepage)
+
+## Local Browsing
+
+To browse these tools locally without setting up a server:
+
+```bash
+# Install dependencies and build the local index
+uv run --no-project --with markdown ./build_local_index.py
+
+# Or using pip
+pip install markdown
+python build_local_index.py
+```
+
+Then open `index.html` in your browser to explore all tools. This creates:
+
+1. `index.html` - A searchable index of all tools with descriptions
+2. `colophon.html` - Development history with links to LLM transcripts (if it doesn't already exist)
+
+The local index provides:
+
+- Search functionality to find tools by name or description
+- Sorting by name or recent update date
+- Direct links to open tools in your browser
+- Tool descriptions from `.docs.md` files
