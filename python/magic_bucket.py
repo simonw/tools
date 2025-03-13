@@ -72,12 +72,12 @@ def lambda_handler(event, context):
         size = record['s3']['object'].get('size', 0)
         event_time = record.get('eventTime', '')
         event_name = record.get('eventName', '')
-        
+
         if event_name.startswith('ObjectCreated'):
             # Get additional metadata from S3
             response = s3.head_object(Bucket=bucket, Key=key)
             content_type = response.get('ContentType', 'unknown')
-            
+
             # Store in DynamoDB
             dynamodb.put_item(
                 TableName='{table_name}',
@@ -99,7 +99,7 @@ def lambda_handler(event, context):
                     'bucket_key': {{'S': f'{{bucket}}/{{key}}'}}
                 }}
             )
-    
+
     return {{
         'statusCode': 200,
         'body': json.dumps('Successfully processed S3 event')
