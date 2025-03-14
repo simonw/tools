@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Species observation map</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    margin: 0;
+    padding: 20px;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+  
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  h1 {
+    margin-top: 0;
+  }
+  
+  .search-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+  }
+  
+  .search-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  
+  .search-group {
+    flex: 1;
+    min-width: 250px;
+  }
+  
+  .search-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+  }
+  
+  .search-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  
+  .days-input {
+    width: 80px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  
+  .search-button {
+    padding: 8px 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  
+  .search-button:hover {
+    background-color: #45a049;
+  }
+  
+  #map {
+    height: 600px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+  }
+  
+  .autocomplete-container {
+    position: relative;
+  }
+  
+  .autocomplete-results {
+    position: absolute;
+    z-index: 1000;
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    display: none;
+  }
+  
+  .autocomplete-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .autocomplete-item:hover {
+    background-color: #f0f0f0;
+  }
+  
+  .autocomplete-item-scientific {
+    font-style: italic;
+    color: #666;
+    font-size: 0.9em;
+  }
+  
+  .loading {
+    text-align: center;
+    padding: 20px;
+    font-style: italic;
+    color: #666;
+  }
+  
+  .observation-info {
+    line-height: 1.5;
+  }
+  
+  .observation-info img {
+    max-width: 150px;
+    max-height: 150px;
+    margin-top: 10px;
+    border-radius: 4px;
+  }
+  
+  .stats-panel {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+  }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Species observation map</h1>
+    
+    <div class="search-panel">
+      <div class="search-row">
+        <div class="search-group">
+          <label for="species-search">Search for a species:</label>
+          <div class="autocomplete-container">
+            <input type="text" id="species-search" class="search-input" placeholder="Enter species name (e.g., California Brown Pelican)">
+            <div id="autocomplete-results" class="autocomplete-results"></div>
+          </div>
+        </div>
+        
+        <div class="search-group" style="flex: 0 0 auto;">
+          <label for="days-input">Sightings in the past</label>
+          <div style="display: flex; align-items: center;">
+            <input type="number" id="days-input" class="days-input" value="30" min="1" max="365">
+            <span style="margin-left: 5px;">days</span>
+          </div>
+        </div>
+        
+        <div class="search-group" style="flex: 0 0 auto;">
+          <button id="search-button" class="search-button">Search</button>
+        </div>
+      </div>
+      
+      <div id="taxon-details" style="display: none;">
+        <div id="selected-taxon-info"></div>
+      </div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <div id="stats-panel" class="stats-panel" style="display: none;">
+      <h2>Observation statistics</h2>
+      <div id="stats-content"></div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+  <script type="module">
+// Global variables
+let map;
+let markers;
+let selectedTaxonId = null;
+let selectedTaxonName = null;
+
+// Initialize the map
+function initMap() {
+  map = L.map('map').setView([20, 0], 2);
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+  
+  // Create marker cluster group with default settings
+  markers = L.markerClusterGroup({
+    disableClusteringAtZoom: 16,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: true,
+    zoomToBoundsOnClick: true,
+    maxClusterRadius: 80
+  });
+  
+  map.addLayer(markers);
+}
+
+// Handle species search input
+function setupSpeciesSearch() {
+  const searchInput = document.getElementById('species-search');
+  const resultsContainer = document.getElementById('autocomplete-results');
+  let debounceTimer;
+  
+  searchInput.addEventListener('input', function() {
+    clearTimeout(debounceTimer);
+    const query = this.value.trim();
+    
+    if (query.length < 2) {
+      resultsContainer.style.display = 'none';
+      return;
+    }
+    
+    debounceTimer = setTimeout(() => {
+      fetchTaxaAutocomplete(query);
+    }, 300);
+  });
+  
+  // Show results when input is focused
+  searchInput.addEventListener('focus', function() {
+    if (this.value.trim().length >= 2) {
+      resultsContainer.style.display = 'block';
+    }
+  });
+  
+  // Click outside to close autocomplete
+  document.addEventListener('click', function(e) {
+    if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+      resultsContainer.style.display = 'none';
+    }
+  });
+}
+
+// Fetch taxa autocomplete results
+async function fetchTaxaAutocomplete(query) {
+  const resultsContainer = document.getElementById('autocomplete-results');
+  resultsContainer.style.display = 'block';
+  resultsContainer.innerHTML = '<div class="loading">Searching...</div>';
+  
+  try {
+    const response = await fetch(`https://api.inaturalist.org/v1/taxa/autocomplete?q=${encodeURIComponent(query)}&per_page=10`);
+    
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    
+    const data = await response.json();
+    displayAutocompleteResults(data.results);
+  } catch (error) {
+    console.error('Error fetching taxa:', error);
+    resultsContainer.innerHTML = '<div class="loading">Error fetching results</div>';
+  }
+}
+
+// Display autocomplete results
+function displayAutocompleteResults(results) {
+  const resultsContainer = document.getElementById('autocomplete-results');
+  
+  if (results.length === 0) {
+    resultsContainer.innerHTML = '<div class="loading">No results found</div>';
+    return;
+  }
+  
+  resultsContainer.innerHTML = '';
+  
+  results.forEach(taxon => {
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item';
+    
+    const commonName = taxon.preferred_common_name || '';
+    const scientificName = taxon.name || '';
+    
+    let displayName = commonName;
+    if (commonName && scientificName) {
+      displayName = `${commonName} <span class="autocomplete-item-scientific">(${scientificName})</span>`;
+    } else if (scientificName) {
+      displayName = `<span class="autocomplete-item-scientific">${scientificName}</span>`;
+    }
+    
+    item.innerHTML = displayName;
+    
+    item.addEventListener('click', () => {
+      document.getElementById('species-search').value = commonName || scientificName;
+      resultsContainer.style.display = 'none';
+      selectTaxon(taxon);
+    });
+    
+    resultsContainer.appendChild(item);
+  });
+  
+  resultsContainer.style.display = 'block';
+}
+
+// Select a taxon from autocomplete
+function selectTaxon(taxon) {
+  selectedTaxonId = taxon.id;
+  selectedTaxonName = taxon.preferred_common_name || taxon.name;
+  
+  const detailsContainer = document.getElementById('taxon-details');
+  const infoContainer = document.getElementById('selected-taxon-info');
+  
+  let content = `<strong>Selected: ${selectedTaxonName}</strong>`;
+  if (taxon.preferred_common_name && taxon.name && taxon.preferred_common_name !== taxon.name) {
+    content += ` <span style="font-style: italic;">(${taxon.name})</span>`;
+  }
+  
+  infoContainer.innerHTML = content;
+  detailsContainer.style.display = 'block';
+}
+
+// Search for observations
+async function searchObservations() {
+  if (!selectedTaxonId) {
+    alert('Please select a species first');
+    return;
+  }
+  
+  const daysInput = document.getElementById('days-input');
+  const days = parseInt(daysInput.value);
+  
+  if (isNaN(days) || days < 1) {
+    alert('Please enter a valid number of days');
+    return;
+  }
+  
+  // Calculate date range
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  
+  const formattedStartDate = formatDate(startDate);
+  const formattedEndDate = formatDate(endDate);
+  
+  console.log(`Searching for observations from ${formattedStartDate} to ${formattedEndDate}`);
+  
+  // Clear previous markers
+  markers.clearLayers();
+  
+  // Show loading state
+  const statsPanel = document.getElementById('stats-panel');
+  statsPanel.style.display = 'block';
+  const statsContent = document.getElementById('stats-content');
+  statsContent.innerHTML = '<div class="loading">Loading observations...</div>';
+  
+  try {
+    // Fetch observations
+    await fetchObservationPages(formattedStartDate, formattedEndDate);
+    
+    // Get the total number of markers
+    const totalMarkers = markers.getLayers().length;
+    console.log(`Total markers added: ${totalMarkers}`);
+    
+    // If no markers were added, show a message
+    if (totalMarkers === 0) {
+      statsContent.innerHTML = `<p>No observations found for ${selectedTaxonName} in the past ${days} days.</p>`;
+    } else {
+      // Set map view to show all markers
+      const bounds = markers.getBounds();
+      if (bounds.isValid()) {
+        console.log(`Setting map bounds to: ${bounds.toBBoxString()}`);
+        map.fitBounds(bounds, { padding: [50, 50] });
+      } else {
+        console.log('Marker bounds not valid, keeping current view');
+      }
+      
+      // Update stats
+      statsContent.innerHTML = `
+        <p>Found ${totalMarkers} observations of ${selectedTaxonName} in the past ${days} days.</p>
+        <p>Click on the markers to see observation details.</p>
+      `;
+    }
+  } catch (error) {
+    console.error('Error fetching observations:', error);
+    statsContent.innerHTML = '<p>Error loading observations. Please try again.</p>';
+  }
+}
+
+// Format date to YYYY-MM-DD
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Fetch observations (paginated)
+async function fetchObservationPages(startDate, endDate, page = 1, totalFetched = 0) {
+  const perPage = 200; // Maximum per page
+  const url = `https://api.inaturalist.org/v1/observations?taxon_id=${selectedTaxonId}&d1=${startDate}&d2=${endDate}&per_page=${perPage}&page=${page}&return_bounds=true&order=desc&order_by=observed_on`;
+  
+  try {
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    
+    const data = await response.json();
+    console.log(`Fetched page ${page} with ${data.results.length} observations`);
+    
+    // Add markers for each observation
+    let markersAdded = 0;
+    data.results.forEach(observation => {
+      if (addObservationMarker(observation)) {
+        markersAdded++;
+      }
+    });
+    console.log(`Added ${markersAdded} markers from page ${page}`);
+    
+    const newTotalFetched = totalFetched + data.results.length;
+    
+    // Update loading message
+    document.getElementById('stats-content').innerHTML = `<div class="loading">Loaded ${newTotalFetched} observations so far...</div>`;
+    
+    // If there are more pages and we haven't hit our limit, fetch the next page
+    // Limit to max 1000 observations (5 pages) to avoid overwhelming the browser
+    if (data.page < data.total_pages && data.page < 5 && newTotalFetched < 1000) {
+      await fetchObservationPages(startDate, endDate, page + 1, newTotalFetched);
+    }
+  } catch (error) {
+    console.error('Error fetching observations page:', error);
+    throw error;
+  }
+}
+
+// Add a marker for an observation
+function addObservationMarker(observation) {
+  // Skip observations without coordinates
+  if (!observation.geojson || !observation.geojson.coordinates) {
+    return false;
+  }
+  
+  // Extract coordinates (API returns [lng, lat])
+  const lng = observation.geojson.coordinates[0];
+  const lat = observation.geojson.coordinates[1];
+  
+  // Validate coordinates
+  if (!isFinite(lat) || !isFinite(lng) || lat === null || lng === null) {
+    console.log(`Invalid coordinates for observation ${observation.id}: [${lat}, ${lng}]`);
+    return false;
+  }
+  
+  // Create marker
+  const marker = L.marker([lat, lng]);
+  
+  // Create popup content
+  let popupContent = '<div class="observation-info">';
+  popupContent += `<strong>${selectedTaxonName}</strong><br>`;
+  popupContent += `Date: ${formatObservationDate(observation.observed_on)}<br>`;
+  
+  if (observation.place_guess) {
+    popupContent += `Location: ${observation.place_guess}<br>`;
+  }
+  
+  if (observation.user && observation.user.login) {
+    popupContent += `Observer: ${observation.user.name || observation.user.login}<br>`;
+  }
+  
+  // Quality grade
+  const qualityGrade = observation.quality_grade || 'unknown';
+  popupContent += `Quality: ${qualityGrade.charAt(0).toUpperCase() + qualityGrade.slice(1)}<br>`;
+  
+  // Add link to observation
+  popupContent += `<a href="https://www.inaturalist.org/observations/${observation.id}" target="_blank">View on iNaturalist</a><br>`;
+  
+  // Add photo if available
+  if (observation.photos && observation.photos.length > 0 && observation.photos[0].url) {
+    popupContent += `<img src="${observation.photos[0].url}" alt="Observation photo">`;
+  }
+  
+  popupContent += '</div>';
+  
+  // Set popup
+  marker.bindPopup(popupContent);
+  
+  // Add to marker cluster
+  markers.addLayer(marker);
+  return true;
+}
+
+// Format observation date
+function formatObservationDate(dateString) {
+  if (!dateString) return 'Unknown';
+  
+  const date = new Date(dateString);
+  return date.toLocaleDateString();
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  setupSpeciesSearch();
+  
+  // Add event listener to search button
+  document.getElementById('search-button').addEventListener('click', searchObservations);
+  
+  // Allow pressing Enter in the days input to search
+  document.getElementById('days-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      searchObservations();
+    }
+  });
+});
+  </script>
+</body>
+</html>
