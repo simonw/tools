@@ -1,3 +1,3 @@
-This page functions as an automatic redirect to the OCR service. When a user lands on this page, they will be instantly redirected to the "/ocr" location. The page includes a fallback message with a clickable link in case the automatic redirect fails to work. The redirect happens through the meta refresh tag with a zero-second delay, ensuring immediate redirection for most browsers and devices.
+This page serves as an automatic redirect to the OCR application. It uses the HTML meta refresh tag to immediately forward visitors to the /ocr URL, while also providing a fallback link for users whose browsers don't support automatic redirects or have disabled this feature.
 
 <!-- Generated from commit: 5dffa7e178770fe88af8e73ee478bb76fcd4572f -->

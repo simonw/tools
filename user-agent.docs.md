@@ -1,3 +1,3 @@
-This page displays the user agent string from your browser. When loaded, it shows a heading "Your User Agent:" followed by the complete user agent string of your current browser. The user agent string contains information about your browser, operating system, and device, which websites can use to identify what software you're using to access them. The page uses JavaScript to retrieve this information through the `navigator.userAgent` property and display it in a paragraph element.
+This page displays the User Agent string of your current browser. The User Agent contains information about your browser, operating system, and device, which websites can use to identify how to properly deliver content to you.
 
 <!-- Generated from commit: d053b9472344ce4c6b2b3c101cb305bd15781ba2 -->
