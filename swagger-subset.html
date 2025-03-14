@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Swagger Subset</title>
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    line-height: 1.6;
+  }
+  h1, h2 {
+    margin-top: 0;
+  }
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    font-family: monospace;
+  }
+  button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  button:hover {
+    background-color: #45a049;
+  }
+  .error {
+    color: red;
+    margin-bottom: 15px;
+  }
+  #pathList {
+    margin: 20px 0;
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 4px;
+  }
+  .path-item {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+  }
+  .method {
+    margin-left: 20px;
+    display: block;
+    padding: 4px 0;
+  }
+  .method-get {
+    color: #61affe;
+  }
+  .method-post {
+    color: #49cc90;
+  }
+  .method-put {
+    color: #fca130;
+  }
+  .method-delete {
+    color: #f93e3e;
+  }
+  .controls {
+    margin: 10px 0;
+  }
+  .path-tag {
+    display: inline-block;
+    background-color: #eee;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    font-size: 12px;
+  }
+  #outputContainer {
+    display: none;
+    margin-top: 20px;
+  }
+  .copy-btn {
+    background-color: #2196F3;
+  }
+  .copy-btn:hover {
+    background-color: #0b7dda;
+  }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Swagger Subset</h1>
+    
+    <div>
+      <h2>Paste your Swagger JSON</h2>
+      <textarea id="swaggerInput" placeholder="Paste your Swagger JSON here..."></textarea>
+      <button id="parseBtn">Parse Swagger</button>
+      <div id="error" class="error"></div>
+    </div>
+
+    <div id="pathsContainer" style="display: none;">
+      <h2>Select paths to include</h2>
+      
+      <div class="controls">
+        <button id="selectAllBtn">Select All</button>
+        <button id="deselectAllBtn">Deselect All</button>
+      </div>
+      
+      <div id="pathList"></div>
+      
+      <button id="generateBtn">Generate JSON</button>
+    </div>
+
+    <div id="outputContainer">
+      <h2>Output JSON</h2>
+      <div class="controls">
+        <button id="copyBtn" class="copy-btn">Copy to Clipboard</button>
+      </div>
+      <textarea id="outputJson" readonly></textarea>
+    </div>
+  </div>
+
+<script type="module">
+// Parse Swagger JSON and display paths as checkboxes
+document.getElementById('parseBtn').addEventListener('click', parseSwagger);
+document.getElementById('selectAllBtn').addEventListener('click', selectAll);
+document.getElementById('deselectAllBtn').addEventListener('click', deselectAll);
+document.getElementById('generateBtn').addEventListener('click', generateJson);
+document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
+
+let swaggerData = null;
+
+function parseSwagger() {
+  const input = document.getElementById('swaggerInput').value;
+  const errorElem = document.getElementById('error');
+  errorElem.textContent = '';
+  
+  try {
+    swaggerData = JSON.parse(input);
+    if (!swaggerData.paths) {
+      throw new Error("No 'paths' property found in the Swagger JSON");
+    }
+    
+    displayPaths(swaggerData.paths);
+    document.getElementById('pathsContainer').style.display = 'block';
+    document.getElementById('outputContainer').style.display = 'none';
+  } catch (err) {
+    errorElem.textContent = `Error parsing JSON: ${err.message}`;
+  }
+}
+
+function displayPaths(paths) {
+  const pathListElem = document.getElementById('pathList');
+  pathListElem.innerHTML = '';
+  
+  // Group paths by tag
+  const pathsByTag = {};
+  
+  Object.keys(paths).sort().forEach(path => {
+    const pathItem = document.createElement('div');
+    pathItem.className = 'path-item';
+    
+    const pathLabel = document.createElement('label');
+    pathLabel.innerHTML = `<strong>${path}</strong>`;
+    pathItem.appendChild(pathLabel);
+    
+    Object.keys(paths[path]).forEach(method => {
+      const endpoint = paths[path][method];
+      const methodId = `${path}-${method}`;
+      
+      const methodElem = document.createElement('label');
+      methodElem.className = `method method-${method}`;
+      
+      // Create checkbox
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = methodId;
+      checkbox.dataset.path = path;
+      checkbox.dataset.method = method;
+      
+      // Create method label
+      methodElem.appendChild(checkbox);
+      methodElem.appendChild(document.createTextNode(` ${method.toUpperCase()}`));
+      
+      // Add tags if available
+      if (endpoint.tags && endpoint.tags.length > 0) {
+        const tagSpan = document.createElement('span');
+        tagSpan.className = 'path-tag';
+        tagSpan.textContent = endpoint.tags[0];
+        methodElem.appendChild(tagSpan);
+        
+        // Group by first tag
+        const tag = endpoint.tags[0];
+        if (!pathsByTag[tag]) {
+          pathsByTag[tag] = [];
+        }
+        pathsByTag[tag].push(methodElem);
+      }
+      
+      pathItem.appendChild(methodElem);
+    });
+    
+    pathListElem.appendChild(pathItem);
+  });
+}
+
+function selectAll() {
+  const checkboxes = document.querySelectorAll('#pathList input[type="checkbox"]');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = true;
+  });
+}
+
+function deselectAll() {
+  const checkboxes = document.querySelectorAll('#pathList input[type="checkbox"]');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = false;
+  });
+}
+
+function getSelectedEndpoints() {
+  const selected = [];
+  const checkboxes = document.querySelectorAll('#pathList input[type="checkbox"]:checked');
+  
+  checkboxes.forEach(checkbox => {
+    selected.push({
+      path: checkbox.dataset.path,
+      method: checkbox.dataset.method
+    });
+  });
+  
+  return selected;
+}
+
+function findReferencedDefinitions(obj, referencedDefs = new Set()) {
+  if (!obj) return referencedDefs;
+  
+  if (typeof obj === 'object') {
+    if (Array.isArray(obj)) {
+      obj.forEach(item => findReferencedDefinitions(item, referencedDefs));
+    } else {
+      // Check for $ref property
+      if (obj['$ref'] && typeof obj['$ref'] === 'string') {
+        const refParts = obj['$ref'].split('/');
+        if (refParts[1] === 'definitions' && refParts.length > 2) {
+          referencedDefs.add(refParts[2]);
+        }
+      }
+      
+      // Recursively check all properties
+      Object.values(obj).forEach(value => {
+        findReferencedDefinitions(value, referencedDefs);
+      });
+    }
+  }
+  
+  return referencedDefs;
+}
+
+function addDependentDefinitions(definitions, defName, allDefs, processedDefs = new Set()) {
+  if (processedDefs.has(defName)) return;
+  processedDefs.add(defName);
+  
+  const def = allDefs[defName];
+  if (!def) return;
+  
+  // Find references in this definition
+  const referencedDefs = findReferencedDefinitions(def);
+  
+  // Add this definition to our result
+  definitions[defName] = def;
+  
+  // Recursively process any referenced definitions
+  referencedDefs.forEach(refDef => {
+    addDependentDefinitions(definitions, refDef, allDefs, processedDefs);
+  });
+}
+
+function generateJson() {
+  const selectedEndpoints = getSelectedEndpoints();
+  
+  if (selectedEndpoints.length === 0) {
+    document.getElementById('error').textContent = 'Please select at least one endpoint';
+    return;
+  }
+  
+  // Create a new paths object with only selected endpoints
+  const filteredPaths = {};
+  const referencedDefs = new Set();
+  
+  selectedEndpoints.forEach(endpoint => {
+    const { path, method } = endpoint;
+    
+    if (!filteredPaths[path]) {
+      filteredPaths[path] = {};
+    }
+    
+    filteredPaths[path][method] = swaggerData.paths[path][method];
+    
+    // Find all referenced definitions in this endpoint
+    findReferencedDefinitions(swaggerData.paths[path][method]).forEach(def => {
+      referencedDefs.add(def);
+    });
+  });
+  
+  // Create a filtered definitions object
+  const filteredDefinitions = {};
+  if (swaggerData.definitions) {
+    referencedDefs.forEach(defName => {
+      addDependentDefinitions(filteredDefinitions, defName, swaggerData.definitions);
+    });
+  }
+  
+  // Create the output JSON with only paths and definitions
+  const output = {
+    paths: filteredPaths
+  };
+  
+  // Only include definitions if there are any
+  if (Object.keys(filteredDefinitions).length > 0) {
+    output.definitions = filteredDefinitions;
+  }
+  
+  // Display the output
+  document.getElementById('outputJson').value = JSON.stringify(output, null, 2);
+  document.getElementById('outputContainer').style.display = 'block';
+}
+
+function copyToClipboard() {
+  const outputElem = document.getElementById('outputJson');
+  outputElem.select();
+  document.execCommand('copy');
+  
+  const copyBtn = document.getElementById('copyBtn');
+  const originalText = copyBtn.textContent;
+  
+  copyBtn.textContent = 'Copied!';
+  setTimeout(() => {
+    copyBtn.textContent = originalText;
+  }, 2000);
+}
+</script>
+</body>
+</html>
