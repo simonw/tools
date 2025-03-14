@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Side Panel Modal with Dialog Element</title>
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+  }
+
+  h1, h2, h3 {
+    font-weight: 500;
+  }
+
+  .item-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  .item-card {
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .item-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .item-card h3 {
+    margin-top: 0;
+    margin-bottom: 8px;
+  }
+
+  dialog {
+    position: fixed;
+    margin: 0;
+    padding: 0;
+    border: none;
+    width: 80%;
+    height: 100vh;
+    top: 0;
+    right: 0;
+    left: auto;
+    background-color: white;
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+    transform: translateX(100%);
+    transition: transform 0.1s cubic-bezier(0.2, 0, 0.38, 0.9);
+    max-height: inherit; /* Default is calc(100% - 2em - 6px) */
+  }
+
+  dialog::backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.1s cubic-bezier(0.2, 0, 0.38, 0.9);
+  }
+
+  /* We're handling the transform in JavaScript for better control */
+
+  dialog[open]::backdrop {
+    opacity: 1;
+  }
+
+  .dialog-content {
+    padding: 24px;
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+
+  .close-button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 8px;
+    margin: -8px;
+    color: #555;
+  }
+
+  .item-details h2 {
+    margin-top: 0;
+  }
+
+  .item-image {
+    width: 100%;
+    height: 200px;
+    background-color: #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+  }
+
+  input, textarea {
+    font-size: 16px;
+    font-family: Helvetica, Arial, sans-serif;
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 16px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  textarea {
+    min-height: 120px;
+    resize: vertical;
+  }
+
+  .feedback-form h3 {
+    margin-top: 32px;
+  }
+
+  button.submit-button {
+    background-color: #4a6cf7;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 12px 24px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  button.submit-button:hover {
+    background-color: #3a5ce6;
+  }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Product catalog</h1>
+    <p>Click on any item to view details in a side panel</p>
+  </header>
+
+  <main>
+    <div class="item-list" id="itemList">
+      <!-- Items will be inserted here by JavaScript -->
+    </div>
+  </main>
+
+  <dialog id="sidePanel">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h2>Item details</h2>
+        <button class="close-button" id="closeDialog">&times;</button>
+      </div>
+      <div class="item-details" id="itemDetails">
+        <!-- Item details will be inserted here by JavaScript -->
+      </div>
+      <div class="feedback-form">
+        <h3>Send feedback</h3>
+        <input type="text" placeholder="Your name" id="nameInput">
+        <textarea placeholder="Your thoughts about this item..." id="feedbackInput"></textarea>
+        <button class="submit-button" id="submitFeedback">Submit feedback</button>
+      </div>
+    </div>
+  </dialog>
+
+<script type="module">
+// Fix animation issues with dialog element
+document.addEventListener('DOMContentLoaded', () => {
+  const dialog = document.getElementById('sidePanel');
+  // Force browser to recognize dialog animations by adding a small delay
+  dialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+  });
+});
+
+// Sample data
+const items = [
+  {
+    id: 1,
+    title: "Wireless headphones",
+    description: "Premium noise-cancelling wireless headphones with 30-hour battery life and superior sound quality.",
+    category: "Electronics",
+    price: "$249.99"
+  },
+  {
+    id: 2,
+    title: "Ergonomic office chair",
+    description: "Adjustable office chair with lumbar support, breathable mesh back, and smooth-rolling casters.",
+    category: "Furniture",
+    price: "$189.99"
+  },
+  {
+    id: 3,
+    title: "Smart fitness tracker",
+    description: "Water-resistant fitness tracker with heart rate monitoring, sleep tracking, and 7-day battery life.",
+    category: "Wearables",
+    price: "$79.99"
+  },
+  {
+    id: 4,
+    title: "Ceramic coffee mug",
+    description: "Hand-crafted ceramic mug with heat-retention technology and ergonomic handle.",
+    category: "Kitchenware",
+    price: "$24.99"
+  },
+  {
+    id: 5,
+    title: "Portable power bank",
+    description: "20,000mAh portable charger with fast charging and dual USB ports for multiple devices.",
+    category: "Electronics",
+    price: "$49.99"
+  },
+  {
+    id: 6,
+    title: "Bamboo cutting board",
+    description: "Sustainable bamboo cutting board with juice groove and non-slip feet.",
+    category: "Kitchenware",
+    price: "$34.99"
+  }
+];
+
+// Get DOM elements
+const itemList = document.getElementById("itemList");
+const sidePanel = document.getElementById("sidePanel");
+const closeButton = document.getElementById("closeDialog");
+const itemDetails = document.getElementById("itemDetails");
+const submitButton = document.getElementById("submitFeedback");
+const nameInput = document.getElementById("nameInput");
+const feedbackInput = document.getElementById("feedbackInput");
+
+// Render items to the list
+function renderItems() {
+  itemList.innerHTML = "";
+  items.forEach(item => {
+    const itemCard = document.createElement("div");
+    itemCard.className = "item-card";
+    itemCard.innerHTML = `
+      <h3>${item.title}</h3>
+      <p>${item.category}</p>
+      <p>${item.price}</p>
+    `;
+    itemCard.addEventListener("click", () => showItemDetails(item));
+    itemList.appendChild(itemCard);
+  });
+}
+
+// Show item details in the side panel
+function showItemDetails(item) {
+  itemDetails.innerHTML = `
+    <div class="item-image">Product Image Placeholder</div>
+    <h2>${item.title}</h2>
+    <p><strong>Category:</strong> ${item.category}</p>
+    <p><strong>Price:</strong> ${item.price}</p>
+    <p>${item.description}</p>
+  `;
+  
+  // Reset any existing transitions
+  sidePanel.style.transition = 'none';
+  sidePanel.style.transform = 'translateX(100%)';
+  
+  // Show the dialog
+  sidePanel.showModal();
+  
+  // Force a reflow to ensure the transition will occur
+  void sidePanel.offsetWidth;
+  
+  // Restore the transition and apply the transform
+  sidePanel.style.transition = 'transform 0.1s cubic-bezier(0.2, 0, 0.38, 0.9)';
+  sidePanel.style.transform = 'translateX(0)';
+  
+  // Store the current item ID for feedback submission
+  submitButton.dataset.itemId = item.id;
+}
+
+// Close the dialog when clicking the close button
+closeButton.addEventListener("click", () => {
+  animateCloseDialog();
+});
+
+// Close the dialog when clicking on the backdrop
+sidePanel.addEventListener("click", (event) => {
+  if (event.target === sidePanel) {
+    animateCloseDialog();
+  }
+});
+
+// Animate the dialog closing
+function animateCloseDialog() {
+  // Animate the panel sliding out
+  sidePanel.style.transform = 'translateX(100%)';
+  
+  // After animation completes, close the dialog
+  setTimeout(() => {
+    sidePanel.close();
+  }, 100);
+}
+
+// Handle feedback submission
+submitButton.addEventListener("click", () => {
+  const itemId = submitButton.dataset.itemId;
+  const name = nameInput.value.trim();
+  const feedback = feedbackInput.value.trim();
+  
+  if (name && feedback) {
+    console.log(`Feedback for item #${itemId}:`, { name, feedback });
+    alert("Thank you for your feedback!");
+    nameInput.value = "";
+    feedbackInput.value = "";
+  } else {
+    alert("Please fill out both fields to submit feedback.");
+  }
+});
+
+// Initialize the page
+renderItems();
+</script>
+</body>
+</html>
