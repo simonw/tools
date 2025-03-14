@@ -1,0 +1,3 @@
+This interactive map allows you to search for species observations recorded on iNaturalist. Enter a species name to see autocomplete suggestions, select a time frame for recent sightings, and the map will display observation locations using clustered markers. Click on any marker to view detailed information about the observation, including date, location, observer name, quality grade, and a photo when available.
+
+<!-- Generated from commit: 6d38c5be0761744a8f3cf1d014ea19d34df016e2 -->
