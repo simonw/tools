@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Token Usage Calculator</title>
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    line-height: 1.6;
+    color: #333;
+  }
+  
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  
+  h1 {
+    font-weight: 500;
+    margin-bottom: 20px;
+  }
+  
+  h2, h3 {
+    font-weight: 500;
+  }
+  
+  textarea {
+    width: 100%;
+    height: 300px;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 16px;
+    margin-bottom: 20px;
+    resize: vertical;
+  }
+  
+  .results {
+    margin-top: 20px;
+  }
+  
+  .model-group {
+    margin-bottom: 25px;
+    padding: 15px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+  }
+  
+  .model-group h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 5px;
+  }
+  
+  .totals {
+    font-weight: bold;
+    margin-top: 10px;
+  }
+  
+  .error {
+    color: #d9534f;
+    font-weight: bold;
+    padding: 15px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+  }
+  
+  .empty-state {
+    padding: 15px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    color: #666;
+  }
+  
+  ul {
+    margin-top: 10px;
+    padding-left: 20px;
+  }
+  
+  a {
+    color: #4a90e2;
+    text-decoration: none;
+  }
+  
+  a:hover {
+    text-decoration: underline;
+  }
+  
+  code {
+    background-color: #f1f1f1;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Token usage calculator</h1>
+    
+    <p>This tool helps you analyze token usage from Claude and other LLM API calls. Paste the YAML output from <a href="https://llm.datasette.io/" target="_blank">LLM</a>'s <code>llm logs -su</code> to see token consumption across your calls.</p>
+    
+    <p>Paste token usage data in YAML format below. This tool works best with output from the <code>llm logs -su</code> command:</p>
+    
+    <textarea id="usageInput" placeholder="- model: anthropic/claude-3-7-sonnet-latest
+  datetime: '2025-03-12T20:03:44'
+  conversation: 01jp5z9g81cxf095mt7gkakmq5
+  system: Write a paragraph of documentation...
+  usage:
+    input: 1435
+    output: 132"></textarea>
+    
+    <div class="results" id="results">
+      <div class="empty-state">
+        <p>Results will appear here after you paste token usage data.</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+// Parse the YAML-like format and extract input/output values
+function parseUsageData(text) {
+  const entries = [];
+  let currentEntry = null;
+  
+  // Split by lines and process
+  const lines = text.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // New entry starts with a dash
+    if (line.startsWith('-')) {
+      if (currentEntry) {
+        // Only add entries that have both model and usage data
+        if (currentEntry.model && (currentEntry.input > 0 || currentEntry.output > 0)) {
+          entries.push(currentEntry);
+        }
+      }
+      currentEntry = { model: '', input: 0, output: 0 };
+      
+      // Extract model if on same line
+      const modelMatch = line.match(/- model: (.+)/);
+      if (modelMatch) {
+        currentEntry.model = modelMatch[1];
+      }
+    } 
+    // Parse model if on separate line
+    else if (line.startsWith('model:') && currentEntry) {
+      currentEntry.model = line.replace('model:', '').trim();
+    }
+    // Parse input token count
+    else if (line.startsWith('input:') && currentEntry) {
+      const inputValue = parseInt(line.replace('input:', '').trim());
+      if (!isNaN(inputValue)) {
+        currentEntry.input = inputValue;
+      }
+    }
+    // Parse output token count
+    else if (line.startsWith('output:') && currentEntry) {
+      const outputValue = parseInt(line.replace('output:', '').trim());
+      if (!isNaN(outputValue)) {
+        currentEntry.output = outputValue;
+      }
+    }
+  }
+  
+  // Add the last entry if exists and has valid data
+  if (currentEntry && currentEntry.model && (currentEntry.input > 0 || currentEntry.output > 0)) {
+    entries.push(currentEntry);
+  }
+  
+  return entries;
+}
+
+// Calculate totals from parsed data, grouped by model
+function calculateTotals(entries) {
+  // Group entries by model
+  const modelGroups = {};
+  
+  for (const entry of entries) {
+    // Skip entries without a model name
+    if (!entry.model) continue;
+    
+    const model = entry.model;
+    
+    if (!modelGroups[model]) {
+      modelGroups[model] = {
+        input: 0,
+        output: 0,
+        count: 0,
+        entries: []
+      };
+    }
+    
+    modelGroups[model].input += entry.input;
+    modelGroups[model].output += entry.output;
+    modelGroups[model].count += 1;
+    modelGroups[model].entries.push(entry);
+  }
+  
+  return {
+    modelGroups,
+    entries: entries.length
+  };
+}
+
+// Display the results
+function displayResults(results, entries) {
+  const resultsDiv = document.getElementById('results');
+  
+  if (entries.length === 0) {
+    resultsDiv.innerHTML = '<p class="error">No valid entries found. Please check your format.</p>';
+    return;
+  }
+  
+  const modelCount = Object.keys(results.modelGroups).length;
+  
+  if (modelCount === 0) {
+    resultsDiv.innerHTML = '<p class="error">No models with valid token data found.</p>';
+    return;
+  }
+  
+  let html = '<h2>Results</h2>';
+  
+  // Display entries grouped by model
+  html += `<p>Found ${entries.length} entries across ${modelCount} models:</p>`;
+  
+  // Sort models alphabetically
+  const sortedModels = Object.keys(results.modelGroups).sort();
+  
+  for (const modelName of sortedModels) {
+    const modelData = results.modelGroups[modelName];
+    
+    html += `<div class="model-group">`;
+    html += `<h3>${modelName} (${modelData.count} ${modelData.count === 1 ? 'entry' : 'entries'})</h3>`;
+    
+    // Model totals only
+    html += `<div class="totals">`;
+    html += `<p>Total input tokens: ${modelData.input}</p>`;
+    html += `<p>Total output tokens: ${modelData.output}</p>`;
+    html += `</div>`;
+    html += `</div>`;
+  }
+  
+  resultsDiv.innerHTML = html;
+}
+
+// Main function to process the data
+function processUsageData() {
+  const inputText = document.getElementById('usageInput').value;
+  
+  if (!inputText.trim()) {
+    document.getElementById('results').innerHTML = '<div class="empty-state"><p>Results will appear here after you paste token usage data.</p></div>';
+    return;
+  }
+  
+  try {
+    const entries = parseUsageData(inputText);
+    const totals = calculateTotals(entries);
+    displayResults(totals, entries);
+  } catch (error) {
+    document.getElementById('results').innerHTML = `<p class="error">Error processing data: ${error.message}</p>`;
+  }
+}
+
+// Set up event listener for textarea changes
+document.getElementById('usageInput').addEventListener('input', function() {
+  // Debounce to avoid excessive calculations while typing
+  clearTimeout(this.debounceTimer);
+  this.debounceTimer = setTimeout(processUsageData, 300);
+});
+
+// Process data on initial load if textarea has content
+window.addEventListener('load', function() {
+  const textarea = document.getElementById('usageInput');
+  if (textarea.value.trim()) {
+    processUsageData();
+  }
+});
+  </script>
+</body>
+</html>
