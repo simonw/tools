@@ -14,7 +14,7 @@ def is_text_file(file_path):
     Check if a file is a text file by attempting to read it as UTF-8.
     """
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             f.read(1024)  # Try reading a small chunk
         return True
     except UnicodeDecodeError:
@@ -32,7 +32,7 @@ def process_file(file_path, dry_run=False):
         return file_path, False, 0
 
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
         changes_needed = False
@@ -42,15 +42,15 @@ def process_file(file_path, dry_run=False):
         for line in lines:
             # Check if the line contains only whitespace characters (spaces, tabs)
             # but is not already just a newline
-            if line.strip() == '' and line != '\n':
-                new_lines.append('\n')
+            if line.strip() == "" and line != "\n":
+                new_lines.append("\n")
                 changes_needed = True
                 lines_changed += 1
             else:
                 new_lines.append(line)
 
         if changes_needed and not dry_run:
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.writelines(new_lines)
 
         return file_path, changes_needed, lines_changed
@@ -65,14 +65,12 @@ def main():
         description="Replace whitespace-only lines with blank lines in text files."
     )
     parser.add_argument(
-        'paths', 
-        nargs='+', 
-        help="One or more files or directories to process"
+        "paths", nargs="+", help="One or more files or directories to process"
     )
     parser.add_argument(
-        '--dry-run', 
-        action='store_true',
-        help="Show what would be changed without making changes"
+        "--dry-run",
+        action="store_true",
+        help="Show what would be changed without making changes",
     )
 
     args = parser.parse_args()
@@ -106,7 +104,9 @@ def main():
                     filepath_obj = Path(filepath)
 
                     # Skip hidden files and directories
-                    if filepath_obj.name.startswith('.') or any(part.startswith('.') for part in filepath_obj.parts):
+                    if filepath_obj.name.startswith(".") or any(
+                        part.startswith(".") for part in filepath_obj.parts
+                    ):
                         continue
 
                     filepath, changed, lines = process_file(filepath, args.dry_run)
