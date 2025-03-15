@@ -200,6 +200,19 @@ def build_colophon():
             </div>
         </div>
 """
+        # Check for corresponding docs.md file
+        docs_file = page_name.replace(".html", ".docs.md")
+        docs_replacement = ""
+        if Path(docs_file).exists():
+            try:
+                with open(docs_file, "r") as f:
+                    docs_content = f.read()
+                    # Render markdown to HTML
+                    docs_html = markdown.markdown(docs_content)
+                    # Add docs above commits
+                    html_content += '<div class="docs">' + docs_html + "</div>"
+            except Exception as e:
+                print(f"Error reading {docs_file}: {e}")
 
         # Add each commit
         for commit in commits:
@@ -229,26 +242,6 @@ def build_colophon():
             <div class="commit-message">{formatted_message}</div>
         </div>
 """
-
-        # Check for corresponding docs.md file
-        docs_file = page_name.replace(".html", ".docs.md")
-        if Path(docs_file).exists():
-            try:
-                with open(docs_file, "r") as f:
-                    docs_content = f.read()
-                    # Render markdown to HTML
-                    docs_html = markdown.markdown(docs_content)
-                    # Add docs above commits
-                    html_content = html_content.replace(
-                        f'<h2 class="tool-name"><a href="{tool_url}">{page_name}</a> <a class="hashref" href="#{page_name}">#</a></h2>',
-                        f"""<h2 class="tool-name"><a href="{tool_url}">{page_name}</a> <a class="hashref" href="#{page_name}">#</a></h2>
-        <div class="docs">
-            {docs_html}
-        </div>""",
-                    )
-            except Exception as e:
-                print(f"Error reading {docs_file}: {e}")
-
         html_content += """
     </div>
 """
