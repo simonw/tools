@@ -24,12 +24,20 @@ h1 {
   line-height: 1.2;
 }
 
+h2 {
+  font-size: 20px;
+  margin-top: 32px;
+  margin-bottom: 16px;
+  color: #334155;
+}
+
 .progress-container {
   background-color: #f0f0f0;
   border-radius: 8px;
   height: 32px;
   margin-bottom: 24px;
   overflow: hidden;
+  position: relative;
 }
 
 .progress-bar {
@@ -37,6 +45,24 @@ h1 {
   height: 100%;
   transition: width 0.5s ease;
   width: 0;
+}
+
+.midterm-marker {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 2px;
+  background-color: #dc2626;
+  z-index: 2;
+}
+
+.midterm-label {
+  position: absolute;
+  top: -24px;
+  transform: translateX(-50%);
+  color: #dc2626;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .details {
@@ -48,14 +74,20 @@ h1 {
 
 .stats {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stats-single {
+  grid-column: span 2;
 }
 
 .stat-card {
-  background-color: #f8fafc;
+  background-color: #eff6ff;
   border-radius: 12px;
   padding: 20px;
+  border-left: 4px solid #2563eb;
 }
 
 .stat-label {
@@ -68,6 +100,19 @@ h1 {
   font-size: 24px;
   font-weight: 600;
 }
+
+.midterm-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.midterm-card {
+  background-color: #fef2f2;
+  border-radius: 12px;
+  padding: 20px;
+  border-left: 4px solid #dc2626;
+}
 </style>
 </head>
 <body>
@@ -75,8 +120,12 @@ h1 {
   <h1>Current presidential term progress</h1>
   <div class="progress-container">
     <div class="progress-bar" id="progressBar"></div>
+    <div class="midterm-marker" id="midtermMarker"></div>
+    <div class="midterm-label" id="midtermLabel">Midterms</div>
   </div>
   <div class="details" id="details"></div>
+  
+  <h2>Presidential Term Stats</h2>
   <div class="stats">
     <div class="stat-card">
       <div class="stat-label">Days elapsed</div>
@@ -86,9 +135,21 @@ h1 {
       <div class="stat-label">Days remaining</div>
       <div class="stat-value" id="daysRemaining">-</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stats-single">
       <div class="stat-label">Percentage complete</div>
       <div class="stat-value" id="percentage">-</div>
+    </div>
+  </div>
+  
+  <h2>Midterm Elections Progress</h2>
+  <div class="midterm-stats">
+    <div class="midterm-card">
+      <div class="stat-label">Days until midterms</div>
+      <div class="stat-value" id="daysToMidterm">-</div>
+    </div>
+    <div class="midterm-card">
+      <div class="stat-label">Percentage to midterms</div>
+      <div class="stat-value" id="percentageToMidterm">-</div>
     </div>
   </div>
 </div>
@@ -96,16 +157,23 @@ h1 {
 <script type="module">
 const TERM_START = new Date('2025-01-20T12:00:00-05:00')
 const TERM_END = new Date('2029-01-20T12:00:00-05:00')
+const MIDTERM_ELECTION = new Date('2026-11-03T00:00:00-05:00') // First Tuesday in November 2026
 const TERM_LENGTH = TERM_END - TERM_START
+const MIDTERM_POSITION = (MIDTERM_ELECTION - TERM_START) / TERM_LENGTH * 100
 
 function updateProgress() {
   const now = new Date()
   const elapsed = now - TERM_START
   const remaining = TERM_END - now
   const percentage = (elapsed / TERM_LENGTH) * 100
-
+  
+  // Midterm calculations
+  const timeToMidterm = MIDTERM_ELECTION - now
+  const percentageToMidterm = elapsed / (MIDTERM_ELECTION - TERM_START) * 100
+  
+  // Update term progress
   document.getElementById('progressBar').style.width = `${percentage}%`
-  document.getElementById('details').textContent = `Term started on January 20, 2025 and ends on January 20, 2029`
+  document.getElementById('details').textContent = `Term started on January 20, 2025 and ends on January 20, 2029. Midterm elections will be held on November 3, 2026.`
   
   const daysElapsed = Math.floor(elapsed / (1000 * 60 * 60 * 24))
   const daysRemaining = Math.ceil(remaining / (1000 * 60 * 60 * 24))
@@ -113,6 +181,16 @@ function updateProgress() {
   document.getElementById('daysElapsed').textContent = daysElapsed.toLocaleString()
   document.getElementById('daysRemaining').textContent = daysRemaining.toLocaleString()
   document.getElementById('percentage').textContent = `${percentage.toFixed(1)}%`
+  
+  // Update midterm marker position
+  document.getElementById('midtermMarker').style.left = `${MIDTERM_POSITION}%`
+  document.getElementById('midtermLabel').style.left = `${MIDTERM_POSITION}%`
+  
+  // Update midterm stats
+  const daysToMidterm = Math.ceil(timeToMidterm / (1000 * 60 * 60 * 24))
+  document.getElementById('daysToMidterm').textContent = timeToMidterm > 0 ? daysToMidterm.toLocaleString() : 'Completed'
+  document.getElementById('percentageToMidterm').textContent = timeToMidterm > 0 ? 
+    `${Math.min(percentageToMidterm, 100).toFixed(1)}%` : '100%'
 }
 
 updateProgress()
