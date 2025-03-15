@@ -14,7 +14,7 @@ def format_commit_message(message):
 
     # Linkify URLs first (before adding breaks)
     url_pattern = r"(https?://[^\s]+)"
-    linkified = re.sub(url_pattern, r'<a href="\1" target="_blank">\1</a>', escaped)
+    linkified = re.sub(url_pattern, r'<a href="\1">\1</a>', escaped)
 
     # Then convert newlines to <br>
     return linkified.replace("\n", "<br>")
@@ -91,7 +91,6 @@ def build_colophon():
         a.hashref:focus,
         a.hashref:active {
             color: #666;
-            padding-left: 0.5em;
         }
         .tool {
             margin-bottom: 2rem;
@@ -100,6 +99,7 @@ def build_colophon():
         }
         .tool-name {
             font-weight: bold;
+            margin-bottom: 0.5rem;
         }
         .commit {
             background-color: #f8f9fa;
@@ -123,7 +123,7 @@ def build_colophon():
         }
         .docs {
             margin-top: 1.5rem;
-        }f
+        }
         .docs pre {
             white-space: pre-wrap;
             overflow-wrap: break-word;
@@ -132,6 +132,36 @@ def build_colophon():
         }
         .urls {
             margin-top: 1rem;
+        }
+        /* New styles for the heading */
+        .heading {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .main-text {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #0066cc;
+        }
+        .hash-text {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #666;
+        }
+        .code-text {
+            font-size: 1rem;
+            color: #666;
+            position: relative;
+            top: 1px;
+        }
+        .main-text a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        .code-text a {
+            color: #666;
+            text-decoration: none;
         }
         @media (max-width: 600px) {
             body {
@@ -150,17 +180,25 @@ def build_colophon():
     <p>The descriptions for each of the tools were generated using Claude 3.7 Sonnet.</p>
 """
 
-    # Add each page with its commits
+    # Modified tool heading HTML
     for page_name, page_data in sorted_pages:
         tool_url = f"https://tools.simonwillison.net/{page_name.replace('.html', '')}"
+        github_url = f"https://github.com/simonw/tools/blob/main/{page_name}"
         commits = page_data.get("commits", [])
 
         # Reverse the commits list to show oldest first
         commits = list(reversed(commits))
 
+        # Modified tool heading with the new structure
         html_content += f"""
     <div class="tool" id="{page_name}">
-        <h2 class="tool-name"><a href="{tool_url}">{page_name}</a> <a class="hashref" href="#{page_name}">#</a></h2>
+        <div class="tool-name">
+            <div class="heading">
+                <span class="hash-text"><a class="hashref" href="#{page_name}">#</a></span>
+                <span class="main-text"><a href="{tool_url}">{page_name.replace('.html', '')}</a></span>
+                <span class="code-text"><a href="{github_url}">code</a></span>
+            </div>
+        </div>
 """
 
         # Add each commit
