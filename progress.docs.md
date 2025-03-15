@@ -1,3 +1,3 @@
-This page displays a visual tracker of the current U.S. presidential term progress. It shows a progress bar along with key statistics including days elapsed, days remaining, and the percentage of the term that has been completed. The page automatically updates every hour and is set to track the presidential term from January 20, 2025 to January 20, 2029.
+This page displays a visual tracker for the current U.S. presidential term, showing percentage completion via a progress bar with key dates marked. Statistics include days elapsed, days remaining, and percentage complete for both the full term and progress toward midterm elections. The tracker automatically updates and shows the term spanning from January 20, 2025 to January 20, 2029, with midterm elections on November 3, 2026.
 
-<!-- Generated from commit: c90501a576651210d1404947adae7a50b36d7248 -->
+<!-- Generated from commit: 80676849739c5fc39e913fb0b89d6220a7e54b08 -->
