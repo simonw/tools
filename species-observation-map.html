@@ -329,6 +329,9 @@ function selectTaxon(taxon) {
   
   infoContainer.innerHTML = content;
   detailsContainer.style.display = 'block';
+
+  // Update URL with the selected taxon
+  updateUrlHash();
 }
 
 // Search for observations
@@ -345,6 +348,9 @@ async function searchObservations() {
     alert('Please enter a valid number of days');
     return;
   }
+  
+  // Update URL with current search parameters
+  updateUrlHash();
   
   // Calculate date range
   const endDate = new Date();
@@ -509,8 +515,92 @@ function formatObservationDate(dateString) {
   return date.toLocaleDateString();
 }
 
+// Update URL hash with current state
+function updateUrlHash() {
+  const days = document.getElementById('days-input').value;
+  
+  if (selectedTaxonId && selectedTaxonName) {
+    const stateObj = {
+      taxonId: selectedTaxonId,
+      taxonName: selectedTaxonName,
+      days: days
+    };
+    
+    const hashValue = encodeURIComponent(JSON.stringify(stateObj));
+    
+    // Use history API to update URL without reloading the page
+    history.pushState(stateObj, '', `#${hashValue}`);
+  }
+}
+
+// Load state from URL hash
+async function loadStateFromHash() {
+  const hash = window.location.hash;
+  
+  if (hash && hash.length > 1) {
+    try {
+      const decodedHash = decodeURIComponent(hash.slice(1));
+      const stateObj = JSON.parse(decodedHash);
+      
+      if (stateObj && stateObj.taxonId && stateObj.taxonName && stateObj.days) {
+        console.log('Loading state from URL hash:', stateObj);
+        
+        // Set days input
+        document.getElementById('days-input').value = stateObj.days;
+        
+        // Set the species search input
+        document.getElementById('species-search').value = stateObj.taxonName;
+        
+        // Set the taxon details
+        selectedTaxonId = stateObj.taxonId;
+        selectedTaxonName = stateObj.taxonName;
+        
+        const detailsContainer = document.getElementById('taxon-details');
+        const infoContainer = document.getElementById('selected-taxon-info');
+        
+        infoContainer.innerHTML = `<strong>Selected: ${stateObj.taxonName}</strong>`;
+        detailsContainer.style.display = 'block';
+        
+        // Search for observations
+        await searchObservations();
+      }
+    } catch (error) {
+      console.error('Error parsing hash state:', error);
+    }
+  }
+}
+
+// Handle browser navigation events
+window.addEventListener('popstate', async (event) => {
+  if (event.state) {
+    // Load state from the history state object
+    selectedTaxonId = event.state.taxonId;
+    selectedTaxonName = event.state.taxonName;
+    
+    document.getElementById('days-input').value = event.state.days;
+    document.getElementById('species-search').value = event.state.taxonName;
+    
+    const detailsContainer = document.getElementById('taxon-details');
+    const infoContainer = document.getElementById('selected-taxon-info');
+    
+    infoContainer.innerHTML = `<strong>Selected: ${event.state.taxonName}</strong>`;
+    detailsContainer.style.display = 'block';
+    
+    await searchObservations();
+  } else {
+    // Reset state if no state in history
+    selectedTaxonId = null;
+    selectedTaxonName = null;
+    document.getElementById('species-search').value = '';
+    document.getElementById('days-input').value = '30';
+    document.getElementById('taxon-details').style.display = 'none';
+    markers.clearLayers();
+    document.getElementById('stats-panel').style.display = 'none';
+  }
+});
+
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initMap();
   setupSpeciesSearch();
   
@@ -523,7 +613,32 @@ document.addEventListener('DOMContentLoaded', () => {
       searchObservations();
     }
   });
+  
+  // Load state from URL hash
+  await loadStateFromHash();
 });
+
+// Handle direct lookup of a taxon by ID
+async function lookupTaxonById(taxonId) {
+  try {
+    const response = await fetch(`https://api.inaturalist.org/v1/taxa/${taxonId}`);
+    
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    
+    const data = await response.json();
+    
+    if (data.results && data.results.length > 0) {
+      return data.results[0];
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error looking up taxon by ID:', error);
+    return null;
+  }
+}
   </script>
 </body>
 </html>
