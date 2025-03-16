@@ -20,6 +20,74 @@
     font-weight: 500;
   }
 
+  .controls {
+    margin-bottom: 20px;
+    background-color: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+  }
+
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+  }
+
+  .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+  }
+
+  input:checked + .toggle-slider {
+    background-color: #4a6cf7;
+  }
+
+  input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+  }
+
+  .toggle-label {
+    font-weight: bold;
+  }
+
+  .mode-label {
+    font-size: 14px;
+    color: #666;
+  }
+
   .item-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -155,6 +223,17 @@
     <p>Click on any item to view details in a side panel</p>
   </header>
 
+  <div class="controls">
+    <div class="toggle-container">
+      <span class="toggle-label">Dialog Mode:</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="dialogModeToggle">
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="mode-label" id="modeLabel">show() - Non-modal dialog</span>
+    </div>
+  </div>
+
   <main>
     <div class="item-list" id="itemList">
       <!-- Items will be inserted here by JavaScript -->
@@ -243,6 +322,19 @@ const itemDetails = document.getElementById("itemDetails");
 const submitButton = document.getElementById("submitFeedback");
 const nameInput = document.getElementById("nameInput");
 const feedbackInput = document.getElementById("feedbackInput");
+const dialogModeToggle = document.getElementById("dialogModeToggle");
+const modeLabel = document.getElementById("modeLabel");
+
+// Track current dialog mode
+let useModalMode = false;
+
+// Toggle between show() and showModal()
+dialogModeToggle.addEventListener("change", (event) => {
+  useModalMode = event.target.checked;
+  modeLabel.textContent = useModalMode ? 
+    "showModal() - Modal dialog (blocks interaction)" : 
+    "show() - Non-modal dialog";
+});
 
 // Render items to the list
 function renderItems() {
@@ -274,8 +366,12 @@ function showItemDetails(item) {
   sidePanel.style.transition = 'none';
   sidePanel.style.transform = 'translateX(100%)';
   
-  // Show the dialog
-  sidePanel.showModal();
+  // Show the dialog using the selected method
+  if (useModalMode) {
+    sidePanel.showModal();
+  } else {
+    sidePanel.show();
+  }
   
   // Force a reflow to ensure the transition will occur
   void sidePanel.offsetWidth;
