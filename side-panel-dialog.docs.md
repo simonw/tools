@@ -1,3 +1,3 @@
-The Side Panel Modal implementation uses the HTML `dialog` element to create a sliding panel UI. When a product is clicked, a side panel appears from the right edge showing product details and a feedback form. The system handles animations with CSS transitions and JavaScript, ensuring smooth opening/closing effects with proper backdrop handling. This approach combines semantic HTML with custom styling to create an accessible and visually pleasing interface.
+This page displays a product catalog with a side panel dialog system. When users click on a product, details appear in a side panel implemented using the HTML `<dialog>` element. The panel can operate in two modes: non-modal (allowing interaction with the main page) or modal (blocking interaction until closed). Users can also submit feedback about products through a form in the side panel.
 
-<!-- Generated from commit: fe9aae5c17d12479fa2dc96ceaebf3e9a210cf99 -->
+<!-- Generated from commit: cdcd42f46d0f501e0b7b880ffd2b1d72acb5d488 -->
