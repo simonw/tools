@@ -32,7 +32,6 @@ The code lives in [simonw/tools](https://github.com/simonw/tools). Most of these
 - [Word Counter](https://tools.simonwillison.net/word-counter) - count words across multiple blocks of text, persisted to localStorage
 - [PHP Deserializer](https://tools.simonwillison.net/php-deserializer) - paste in serealized PHP data, get back JSON
 - [SQL Pretty Printer](https://tools.simonwillison.net/sql-pretty-printer) - paste in SQL to pretty print it
-- [SQL Pretty Printer](https://tools.simonwillison.net/sql-pretty-printer) - paste in SQL to pretty print it
 - [Pipfile.lock Dependency Parser](https://tools.simonwillison.net/pipfile) - paste in a `Pipfile.lock` JSON file to extract just the dependency versions]
 - [Paste rich text](https://tools.simonwillison.net/paste-rich-text) - paste from your clipboard and see any rich text as HTML
 
