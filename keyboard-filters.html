@@ -79,6 +79,7 @@
     .filter-badge-value {
       padding: 0 12px;
       background-color: #f8faff;
+      flex-grow: 1; /* Allow this to grow to take available space */
     }
     
     .filter-badge-remove {
@@ -89,6 +90,7 @@
       background-color: #f8faff;
       border-left: 1px solid #cce0ff;
       transition: background-color 0.2s ease;
+      margin-left: auto; /* Push to the right end */
     }
     
     .filter-badge-remove:hover {
@@ -231,6 +233,15 @@
       
       .filter-badge {
         width: 100%;
+        justify-content: space-between; /* Ensure space distribution */
+      }
+      
+      .filter-badge-value {
+        flex-grow: 1; /* Allow value to grow */
+      }
+      
+      .filter-badge-remove {
+        margin-left: auto; /* Always push to end */
       }
     }
   </style>
@@ -276,6 +287,7 @@ const filters = [
 
 // Current active filter being edited
 let activeFilter = null;
+let lastFocusedElementId = null; // Track the last focused element
 
 // DOM references
 const filterBadgesContainer = document.getElementById('filterBadges');
@@ -316,6 +328,9 @@ function initUI() {
 
 // Render filter badges
 function renderFilterBadges() {
+  // Save focus state before re-rendering
+  saveCurrentFocus();
+  
   filterBadgesContainer.innerHTML = '';
   
   filters.forEach(filter => {
@@ -323,8 +338,14 @@ function renderFilterBadges() {
     badge.className = 'filter-badge';
     badge.dataset.id = filter.id;
     
+    // Create unique identifiers for each focusable element
+    const columnId = `filter-column-${filter.id}`;
+    const operatorId = `filter-operator-${filter.id}`;
+    const valueId = `filter-value-${filter.id}`;
+    const removeId = `filter-remove-${filter.id}`;
+    
     badge.innerHTML = `
-      <div class="filter-badge-part filter-badge-column" data-id="${filter.id}">
+      <div id="${columnId}" class="filter-badge-part filter-badge-column" data-id="${filter.id}">
         ${filter.column}
         <select class="dropdown-select" data-id="${filter.id}" tabindex="0" aria-label="Select column">
           <option value="">- remove filter -</option>
@@ -336,7 +357,7 @@ function renderFilterBadges() {
           <option value="keywords">keywords</option>
         </select>
       </div>
-      <div class="filter-badge-part filter-badge-operator" data-id="${filter.id}">
+      <div id="${operatorId}" class="filter-badge-part filter-badge-operator" data-id="${filter.id}">
         ${operatorDisplay[filter.operator] || filter.operator}
         <select class="dropdown-select" data-id="${filter.id}" tabindex="0" aria-label="Select operator">
           <option value="exact">=</option>
@@ -363,8 +384,8 @@ function renderFilterBadges() {
           <option value="notblank__1">is not blank</option>
         </select>
       </div>
-      <div class="filter-badge-part filter-badge-value" data-id="${filter.id}" tabindex="0" role="button" aria-label="Edit value">${filter.value}</div>
-      <div class="filter-badge-part filter-badge-remove" data-id="${filter.id}" tabindex="0" role="button" aria-label="Remove filter">×</div>
+      <div id="${valueId}" class="filter-badge-part filter-badge-value" data-id="${filter.id}" tabindex="0" role="button" aria-label="Edit value">${filter.value}</div>
+      <div id="${removeId}" class="filter-badge-part filter-badge-remove" data-id="${filter.id}" tabindex="0" role="button" aria-label="Remove filter">×</div>
     `;
     
     filterBadgesContainer.appendChild(badge);
@@ -376,10 +397,45 @@ function renderFilterBadges() {
     if (columnSelect) columnSelect.value = filter.column;
     if (operatorSelect) operatorSelect.value = filter.operator;
   });
+  
+  // Restore focus after re-rendering
+  restoreFocus();
+}
+
+// Save current focused element
+function saveCurrentFocus() {
+  const activeElement = document.activeElement;
+  if (activeElement && activeElement.closest('.filter-badge')) {
+    lastFocusedElementId = activeElement.id || 
+                           activeElement.closest('[id]')?.id ||
+                           activeElement.closest('[data-id]')?.dataset.id;
+  }
+}
+
+// Restore focus to the previously focused element
+function restoreFocus() {
+  if (lastFocusedElementId) {
+    const elementToFocus = document.getElementById(lastFocusedElementId);
+    if (elementToFocus) {
+      setTimeout(() => {
+        elementToFocus.focus();
+      }, 0);
+    }
+  }
 }
 
 // Setup event listeners
 function setupEventListeners() {
+  // Track focus events
+  document.addEventListener('focusin', (e) => {
+    if (e.target.closest('.filter-badge') || e.target.closest('.add-filter-badge')) {
+      const element = e.target.closest('[id]');
+      if (element) {
+        lastFocusedElementId = element.id;
+      }
+    }
+  });
+
   // Add filter badge
   addFilterBadge.addEventListener('click', () => {
     const newFilter = {
@@ -392,13 +448,18 @@ function setupEventListeners() {
     filters.push(newFilter);
     renderFilterBadges();
     
-    // Auto-focus the column select
+    // Auto-focus the column select of the new filter
     setTimeout(() => {
-      const columnSelect = document.querySelector(`.filter-badge[data-id="${newFilter.id}"] .filter-badge-column select`);
-      if (columnSelect) {
-        columnSelect.focus();
+      const columnId = `filter-column-${newFilter.id}`;
+      const columnElement = document.getElementById(columnId);
+      if (columnElement) {
+        const columnSelect = columnElement.querySelector('select');
+        if (columnSelect) {
+          columnSelect.focus();
+          lastFocusedElementId = columnId;
+        }
       }
-    }, 100);
+    }, 50);
   });
   
   // Add keyboard support for "add filter" button
@@ -423,7 +484,7 @@ function setupEventListeners() {
           return;
         }
         
-        // Update the display text
+        // Update the display text without full re-render
         e.target.parentElement.childNodes[0].textContent = filter.column;
       }
     }
@@ -437,7 +498,7 @@ function setupEventListeners() {
       if (filter) {
         filter.operator = e.target.value;
         
-        // Update the display text
+        // Update the display text without full re-render
         e.target.parentElement.childNodes[0].textContent = operatorDisplay[filter.operator] || filter.operator;
       }
     }
@@ -454,11 +515,41 @@ function setupEventListeners() {
   
   // Filter badge value keyboard
   document.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('filter-badge-value')) {
-      e.preventDefault();
-      const id = parseInt(e.target.dataset.id);
-      activeFilter = filters.find(f => f.id === id);
-      showValuePopover(e.target);
+    if (e.target.classList.contains('filter-badge-value')) {
+      // Open popover on Enter/Space
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const id = parseInt(e.target.dataset.id);
+        activeFilter = filters.find(f => f.id === id);
+        showValuePopover(e.target);
+      }
+      // Open popover on any typing (except navigation keys)
+      else if (
+        e.key.length === 1 || // Single character keys
+        e.key === 'Backspace' || 
+        e.key === 'Delete'
+      ) {
+        e.preventDefault();
+        const id = parseInt(e.target.dataset.id);
+        activeFilter = filters.find(f => f.id === id);
+        showValuePopover(e.target);
+        
+        // After popover is open, forward the typed character to the input
+        setTimeout(() => {
+          const valueInput = document.getElementById('valueInput');
+          if (valueInput) {
+            if (e.key.length === 1) {
+              // For printable characters, set the input value to that character
+              valueInput.value = e.key;
+              // Position cursor at the end
+              valueInput.selectionStart = valueInput.selectionEnd = valueInput.value.length;
+            } else if (e.key === 'Backspace' || e.key === 'Delete') {
+              // For delete keys, start with empty value
+              valueInput.value = '';
+            }
+          }
+        }, 10);
+      }
     }
   });
   
@@ -513,6 +604,11 @@ function setupEventListeners() {
 
 // Show value popover
 function showValuePopover(targetElement) {
+  // If popover is already active, don't reinitialize
+  if (valuePopover.classList.contains('active')) {
+    return;
+  }
+  
   const rect = targetElement.getBoundingClientRect();
   
   // Calculate available space on the right
@@ -548,9 +644,11 @@ function closeValuePopover() {
   
   // Return focus to the value element that opened it
   if (activeFilter) {
-    const valueElement = document.querySelector(`.filter-badge-value[data-id="${activeFilter.id}"]`);
+    const valueId = `filter-value-${activeFilter.id}`;
+    const valueElement = document.getElementById(valueId);
     if (valueElement) {
       valueElement.focus();
+      lastFocusedElementId = valueId;
     }
   }
 }
@@ -560,11 +658,18 @@ function applyValueChange() {
   const valueInput = document.getElementById('valueInput');
   if (activeFilter) {
     activeFilter.value = valueInput.value;
-    const valueElement = document.querySelector(`.filter-badge-value[data-id="${activeFilter.id}"]`);
+    
+    // Update the display text without full re-render
+    const valueId = `filter-value-${activeFilter.id}`;
+    const valueElement = document.getElementById(valueId);
     if (valueElement) {
       valueElement.textContent = activeFilter.value;
+      closeValuePopover();
+      valueElement.focus();
+      lastFocusedElementId = valueId;
+    } else {
+      closeValuePopover();
     }
-    closeValuePopover();
   }
 }
 
@@ -572,8 +677,34 @@ function applyValueChange() {
 function removeFilter(id) {
   const index = filters.findIndex(f => f.id === id);
   if (index !== -1) {
+    // Find next filter to focus on
+    let nextFocusFilter;
+    if (index < filters.length - 1) {
+      nextFocusFilter = filters[index + 1];
+    } else if (index > 0) {
+      nextFocusFilter = filters[index - 1];
+    }
+    
+    // Remove the filter
     filters.splice(index, 1);
+    
+    // Render and set focus
     renderFilterBadges();
+    
+    // If there are no filters left, focus the add button
+    if (filters.length === 0) {
+      addFilterBadge.focus();
+      lastFocusedElementId = addFilterBadge.id;
+    } 
+    // Otherwise focus a related filter
+    else if (nextFocusFilter) {
+      const columnId = `filter-column-${nextFocusFilter.id}`;
+      const columnElement = document.getElementById(columnId);
+      if (columnElement) {
+        columnElement.focus();
+        lastFocusedElementId = columnId;
+      }
+    }
   }
 }
 
