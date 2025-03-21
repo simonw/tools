@@ -1,0 +1,3 @@
+This tool formats JSON data to make it more readable, even when working with truncated or incomplete JSON documents. The formatter adds proper indentation and line breaks to improve readability while preserving the original content structure. It handles nested objects, arrays, and string values correctly, making it useful for debugging or examining partial JSON responses.
+
+<!-- Generated from commit: 30a947b5087dfd2ab6dcae7ed8ca594b3640786c -->
