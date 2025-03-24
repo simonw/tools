@@ -1,0 +1,3 @@
+The Avatar Web Component allows users to select, crop, and resize profile images directly in the browser. Users can upload images by clicking, drag-and-drop, or pasting from clipboard, then precisely crop the image using the interactive resizing handles. The component automatically maintains the proper aspect ratio, generates a JPEG preview, and saves the resulting image data to a specified form field.
+
+<!-- Generated from commit: 51b013005bea273913d5501fb6355c9aff93a97d -->
