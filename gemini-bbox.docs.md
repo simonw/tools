@@ -1,3 +1,3 @@
-This tool visualizes bounding boxes on images using the Gemini API. Upload an image, enter a prompt, and the application will display the original image with overlaid bounding boxes according to coordinates returned by the model. The coordinates use a normalized format [ymin, xmin, ymax, xmax] on a 0-1000 scale, and cropped sections of each detected region are displayed separately below the main image.
+This tool visualizes bounding box coordinates returned by the Gemini API for uploaded images. Upload an image, enter a prompt asking for object detection, and the application will process your request using the selected Gemini model. The tool displays the original image with colored bounding boxes overlaid on a coordinate grid (0-1000), and extracts each detected region as a separate image for detailed inspection.
 
-<!-- Generated from commit: c8706b48a4d1351e4807faea1854db8c8888299a -->
+<!-- Generated from commit: 3c6702beedae287efd201b1ac5ac8d2f52d57041 -->
