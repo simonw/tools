@@ -1,0 +1,3 @@
+The Lightning Timer is a web-based countdown timer designed for time-sensitive presentations or events. It displays a countdown from a specified duration (default 5 minutes) and changes color when approaching the end of the allocated time (default warning at 1 minute). Users can customize the timer duration and warning threshold by adding parameters to the URL hash, such as #300,60 for a 5-minute timer with a 1-minute warning.
+
+<!-- Generated from commit: 112557eb571d8d5589f8b0b329e70a727c6e9990 -->
