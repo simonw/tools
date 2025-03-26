@@ -2,6 +2,15 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
+## http_check.py
+
+Check if a given URL supports gzip, ETags and Last-modified conditional GET requests.
+
+```bash
+uv run http://tools.simonwillison.net/python/http_check.py \
+  https://simonw.github.io/ollama-models-atom-feed/atom.xml
+```
+
 ## whitespace_cleaner.py
 
 Replace any lines that are entirely whitespace with blank lines in specified files or folders:
