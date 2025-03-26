@@ -1,0 +1,96 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<title>Lightning Timer</title>
+<!-- By Simon Willison - http://simonwillison.net/2008/Nov/12/lightning/ -->
+<script type="text/javascript">
+// Default settings: 5 minutes, warning at 1 minute
+var count = 5 * 60;
+var warning = 60;
+
+window.onload = function() {
+    // Can optionally set count and warning in the url
+    // e.g. http://www.lightningtimer.net/#30,15 = 30 seconds, warning at 15
+    //      http://www.lightningtimer.net/#300 = 5 minutes, no warning
+    var match = /(\d+),?(\d+)?/.exec(location.hash);
+    if (match && match[1]) {
+        count = parseInt(match[1], 10);
+    }
+    if (match && match[2]) {
+        warning = parseInt(match[2], 10);
+    }
+    if (match && !match[2]) {
+        warning = -1; // Disable warning
+    }
+    document.getElementById('countdown').onclick = function() {
+        this.onclick = null;
+        countdown();
+    }
+    document.getElementById('countdown').style.cursor = 'pointer';
+}
+
+function countdown() {
+    if (count > 0) {
+        document.getElementById('countdown').style.cursor = '';
+        var obj = document.getElementById("countdown");
+        obj.replaceChild(
+            document.createTextNode(count.toMinutesAndSeconds()),
+            obj.firstChild
+        );
+        document.title = count.toMinutesAndSeconds(); 
+        count--;
+        if (count < warning) {
+            document.body.className = 'warning';
+        }
+        window.setTimeout(countdown, 1000);
+    } else {
+        document.body.className = 'deadline';
+        var obj = document.getElementById("countdown");
+        obj.replaceChild(
+            document.createTextNode(count.toMinutesAndSeconds()),
+            obj.firstChild
+        );
+        document.title = count.toMinutesAndSeconds();
+        obj.onclick = function() {
+            location.reload();
+        };
+        obj.style.cursor = 'pointer';
+    }
+}
+Number.prototype.toMinutesAndSeconds = function() {
+    // convert numeric seconds input to minutes and seconds string output
+    var nn, curTime = new Date(this * 1000);
+    return nn = curTime.getMinutes() + ":" + (
+        ((nn = curTime.getSeconds()) < 10) ? "0" + nn : nn
+    );
+}
+</script>
+<style type="text/css">
+body {
+    text-align: center;
+    font-family: verdana;
+    font-weight: bold;
+    font-size: 20em;
+    color: white;
+    background-color: black;
+}
+body.warning {
+    background-color: pink;
+    color: black;
+}
+body.deadline {
+    text-decoration: blink;
+    background-color: red;
+    color: white;
+}
+</style>
+</head>
+<body>
+<body class="start">
+
+<span id="countdown">Start</span>
+
+</body>
+</html>
+
