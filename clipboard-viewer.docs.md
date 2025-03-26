@@ -1,3 +1,3 @@
-The Clipboard Format Viewer displays the different data formats captured when content is pasted. It presents each format (such as text/plain, text/html, or Files) in separate sections, showing the raw content data for each format type. Paste content either into the designated area or anywhere on the page to see all the clipboard formats that were captured during the copy operation.
+The Clipboard Format Viewer allows you to inspect the raw data available when pasting content. When you paste text, images, files, or other content, the tool displays all available formats and their corresponding data in an organized view. Each format is shown in its own section, with special handling for images and files to provide visual previews where possible.
 
-<!-- Generated from commit: 0b18227510dbd1e6bbe2dd1421b0e1c610849f07 -->
+<!-- Generated from commit: 8397ef6722cd4120e7fe701b94a31b25aad960ab -->
