@@ -177,7 +177,7 @@ def build_colophon():
     <h1>tools.simonwillison.net colophon</h1>
     <p>The tools on <a href="https://tools.simonwillison.net/">tools.simonwillison.net</a> were mostly built using <a href="https://simonwillison.net/tags/ai-assisted-programming/">AI-assisted programming</a>.</p>
     <p>This page lists the commit messages for each tool, many of which link to the LLM transcript used to produce the code.</p>
-    <p>The descriptions for each of the tools were generated using Claude 3.7 Sonnet.</p>
+    <p>Here's <a href="https://simonwillison.net/2025/Mar/11/using-llms-for-code/#a-detailed-example">how I built this colophon page</a>. The descriptions for each of the tools were <a href="https://simonwillison.net/2025/Mar/13/tools-colophon/">generated using Claude 3.7 Sonnet</a>.</p>
 """
 
     # Modified tool heading HTML
