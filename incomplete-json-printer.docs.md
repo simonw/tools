@@ -1,3 +1,3 @@
-This tool formats JSON data to make it more readable, even when working with truncated or incomplete JSON documents. The formatter adds proper indentation and line breaks to improve readability while preserving the original content structure. It handles nested objects, arrays, and string values correctly, making it useful for debugging or examining partial JSON responses.
+The Incomplete JSON Pretty Printer formats truncated or incomplete JSON data into a readable structure. It features automatic formatting as you type, copy to clipboard functionality, and a sample example to demonstrate its capabilities. The tool helps developers visualize and work with partial JSON data by applying proper indentation and structure to make the content more readable.
 
-<!-- Generated from commit: 30a947b5087dfd2ab6dcae7ed8ca594b3640786c -->
+<!-- Generated from commit: 85618b7bf0d4877fb4836d434adf29dbd646ee52 -->
