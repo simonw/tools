@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passkey Demo | tools.simonwillison.net</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+    }
+    
+    h1, h2, h3 {
+      font-weight: 500;
+    }
+    
+    button {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 15px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 5px 0;
+      transition: background-color 0.2s;
+    }
+    
+    button:hover {
+      background-color: #0055aa;
+    }
+    
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-size: 16px;
+      font-family: Helvetica, Arial, sans-serif;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      background-color: #f9f9f9;
+    }
+    
+    .success {
+      background-color: #d4edda;
+      border-color: #c3e6cb;
+      color: #155724;
+    }
+    
+    .error {
+      background-color: #f8d7da;
+      border-color: #f5c6cb;
+      color: #721c24;
+    }
+    
+    #status-message {
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      display: none;
+    }
+    
+    .credentials-list {
+      list-style-type: none;
+      padding: 0;
+    }
+    
+    .credentials-list li {
+      padding: 10px;
+      margin-bottom: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .credentials-list button {
+      padding: 5px 10px;
+      font-size: 14px;
+    }
+    
+    details {
+      margin-bottom: 15px;
+    }
+    
+    summary {
+      cursor: pointer;
+      padding: 10px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+    }
+    
+    pre {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow: auto;
+      font-size: 14px;
+    }
+    
+    .panel {
+      display: none;
+    }
+    
+    .panel.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>Passkey experiment</h1>
+  
+  <div id="status-message"></div>
+  
+  <div class="container">
+    <div class="card">
+      <h2>Check browser support</h2>
+      <p id="support-status">Checking browser support for WebAuthn/Passkeys...</p>
+      <p>Domain: <span id="current-domain"></span></p>
+    </div>
+
+    <div class="panel" id="panel-main">
+      <div class="card">
+        <h2>Register a new passkey</h2>
+        <p>Create a new passkey credential for this demo website.</p>
+        
+        <div>
+          <label for="username">Username</label>
+          <input type="text" id="username" placeholder="Enter a username">
+        </div>
+        
+        <button id="register-btn">Register passkey</button>
+      </div>
+      
+      <div class="card">
+        <h2>Authenticate with passkey</h2>
+        <p>Sign in using one of your registered passkeys.</p>
+        <button id="authenticate-btn">Authenticate</button>
+      </div>
+      
+      <div class="card">
+        <h2>Your credentials</h2>
+        <p>These credentials are stored in your browser's localStorage.</p>
+        <ul class="credentials-list" id="credentials-list">
+          <li>No credentials registered yet.</li>
+        </ul>
+      </div>
+      
+      <div class="card">
+        <h2>Debug information</h2>
+        <details>
+          <summary>Last credential creation response</summary>
+          <pre id="creation-response">None yet</pre>
+        </details>
+        <details>
+          <summary>Last authentication response</summary>
+          <pre id="auth-response">None yet</pre>
+        </details>
+        <details>
+          <summary>Advanced options</summary>
+          <button id="clear-storage">Clear all stored credentials</button>
+        </details>
+      </div>
+    </div>
+    
+    <div class="panel" id="panel-no-support">
+      <div class="card error">
+        <h2>Browser not supported</h2>
+        <p>Unfortunately, your browser doesn't support the WebAuthn API needed for passkeys.</p>
+        <p>Please try again using a modern browser like Chrome, Safari, Firefox, or Edge.</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+// Utility functions
+function base64URLToBuffer(base64URL) {
+  const base64 = base64URL.replace(/-/g, '+').replace(/_/g, '/');
+  const padLen = 4 - (base64.length % 4);
+  const padded = padLen < 4 ? base64 + '='.repeat(padLen) : base64;
+  const binary = atob(padded);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return buffer;
+}
+
+function bufferToBase64URL(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+// DOM elements
+const supportStatus = document.getElementById('support-status');
+const currentDomain = document.getElementById('current-domain');
+const panelMain = document.getElementById('panel-main');
+const panelNoSupport = document.getElementById('panel-no-support');
+const usernameInput = document.getElementById('username');
+const registerBtn = document.getElementById('register-btn');
+const authenticateBtn = document.getElementById('authenticate-btn');
+const credentialsList = document.getElementById('credentials-list');
+const creationResponse = document.getElementById('creation-response');
+const authResponse = document.getElementById('auth-response');
+const clearStorageBtn = document.getElementById('clear-storage');
+const statusMessage = document.getElementById('status-message');
+
+// Display current domain
+currentDomain.textContent = window.location.hostname;
+
+// Local storage key for credentials
+const STORAGE_KEY = 'passkey_demo_credentials';
+
+// Check browser support
+function checkBrowserSupport() {
+  if (window.PublicKeyCredential) {
+    supportStatus.textContent = "✅ Your browser supports WebAuthn/Passkeys!";
+    supportStatus.style.color = 'green';
+    panelMain.classList.add('active');
+    return true;
+  } else {
+    supportStatus.textContent = "❌ Your browser does not support WebAuthn/Passkeys.";
+    supportStatus.style.color = 'red';
+    panelNoSupport.classList.add('active');
+    return false;
+  }
+}
+
+// Show status message
+function showStatus(message, isError = false) {
+  statusMessage.textContent = message;
+  statusMessage.style.display = 'block';
+  
+  if (isError) {
+    statusMessage.className = 'error';
+  } else {
+    statusMessage.className = 'success';
+  }
+  
+  // Auto hide after 5 seconds
+  setTimeout(() => {
+    statusMessage.style.display = 'none';
+  }, 5000);
+}
+
+// Load credentials from localStorage
+function loadCredentials() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error("Error loading credentials:", error);
+    return [];
+  }
+}
+
+// Save credentials to localStorage
+function saveCredentials(credentials) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials));
+}
+
+// Update credentials list in the UI
+function updateCredentialsList() {
+  const credentials = loadCredentials();
+  
+  if (credentials.length === 0) {
+    credentialsList.innerHTML = '<li>No credentials registered yet.</li>';
+    return;
+  }
+  
+  credentialsList.innerHTML = '';
+  credentials.forEach((cred, index) => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div>
+        <strong>${cred.username}</strong><br>
+        <small>ID: ${cred.credentialId.substring(0, 12)}...</small>
+      </div>
+      <button class="delete-credential" data-index="${index}">Delete</button>
+    `;
+    credentialsList.appendChild(li);
+  });
+  
+  // Add event listeners to delete buttons
+  document.querySelectorAll('.delete-credential').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const index = parseInt(e.target.dataset.index);
+      const credentials = loadCredentials();
+      credentials.splice(index, 1);
+      saveCredentials(credentials);
+      updateCredentialsList();
+      showStatus("Credential deleted successfully");
+    });
+  });
+}
+
+// Generate a random challenge
+function generateChallenge() {
+  const array = new Uint8Array(32);
+  window.crypto.getRandomValues(array);
+  return array;
+}
+
+// Register a new passkey
+async function registerPasskey() {
+  const username = usernameInput.value.trim();
+  
+  if (!username) {
+    showStatus("Please enter a username", true);
+    return;
+  }
+  
+  try {
+    // Generate a random user ID
+    const userId = new Uint8Array(16);
+    window.crypto.getRandomValues(userId);
+    
+    // Create registration options
+    const challengeBuffer = generateChallenge();
+    const challenge = bufferToBase64URL(challengeBuffer);
+    
+    const createOptions = {
+      challenge: base64URLToBuffer(challenge),
+      rp: {
+        name: "Passkey Demo",
+        id: window.location.hostname
+      },
+      user: {
+        id: userId,
+        name: username,
+        displayName: username
+      },
+      pubKeyCredParams: [
+        { type: "public-key", alg: -7 }, // ES256
+        { type: "public-key", alg: -257 } // RS256
+      ],
+      timeout: 60000,
+      authenticatorSelection: {
+        authenticatorAttachment: "platform",
+        userVerification: "preferred",
+        residentKey: "required"
+      }
+    };
+    
+    // Create the credential
+    const credential = await navigator.credentials.create({
+      publicKey: createOptions
+    });
+    
+    // Process the credential
+    const credentialId = bufferToBase64URL(credential.rawId);
+    const publicKey = credential.response.getPublicKey ?
+      bufferToBase64URL(credential.response.getPublicKey()) :
+      bufferToBase64URL(new Uint8Array(credential.response.publicKey || new ArrayBuffer(0)));
+    
+    // Store the credential
+    const credentials = loadCredentials();
+    credentials.push({
+      id: credential.id,
+      credentialId: credentialId,
+      publicKey: publicKey,
+      username: username,
+      created: new Date().toISOString()
+    });
+    saveCredentials(credentials);
+    
+    // Update UI
+    updateCredentialsList();
+    usernameInput.value = '';
+    
+    // Display response
+    creationResponse.textContent = JSON.stringify({
+      id: credential.id,
+      type: credential.type,
+      credentialId: credentialId,
+      publicKey: publicKey
+    }, null, 2);
+    
+    showStatus("Passkey registered successfully!");
+    
+  } catch (error) {
+    console.error("Registration error:", error);
+    showStatus(`Registration failed: ${error.message}`, true);
+  }
+}
+
+// Authenticate with passkey
+async function authenticateWithPasskey() {
+  const credentials = loadCredentials();
+  
+  if (credentials.length === 0) {
+    showStatus("No credentials registered yet", true);
+    return;
+  }
+  
+  try {
+    // Generate a random challenge
+    const challengeBuffer = generateChallenge();
+    const challenge = bufferToBase64URL(challengeBuffer);
+    
+    // Create authentication options
+    const getOptions = {
+      challenge: base64URLToBuffer(challenge),
+      rpId: window.location.hostname,
+      userVerification: "preferred",
+      timeout: 60000
+    };
+    
+    // Get the credential
+    const assertion = await navigator.credentials.get({
+      publicKey: getOptions
+    });
+    
+    // Find the matching credential
+    const credentialId = bufferToBase64URL(assertion.rawId);
+    const matchedCred = credentials.find(cred => cred.credentialId === credentialId);
+    
+    if (matchedCred) {
+      // Display authentication response
+      authResponse.textContent = JSON.stringify({
+        id: assertion.id,
+        type: assertion.type,
+        credentialId: credentialId,
+        authenticatedUser: matchedCred.username
+      }, null, 2);
+      
+      showStatus(`Authenticated as: ${matchedCred.username}`);
+    } else {
+      showStatus("Credential not found in local storage", true);
+    }
+    
+  } catch (error) {
+    console.error("Authentication error:", error);
+    showStatus(`Authentication failed: ${error.message}`, true);
+  }
+}
+
+// Clear all stored credentials
+function clearStorage() {
+  if (confirm("Are you sure you want to delete all stored credentials?")) {
+    localStorage.removeItem(STORAGE_KEY);
+    updateCredentialsList();
+    showStatus("All credentials have been cleared");
+  }
+}
+
+// Initialize the app
+function init() {
+  if (!checkBrowserSupport()) return;
+  
+  // Load and display credentials
+  updateCredentialsList();
+  
+  // Set up event listeners
+  registerBtn.addEventListener('click', registerPasskey);
+  authenticateBtn.addEventListener('click', authenticateWithPasskey);
+  clearStorageBtn.addEventListener('click', clearStorage);
+}
+
+// Start the app
+init();
+  </script>
+</body>
+</html>
