@@ -1,3 +1,3 @@
-This page provides a demonstration of WebAuthn/Passkey technology for secure authentication. Users can register a new passkey associated with a username, authenticate using a previously created passkey, and manage their credentials which are stored in the browser's localStorage. The demo includes functionality to check browser compatibility and displays debug information about authentication responses.
+This page provides a demonstration environment for testing and understanding passkeys. Users can register new passkeys, authenticate with existing ones, and manage their stored credentials. The demo operates entirely in the browser using localStorage for credential storage, with a debugging section that shows technical details of credential creation and authentication responses.
 
-<!-- Generated from commit: 6f965e6e411162297995fdc715460cb65c4e7f0f -->
+<!-- Generated from commit: 6b0d8cdc263599b8460c5d2c77b78ab57f15d11e -->
