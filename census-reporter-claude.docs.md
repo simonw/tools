@@ -1,0 +1,3 @@
+The Census Explorer application provides an interface to explore American Community Survey data through the Census Reporter API. Users can search for geographic areas and specific census tables, then visualize the resulting data. The interface follows a clear three-step workflow: first search and select geographies and tables, then view the data in tabular or chart formats. Data can be toggled between different ACS releases and refreshed as needed.
+
+<!-- Generated from commit: 43c7b98b0a3d37adfe18a73021255739c98b11a8 -->
