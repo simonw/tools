@@ -162,6 +162,15 @@
         <h2>Authenticate with passkey</h2>
         <p>Sign in using one of your registered passkeys.</p>
         <button id="authenticate-btn">Authenticate</button>
+        
+        <div id="auth-result" style="display: none; margin-top: 15px; padding: 15px; border-radius: 4px; background-color: #e8f4fd; border: 1px solid #bedcf3;">
+          <h3 style="margin-top: 0;">Authentication successful</h3>
+          <div class="auth-details">
+            <p><strong>Username:</strong> <span id="auth-username">-</span></p>
+            <p><strong>Credential ID:</strong> <span id="auth-credential-id">-</span></p>
+            <p><strong>Authenticated at:</strong> <span id="auth-time">-</span></p>
+          </div>
+        </div>
       </div>
       
       <div class="card">
@@ -236,6 +245,10 @@ const creationResponse = document.getElementById('creation-response');
 const authResponse = document.getElementById('auth-response');
 const clearStorageBtn = document.getElementById('clear-storage');
 const statusMessage = document.getElementById('status-message');
+const authResult = document.getElementById('auth-result');
+const authUsername = document.getElementById('auth-username');
+const authCredentialId = document.getElementById('auth-credential-id');
+const authTime = document.getElementById('auth-time');
 
 // Display current domain
 currentDomain.textContent = window.location.hostname;
@@ -425,6 +438,9 @@ async function authenticateWithPasskey() {
     return;
   }
   
+  // Hide previous auth result
+  authResult.style.display = 'none';
+  
   try {
     // Generate a random challenge
     const challengeBuffer = generateChallenge();
@@ -448,7 +464,7 @@ async function authenticateWithPasskey() {
     const matchedCred = credentials.find(cred => cred.credentialId === credentialId);
     
     if (matchedCred) {
-      // Display authentication response
+      // Display authentication response in debug section
       authResponse.textContent = JSON.stringify({
         id: assertion.id,
         type: assertion.type,
@@ -456,7 +472,14 @@ async function authenticateWithPasskey() {
         authenticatedUser: matchedCred.username
       }, null, 2);
       
+      // Show status message
       showStatus(`Authenticated as: ${matchedCred.username}`);
+      
+      // Update and show auth result box
+      authUsername.textContent = matchedCred.username;
+      authCredentialId.textContent = `${matchedCred.credentialId.substring(0, 10)}...`;
+      authTime.textContent = new Date().toLocaleString();
+      authResult.style.display = 'block';
     } else {
       showStatus("Credential not found in local storage", true);
     }
@@ -487,6 +510,9 @@ function init() {
   registerBtn.addEventListener('click', registerPasskey);
   authenticateBtn.addEventListener('click', authenticateWithPasskey);
   clearStorageBtn.addEventListener('click', clearStorage);
+  
+  // Hide auth result on page load
+  authResult.style.display = 'none';
 }
 
 // Start the app
