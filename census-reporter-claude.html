@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Census Explorer (built using Claude 3.7 Sonnet thinking)</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --light-color: #ecf0f1;
+            --accent-color: #e74c3c;
+            --text-color: #333;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--light-color);
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            padding: 1rem;
+        }
+        
+        header h1 {
+            margin-bottom: 0.5rem;
+        }
+        
+        .container {
+            width: 95%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 1rem;
+        }
+        
+        .tab {
+            padding: 0.5rem 1rem;
+            background-color: #ddd;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+            margin-right: 2px;
+        }
+        
+        .tab.active {
+            background-color: white;
+            border-bottom: 2px solid var(--secondary-color);
+        }
+        
+        .tab-content {
+            display: none;
+            background: white;
+            padding: 1rem;
+            border-radius: 0 5px 5px 5px;
+            margin-bottom: 1rem;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        input[type="text"], select {
+            width: 100%;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button.danger {
+            background-color: var(--accent-color);
+        }
+        
+        button.danger:hover {
+            background-color: #c0392b;
+        }
+        
+        .search-results {
+            margin-top: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .result-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+        }
+        
+        .result-item:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .selected-items {
+            margin-top: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 0.5rem;
+        }
+        
+        .selected-items h3 {
+            margin-bottom: 0.5rem;
+        }
+        
+        .selected-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .data-display {
+            margin-top: 1rem;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 0.5rem;
+            text-align: left;
+        }
+        
+        .data-table th {
+            background-color: #f5f5f5;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: var(--secondary-color);
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .error {
+            color: var(--accent-color);
+            margin-bottom: 1rem;
+        }
+        
+        .chart-container {
+            margin-top: 1rem;
+            width: 100%;
+            height: 400px;
+        }
+        
+        .description {
+            margin-bottom: 1rem;
+            color: #555;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            margin-right: 5px;
+            background-color: #f1f1f1;
+            border-radius: 10px;
+            font-size: 0.8rem;
+        }
+        
+        footer {
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            margin-top: 2rem;
+            font-size: 0.8rem;
+        }
+        
+        @media (max-width: 768px) {
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab {
+                width: 100%;
+                margin-bottom: 2px;
+                border-radius: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Census Explorer (built using Claude 3.7 Sonnet thinking)</h1>
+        <p>Explore American Community Survey data using the Census Reporter API</p>
+    </header>
+    
+    <div class="container">
+        <div class="tabs">
+            <div class="tab active" data-tab="search">1. Search & Select</div>
+            <div class="tab" data-tab="data">2. View Data</div>
+            <div class="tab" data-tab="about">About</div>
+        </div>
+        
+        <div id="search" class="tab-content active">
+            <div class="description">
+                <p>Search for geographies and tables, then add them to your selection to view census data.</p>
+            </div>
+            
+            <div>
+                <h2>Search for Geographies</h2>
+                <input type="text" id="geography-search" placeholder="Enter a place name (e.g., 'Seattle', 'Spokane')" />
+                <select id="sumlevs">
+                    <option value="010,020,030,040,050,060,160,250,310,500,610,620,860,950,960,970">Common Geography Types</option>
+                    <option value="040">States</option>
+                    <option value="050">Counties</option>
+                    <option value="160">Places (Cities, Towns)</option>
+                    <option value="310">Metro Areas</option>
+                    <option value="500">Congressional Districts</option>
+                    <option value="all">All Geography Types</option>
+                </select>
+                <button id="search-geography">Search</button>
+                <div id="geography-spinner" class="spinner hidden"></div>
+                <div id="geography-error" class="error hidden"></div>
+                <div id="geography-results" class="search-results"></div>
+            </div>
+            
+            <div class="selected-items">
+                <h3>Selected Geographies</h3>
+                <div id="selected-geographies"></div>
+                <div id="geo-actions" class="hidden" style="margin-top: 1rem;">
+                    <button id="clear-geographies" class="danger">Clear All</button>
+                </div>
+            </div>
+            
+            <div style="margin-top: 2rem;">
+                <h2>Search for Tables</h2>
+                <input type="text" id="table-search" placeholder="Enter a topic (e.g., 'income', 'education', 'housing')" />
+                <button id="search-table">Search</button>
+                <div id="table-spinner" class="spinner hidden"></div>
+                <div id="table-error" class="error hidden"></div>
+                <div id="table-results" class="search-results"></div>
+            </div>
+            
+            <div class="selected-items">
+                <h3>Selected Tables</h3>
+                <div id="selected-tables"></div>
+                <div id="table-actions" class="hidden" style="margin-top: 1rem;">
+                    <button id="clear-tables" class="danger">Clear All</button>
+                </div>
+            </div>
+            
+            <div style="margin-top: 1rem;">
+                <button id="view-data" disabled>View Data</button>
+            </div>
+        </div>
+        
+        <div id="data" class="tab-content">
+            <div class="data-controls">
+                <h2>Census Data</h2>
+                <div>
+                    <label for="release-select">Data Release:</label>
+                    <select id="release-select">
+                        <option value="latest">Latest Available</option>
+                        <option value="acs2012_5yr">ACS 2012 5-year</option>
+                        <option value="acs2012_3yr">ACS 2012 3-year</option>
+                        <option value="acs2012_1yr">ACS 2012 1-year</option>
+                    </select>
+                    <button id="get-data">Refresh Data</button>
+                    <button id="back-to-search">Back to Search</button>
+                    <div id="data-spinner" class="spinner hidden"></div>
+                </div>
+                <div id="data-error" class="error hidden"></div>
+            </div>
+            <div id="data-display" class="data-display"></div>
+        </div>
+        
+        <div id="about" class="tab-content">
+            <h2>About Census Explorer</h2>
+            <p>Census Explorer is a tool for exploring American Community Survey data using the Census Reporter API. It allows you to search for geographies and tables, and view census data in a user-friendly format.</p>
+            
+            <h3>How to Use</h3>
+            <ol>
+                <li>Search for geographies (cities, counties, states, etc.) and add them to your selection.</li>
+                <li>Search for tables (topics like income, education, housing) and add them to your selection.</li>
+                <li>Click "View Data" to see the census data for your selected geographies and tables.</li>
+            </ol>
+            
+            <h3>About the Data</h3>
+            <p>The American Community Survey (ACS) is an ongoing survey that provides data every year to give communities the current information they need to plan investments and services. The ACS covers a broad range of topics about social, economic, demographic, and housing characteristics of the U.S. population.</p>
+            
+            <h3>About the Census Reporter API</h3>
+            <p>Census Reporter is a Knight News Challenge-funded project to make it easier for journalists to write stories using information from the U.S. Census bureau. This application uses the Census Reporter API to access ACS data.</p>
+            
+            <p>Learn more at <a href="https://censusreporter.org/" target="_blank">censusreporter.org</a>.</p>
+        </div>
+    </div>
+    
+    <footer>
+        <p>Built using the <a href="https://censusreporter.org/" target="_blank" style="color: white;">Census Reporter API</a>. This tool is for educational purposes only.</p>
+    </footer>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+    <script>
+        // State management
+        const state = {
+            selectedGeographies: {},
+            selectedTables: {},
+            currentData: null,
+            charts: []
+        };
+        
+        // DOM elements
+        const elements = {
+            tabs: document.querySelectorAll('.tab'),
+            tabContents: document.querySelectorAll('.tab-content'),
+            geographySearch: document.getElementById('geography-search'),
+            tableSearch: document.getElementById('table-search'),
+            sumlevs: document.getElementById('sumlevs'),
+            searchGeographyBtn: document.getElementById('search-geography'),
+            searchTableBtn: document.getElementById('search-table'),
+            geographyResults: document.getElementById('geography-results'),
+            tableResults: document.getElementById('table-results'),
+            selectedGeographies: document.getElementById('selected-geographies'),
+            selectedTables: document.getElementById('selected-tables'),
+            geoActions: document.getElementById('geo-actions'),
+            tableActions: document.getElementById('table-actions'),
+            clearGeographiesBtn: document.getElementById('clear-geographies'),
+            clearTablesBtn: document.getElementById('clear-tables'),
+            viewDataBtn: document.getElementById('view-data'),
+            releaseSelect: document.getElementById('release-select'),
+            getDataBtn: document.getElementById('get-data'),
+            backToSearchBtn: document.getElementById('back-to-search'),
+            dataDisplay: document.getElementById('data-display'),
+            geographySpinner: document.getElementById('geography-spinner'),
+            tableSpinner: document.getElementById('table-spinner'),
+            dataSpinner: document.getElementById('data-spinner'),
+            geographyError: document.getElementById('geography-error'),
+            tableError: document.getElementById('table-error'),
+            dataError: document.getElementById('data-error')
+        };
+        
+        // API helpers
+        const api = {
+            baseUrl: 'https://api.censusreporter.org/1.0',
+            
+            async searchGeography(query, sumlevs) {
+                try {
+                    elements.geographyError.classList.add('hidden');
+                    elements.geographySpinner.classList.remove('hidden');
+                    
+                    let url = `${this.baseUrl}/geo/search?q=${encodeURIComponent(query)}`;
+                    if (sumlevs && sumlevs !== 'all') {
+                        url += `&sumlevs=${encodeURIComponent(sumlevs)}`;
+                    }
+                    
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch geography data');
+                    }
+                    
+                    const data = await response.json();
+                    return data.results || [];
+                } catch (error) {
+                    elements.geographyError.textContent = error.message;
+                    elements.geographyError.classList.remove('hidden');
+                    return [];
+                } finally {
+                    elements.geographySpinner.classList.add('hidden');
+                }
+            },
+            
+            async searchTable(query) {
+                try {
+                    elements.tableError.classList.add('hidden');
+                    elements.tableSpinner.classList.remove('hidden');
+                    
+                    const url = `${this.baseUrl}/table/search?q=${encodeURIComponent(query)}`;
+                    const response = await fetch(url);
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch table data');
+                    }
+                    
+                    const data = await response.json();
+                    return data || [];
+                } catch (error) {
+                    elements.tableError.textContent = error.message;
+                    elements.tableError.classList.remove('hidden');
+                    return [];
+                } finally {
+                    elements.tableSpinner.classList.add('hidden');
+                }
+            },
+            
+            async getData(release, tableIds, geoIds) {
+                try {
+                    elements.dataError.classList.add('hidden');
+                    elements.dataSpinner.classList.remove('hidden');
+                    
+                    const url = `${this.baseUrl}/data/show/${release}?table_ids=${tableIds}&geo_ids=${geoIds}`;
+                    const response = await fetch(url);
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch census data');
+                    }
+                    
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    elements.dataError.textContent = error.message;
+                    elements.dataError.classList.remove('hidden');
+                    return null;
+                } finally {
+                    elements.dataSpinner.classList.add('hidden');
+                }
+            }
+        };
+        
+        // Tab handling
+        elements.tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.getAttribute('data-tab');
+                
+                // Update tabs
+                elements.tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Update content
+                elements.tabContents.forEach(content => {
+                    content.classList.remove('active');
+                    if (content.id === tabId) {
+                        content.classList.add('active');
+                    }
+                });
+            });
+        });
+        
+        // Geography search
+        elements.searchGeographyBtn.addEventListener('click', async () => {
+            const query = elements.geographySearch.value.trim();
+            if (query.length < 2) {
+                elements.geographyError.textContent = 'Please enter at least 2 characters';
+                elements.geographyError.classList.remove('hidden');
+                return;
+            }
+            
+            const sumlevs = elements.sumlevs.value;
+            const results = await api.searchGeography(query, sumlevs);
+            
+            renderGeographyResults(results);
+        });
+        
+        elements.geographySearch.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                elements.searchGeographyBtn.click();
+            }
+        });
+        
+        // Table search
+        elements.searchTableBtn.addEventListener('click', async () => {
+            const query = elements.tableSearch.value.trim();
+            if (query.length < 2) {
+                elements.tableError.textContent = 'Please enter at least 2 characters';
+                elements.tableError.classList.remove('hidden');
+                return;
+            }
+            
+            const results = await api.searchTable(query);
+            renderTableResults(results);
+        });
+        
+        elements.tableSearch.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                elements.searchTableBtn.click();
+            }
+        });
+        
+        // Clear selections
+        elements.clearGeographiesBtn.addEventListener('click', () => {
+            state.selectedGeographies = {};
+            renderSelectedGeographies();
+            updateViewDataButton();
+        });
+        
+        elements.clearTablesBtn.addEventListener('click', () => {
+            state.selectedTables = {};
+            renderSelectedTables();
+            updateViewDataButton();
+        });
+        
+        // View data
+        elements.viewDataBtn.addEventListener('click', () => {
+            // Switch to data tab
+            elements.tabs.forEach(t => t.classList.remove('active'));
+            elements.tabs[1].classList.add('active');
+            
+            elements.tabContents.forEach(content => content.classList.remove('active'));
+            elements.tabContents[1].classList.add('active');
+            
+            // Fetch and display data
+            fetchData();
+        });
+        
+        elements.getDataBtn.addEventListener('click', fetchData);
+        
+        elements.backToSearchBtn.addEventListener('click', () => {
+            // Switch to search tab
+            elements.tabs.forEach(t => t.classList.remove('active'));
+            elements.tabs[0].classList.add('active');
+            
+            elements.tabContents.forEach(content => content.classList.remove('active'));
+            elements.tabContents[0].classList.add('active');
+        });
+        
+        // Render functions
+        function renderGeographyResults(results) {
+            elements.geographyResults.innerHTML = '';
+            
+            if (results.length === 0) {
+                elements.geographyResults.innerHTML = '<div class="result-item">No results found</div>';
+                return;
+            }
+            
+            results.forEach(result => {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'result-item';
+                resultItem.innerHTML = `
+                    <strong>${result.full_name}</strong>
+                    <span class="badge">${getSumlevelName(result.sumlevel)}</span>
+                `;
+                
+                resultItem.addEventListener('click', () => {
+                    state.selectedGeographies[result.full_geoid] = {
+                        id: result.full_geoid,
+                        name: result.full_name,
+                        sumlevel: result.sumlevel
+                    };
+                    
+                    renderSelectedGeographies();
+                    updateViewDataButton();
+                });
+                
+                elements.geographyResults.appendChild(resultItem);
+            });
+        }
+        
+        function renderTableResults(results) {
+            elements.tableResults.innerHTML = '';
+            
+            if (results.length === 0) {
+                elements.tableResults.innerHTML = '<div class="result-item">No results found</div>';
+                return;
+            }
+            
+            // Group results by table
+            const tableResults = results.filter(result => result.type === 'table');
+            const columnResults = results.filter(result => result.type === 'column');
+            
+            // First display table results
+            tableResults.forEach(result => {
+                renderTableResult(result);
+            });
+            
+            // Then display column results
+            if (columnResults.length > 0) {
+                const divider = document.createElement('div');
+                divider.className = 'result-item';
+                divider.innerHTML = '<em>Column matches:</em>';
+                elements.tableResults.appendChild(divider);
+                
+                columnResults.forEach(result => {
+                    renderTableResult(result);
+                });
+            }
+        }
+        
+        function renderTableResult(result) {
+            const resultItem = document.createElement('div');
+            resultItem.className = 'result-item';
+            
+            // Extract table ID from unique_key if it's a column result
+            const tableId = result.table_id;
+            
+            resultItem.innerHTML = `
+                <strong>${result.table_name}</strong>
+                <span class="badge">${tableId}</span>
+                <div><small>Universe: ${result.universe}</small></div>
+                ${result.type === 'column' ? `<div><small>Column: ${result.column_name}</small></div>` : ''}
+                <div>
+                    ${(result.topics || []).map(topic => `<span class="badge">${topic}</span>`).join('')}
+                </div>
+            `;
+            
+            resultItem.addEventListener('click', () => {
+                state.selectedTables[tableId] = {
+                    id: tableId,
+                    name: result.table_name,
+                    universe: result.universe,
+                    topics: result.topics || []
+                };
+                
+                renderSelectedTables();
+                updateViewDataButton();
+            });
+            
+            elements.tableResults.appendChild(resultItem);
+        }
+        
+        function renderSelectedGeographies() {
+            elements.selectedGeographies.innerHTML = '';
+            const geographies = Object.values(state.selectedGeographies);
+            
+            if (geographies.length === 0) {
+                elements.selectedGeographies.innerHTML = '<div>No geographies selected</div>';
+                elements.geoActions.classList.add('hidden');
+                return;
+            }
+            
+            elements.geoActions.classList.remove('hidden');
+            
+            geographies.forEach(geography => {
+                const item = document.createElement('div');
+                item.className = 'selected-item';
+                item.innerHTML = `
+                    <div>
+                        <strong>${geography.name}</strong>
+                        <span class="badge">${getSumlevelName(geography.sumlevel)}</span>
+                    </div>
+                    <button class="remove-btn" data-id="${geography.id}">Remove</button>
+                `;
+                
+                elements.selectedGeographies.appendChild(item);
+            });
+            
+            // Add remove event listeners
+            document.querySelectorAll('.remove-btn').forEach(btn => {
+                if (btn.parentElement.parentElement === elements.selectedGeographies) {
+                    btn.addEventListener('click', () => {
+                        const id = btn.getAttribute('data-id');
+                        delete state.selectedGeographies[id];
+                        renderSelectedGeographies();
+                        updateViewDataButton();
+                    });
+                }
+            });
+        }
+        
+        function renderSelectedTables() {
+            elements.selectedTables.innerHTML = '';
+            const tables = Object.values(state.selectedTables);
+            
+            if (tables.length === 0) {
+                elements.selectedTables.innerHTML = '<div>No tables selected</div>';
+                elements.tableActions.classList.add('hidden');
+                return;
+            }
+            
+            elements.tableActions.classList.remove('hidden');
+            
+            tables.forEach(table => {
+                const item = document.createElement('div');
+                item.className = 'selected-item';
+                item.innerHTML = `
+                    <div>
+                        <strong>${table.name}</strong>
+                        <span class="badge">${table.id}</span>
+                        <div><small>Universe: ${table.universe}</small></div>
+                    </div>
+                    <button class="remove-btn" data-id="${table.id}">Remove</button>
+                `;
+                
+                elements.selectedTables.appendChild(item);
+            });
+            
+            // Add remove event listeners
+            document.querySelectorAll('.remove-btn').forEach(btn => {
+                if (btn.parentElement.parentElement === elements.selectedTables) {
+                    btn.addEventListener('click', () => {
+                        const id = btn.getAttribute('data-id');
+                        delete state.selectedTables[id];
+                        renderSelectedTables();
+                        updateViewDataButton();
+                    });
+                }
+            });
+        }
+        
+        async function fetchData() {
+            const tableIds = Object.keys(state.selectedTables).join(',');
+            const geoIds = Object.keys(state.selectedGeographies).join(',');
+            const release = elements.releaseSelect.value;
+            
+            if (!tableIds || !geoIds) {
+                elements.dataError.textContent = 'Please select at least one geography and one table';
+                elements.dataError.classList.remove('hidden');
+                return;
+            }
+            
+            const data = await api.getData(release, tableIds, geoIds);
+            state.currentData = data;
+            
+            renderDataDisplay(data);
+        }
+        
+        function renderDataDisplay(data) {
+            elements.dataDisplay.innerHTML = '';
+            
+            if (!data) {
+                return;
+            }
+            
+            // Clear any existing charts
+            state.charts.forEach(chart => chart.destroy());
+            state.charts = [];
+            
+            // Add release info
+            const releaseInfo = document.createElement('div');
+            releaseInfo.innerHTML = `
+                <h3>Data from ${data.release.name}</h3>
+                <p>Years: ${data.release.years}</p>
+            `;
+            elements.dataDisplay.appendChild(releaseInfo);
+            
+            // Process each table
+            Object.entries(data.tables).forEach(([tableId, tableInfo]) => {
+                const tableContainer = document.createElement('div');
+                tableContainer.style.marginTop = '2rem';
+                tableContainer.innerHTML = `
+                    <h3>${tableInfo.title}</h3>
+                    <p><strong>Universe:</strong> ${tableInfo.universe}</p>
+                `;
+                
+                // Create tab system for this table
+                const tabContainer = document.createElement('div');
+                tabContainer.innerHTML = `
+                    <div class="tabs" style="margin-top: 1rem;">
+                        <div class="tab active" data-group="${tableId}" data-view="table">Table View</div>
+                        <div class="tab" data-group="${tableId}" data-view="chart">Chart View</div>
+                    </div>
+                    <div class="tab-content active" id="${tableId}-table"></div>
+                    <div class="tab-content" id="${tableId}-chart"></div>
+                `;
+                tableContainer.appendChild(tabContainer);
+                
+                elements.dataDisplay.appendChild(tableContainer);
+                
+                // Add tab functionality
+                tabContainer.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        const group = tab.getAttribute('data-group');
+                        const view = tab.getAttribute('data-view');
+                        
+                        // Update tabs in this group
+                        tabContainer.querySelectorAll(`.tab[data-group="${group}"]`).forEach(t => {
+                            t.classList.remove('active');
+                        });
+                        tab.classList.add('active');
+                        
+                        // Update content
+                        document.getElementById(`${group}-table`).classList.remove('active');
+                        document.getElementById(`${group}-chart`).classList.remove('active');
+                        document.getElementById(`${group}-${view}`).classList.add('active');
+                    });
+                });
+                
+                // Render table view
+                renderTableView(tableId, tableInfo, data);
+                
+                // Render chart view
+                renderChartView(tableId, tableInfo, data);
+            });
+        }
+        
+        function renderTableView(tableId, tableInfo, data) {
+            const tableContainer = document.getElementById(`${tableId}-table`);
+            
+            // Create the table
+            const table = document.createElement('table');
+            table.className = 'data-table';
+            
+            // Create header row with geography names
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = '<th>Indicator</th>';
+            
+            // Add geography names to header
+            Object.entries(data.geography).forEach(([geoId, geoInfo]) => {
+                headerRow.innerHTML += `<th>${geoInfo.name}</th>`;
+            });
+            
+            table.appendChild(headerRow);
+            
+            // Add data rows for each column in the table
+            Object.entries(tableInfo.columns).forEach(([columnId, columnInfo]) => {
+                // Skip if it's the denominator column (total)
+                if (columnId === tableInfo.denominator_column_id && Object.keys(tableInfo.columns).length > 10) {
+                    return;
+                }
+                
+                const row = document.createElement('tr');
+                
+                // Add column name with proper indentation
+                const indentStyle = columnInfo.indent ? `padding-left: ${columnInfo.indent * 20}px;` : '';
+                row.innerHTML = `<td style="${indentStyle}">${columnInfo.name}</td>`;
+                
+                // Add data for each geography
+                Object.entries(data.geography).forEach(([geoId, geoInfo]) => {
+                    const geoData = data.data[geoId];
+                    
+                    if (geoData && geoData[tableId]) {
+                        const estimate = geoData[tableId].estimate[columnId];
+                        const error = geoData[tableId].error[columnId];
+                        
+                        const formattedEstimate = formatNumber(estimate);
+                        const formattedError = formatNumber(error);
+                        
+                        row.innerHTML += `
+                            <td>
+                                ${formattedEstimate}
+                                <div><small>±${formattedError}</small></div>
+                            </td>
+                        `;
+                    } else {
+                        row.innerHTML += '<td>N/A</td>';
+                    }
+                });
+                
+                table.appendChild(row);
+            });
+            
+            tableContainer.appendChild(table);
+        }
+        
+        function renderChartView(tableId, tableInfo, data) {
+            const chartContainer = document.getElementById(`${tableId}-chart`);
+            
+            // Create canvas for chart
+            const canvas = document.createElement('canvas');
+            canvas.id = `chart-${tableId}`;
+            
+            const chartWrapper = document.createElement('div');
+            chartWrapper.className = 'chart-container';
+            chartWrapper.appendChild(canvas);
+            chartContainer.appendChild(chartWrapper);
+            
+            // Get data for chart
+            const chartData = {
+                labels: [],
+                datasets: []
+            };
+            
+            // Limit to top 10 columns if there are too many
+            let columnsToDisplay = Object.entries(tableInfo.columns);
+            if (columnsToDisplay.length > 10) {
+                // Skip the total column and then take the first 10
+                columnsToDisplay = columnsToDisplay
+                    .filter(([columnId]) => columnId !== tableInfo.denominator_column_id)
+                    .slice(0, 10);
+            }
+            
+            // Set up datasets for each geography
+            Object.entries(data.geography).forEach(([geoId, geoInfo], index) => {
+                const dataset = {
+                    label: geoInfo.name,
+                    data: [],
+                    backgroundColor: getChartColor(index, 0.7),
+                    borderColor: getChartColor(index, 1),
+                    borderWidth: 1
+                };
+                
+                // Add data points
+                columnsToDisplay.forEach(([columnId, columnInfo]) => {
+                    // Only use labels from the first geography
+                    if (index === 0) {
+                        chartData.labels.push(columnInfo.name);
+                    }
+                    
+                    const geoData = data.data[geoId];
+                    if (geoData && geoData[tableId]) {
+                        dataset.data.push(geoData[tableId].estimate[columnId] || 0);
+                    } else {
+                        dataset.data.push(0);
+                    }
+                });
+                
+                chartData.datasets.push(dataset);
+            });
+            
+            // Create chart
+            const ctx = canvas.getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        },
+                        x: {
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 90,
+                                minRotation: 45,
+                                callback: function(value, index) {
+                                    const label = this.getLabelForValue(value);
+                                    return truncateString(label, 20);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.y;
+                                    return `${context.dataset.label}: ${formatNumber(value)}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            state.charts.push(chart);
+        }
+        
+        // Helper functions
+        function updateViewDataButton() {
+            const hasGeographies = Object.keys(state.selectedGeographies).length > 0;
+            const hasTables = Object.keys(state.selectedTables).length > 0;
+            
+            elements.viewDataBtn.disabled = !(hasGeographies && hasTables);
+        }
+        
+        function getSumlevelName(sumlevel) {
+            const sumlevels = {
+                '010': 'Nation',
+                '020': 'Region',
+                '030': 'Division',
+                '040': 'State',
+                '050': 'County',
+                '060': 'County Subdivision',
+                '140': 'Census Tract',
+                '150': 'Block Group',
+                '160': 'Place',
+                '250': 'American Indian Area',
+                '310': 'Metro Area',
+                '500': 'Congressional District',
+                '610': 'State Legislative (Upper)',
+                '620': 'State Legislative (Lower)',
+                '860': 'ZIP Code',
+                '950': 'School District (Elementary)',
+                '960': 'School District (Secondary)',
+                '970': 'School District (Unified)'
+            };
+            
+            return sumlevels[sumlevel] || `Level ${sumlevel}`;
+        }
+        
+        function formatNumber(num) {
+            if (num === undefined || num === null) {
+                return 'N/A';
+            }
+            
+            // Check if it's a decimal
+            if (Math.floor(num) !== num) {
+                return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+            }
+            
+            return num.toLocaleString('en-US');
+        }
+        
+        function getChartColor(index, alpha) {
+            const colors = [
+                `rgba(54, 162, 235, ${alpha})`,   // Blue
+                `rgba(255, 99, 132, ${alpha})`,   // Red
+                `rgba(75, 192, 192, ${alpha})`,   // Green
+                `rgba(255, 159, 64, ${alpha})`,   // Orange
+                `rgba(153, 102, 255, ${alpha})`,  // Purple
+                `rgba(255, 205, 86, ${alpha})`,   // Yellow
+                `rgba(201, 203, 207, ${alpha})`,  // Grey
+                `rgba(255, 99, 71, ${alpha})`,    // Tomato
+                `rgba(50, 205, 50, ${alpha})`,    // Lime Green
+                `rgba(0, 128, 128, ${alpha})`     // Teal
+            ];
+            
+            return colors[index % colors.length];
+        }
+        
+        function truncateString(str, maxLength) {
+            if (!str) return '';
+            if (str.length <= maxLength) return str;
+            return str.substr(0, maxLength - 3) + '...';
+        }
+        
+        // Initialize the app
+        renderSelectedGeographies();
+        renderSelectedTables();
+        updateViewDataButton();
+    </script>
+</body>
+</html>
