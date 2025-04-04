@@ -48,6 +48,9 @@ def build_colophon():
         pages.items(), key=lambda x: get_most_recent_date(x[1]), reverse=True
     )
 
+    # Count the number of tools
+    tool_count = len(sorted_pages)
+
     # Start building the HTML
     html_content = """<!DOCTYPE html>
 <html lang="en">
@@ -163,6 +166,19 @@ def build_colophon():
             color: #666;
             text-decoration: none;
         }
+        /* Styles for details/summary */
+        details {
+            margin-top: 1rem;
+        }
+        summary {
+            cursor: pointer;
+            padding: 0.5rem 0;
+            color: #0066cc;
+            font-weight: 500;
+        }
+        summary:hover {
+            text-decoration: underline;
+        }
         @media (max-width: 600px) {
             body {
                 padding: 0.5rem;
@@ -175,7 +191,11 @@ def build_colophon():
 </head>
 <body>
     <h1>tools.simonwillison.net colophon</h1>
-    <p>The tools on <a href="https://tools.simonwillison.net/">tools.simonwillison.net</a> were mostly built using <a href="https://simonwillison.net/tags/ai-assisted-programming/">AI-assisted programming</a>.</p>
+"""
+
+    # Add the tool count to the existing paragraph
+    html_content += f"""
+    <p>The tools on <a href="https://tools.simonwillison.net/">tools.simonwillison.net</a> were mostly built using <a href="https://simonwillison.net/tags/ai-assisted-programming/">AI-assisted programming</a>. This page lists {tool_count} tools and their development history.</p>
     <p>This page lists the commit messages for each tool, many of which link to the LLM transcript used to produce the code.</p>
     <p>Here's <a href="https://simonwillison.net/2025/Mar/11/using-llms-for-code/#a-detailed-example">how I built this colophon page</a>. The descriptions for each of the tools were <a href="https://simonwillison.net/2025/Mar/13/tools-colophon/">generated using Claude 3.7 Sonnet</a>.</p>
 """
@@ -188,6 +208,7 @@ def build_colophon():
 
         # Reverse the commits list to show oldest first
         commits = list(reversed(commits))
+        commit_count = len(commits)
 
         # Modified tool heading with the new structure
         html_content += f"""
@@ -214,6 +235,12 @@ def build_colophon():
             except Exception as e:
                 print(f"Error reading {docs_file}: {e}")
 
+        # Wrap commits in details/summary tags
+        html_content += f"""
+        <details>
+            <summary>Development history ({commit_count} commits)</summary>
+"""
+
         # Add each commit
         for commit in commits:
             commit_hash = commit.get("hash", "")
@@ -234,15 +261,17 @@ def build_colophon():
             commit_url = f"https://github.com/simonw/tools/commit/{commit_hash}"
 
             html_content += f"""
-        <div class="commit" id="commit-{short_hash}">
-            <div>
-                <a href="{commit_url}" class="commit-hash">{short_hash}</a>
-                <span class="commit-date">{formatted_date}</span>
+            <div class="commit" id="commit-{short_hash}">
+                <div>
+                    <a href="{commit_url}" class="commit-hash">{short_hash}</a>
+                    <span class="commit-date">{formatted_date}</span>
+                </div>
+                <div class="commit-message">{formatted_message}</div>
             </div>
-            <div class="commit-message">{formatted_message}</div>
-        </div>
 """
+        # Close the details tag
         html_content += """
+        </details>
     </div>
 """
 
