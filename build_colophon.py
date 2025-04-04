@@ -238,7 +238,7 @@ def build_colophon():
         # Wrap commits in details/summary tags
         html_content += f"""
         <details>
-            <summary>Development history ({commit_count} commits)</summary>
+            <summary>Development history ({commit_count} commit{"s" if commit_count > 1 else ""})</summary>
 """
 
         # Add each commit
