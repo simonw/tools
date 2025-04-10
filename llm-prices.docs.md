@@ -1,3 +1,3 @@
-This calculator helps you estimate the cost of using large language models (LLMs). Enter the number of input and output tokens along with their respective costs per million tokens to calculate your total expense. The tool includes a sortable table of preset models with their current pricing, allowing you to quickly select from popular options like GPT-4o, Claude, Gemini, and other LLMs by clicking on any model name.
+This calculator allows you to estimate the cost of using various large language models based on token counts. Enter the number of input and output tokens, or select a pre-configured model from the table to automatically fill in current pricing rates. The table shows pricing for popular models from different providers and can be sorted by model name, input cost, or output cost.
 
-<!-- Generated from commit: 07c91d8b4fd31f4d460e6b0cd9c225af7e211112 -->
+<!-- Generated from commit: 354b7f5120e93b777eefcce7661106c2a8b63fa6 -->
