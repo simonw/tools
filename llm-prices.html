@@ -78,25 +78,40 @@
             background-color: #f2f2f2;
             padding: 10px;
             text-align: left;
-            cursor: pointer;
             position: relative;
         }
-        .preset-table th:hover {
+        .preset-table th button {
+            background: none;
+            border: none;
+            font-weight: bold;
+            font-size: inherit;
+            text-align: left;
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .preset-table th button:hover,
+        .preset-table th button:focus {
             background-color: #e0e0e0;
+            outline: 2px solid #0066cc;
         }
-        .preset-table th::after {
-            content: "⇕";
+        .sort-icon {
+            margin-left: 5px;
+        }
+        .visually-hidden {
             position: absolute;
-            right: 10px;
-            color: #999;
-        }
-        .preset-table th.asc::after {
-            content: "↑";
-            color: #333;
-        }
-        .preset-table th.desc::after {
-            content: "↓";
-            color: #333;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
         .preset-table td {
             padding: 8px 10px;
@@ -119,9 +134,11 @@
             text-decoration: none;
             transition: background-color 0.2s, border-color 0.2s;
         }
-        .model-name-btn:hover {
+        .model-name-btn:hover,
+        .model-name-btn:focus {
             background-color: #96bce0;
             border-color: #6a9ccf;
+            outline: 2px solid #0066cc;
         }
         .disclaimer {
             font-size: 14px;
@@ -164,9 +181,24 @@
                     <table class="preset-table">
                         <thead>
                             <tr>
-                                <th data-sort="name">Model</th>
-                                <th data-sort="input">Input cost</th>
-                                <th data-sort="output">Output cost</th>
+                                <th>
+                                    <button type="button" id="sortByName" aria-sort="none">
+                                        Model
+                                        <span class="sort-icon" aria-hidden="true"></span>
+                                    </button>
+                                </th>
+                                <th>
+                                    <button type="button" id="sortByInput" aria-sort="ascending">
+                                        Input cost
+                                        <span class="sort-icon" aria-hidden="true">↑</span>
+                                    </button>
+                                </th>
+                                <th>
+                                    <button type="button" id="sortByOutput" aria-sort="none">
+                                        Output cost
+                                        <span class="sort-icon" aria-hidden="true"></span>
+                                    </button>
+                                </th>
                             </tr>
                         </thead>
                         <tbody id="presetTableBody">
@@ -318,14 +350,17 @@
             // Populate table
             renderTable(presetList);
             
-            // Mark input price header as sorted ascending
-            document.querySelector('.preset-table th[data-sort="input"]').classList.add('asc');
+            // Add event listeners to sort buttons
+            document.getElementById('sortByName').addEventListener('click', () => {
+                sortTable('name');
+            });
             
-            // Add event listeners to table headers for sorting
-            document.querySelectorAll('.preset-table th[data-sort]').forEach(header => {
-                header.addEventListener('click', () => {
-                    sortTable(header.dataset.sort, header);
-                });
+            document.getElementById('sortByInput').addEventListener('click', () => {
+                sortTable('input');
+            });
+            
+            document.getElementById('sortByOutput').addEventListener('click', () => {
+                sortTable('output');
             });
         }
         
@@ -346,35 +381,39 @@
         }
         
         // Sort table by the given column
-        function sortTable(column, headerElement) {
-            const presetTableBody = document.getElementById('presetTableBody');
-            const presetList = [];
+        function sortTable(column) {
+            const sortButtons = {
+                'name': document.getElementById('sortByName'),
+                'input': document.getElementById('sortByInput'),
+                'output': document.getElementById('sortByOutput')
+            };
             
-            // Determine sort direction
-            let sortDirection;
+            // Get the current sort direction for this column
+            const currentSort = sortButtons[column].getAttribute('aria-sort');
+            let newSort;
             
-            // Check current sort state before resetting classes
-            const wasAscending = headerElement.classList.contains('asc');
-            const wasDescending = headerElement.classList.contains('desc');
-            const wasSorted = wasAscending || wasDescending;
-            
-            // Reset all headers
-            document.querySelectorAll('.preset-table th').forEach(th => {
-                th.classList.remove('asc', 'desc');
-            });
-            
-            // Toggle direction if already sorted by this column
-            if (wasSorted) {
-                sortDirection = wasAscending ? 'desc' : 'asc';
+            // Toggle or set sort direction
+            if (currentSort === 'ascending') {
+                newSort = 'descending';
+            } else if (currentSort === 'descending') {
+                newSort = 'ascending';
             } else {
-                // Initial sort direction: alphabetical for names, expensive first for prices
-                sortDirection = (column === 'name') ? 'asc' : 'desc';
+                // If not currently sorted by this column
+                newSort = (column === 'name') ? 'ascending' : 'descending';
             }
             
-            // Add appropriate class
-            headerElement.classList.add(sortDirection);
+            // Reset all sort indicators
+            Object.values(sortButtons).forEach(button => {
+                button.setAttribute('aria-sort', 'none');
+                button.querySelector('.sort-icon').textContent = '';
+            });
+            
+            // Set new sort state
+            sortButtons[column].setAttribute('aria-sort', newSort);
+            sortButtons[column].querySelector('.sort-icon').textContent = (newSort === 'ascending') ? '↑' : '↓';
             
             // Convert presets object to array for sorting
+            const presetList = [];
             for (const [key, preset] of Object.entries(presets)) {
                 let prices;
                 if (preset.getPrice) {
@@ -391,25 +430,25 @@
                 });
             }
             
-            // Sort by the selected column
+            // Sort the data
             presetList.sort((a, b) => {
                 if (column === 'name') {
-                    return sortDirection === 'asc' 
-                        ? a.name.localeCompare(b.name) 
+                    return (newSort === 'ascending')
+                        ? a.name.localeCompare(b.name)
                         : b.name.localeCompare(a.name);
                 } else if (column === 'input') {
-                    return sortDirection === 'asc' 
-                        ? a.input - b.input 
+                    return (newSort === 'ascending')
+                        ? a.input - b.input
                         : b.input - a.input;
                 } else if (column === 'output') {
-                    return sortDirection === 'asc' 
-                        ? a.output - b.output 
+                    return (newSort === 'ascending')
+                        ? a.output - b.output
                         : b.output - a.output;
                 }
                 return 0;
             });
             
-            // Render sorted table
+            // Render the sorted table
             renderTable(presetList);
         }
 
