@@ -2,6 +2,20 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
+## json_extractor.py
+
+Given a text file that includes JSON syntax but is not valid JSON - a Markdown README file for example - this tool finds all valid JSON objects within that text and returns the largest, or all of them if you specify `-a`.
+
+```bash
+uv run http://tools.simonwillison.net/python/json_extractor.py \
+  README.md
+```
+You can also pipe data into it:
+```bash
+curl 'https://raw.githubusercontent.com/simonw/json-flatten/refs/heads/main/README.md' \
+  | uv run http://tools.simonwillison.net/python/json_extractor.py
+```
+
 ## http_check.py
 
 Check if a given URL supports gzip, ETags and Last-modified conditional GET requests.
