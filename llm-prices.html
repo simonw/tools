@@ -34,7 +34,7 @@
                 flex: 1;
             }
             .presets {
-                flex: 1;
+                flex: 2;
             }
         }
         h1, h2 {
@@ -69,29 +69,59 @@
             font-size: 18px;
             color: #2ecc71;
         }
-        .preset-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
+        .preset-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
         }
-        .preset-btn {
-            flex: 0 0 auto;
-            margin-right: 10px;
-            padding: 8px 12px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 4px;
+        .preset-table th {
+            background-color: #f2f2f2;
+            padding: 10px;
+            text-align: left;
             cursor: pointer;
-            font-size: 14px;
+            position: relative;
         }
-        .preset-btn:hover {
-            background-color: #2980b9;
+        .preset-table th:hover {
+            background-color: #e0e0e0;
         }
-        .preset-info {
-            flex: 1;
+        .preset-table th::after {
+            content: "⇕";
+            position: absolute;
+            right: 10px;
+            color: #999;
+        }
+        .preset-table th.asc::after {
+            content: "↑";
+            color: #333;
+        }
+        .preset-table th.desc::after {
+            content: "↓";
+            color: #333;
+        }
+        .preset-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .preset-table tr:hover {
+            background-color: #f5f5f5;
+        }
+        .model-name-btn {
+            background-color: #e1f0ff;
+            border: 1px solid #d0e5fa;
+            border-radius: 4px;
             font-size: 14px;
-            color: #666;
+            color: #333;
+            cursor: pointer;
+            text-align: left;
+            padding: 5px 8px;
+            font-family: inherit;
+            width: 100%;
+            text-decoration: none;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .model-name-btn:hover {
+            background-color: #96bce0;
+            border-color: #6a9ccf;
         }
         .disclaimer {
             font-size: 14px;
@@ -129,8 +159,21 @@
             </div>
 
             <div class="presets">
-                <h2>Preset prices (all per million tokens)</h2>
-                <div id="presetList"></div>
+                <h2>Preset Models (per million tokens)</h2>
+                <div id="presetTable">
+                    <table class="preset-table">
+                        <thead>
+                            <tr>
+                                <th data-sort="name">Model Name</th>
+                                <th data-sort="input">Input Cost</th>
+                                <th data-sort="output">Output Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody id="presetTableBody">
+                            <!-- Table rows will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -247,28 +290,131 @@
             return `$${price.toFixed(2)}`;
         }
 
-        function createPresetButtons() {
-            const presetList = document.getElementById('presetList');
+        // Create presets table
+        function createPresetsTable() {
+            const presetTableBody = document.getElementById('presetTableBody');
+            const presetList = [];
+            
+            // Convert presets object to array for sorting
             for (const [key, preset] of Object.entries(presets)) {
-                const presetItem = document.createElement('div');
-                presetItem.className = 'preset-item';
-                
                 let prices;
                 if (preset.getPrice) {
                     prices = preset.getPrice();
                 } else {
                     prices = { input: preset.input, output: preset.output };
                 }
-                presetItem.innerHTML = `
-                    <button class="preset-btn" onclick="setPreset('${key}')">${preset.name}</button>
-                    <span class="preset-info">Input: ${formatPrice(prices.input)} / Output: ${formatPrice(prices.output)}</span>
-                `;
-                presetList.appendChild(presetItem);
+                
+                presetList.push({
+                    key: key,
+                    name: preset.name,
+                    input: prices.input,
+                    output: prices.output
+                });
             }
+            
+            // Initial sort by input price (cheapest first)
+            presetList.sort((a, b) => a.input - b.input);
+            
+            // Populate table
+            renderTable(presetList);
+            
+            // Mark input price header as sorted ascending
+            document.querySelector('.preset-table th[data-sort="input"]').classList.add('asc');
+            
+            // Add event listeners to table headers for sorting
+            document.querySelectorAll('.preset-table th[data-sort]').forEach(header => {
+                header.addEventListener('click', () => {
+                    sortTable(header.dataset.sort, header);
+                });
+            });
+        }
+        
+        // Render the table with the given data
+        function renderTable(data) {
+            const presetTableBody = document.getElementById('presetTableBody');
+            presetTableBody.innerHTML = '';
+            
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><button class="model-name-btn" onclick="setPreset('${item.key}')">${item.name}</button></td>
+                    <td>${formatPrice(item.input)}</td>
+                    <td>${formatPrice(item.output)}</td>
+                `;
+                presetTableBody.appendChild(row);
+            });
+        }
+        
+        // Sort table by the given column
+        function sortTable(column, headerElement) {
+            const presetTableBody = document.getElementById('presetTableBody');
+            const presetList = [];
+            
+            // Determine sort direction
+            let sortDirection;
+            
+            // Check current sort state before resetting classes
+            const wasAscending = headerElement.classList.contains('asc');
+            const wasDescending = headerElement.classList.contains('desc');
+            const wasSorted = wasAscending || wasDescending;
+            
+            // Reset all headers
+            document.querySelectorAll('.preset-table th').forEach(th => {
+                th.classList.remove('asc', 'desc');
+            });
+            
+            // Toggle direction if already sorted by this column
+            if (wasSorted) {
+                sortDirection = wasAscending ? 'desc' : 'asc';
+            } else {
+                // Initial sort direction: alphabetical for names, expensive first for prices
+                sortDirection = (column === 'name') ? 'asc' : 'desc';
+            }
+            
+            // Add appropriate class
+            headerElement.classList.add(sortDirection);
+            
+            // Convert presets object to array for sorting
+            for (const [key, preset] of Object.entries(presets)) {
+                let prices;
+                if (preset.getPrice) {
+                    prices = preset.getPrice();
+                } else {
+                    prices = { input: preset.input, output: preset.output };
+                }
+                
+                presetList.push({
+                    key: key,
+                    name: preset.name,
+                    input: prices.input,
+                    output: prices.output
+                });
+            }
+            
+            // Sort by the selected column
+            presetList.sort((a, b) => {
+                if (column === 'name') {
+                    return sortDirection === 'asc' 
+                        ? a.name.localeCompare(b.name) 
+                        : b.name.localeCompare(a.name);
+                } else if (column === 'input') {
+                    return sortDirection === 'asc' 
+                        ? a.input - b.input 
+                        : b.input - a.input;
+                } else if (column === 'output') {
+                    return sortDirection === 'asc' 
+                        ? a.output - b.output 
+                        : b.output - a.output;
+                }
+                return 0;
+            });
+            
+            // Render sorted table
+            renderTable(presetList);
         }
 
-        // Create preset buttons and run initial calculation
-        createPresetButtons();
+        // Initialize the calculator and table
+        createPresetsTable();
         calculateCost();
     </script>
 </body>
