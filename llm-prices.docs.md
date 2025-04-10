@@ -1,3 +1,3 @@
-This LLM Pricing Calculator allows you to estimate costs for various language models by entering token counts and pricing information. The calculator displays costs in both dollars and cents, with preset pricing options for popular models like GPT-4o, Claude, Gemini, Mistral, and others. The interface includes input fields for token quantities and pricing rates, along with a comprehensive list of current model pricing that can be quickly applied with one click.
+The LLM Pricing Calculator allows you to estimate the cost of using various language models by entering the number of input and output tokens along with their respective pricing. The calculator displays the total cost in both dollars and cents, and provides a comprehensive list of preset pricing options for popular models including Gemini, Claude, GPT-4, and others. Prices can be applied with a single click, making it easy to compare costs across different models.
 
-<!-- Generated from commit: 494fc36505daa35d39df44776a466e6bb488b155 -->
+<!-- Generated from commit: 5ad15054e972f7a5a0c012691495e6bd809f1b8f -->
