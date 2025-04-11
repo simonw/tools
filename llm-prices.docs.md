@@ -1,3 +1,3 @@
-This calculator allows you to estimate the cost of using various Large Language Models (LLMs) based on token counts. Enter your input and output token quantities, then either manually input pricing or select a model from the table to automatically populate the rates. The table displays current pricing for many popular LLMs and can be sorted by model name, input cost, or output cost.
+The LLM pricing calculator allows you to determine costs for working with large language models. Enter your input and output token counts, along with the respective pricing per million tokens, to calculate the total cost in both dollars and cents. The tool includes a comprehensive table of current model prices that you can sort by model name, input cost, or output cost, and clicking any model automatically fills in its pricing details.
 
-<!-- Generated from commit: a065089fcdb612f83bbb83fc638056abeffbf30d -->
+<!-- Generated from commit: 0187e86c4d85ddd9583012f6514e43b916eb7047 -->
