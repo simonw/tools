@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hacker News thread export</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.5;
+    }
+    
+    h1 {
+      margin-top: 0;
+    }
+    
+    .input-container {
+      margin-bottom: 20px;
+    }
+    
+    input {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      font-family: Helvetica, Arial, sans-serif;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+    
+    button {
+      background-color: #ff6600;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background-color: #e65c00;
+    }
+    
+    .output-container {
+      margin-top: 20px;
+    }
+    
+    textarea {
+      width: 100%;
+      height: 300px;
+      padding: 10px;
+      font-size: 16px;
+      font-family: Helvetica, Arial, sans-serif;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      resize: vertical;
+    }
+    
+    .copy-button {
+      margin-top: 10px;
+      background-color: #2e7d32;
+    }
+    
+    .copy-button:hover {
+      background-color: #1b5e20;
+    }
+    
+    .error {
+      color: red;
+      margin-top: 10px;
+    }
+    
+    .loading {
+      margin-top: 10px;
+      font-style: italic;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hacker News thread export</h1>
+  
+  <div class="input-container">
+    <p>Enter a Hacker News post ID or URL:</p>
+    <input type="text" id="hn-input" placeholder="e.g., 39581733 or https://news.ycombinator.com/item?id=39581733">
+    <button id="fetch-button">Fetch and format</button>
+    <div id="status" class="loading" style="display: none;">Loading...</div>
+  </div>
+  
+  <div class="output-container" style="display: none;">
+    <p>Formatted comments:</p>
+    <textarea id="output-text" readonly></textarea>
+    <button id="copy-button" class="copy-button">Copy to clipboard</button>
+  </div>
+  
+  <script type="module">
+// Helper functions
+function cleanHtmlContent(text) {
+  if (!text) return "";
+  
+  // Create a temporary element to decode HTML entities
+  const tempElement = document.createElement('div');
+  tempElement.innerHTML = text;
+  let cleanText = tempElement.textContent;
+  
+  // Replace paragraph tags with newlines
+  cleanText = cleanText.replace(/<p>/g, '\n').replace(/<\/p>/g, '');
+  
+  // Remove link tags but keep the link text
+  cleanText = cleanText.replace(/<a\s+href=[^>]*>(.*?)<\/a>/g, '$1');
+  
+  // Remove all other HTML tags
+  cleanText = cleanText.replace(/<[^>]*>/g, '');
+  
+  return cleanText;
+}
+
+function convertHnToThreadPath(jsonData, path = "", result = []) {
+  if (!result) result = [];
+
+  // Handle root node
+  if (!path) {
+    if (jsonData.text) { // It's a comment
+      const commentText = cleanHtmlContent(jsonData.text || "");
+      result.push(`[1] ${jsonData.author || "Anonymous"}: ${commentText}`);
+      path = "1";
+    } else { // It's a story or top-level item
+      const title = jsonData.title || "";
+      result.push(`[1] ${jsonData.author || "Anonymous"}: ${title}`);
+      path = "1";
+    }
+  }
+
+  // Process children recursively
+  if (jsonData.children && jsonData.children.length > 0) {
+    for (let i = 0; i < jsonData.children.length; i++) {
+      const child = jsonData.children[i];
+      const childPath = path ? `${path}.${i+1}` : `${i+1}`;
+      
+      // Handle the comment text
+      const commentText = cleanHtmlContent(child.text || "");
+      
+      result.push(`[${childPath}] ${child.author || "Anonymous"}: ${commentText}`);
+      
+      // Process this child's children
+      convertHnToThreadPath(child, childPath, result);
+    }
+  }
+
+  return result;
+}
+
+// Extract ID from URL or use the ID directly
+function extractHnId(input) {
+  if (/^\d+$/.test(input)) {
+    return input;
+  }
+  
+  const match = input.match(/id=(\d+)/);
+  if (match && match[1]) {
+    return match[1];
+  }
+  
+  throw new Error("Invalid input. Please enter a valid Hacker News ID or URL.");
+}
+
+// Main functionality
+document.getElementById('fetch-button').addEventListener('click', async () => {
+  const inputElement = document.getElementById('hn-input');
+  const outputElement = document.getElementById('output-text');
+  const statusElement = document.getElementById('status');
+  const outputContainer = document.querySelector('.output-container');
+  
+  statusElement.textContent = "Loading...";
+  statusElement.style.display = "block";
+  outputContainer.style.display = "none";
+  
+  try {
+    const input = inputElement.value.trim();
+    const hnId = extractHnId(input);
+    
+    const response = await fetch(`https://hn.algolia.com/api/v1/items/${hnId}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    const formattedComments = convertHnToThreadPath(data);
+    const outputText = formattedComments.join("\n\n");
+    
+    outputElement.value = outputText;
+    outputContainer.style.display = "block";
+    statusElement.style.display = "none";
+  } catch (error) {
+    statusElement.textContent = `Error: ${error.message}`;
+    statusElement.className = "error";
+  }
+});
+
+// Copy to clipboard functionality
+document.getElementById('copy-button').addEventListener('click', () => {
+  const outputElement = document.getElementById('output-text');
+  outputElement.select();
+  document.execCommand('copy');
+  
+  const copyButton = document.getElementById('copy-button');
+  const originalText = copyButton.textContent;
+  
+  copyButton.textContent = "Copied!";
+  setTimeout(() => {
+    copyButton.textContent = originalText;
+  }, 2000);
+});
+  </script>
+</body>
+</html>
