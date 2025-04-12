@@ -90,8 +90,10 @@
   
   <div class="input-container">
     <p>Enter a Hacker News post ID or URL:</p>
-    <input type="text" id="hn-input" placeholder="e.g., 39581733 or https://news.ycombinator.com/item?id=39581733">
-    <button id="fetch-button">Fetch and format</button>
+    <form id="hn-form">
+      <input type="text" id="hn-input" placeholder="e.g., 39581733 or https://news.ycombinator.com/item?id=39581733">
+      <button type="submit" id="fetch-button">Fetch and format</button>
+    </form>
     <div id="status" class="loading" style="display: none;">Loading...</div>
   </div>
   
@@ -172,11 +174,10 @@ function extractHnId(input) {
   throw new Error("Invalid input. Please enter a valid Hacker News ID or URL.");
 }
 
-// Main functionality
-document.getElementById('fetch-button').addEventListener('click', async () => {
-  const inputElement = document.getElementById('hn-input');
-  const outputElement = document.getElementById('output-text');
+// Process the Hacker News thread
+async function processHnThread(hnInput) {
   const statusElement = document.getElementById('status');
+  const outputElement = document.getElementById('output-text');
   const outputContainer = document.querySelector('.output-container');
   
   statusElement.textContent = "Loading...";
@@ -184,7 +185,7 @@ document.getElementById('fetch-button').addEventListener('click', async () => {
   outputContainer.style.display = "none";
   
   try {
-    const input = inputElement.value.trim();
+    const input = hnInput.trim();
     const hnId = extractHnId(input);
     
     const response = await fetch(`https://hn.algolia.com/api/v1/items/${hnId}`);
@@ -204,6 +205,13 @@ document.getElementById('fetch-button').addEventListener('click', async () => {
     statusElement.textContent = `Error: ${error.message}`;
     statusElement.className = "error";
   }
+}
+
+// Handle form submission (either button click or Enter key)
+document.getElementById('hn-form').addEventListener('submit', async (event) => {
+  event.preventDefault(); // Prevent the default form submission
+  const inputElement = document.getElementById('hn-input');
+  await processHnThread(inputElement.value);
 });
 
 // Copy to clipboard functionality
