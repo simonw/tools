@@ -1,0 +1,3 @@
+This tool converts Hacker News threads into a formatted, hierarchical text representation. Enter a Hacker News post ID or URL in the input field, and the tool will fetch the post and all its comments, organizing them with a numbered outline format. After conversion, you can copy the formatted text to use in documents, notes, or other applications where you need a clean representation of the discussion.
+
+<!-- Generated from commit: 7c4615d440148d7005edbd902bccaf0d21793f68 -->
