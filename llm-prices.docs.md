@@ -1,3 +1,3 @@
-This calculator helps you determine LLM (Large Language Model) costs based on input and output tokens. Enter your token counts and pricing information to see the total cost in dollars and cents. The table on the right displays current pricing for various models from providers like OpenAI, Anthropic, Google, and others, which you can click to automatically populate the calculator with those rates.
+This calculator helps you estimate the cost of using Large Language Models (LLMs) with different pricing tiers. Enter the number of input and output tokens for your request, then either manually input the cost rates or select a model from the table to automatically populate the pricing. The table displays current market rates for various LLM models from providers like OpenAI, Anthropic, Google, and others, sorted by price.
 
-<!-- Generated from commit: 2e3eb6201c965e40a90bc2b3be94fa983fa8ef59 -->
+<!-- Generated from commit: 4d60d13153a643b3b940ef2f72bcc7f3a32d989c -->
