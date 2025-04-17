@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Base64 Gzip Decoder</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  line-height: 1.5;
+}
+
+h1 {
+  margin-bottom: 20px;
+}
+
+textarea {
+  width: 100%;
+  height: 150px;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-size: 16px;
+  font-family: monospace;
+}
+
+button {
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+button:hover {
+  background-color: #3367d6;
+}
+
+.output-container {
+  margin-top: 20px;
+}
+
+#output {
+  width: 100%;
+  min-height: 200px;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 16px;
+  overflow-y: auto;
+}
+
+.error {
+  color: #d93025;
+  margin-top: 10px;
+}
+  </style>
+</head>
+<body>
+  <h1>Base64 Gzip decoder</h1>
+  
+  <div>
+    <p>Paste base64 encoded gzip data below:</p>
+    <textarea id="input" placeholder="Paste your base64 encoded gzip data here..."></textarea>
+    <button id="decode-btn">Decode</button>
+  </div>
+  
+  <div class="output-container">
+    <p>Decoded result:</p>
+    <div id="output"></div>
+    <div id="error" class="error"></div>
+  </div>
+
+<script type="module">
+// Import the pako library for gzip decompression
+import pako from 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.esm.mjs';
+
+const inputTextarea = document.getElementById('input');
+const outputDiv = document.getElementById('output');
+const errorDiv = document.getElementById('error');
+const decodeButton = document.getElementById('decode-btn');
+
+decodeButton.addEventListener('click', decodeData);
+
+function decodeData() {
+  const base64Input = inputTextarea.value.trim();
+  errorDiv.textContent = '';
+  outputDiv.textContent = '';
+  
+  if (!base64Input) {
+    errorDiv.textContent = 'Please enter some base64 encoded gzip data.';
+    return;
+  }
+  
+  try {
+    // Step 1: Decode base64
+    const binaryString = atob(base64Input);
+    
+    // Step 2: Convert binary string to Uint8Array
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    // Step 3: Decompress gzip data
+    const decompressed = pako.inflate(bytes, { to: 'string' });
+    
+    // Step 4: Display the result
+    outputDiv.textContent = decompressed;
+  } catch (error) {
+    console.error('Decoding error:', error);
+    
+    if (error.message.includes('incorrect header check')) {
+      errorDiv.textContent = 'Error: The data is not in valid gzip format. Make sure you\'re providing base64 encoded gzip data.';
+    } else if (error.message.includes('Invalid character')) {
+      errorDiv.textContent = 'Error: Invalid base64 characters detected. Please check your input.';
+    } else {
+      errorDiv.textContent = `Error: ${error.message}`;
+    }
+  }
+}
+</script>
+</body>
+</html>
