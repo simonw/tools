@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mask Visualizer</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+    
+    .input-container {
+      width: 100%;
+      max-width: 900px;
+      margin-bottom: 20px;
+    }
+    
+    textarea {
+      width: 100%;
+      height: 200px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+      resize: vertical;
+    }
+    
+    .origin-selector {
+      display: flex;
+      margin-top: 10px;
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      align-items: center;
+    }
+    
+    .origin-label {
+      margin-right: 10px;
+      font-weight: 500;
+      font-size: 16px;
+    }
+    
+    .origin-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+    
+    .btn {
+      padding: 5px 10px;
+      background-color: #e2e2e2;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    
+    .btn.active {
+      background-color: #3b82f6;
+      color: white;
+    }
+    
+    .error-message {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #fee2e2;
+      border: 1px solid #ef4444;
+      border-radius: 4px;
+      color: #b91c1c;
+    }
+    
+    .visualization-container {
+      width: 100%;
+      max-width: 900px;
+      height: 600px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      position: relative;
+      margin-bottom: 20px;
+    }
+    
+    .info-container {
+      width: 100%;
+      max-width: 900px;
+      padding: 15px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+    }
+    
+    .info-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    
+    .origin-info {
+      background-color: #fffbeb;
+      padding: 8px;
+      border: 1px solid #fef3c7;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+    
+    .item-list {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+    
+    .item-entry {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .color-box {
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+      flex-shrink: 0;
+    }
+    
+    .item-label {
+      font-weight: 600;
+      margin-right: 8px;
+    }
+    
+    .coords-original {
+      margin-right: 8px;
+    }
+    
+    .coords-transformed {
+      color: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Mask Visualizer</h1>
+    
+    <div class="input-container">
+      <textarea id="json-input" placeholder="Paste your JSON here. Accepts:
+  
+1. An array of objects with box_2d and mask:
+[
+  {&quot;box_2d&quot;: [233, 603, 425, 861], &quot;mask&quot;: &quot;data:image/png;base64,...&quot;, &quot;label&quot;: &quot;beak&quot;},
+  ...
+]
+
+2. Object with a single array property:
+{&quot;items&quot;: [
+  {&quot;box_2d&quot;: [233, 603, 425, 861], &quot;mask&quot;: &quot;data:image/png;base64,...&quot;},
+  ...
+]}
+
+Note: 'label' is now optional"></textarea>
+      <p><button id="load-example" class="btn">Load example</button></p>
+      <div class="origin-selector">
+        <span class="origin-label">Co-ordinate system origin</span>
+        <div class="origin-buttons">
+          <button class="btn" data-origin="topLeft" title="Top Left Origin (0,0)">Top Left</button>
+          <button class="btn" data-origin="topRight" title="Top Right Origin (1000,0)">Top Right</button>
+          <button class="btn" data-origin="bottomLeft" title="Bottom Left Origin (0,1000)">Bottom Left</button>
+          <button class="btn active" data-origin="bottomRight" title="Bottom Right Origin (1000,1000)">Bottom Right</button>
+        </div>
+      </div>
+      
+      <div id="error-message" class="error-message" style="display: none;"></div>
+    </div>
+    
+    <div id="visualization-container" class="visualization-container" style="display: none;"></div>
+    
+    <div id="info-container" class="info-container" style="display: none;">
+      <h2 class="info-title">Visualization Information</h2>
+      <div id="origin-info" class="origin-info"></div>
+      <ul id="item-list" class="item-list"></ul>
+    </div>
+  </div>
+  
+  <script>
+    // Current state
+    let parsedData = [];
+    let originMode = 'bottomRight'; // Default to bottomRight
+    
+    // DOM elements
+    const jsonInput = document.getElementById('json-input');
+    const errorMessage = document.getElementById('error-message');
+    const visualizationContainer = document.getElementById('visualization-container');
+    const infoContainer = document.getElementById('info-container');
+    const originInfo = document.getElementById('origin-info');
+    const itemList = document.getElementById('item-list');
+    const originButtons = document.querySelectorAll('.btn');
+    const loadExample = document.getElementById('load-example');
+    
+    // Initialize event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+      // Set up input change debounce
+      let debounceTimer;
+      jsonInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(handleVisualize, 500);
+      });
+      
+      // Set up origin button clicks
+      originButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          originButtons.forEach(btn => btn.classList.remove('active'));
+          this.classList.add('active');
+          originMode = this.getAttribute('data-origin');
+          
+          // Re-render with new origin if we have data
+          if (parsedData.length > 0) {
+            renderVisualization();
+            updateInfoPanel();
+          }
+        });
+      });
+
+      // Load example data
+      loadExample.addEventListener('click', function() {
+        jsonInput.value = JSON.stringify(exampleData, null, 2);
+        handleVisualize();
+      });
+    });
+    
+    // Generate random colors for each label or index
+    function getColorForLabel(label, index) {
+      // If we have a label, use it for color generation
+      // Otherwise use the index for consistent coloring
+      const seed = label || `item-${index}`;
+      
+      // Simple hash function to generate consistent colors
+      let hash = 0;
+      for (let i = 0; i < seed.length; i++) {
+        hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      
+      // Convert to RGB
+      const r = Math.abs((hash & 0xFF0000) >> 16);
+      const g = Math.abs((hash & 0x00FF00) >> 8);
+      const b = Math.abs(hash & 0x0000FF);
+      
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+    
+    // Transform coordinates based on origin mode
+    function transformCoordinates(x, y, width, height) {
+      // Coordinates are provided in a 1000x1000 system
+      const maxCoord = 1000;
+      
+      switch (originMode) {
+        case 'topLeft':
+          return { x, y, width, height };
+        case 'topRight':
+          return { x: maxCoord - x - width, y, width, height };
+        case 'bottomLeft':
+          return { x, y: maxCoord - y - height, width, height };
+        case 'bottomRight':
+          return { x: maxCoord - x - width, y: maxCoord - y - height, width, height };
+        default:
+          return { x, y, width, height };
+      }
+    }
+    
+    // Handle visualization logic
+    function handleVisualize() {
+      try {
+        const input = jsonInput.value.trim();
+        if (!input) {
+          hideVisualization();
+          return;
+        }
+        
+        let inputData = JSON.parse(input);
+        let dataArray = [];
+        
+        // Check if input is an object with a single key that's an array
+        if (!Array.isArray(inputData) && typeof inputData === 'object') {
+          const keys = Object.keys(inputData);
+          if (keys.length === 1 && Array.isArray(inputData[keys[0]])) {
+            dataArray = inputData[keys[0]];
+          } else {
+            dataArray = [inputData]; // Single object case
+          }
+        } else if (Array.isArray(inputData)) {
+          dataArray = inputData;
+        } else {
+          throw new Error('Input must be a JSON array or an object with a single array property');
+        }
+        
+        // Normalize and validate the data
+        const normalizedData = dataArray.map((item, index) => {
+          // Check if item has required box_2d
+          if (!item.box_2d || !Array.isArray(item.box_2d) || item.box_2d.length !== 4) {
+            throw new Error(`Item at index ${index} has invalid box_2d format: ${JSON.stringify(item)}`);
+          }
+          
+          // Check if item has mask
+          if (!item.mask || typeof item.mask !== 'string') {
+            throw new Error(`Item at index ${index} has invalid mask: ${JSON.stringify(item)}`);
+          }
+          
+          // Label is now optional, default to index if not provided
+          return {
+            ...item,
+            label: item.label || `Item ${index+1}`
+          };
+        });
+        
+        parsedData = normalizedData;
+        
+        // Hide error message if it was shown
+        errorMessage.style.display = 'none';
+        
+        // Render visualization with the data
+        renderVisualization();
+        updateInfoPanel();
+        
+      } catch (err) {
+        parsedData = [];
+        errorMessage.textContent = err.message;
+        errorMessage.style.display = 'block';
+        hideVisualization();
+      }
+    }
+    
+    // Render the visualization
+    function renderVisualization() {
+      if (parsedData.length === 0) {
+        hideVisualization();
+        return;
+      }
+      
+      // Clear previous visualization
+      visualizationContainer.innerHTML = '';
+      visualizationContainer.style.display = 'block';
+      infoContainer.style.display = 'block';
+      
+      // Create and add each item
+      parsedData.forEach((item, index) => {
+        const [x1, y1, x2, y2] = item.box_2d;
+        const width = x2 - x1;
+        const height = y2 - y1;
+        const color = getColorForLabel(item.label, index);
+        
+        // Transform coordinates based on origin mode
+        const transformedCoords = transformCoordinates(x1, y1, width, height);
+        
+        // Create bounding box
+        const boxElement = document.createElement('div');
+        boxElement.style.position = 'absolute';
+        boxElement.style.left = `${transformedCoords.x / 10}%`;
+        boxElement.style.top = `${transformedCoords.y / 10}%`;
+        boxElement.style.width = `${transformedCoords.width / 10}%`;
+        boxElement.style.height = `${transformedCoords.height / 10}%`;
+        boxElement.style.border = `2px solid ${color}`;
+        boxElement.style.boxSizing = 'border-box';
+        boxElement.style.pointerEvents = 'none';
+        boxElement.style.zIndex = '10';
+        
+        // Create label for box
+        const labelElement = document.createElement('div');
+        labelElement.style.position = 'absolute';
+        labelElement.style.top = '-24px';
+        labelElement.style.left = '0';
+        labelElement.style.padding = '2px 4px';
+        labelElement.style.fontSize = '12px';
+        labelElement.style.color = 'white';
+        labelElement.style.backgroundColor = color;
+        labelElement.style.borderRadius = '4px';
+        labelElement.textContent = item.label;
+        
+        boxElement.appendChild(labelElement);
+        visualizationContainer.appendChild(boxElement);
+        
+        // Create mask image
+        const maskImage = document.createElement('img');
+        maskImage.src = item.mask;
+        maskImage.alt = `Mask for ${item.label}`;
+        maskImage.style.position = 'absolute';
+        maskImage.style.left = `${transformedCoords.x / 10}%`;
+        maskImage.style.top = `${transformedCoords.y / 10}%`;
+        maskImage.style.width = `${transformedCoords.width / 10}%`;
+        maskImage.style.height = `${transformedCoords.height / 10}%`;
+        maskImage.style.objectFit = 'contain';
+        maskImage.style.zIndex = '5';
+        
+        visualizationContainer.appendChild(maskImage);
+      });
+    }
+    
+    // Update the information panel
+    function updateInfoPanel() {
+      // Update origin info
+      const originDescription = originMode === 'topLeft' ? 'Top Left (0,0)' : 
+                               originMode === 'topRight' ? 'Top Right (1000,0)' : 
+                               originMode === 'bottomLeft' ? 'Bottom Left (0,1000)' : 
+                               'Bottom Right (1000,1000)';
+      
+      originInfo.innerHTML = `<span style="font-weight: 600;">Current Origin:</span> ${originDescription}`;
+      
+      // Clear previous items
+      itemList.innerHTML = '';
+      
+      // Add each item info
+      parsedData.forEach((item, index) => {
+        const [x1, y1, x2, y2] = item.box_2d;
+        const width = x2 - x1;
+        const height = y2 - y1;
+        const transformedCoords = transformCoordinates(x1, y1, width, height);
+        const color = getColorForLabel(item.label, index);
+        
+        const listItem = document.createElement('li');
+        listItem.className = 'item-entry';
+        
+        const colorBox = document.createElement('div');
+        colorBox.className = 'color-box';
+        colorBox.style.backgroundColor = color;
+        
+        const itemLabel = document.createElement('span');
+        itemLabel.className = 'item-label';
+        itemLabel.textContent = `${item.label}:`;
+        
+        const coordsOriginal = document.createElement('span');
+        coordsOriginal.className = 'coords-original';
+        coordsOriginal.textContent = `Original coords: [${item.box_2d.join(', ')}]`;
+        
+        const coordsTransformed = document.createElement('span');
+        coordsTransformed.className = 'coords-transformed';
+        coordsTransformed.textContent = `Transformed: [${transformedCoords.x}, ${transformedCoords.y}, ${transformedCoords.x + transformedCoords.width}, ${transformedCoords.y + transformedCoords.height}]`;
+        
+        listItem.appendChild(colorBox);
+        listItem.appendChild(itemLabel);
+        listItem.appendChild(coordsOriginal);
+        listItem.appendChild(coordsTransformed);
+        
+        itemList.appendChild(listItem);
+      });
+    }
+    
+    // Hide visualization elements
+    function hideVisualization() {
+      visualizationContainer.style.display = 'none';
+      infoContainer.style.display = 'none';
+    }
+    const exampleData = {
+      "masks": [
+        {
+          "box_2d": [
+            415,
+            95,
+            865,
+            546
+          ],
+          "mask": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAAAAAB5Gfe6AAADc0lEQVR42u3d3WrkMBBE4Xr/l66FkCUQJhvvWC1361TfBuyuz5L8M8aRUj3Khsc3V8B/Cx4/AAGgA2QA7NkhfQK4a34kgDcDdFtqvBeg3VrrrQD9TjY783e82Hgof1uAsu7sOfE/OnTlntQfwAwAPwIw4vgv7rPnvebL0KD8ennMCzptuv7p9ZBf3+mU/EVLwE9bff664Nn86p7fFXv5/id9Lrsd83vf/H8EYE9+d13/Nk2AufkHPmdZCVB5lTFkAixoedc9VmF+1+xiEIBL9jAo/41mWwPU5z9j/L/f7szxr1XtXhV9COXn1hYBXBpSfuxu0C6eAde2+9zcKAbw23XECcDuDlDbkI8B0O7D320AnJpfTUd/vxWAnv9/+/KC6gngbfndM/+lvuwhAkV9+XAA0/N7S/zOAN6RX43z+4Thf6/Z6ae/qjvVSekr7lRHxS8AmHX8BY+/HGBc/sUA4+IvXgHMAph68181ACbmXwhgXn7T83v5zc+w/J6eX+s6huYfDrCsZVMnwGfP4Pwe9uyv6qktOL/mAjgDgJ0/AJkBAcgMCEAAAoDNH4AA0AEUADqAAkAHEB5AeIAICA8gPIDwAAoAHUB4AAUALyB6fjkCAYADCA8gPIACQAcQHkD0/AEQHkABoAMoABGgAygAdAAFgA6gANABFAA6gAJABxAeQPT8ygigjwAFgA6gANABFIAABIANoAAEgJ1/q0AA6AIBCABcIABwAAkuwAZQ56pP3zt/ocDHxtW/mAN/0xzAA8wgCABdIAABCEAEApDzYABIb0btA2h9oGkAfgCg9zTHA3w9tjk+/y9Nng7wa5Nn57/w1PZkAD9Z9Pz5cBA9P/77efmEYr6kS8+fD6rD4+cfq+T/y8HjbwZw8oMB3LPg8XcB2GgAmw1gNoCNBrDZAIYDGA3gGUXPb3j8IgAbDWCjATyt4PHXCnhosdOvErDZAh5f7PS3CN7b2TEAb+/sDIE7+zlgFtzcxfSF4Pb2Zy+GC7bc+5Twb4g1rENPj+uG1MhrhJVzCgFwzBXkG02f+exo6dl0oECDS4m+AuffRr5omvUY4bNp7lNE/I8IDkAA2AL5JTmvEoAF8jId9IU61tv0errY6R9VUKtip99NoKbFTr9JQL0LHr+WQFMKHv8bwSIeHVkWOf3lQSFGweN/Magg/B/5iNKM2GDpVAAAAABJRU5ErkJggg=="
+        },
+        {
+          "box_2d": [
+            92,
+            511,
+            752,
+            930
+          ],
+          "mask": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAAAAAB5Gfe6AAACNklEQVR42u3d0U6DQBQA0fn/n74mxgeNMVULdJeZebd4T3YpVFKhqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqrqT83X1MPLDObn5OMLCOZx8vFvTTC/Tj7+PQVm1AIzZoD5T/LxbyMw/889/R0E5uDc02+GMGcmH399hbmqFWe/bvoVDeY1ycdfhGAWSD38KxVmtS6dfb3xrySYhVMPf7rB7NPLp19AbI1Pdm+yDp447O7b4fmj7XxGOORA+54VjzrEru8Mx73wnu+OR77allcIR26nHa+Svv3MtWfT1yMcfElhvXPqBnKnG6kIJoFJIIEEJgD5/H2qeiKA+TPlALb6s0IAAXQKaAEoAN6fdGA+/3Kiy8AeKTIDEIAbwP5YYc9VBiAXQA5AAAGoAQhALmAHaAEE0A4QA0AAagDkALQAWgBmAAJwAyAHQA7Q/G4A5AAE4AZADkAAbgDkAMgBkAMgB0AOQABuAeQAyAGQAyAHQA7Q/G4AcAsgB2h+NwByAOQABOAWQA4AbgFwC4BcALkAm6QHsP8ztgCwz3+SgB0A5AIBBOAWIAC5QAByAdhTADPAoUshgL2bZ7cD+6cHeG4v2AEIIIAAzAIE4AYAuUAAAQSgBgC5QAABuAFALhCAXcAOQAABqAUIIIAAAjALBBCAXMAOQAAJBNBZMID2QABigQDsAtgF7AAgF7ADcOvs82Of/6EAuAXALUAAAbgFSEAOgH0JBGAXsAOAWwDcAqAVQNp8fOlKXdcbOCukesIWMzcAAAAASUVORK5CYII="
+        }
+      ]
+    };
+  </script>
+</body>
+</html>
