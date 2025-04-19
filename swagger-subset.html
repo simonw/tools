@@ -59,7 +59,6 @@
   }
   #pathList {
     margin: 20px 0;
-    max-height: 400px;
     overflow-y: auto;
     border: 1px solid #ddd;
     padding: 10px;
@@ -119,7 +118,6 @@
   }
   #swaggerFilesContainer {
     margin-top: 20px;
-    max-height: 200px;
     overflow-y: auto;
     border: 1px solid #ddd;
     padding: 10px;
@@ -193,7 +191,7 @@
     </div>
     
     <div id="githubTab" class="tab-content active">
-      <h2>Enter GitHub Repository</h2>
+      <h2>Enter GitHub Repository of Swagger JSON</h2>
       <input type="text" id="repoInput" placeholder="Format: username/repo or https://github.com/username/repo">
       <button id="fetchBtn">Fetch Swagger Files</button>
       <div id="repoError" class="error"></div>
@@ -202,7 +200,8 @@
       <div id="swaggerFilesContainer" style="display: none;">
         <h3>Select Swagger Files to Include</h3>
         <div class="controls">
-          <input type="text" id="fileFilter" placeholder="Filter files by path (e.g. '7.0' to find files in version 7.0)">
+          <input type="text" id="fileFilter" placeholder="Inclusive filter files in by path (e.g. '7.0' to find files in version 7.0 folder)">
+          <input type="text" id="fileFilterExclude" placeholder="Exclusive filter files by path (e.g. 'example' to hide files in folder example)">
           <button id="selectAllFilesBtn">Select All Files</button>
           <button id="deselectAllFilesBtn">Deselect All Files</button>
         </div>
@@ -269,6 +268,8 @@ document.getElementById('generateBtn').addEventListener('click', generateJson);
 document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
 document.getElementById('pathFilter').addEventListener('input', filterPaths);
 document.getElementById('fileFilter').addEventListener('input', filterFiles);
+document.getElementById('fileFilterExclude').addEventListener('input', filterFiles);
+
 
 // Storage for swagger data
 let swaggerData = {}; // Map of filename to swagger data
@@ -349,7 +350,9 @@ async function fetchSwaggerFiles() {
     repoInfo.textContent = `Found ${potentialSwaggerFiles.length} potential Swagger files.`;
     document.getElementById('swaggerFilesContainer').style.display = 'block';
     document.getElementById('fileFilter').value = ''; // Clear any previous filter
-    
+    document.getElementById('fileFilterExclude').value = ''; // Clear any previous filter
+
+
     potentialSwaggerFiles.forEach(file => {
       const fileItem = document.createElement('div');
       fileItem.className = 'file-item';
@@ -402,13 +405,15 @@ function deselectAllFiles() {
 
 function filterFiles() {
   const filterText = document.getElementById('fileFilter').value.toLowerCase();
+  const filterTextExclude = document.getElementById('fileFilterExclude').value.toLowerCase();
+
   const fileItems = document.querySelectorAll('#fileList .file-item');
   let visibleCount = 0;
   
   fileItems.forEach(item => {
     const filePath = item.querySelector('label').textContent.toLowerCase();
     
-    if (filePath.includes(filterText)) {
+    if (filePath.includes(filterText) && (filterTextExclude==="" || !filePath.includes(filterTextExclude))) {
       item.style.display = '';
       visibleCount++;
     } else {
