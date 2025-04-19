@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Swagger Subset</title>
+  <title>Swagger Subset - GitHub Edition</title>
   <style>
   * {
     box-sizing: border-box;
@@ -21,15 +21,17 @@
     max-width: 1200px;
     margin: 0 auto;
   }
-  textarea {
+  textarea, input[type="text"] {
     width: 100%;
-    min-height: 200px;
     padding: 10px;
     margin-bottom: 15px;
     border: 1px solid #ccc;
     border-radius: 4px;
     font-size: 16px;
     font-family: monospace;
+  }
+  textarea {
+    min-height: 200px;
   }
   button {
     background-color: #4CAF50;
@@ -49,6 +51,10 @@
   }
   .error {
     color: red;
+    margin-bottom: 15px;
+  }
+  .info {
+    color: #0066cc;
     margin-bottom: 15px;
   }
   #pathList {
@@ -81,6 +87,15 @@
   .method-delete {
     color: #f93e3e;
   }
+  .method-patch {
+    color: #50e3c2;
+  }
+  .method-options {
+    color: #9012fe;
+  }
+  .method-head {
+    color: #8899a8;
+  }
   .controls {
     margin: 10px 0;
   }
@@ -102,25 +117,114 @@
   .copy-btn:hover {
     background-color: #0b7dda;
   }
+  #swaggerFilesContainer {
+    margin-top: 20px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 4px;
+  }
+  .file-item {
+    margin-bottom: 8px;
+    padding: 4px;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+  }
+  .file-item:hover {
+    background-color: #f0f0f0;
+  }
+  .file-selected {
+    background-color: #e7f3ff;
+  }
+  .spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top: 4px solid #3498db;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  #tabContainer {
+    display: flex;
+    margin-bottom: 15px;
+  }
+  .tab {
+    padding: 10px 15px;
+    cursor: pointer;
+    background-color: #f1f1f1;
+    margin-right: 5px;
+    border-radius: 4px 4px 0 0;
+  }
+  .tab.active {
+    background-color: #4CAF50;
+    color: white;
+  }
+  .tab-content {
+    display: none;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 0 4px 4px 4px;
+  }
+  .tab-content.active {
+    display: block;
+  }
+  .swagger-source-label {
+    font-size: 12px;
+    color: #666;
+    margin-left: 5px;
+  }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Swagger Subset</h1>
+    <h1>Swagger Subset - GitHub Edition</h1>
     
-    <div>
+    <div id="tabContainer">
+      <div class="tab active" data-tab="github">GitHub Repository</div>
+      <div class="tab" data-tab="manual">Manual JSON Input</div>
+    </div>
+    
+    <div id="githubTab" class="tab-content active">
+      <h2>Enter GitHub Repository</h2>
+      <input type="text" id="repoInput" placeholder="Format: username/repo or https://github.com/username/repo">
+      <button id="fetchBtn">Fetch Swagger Files</button>
+      <div id="repoError" class="error"></div>
+      <div id="repoInfo" class="info"></div>
+      
+      <div id="swaggerFilesContainer" style="display: none;">
+        <h3>Select Swagger Files to Include</h3>
+        <div class="controls">
+          <input type="text" id="fileFilter" placeholder="Filter files by path (e.g. '7.0' to find files in version 7.0)">
+          <button id="selectAllFilesBtn">Select All Files</button>
+          <button id="deselectAllFilesBtn">Deselect All Files</button>
+        </div>
+        <div id="fileList"></div>
+        <button id="loadSelectedFilesBtn">Load Selected Files</button>
+      </div>
+    </div>
+    
+    <div id="manualTab" class="tab-content">
       <h2>Paste your Swagger JSON</h2>
       <textarea id="swaggerInput" placeholder="Paste your Swagger JSON here..."></textarea>
       <button id="parseBtn">Parse Swagger</button>
       <div id="error" class="error"></div>
     </div>
-
+    
     <div id="pathsContainer" style="display: none;">
       <h2>Select paths to include</h2>
       
       <div class="controls">
         <button id="selectAllBtn">Select All</button>
         <button id="deselectAllBtn">Deselect All</button>
+        <input type="text" id="pathFilter" placeholder="Filter paths...">
       </div>
       
       <div id="pathList"></div>
@@ -137,28 +241,297 @@
     </div>
   </div>
 
-<script type="module">
-// Parse Swagger JSON and display paths as checkboxes
-document.getElementById('parseBtn').addEventListener('click', parseSwagger);
-document.getElementById('selectAllBtn').addEventListener('click', selectAll);
-document.getElementById('deselectAllBtn').addEventListener('click', deselectAll);
+<script>
+// Tab functionality
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    
+    tab.classList.add('active');
+    document.getElementById(`${tab.dataset.tab}Tab`).classList.add('active');
+  });
+});
+
+// GitHub API functionality
+document.getElementById('fetchBtn').addEventListener('click', fetchSwaggerFiles);
+document.getElementById('selectAllFilesBtn').addEventListener('click', selectAllFiles);
+document.getElementById('deselectAllFilesBtn').addEventListener('click', deselectAllFiles);
+document.getElementById('loadSelectedFilesBtn').addEventListener('click', loadSelectedFiles);
+
+// Manual input functionality
+document.getElementById('parseBtn').addEventListener('click', parseManualSwagger);
+
+// Shared functionality
+document.getElementById('selectAllBtn').addEventListener('click', selectAllPaths);
+document.getElementById('deselectAllBtn').addEventListener('click', deselectAllPaths);
 document.getElementById('generateBtn').addEventListener('click', generateJson);
 document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
+document.getElementById('pathFilter').addEventListener('input', filterPaths);
+document.getElementById('fileFilter').addEventListener('input', filterFiles);
 
-let swaggerData = null;
+// Storage for swagger data
+let swaggerData = {}; // Map of filename to swagger data
+let mergedPaths = {}; // Combined paths from all selected files
 
-function parseSwagger() {
+function normalizeGitHubUrl(input) {
+  // Extract username/repo from various formats
+  let match;
+  
+  // Format: https://github.com/username/repo
+  if (/^https?:\/\/github\.com\//.test(input)) {
+    match = input.match(/github\.com\/([^\/]+\/[^\/]+)/);
+    if (match) return match[1];
+  }
+  
+  // Format: username/repo
+  if (/^[^\/]+\/[^\/]+$/.test(input)) {
+    return input;
+  }
+  
+  return null;
+}
+
+async function fetchSwaggerFiles() {
+  const repoInput = document.getElementById('repoInput').value.trim();
+  const repoError = document.getElementById('repoError');
+  const repoInfo = document.getElementById('repoInfo');
+  const fileList = document.getElementById('fileList');
+  
+  repoError.textContent = '';
+  repoInfo.textContent = '';
+  fileList.innerHTML = '';
+  
+  const repoPath = normalizeGitHubUrl(repoInput);
+  
+  if (!repoPath) {
+    repoError.textContent = 'Invalid GitHub repository format. Use username/repo or https://github.com/username/repo';
+    return;
+  }
+  
+  repoInfo.innerHTML = '<div class="spinner"></div> Searching for Swagger files...';
+  document.getElementById('swaggerFilesContainer').style.display = 'none';
+  
+  try {
+    // Get repository contents
+    const response = await fetch(`https://api.github.com/repos/${repoPath}/git/trees/main?recursive=1`);
+    
+    if (!response.ok) {
+      // Try with master branch if main fails
+      const masterResponse = await fetch(`https://api.github.com/repos/${repoPath}/git/trees/master?recursive=1`);
+      
+      if (!masterResponse.ok) {
+        throw new Error(`Failed to fetch repository contents: ${response.status} ${response.statusText}`);
+      }
+      
+      var data = await masterResponse.json();
+    } else {
+      var data = await response.json();
+    }
+    
+    // Filter for JSON files that might be Swagger specs
+    const potentialSwaggerFiles = data.tree
+      .filter(item => 
+        item.type === 'blob' && 
+        (item.path.endsWith('.json') || item.path.endsWith('.swagger.json'))
+      )
+      .map(item => ({
+        path: item.path,
+        url: `https://raw.githubusercontent.com/${repoPath}/${data.sha === 'main' ? 'main' : 'master'}/${item.path}`
+      }));
+    
+    if (potentialSwaggerFiles.length === 0) {
+      repoInfo.textContent = 'No JSON files found in the repository.';
+      return;
+    }
+    
+    // Display files for selection
+    repoInfo.textContent = `Found ${potentialSwaggerFiles.length} potential Swagger files.`;
+    document.getElementById('swaggerFilesContainer').style.display = 'block';
+    document.getElementById('fileFilter').value = ''; // Clear any previous filter
+    
+    potentialSwaggerFiles.forEach(file => {
+      const fileItem = document.createElement('div');
+      fileItem.className = 'file-item';
+      
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = `file-${file.path}`;
+      checkbox.dataset.path = file.path;
+      checkbox.dataset.url = file.url;
+      
+      const label = document.createElement('label');
+      label.htmlFor = `file-${file.path}`;
+      label.textContent = file.path;
+      
+      fileItem.appendChild(checkbox);
+      fileItem.appendChild(label);
+      fileList.appendChild(fileItem);
+      
+      fileItem.addEventListener('click', event => {
+        if (event.target !== checkbox) {
+          checkbox.checked = !checkbox.checked;
+        }
+        fileItem.classList.toggle('file-selected', checkbox.checked);
+      });
+    });
+    
+  } catch (error) {
+    repoError.textContent = `Error: ${error.message}`;
+    repoInfo.textContent = '';
+  }
+}
+
+function selectAllFiles() {
+  // Only select visible files (respecting the current filter)
+  const checkboxes = document.querySelectorAll('#fileList .file-item:not([style*="display: none"]) input[type="checkbox"]');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = true;
+    checkbox.closest('.file-item').classList.add('file-selected');
+  });
+}
+
+function deselectAllFiles() {
+  // Only deselect visible files (respecting the current filter)
+  const checkboxes = document.querySelectorAll('#fileList .file-item:not([style*="display: none"]) input[type="checkbox"]');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = false;
+    checkbox.closest('.file-item').classList.remove('file-selected');
+  });
+}
+
+function filterFiles() {
+  const filterText = document.getElementById('fileFilter').value.toLowerCase();
+  const fileItems = document.querySelectorAll('#fileList .file-item');
+  let visibleCount = 0;
+  
+  fileItems.forEach(item => {
+    const filePath = item.querySelector('label').textContent.toLowerCase();
+    
+    if (filePath.includes(filterText)) {
+      item.style.display = '';
+      visibleCount++;
+    } else {
+      item.style.display = 'none';
+    }
+  });
+  
+  // Update info text with filter results
+  const repoInfo = document.getElementById('repoInfo');
+  const totalFiles = fileItems.length;
+  
+  if (filterText) {
+    repoInfo.textContent = `Showing ${visibleCount} of ${totalFiles} files matching "${filterText}"`;
+  } else {
+    repoInfo.textContent = `Found ${totalFiles} potential Swagger files.`;
+  }
+}
+
+async function loadSelectedFiles() {
+  const selectedFiles = document.querySelectorAll('#fileList input[type="checkbox"]:checked');
+  const repoInfo = document.getElementById('repoInfo');
+  const repoError = document.getElementById('repoError');
+  
+  if (selectedFiles.length === 0) {
+    repoError.textContent = 'Please select at least one file.';
+    return;
+  }
+  
+  repoInfo.innerHTML = '<div class="spinner"></div> Loading selected files...';
+  repoError.textContent = '';
+  
+  // Reset storage
+  swaggerData = {};
+  mergedPaths = {};
+  
+  let loadedCount = 0;
+  let validSwaggerCount = 0;
+  
+  for (const fileCheckbox of selectedFiles) {
+    const filePath = fileCheckbox.dataset.path;
+    const fileUrl = fileCheckbox.dataset.url;
+    
+    try {
+      const response = await fetch(fileUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+      }
+      
+      const fileContent = await response.text();
+      
+      try {
+        const jsonData = JSON.parse(fileContent);
+        loadedCount++;
+        
+        // Check if this looks like a Swagger file (has paths or swagger/openapi property)
+        if (jsonData.paths || jsonData.swagger || jsonData.openapi) {
+          swaggerData[filePath] = jsonData;
+          validSwaggerCount++;
+          
+          // Merge paths with source information
+          if (jsonData.paths) {
+            Object.keys(jsonData.paths).forEach(path => {
+              if (!mergedPaths[path]) {
+                mergedPaths[path] = {};
+              }
+              
+              Object.keys(jsonData.paths[path]).forEach(method => {
+                if (!mergedPaths[path][method]) {
+                  // Clone the endpoint and add source information
+                  mergedPaths[path][method] = {
+                    ...jsonData.paths[path][method],
+                    _source: filePath // Add source file information
+                  };
+                }
+              });
+            });
+          }
+        }
+      } catch (parseError) {
+        console.warn(`File ${filePath} is not valid JSON:`, parseError);
+      }
+    } catch (fetchError) {
+      console.error(`Failed to fetch ${filePath}:`, fetchError);
+    }
+  }
+  
+  repoInfo.textContent = `Loaded ${loadedCount} files, found ${validSwaggerCount} valid Swagger files.`;
+  
+  if (validSwaggerCount > 0) {
+    // Show paths selection
+    displayPaths(mergedPaths);
+    document.getElementById('pathsContainer').style.display = 'block';
+    document.getElementById('outputContainer').style.display = 'none';
+  } else {
+    repoError.textContent = 'No valid Swagger files found among the selected files.';
+  }
+}
+
+function parseManualSwagger() {
   const input = document.getElementById('swaggerInput').value;
   const errorElem = document.getElementById('error');
   errorElem.textContent = '';
   
   try {
-    swaggerData = JSON.parse(input);
-    if (!swaggerData.paths) {
+    const jsonData = JSON.parse(input);
+    
+    if (!jsonData.paths) {
       throw new Error("No 'paths' property found in the Swagger JSON");
     }
     
-    displayPaths(swaggerData.paths);
+    // Reset storage
+    swaggerData = { 'manual-input.json': jsonData };
+    mergedPaths = jsonData.paths;
+    
+    // Add source information for manual input
+    Object.keys(mergedPaths).forEach(path => {
+      Object.keys(mergedPaths[path]).forEach(method => {
+        mergedPaths[path][method]._source = 'manual-input.json';
+      });
+    });
+    
+    displayPaths(mergedPaths);
     document.getElementById('pathsContainer').style.display = 'block';
     document.getElementById('outputContainer').style.display = 'none';
   } catch (err) {
@@ -170,9 +543,7 @@ function displayPaths(paths) {
   const pathListElem = document.getElementById('pathList');
   pathListElem.innerHTML = '';
   
-  // Group paths by tag
-  const pathsByTag = {};
-  
+  // Sort paths alphabetically
   Object.keys(paths).sort().forEach(path => {
     const pathItem = document.createElement('div');
     pathItem.className = 'path-item';
@@ -182,6 +553,8 @@ function displayPaths(paths) {
     pathItem.appendChild(pathLabel);
     
     Object.keys(paths[path]).forEach(method => {
+      if (method.startsWith('_')) return; // Skip internal properties
+      
       const endpoint = paths[path][method];
       const methodId = `${path}-${method}`;
       
@@ -205,13 +578,14 @@ function displayPaths(paths) {
         tagSpan.className = 'path-tag';
         tagSpan.textContent = endpoint.tags[0];
         methodElem.appendChild(tagSpan);
-        
-        // Group by first tag
-        const tag = endpoint.tags[0];
-        if (!pathsByTag[tag]) {
-          pathsByTag[tag] = [];
-        }
-        pathsByTag[tag].push(methodElem);
+      }
+      
+      // Add source file info
+      if (endpoint._source) {
+        const sourceSpan = document.createElement('span');
+        sourceSpan.className = 'swagger-source-label';
+        sourceSpan.textContent = `(${endpoint._source})`;
+        methodElem.appendChild(sourceSpan);
       }
       
       pathItem.appendChild(methodElem);
@@ -221,32 +595,44 @@ function displayPaths(paths) {
   });
 }
 
-function selectAll() {
-  const checkboxes = document.querySelectorAll('#pathList input[type="checkbox"]');
+function filterPaths() {
+  const filterText = document.getElementById('pathFilter').value.toLowerCase();
+  const pathItems = document.querySelectorAll('.path-item');
+  
+  pathItems.forEach(item => {
+    const pathText = item.querySelector('strong').textContent.toLowerCase();
+    const methods = Array.from(item.querySelectorAll('.method'));
+    
+    // Check if path matches filter
+    const pathMatches = pathText.includes(filterText);
+    
+    // Check if any method or tag matches filter
+    const methodMatches = methods.some(method => {
+      const methodText = method.textContent.toLowerCase();
+      return methodText.includes(filterText);
+    });
+    
+    // Show/hide based on matches
+    if (pathMatches || methodMatches) {
+      item.style.display = '';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+}
+
+function selectAllPaths() {
+  const checkboxes = document.querySelectorAll('#pathList input[type="checkbox"]:not([disabled])');
   checkboxes.forEach(checkbox => {
     checkbox.checked = true;
   });
 }
 
-function deselectAll() {
-  const checkboxes = document.querySelectorAll('#pathList input[type="checkbox"]');
+function deselectAllPaths() {
+  const checkboxes = document.querySelectorAll('#pathList input[type="checkbox"]:not([disabled])');
   checkboxes.forEach(checkbox => {
     checkbox.checked = false;
   });
-}
-
-function getSelectedEndpoints() {
-  const selected = [];
-  const checkboxes = document.querySelectorAll('#pathList input[type="checkbox"]:checked');
-  
-  checkboxes.forEach(checkbox => {
-    selected.push({
-      path: checkbox.dataset.path,
-      method: checkbox.dataset.method
-    });
-  });
-  
-  return selected;
 }
 
 function findReferencedDefinitions(obj, referencedDefs = new Set()) {
@@ -294,39 +680,63 @@ function addDependentDefinitions(definitions, defName, allDefs, processedDefs = 
 }
 
 function generateJson() {
-  const selectedEndpoints = getSelectedEndpoints();
+  const selectedEndpoints = document.querySelectorAll('#pathList input[type="checkbox"]:checked');
+  const error = document.getElementById('error') || document.getElementById('repoError');
   
   if (selectedEndpoints.length === 0) {
-    document.getElementById('error').textContent = 'Please select at least one endpoint';
+    error.textContent = 'Please select at least one endpoint';
     return;
   }
   
   // Create a new paths object with only selected endpoints
   const filteredPaths = {};
   const referencedDefs = new Set();
+  const sources = new Set();
   
-  selectedEndpoints.forEach(endpoint => {
-    const { path, method } = endpoint;
+  selectedEndpoints.forEach(checkbox => {
+    const path = checkbox.dataset.path;
+    const method = checkbox.dataset.method;
     
     if (!filteredPaths[path]) {
       filteredPaths[path] = {};
     }
     
-    filteredPaths[path][method] = swaggerData.paths[path][method];
+    // Find the original endpoint data
+    const endpoint = mergedPaths[path][method];
+    const source = endpoint._source;
+    sources.add(source);
+    
+    // Clone the endpoint but remove our internal _source property
+    const cleanEndpoint = { ...endpoint };
+    delete cleanEndpoint._source;
+    
+    filteredPaths[path][method] = cleanEndpoint;
     
     // Find all referenced definitions in this endpoint
-    findReferencedDefinitions(swaggerData.paths[path][method]).forEach(def => {
-      referencedDefs.add(def);
+    findReferencedDefinitions(endpoint).forEach(def => {
+      referencedDefs.add(`${source}|${def}`); // Format: "source|definition"
     });
   });
   
   // Create a filtered definitions object
   const filteredDefinitions = {};
-  if (swaggerData.definitions) {
-    referencedDefs.forEach(defName => {
-      addDependentDefinitions(filteredDefinitions, defName, swaggerData.definitions);
-    });
-  }
+  
+  // Process definitions from all sources
+  Array.from(sources).forEach(source => {
+    const sourceData = swaggerData[source];
+    
+    if (sourceData && sourceData.definitions) {
+      // Get definitions that belong to this source
+      const sourceDefinitions = Array.from(referencedDefs)
+        .filter(ref => ref.startsWith(`${source}|`))
+        .map(ref => ref.split('|')[1]);
+      
+      // Add each definition and its dependencies
+      sourceDefinitions.forEach(defName => {
+        addDependentDefinitions(filteredDefinitions, defName, sourceData.definitions);
+      });
+    }
+  });
   
   // Create the output JSON with only paths and definitions
   const output = {
