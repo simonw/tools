@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clipboard RTF to HTML Inspector</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { font-size: 1.5em; }
+    #controls { margin-bottom: 10px; }
+    #output { margin-top: 20px; }
+    .format-block { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    .format-label { font-weight: bold; margin-bottom: 5px; }
+    .preview { white-space: pre-wrap; word-wrap: break-word; background: #f9f9f9; padding: 10px; font-family: 'Courier New', monospace; }
+    textarea { width: 100%; box-sizing: border-box; font-family: 'Courier New', monospace; resize: vertical; }
+    /* Dark mode styles */
+    .dark .preview { background: #000; color: #fff; }
+    .dark textarea { background: #000; color: #fff; }
+    .dark .format-block { border-color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Clipboard RTF to HTML Inspector</h1>
+  <div id="controls">
+    <label><input type="checkbox" id="dark-mode"> Black background</label>
+    <p>Press <strong>Cmd+V</strong> (Mac) or <strong>Ctrl+V</strong> (Windows) to paste and convert RTF to colorized HTML.</p>
+  </div>
+  <div id="output"></div>
+
+  <script>
+    const darkModeCheckbox = document.getElementById('dark-mode');
+    darkModeCheckbox.addEventListener('change', () => {
+      document.body.classList.toggle('dark', darkModeCheckbox.checked);
+    });
+
+    document.addEventListener('paste', function(event) {
+      event.preventDefault();
+      const output = document.getElementById('output');
+      output.innerHTML = '';
+
+      const clipboardData = event.clipboardData || window.clipboardData;
+      const rtf = clipboardData.getData('text/rtf');
+      if (!rtf) {
+        output.textContent = 'No RTF data available in clipboard.';
+        return;
+      }
+
+      // Normalize line breaks
+      let body = rtf.replace(/\r\n|\r/g, '\n');
+
+      // Parse color table (colors[1] is first color)
+      const colorTableMatch = /\\colortbl;([^}]*)}/.exec(body);
+      const colors = [null];
+      if (colorTableMatch) {
+        const defs = colorTableMatch[1].split(';');
+        defs.forEach(def => {
+          const m = /\\red(\d+)\\green(\d+)\\blue(\d+)/.exec(def);
+          if (m) {
+            const r = +m[1], g = +m[2], b = +m[3];
+            const hex = '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+            colors.push(hex);
+          } else {
+            colors.push(null);
+          }
+        });
+      }
+
+      // Mark paragraphs & remove controls
+      body = body.replace(/\\pard[d]?/g, '\n')
+                 .replace(/\\cf(\d+)/g, '[CF$1]')
+                 .replace(/\\[^ \n]+ ?/g, '')
+                 .replace(/[{}]/g, '')
+                 .replace(/\\/g, '');
+
+      // Wrap color runs
+      const parts = body.split(/\[CF(\d+)\]/);
+      let currentColor = null;
+      let html = '';
+      parts.forEach((seg, i) => {
+        if (i % 2 === 1) {
+          currentColor = +seg;
+        } else {
+          const text = seg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          if (currentColor && colors[currentColor]) {
+            html += `<span style="color:${colors[currentColor]}">${text}</span>`;
+          } else {
+            html += text;
+          }
+        }
+      });
+
+      // Newlines to <br>
+      const htmlWithBreaks = html.split('\n').join('<br>');
+
+      // Preview
+      const previewBlock = document.createElement('div');
+      previewBlock.className = 'format-block';
+      const previewLabel = document.createElement('div');
+      previewLabel.className = 'format-label';
+      previewLabel.textContent = 'Preview';
+      const previewDiv = document.createElement('div');
+      previewDiv.className = 'preview';
+      previewDiv.innerHTML = htmlWithBreaks;
+      previewBlock.append(previewLabel, previewDiv);
+      output.appendChild(previewBlock);
+
+      // HTML markup
+      const htmlBlock = document.createElement('div');
+      htmlBlock.className = 'format-block';
+      const htmlLabel = document.createElement('div');
+      htmlLabel.className = 'format-label';
+      htmlLabel.textContent = 'HTML Markup';
+      const textarea = document.createElement('textarea');
+      textarea.rows = 10;
+      textarea.value = htmlWithBreaks;
+      htmlBlock.append(htmlLabel, textarea);
+      output.appendChild(htmlBlock);
+    });
+  </script>
+</body>
+</html>
