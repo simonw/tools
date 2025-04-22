@@ -1,0 +1,3 @@
+This tool inspects and converts Rich Text Format (RTF) content from your clipboard into HTML with color formatting preserved. When you paste RTF text using keyboard shortcuts, the application parses the RTF color table, applies appropriate color styling to text segments, and displays both a visual preview and the generated HTML markup for you to copy.
+
+<!-- Generated from commit: 76dd6bf3fc9ec99f4f0908f9e898c688ff267ecc -->
