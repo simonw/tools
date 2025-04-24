@@ -121,8 +121,8 @@
       </form>
     </div>
     <div class="copy-container">
-      <button id="copyBtn" disabled>Copy</button>
-      <button id="copyJsonBtn" disabled>Copy JSON</button>
+      <button id="copyBtn">Copy</button>
+      <button id="copyJsonBtn">Copy JSON</button>
     </div>
   </header>
   <div id="threadContainer"></div>
@@ -141,11 +141,30 @@
         if (e.key === 'Enter') { e.preventDefault(); form.requestSubmit(); }
       });
 
+      // Fixed function to generate thread text in a readable format
+      function generateThreadText(thread) {
+        const lines = [];
+        
+        function processPost(item, prefix = '1') {
+          const author = item.post.author.displayName || item.post.author.handle;
+          const text = item.post.record.text.replace(/\n/g, ' ');
+          lines.push(`[${prefix}] ${author}: ${text}`);
+          
+          if (item.replies && item.replies.length > 0) {
+            item.replies.forEach((reply, i) => {
+              processPost(reply, `${prefix}.${i+1}`);
+            });
+          }
+        }
+        
+        processPost(thread);
+        return lines.join('\n\n');
+      }
+
       copyBtn.addEventListener('click', async () => {
         if (!lastThread) return;
-        const lines = generateLines(lastThread);
-        const textToCopy = lines.join('\n\n');
         try {
+          const textToCopy = generateThreadText(lastThread);
           await navigator.clipboard.writeText(textToCopy);
           const orig = copyBtn.textContent;
           copyBtn.textContent = 'Copied!';
@@ -171,8 +190,6 @@
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         container.innerHTML = '';
-        copyBtn.disabled = true;
-        copyJsonBtn.disabled = true;
         copyContainer.style.display = 'none';
         lastThread = null;
         try {
@@ -222,18 +239,8 @@
             if (item.replies && item.replies.length) item.replies.forEach(reply => displayPost(reply, el, depth+1));
           }
 
-          function generateLines(item, prefix = '1', lines = []) {
-            const author = item.post.author.displayName || item.post.author.handle;
-            const text = item.post.record.text.replace(/\n/g, ' ');
-            lines.push(`[${prefix}] ${author}: ${text}`);
-            if (item.replies) item.replies.forEach((reply, i) => generateLines(reply, `${prefix}.${i+1}`, lines));
-            return lines;
-          }
-
           displayPost(threadJson.thread, container);
           lastThread = threadJson.thread;
-          copyBtn.disabled = false;
-          copyJsonBtn.disabled = false;
           copyContainer.style.display = 'block';
         } catch (err) {
           console.error(err);
