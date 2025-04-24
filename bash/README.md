@@ -9,14 +9,14 @@ These Bash scripts were written using LLMs.
 Create a brand new GitHub repository and copy the history of a single file from another repository into it.
 
 ```bash
-./extract-file-history.sh path/to/repo file-path-within-repo.txt path/to/new-repo
+./extract-file-history.sh path/to/repo file-path-within-repo.txt path/to/new-repo [optional-new-file-name]
 ```
 
 I used it to create [this file history](https://github.com/simonw/llm-prices/commits/9a64678aa4635131dbb916ec99a735ee54050db1/) from [simonw/tools](https://github.com/simonw/tools):
 
 ```bash
 git clone https://github.com/simonw/tools
-./extract-file-history.sh tools llm-prices.html llm-prices
+./extract-file-history.sh tools llm-prices.html llm-prices index.html
 ```
 
 ## mem.sh

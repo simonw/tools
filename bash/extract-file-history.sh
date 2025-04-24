@@ -5,26 +5,34 @@
 # Copy the full Git history of a single file into a brand-new repository.
 #
 # Usage:
-#   ./extract-file-history.sh <source_repo_path> <target_file_path> <new_repo_name>
+#   ./extract-file-history.sh <source_repo_path> <target_file_path> <new_repo_name> [output_filename]
 # Example:
-#   ./extract-file-history.sh ~/projects/my-project src/utils/helper.js helper-history
+#   ./extract-file-history.sh ~/projects/my-project src/utils/helper.js helper-history helper.js
 #
 # The new repository will contain one commit for every change ever made to the
-# specified file, preserving author, date and original commit message.
+# specified file, preserving author, date and original commit message. If
+# output_filename is provided, the file in the new repo will be named accordingly.
 
 set -euo pipefail
 
 ###############################################################################
 # 1. Validate arguments & environment
 ###############################################################################
-if [ "$#" -ne 3 ]; then
-  echo "Usage: $0 <source_repo_path> <target_file_path> <new_repo_name>"
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+  echo "Usage: $0 <source_repo_path> <target_file_path> <new_repo_name> [output_filename]"
   exit 1
 fi
 
 SOURCE_REPO=$1          # e.g. /path/to/original/repo
 TARGET_FILE=$2          # e.g. src/utils/helper.js
 NEW_REPO_NAME=$3        # e.g. helper-history
+
+# Determine output filename in new repo
+if [ "$#" -eq 4 ]; then
+  OUTPUT_FILENAME=$4
+else
+  OUTPUT_FILENAME=$(basename "$TARGET_FILE")
+fi
 
 # Ensure Git is installed
 command -v git >/dev/null 2>&1 || {
@@ -52,8 +60,6 @@ mkdir -p "${NEW_REPO_NAME}"
 cd "${NEW_REPO_NAME}"
 git init -q
 
-FILENAME=$(basename "$TARGET_FILE")
-
 ###############################################################################
 # 3. Iterate over commits that touched the file (oldest → newest)
 ###############################################################################
@@ -66,17 +72,17 @@ for COMMIT in $COMMITS; do
   AUTHOR_NAME=$(git -C "$SOURCE_REPO" show -s --format=%an "$COMMIT")
   AUTHOR_EMAIL=$(git -C "$SOURCE_REPO" show -s --format=%ae "$COMMIT")
   COMMIT_DATE=$(git -C "$SOURCE_REPO" show -s --format=%ad "$COMMIT")
-  COMMIT_MSG=$(git  -C "$SOURCE_REPO" show -s --format=%B  "$COMMIT")
+  COMMIT_MSG=$(git -C "$SOURCE_REPO" show -s --format=%B "$COMMIT")
 
   printf 'Importing %s ...\n' "$(git -C "$SOURCE_REPO" rev-parse --short "$COMMIT")"
 
   # Write the file content for that commit into the new repo
-  if ! git -C "$SOURCE_REPO" show "$COMMIT":"$TARGET_FILE" > "$FILENAME" 2>/dev/null; then
+  if ! git -C "$SOURCE_REPO" show "$COMMIT":"$TARGET_FILE" > "$OUTPUT_FILENAME" 2>/dev/null; then
     echo "Warning: could not extract ${TARGET_FILE} at ${COMMIT} – skipping."
     continue
   fi
 
-  git add "$FILENAME"
+  git add "$OUTPUT_FILENAME"
 
   # Re-create the commit with original metadata
   GIT_AUTHOR_NAME="$AUTHOR_NAME" \
@@ -93,5 +99,5 @@ done
 ###############################################################################
 # 4. Done!
 ###############################################################################
-echo "Done! New repository '${NEW_REPO_NAME}' contains ${TOTAL} commit(s) of '${TARGET_FILE}'."
+echo "Done! New repository '${NEW_REPO_NAME}' contains ${TOTAL} commit(s) of '${TARGET_FILE}' as '${OUTPUT_FILENAME}'."
 
