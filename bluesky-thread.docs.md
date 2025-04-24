@@ -1,3 +1,3 @@
-The Bluesky Thread Viewer allows you to view and extract conversation threads from Bluesky social media posts. Enter a Bluesky post URL to fetch the complete thread, which will display with color-coded nesting to indicate reply depth. You can copy the entire thread as formatted text or export it as JSON for further processing.
+The Bluesky Thread Viewer allows you to retrieve and display thread conversations from Bluesky social network posts. Enter a Bluesky post URL in the format https://bsky.app/profile/username/post/postid to fetch the entire conversation thread. The tool displays posts with color-coded depth indicators and provides options to copy the thread as formatted text or JSON.
 
-<!-- Generated from commit: 6940edcc2ebf288621ab7309c6d5e696af2b8068 -->
+<!-- Generated from commit: 6ea134d0520f6949ef650a107e245a00da112a5f -->
