@@ -2,9 +2,26 @@
 
 These Bash scripts were written using LLMs.
 
+## extract-file-history.sh
+
+[extract-file-history.sh](https://raw.githubusercontent.com/simonw/tools/refs/heads/main/bash/extract-file-history.sh)
+
+Create a brand new GitHub repository and copy the history of a single file from another repository into it.
+
+```bash
+./extract-file-history.sh path/to/repo file-path-within-repo.txt path/to/new-repo
+```
+
+I used it to create [this file history](https://github.com/simonw/llm-prices/commits/9a64678aa4635131dbb916ec99a735ee54050db1/) from [simonw/tools](https://github.com/simonw/tools):
+
+```bash
+git clone https://github.com/simonw/tools
+./extract-file-history.sh tools llm-prices.html llm-prices
+```
+
 ## mem.sh
 
-[mem.sh](https://raw.githubusercontent.com/simonw/tools/refs/heads/main/python/mem.sh)
+[mem.sh](https://raw.githubusercontent.com/simonw/tools/refs/heads/main/bash/mem.sh)
 
 On macOS show the memory usage of the top processes, grouped by name. E.g.
 
