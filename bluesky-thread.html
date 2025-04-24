@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bluesky Thread Viewer</title>
+  <style>
+    :root {
+      --depth-color-1: hsl(200, 70%, 50%);
+      --depth-color-2: hsl(30, 80%, 50%);
+      --depth-color-3: hsl(120, 60%, 40%);
+      --depth-color-4: hsl(0, 70%, 50%);
+      --depth-color-5: hsl(280, 60%, 50%);
+      --depth-color-6: hsl(20, 60%, 40%);
+      --depth-color-7: hsl(330, 60%, 50%);
+      --depth-color-8: hsl(0, 0%, 40%);
+    }
+    body {
+      font-family: sans-serif;
+      margin: 1em;
+    }
+    .controls {
+      margin-bottom: 1em;
+    }
+    form {
+      display: flex;
+      gap: 0.5em;
+    }
+    input[type="text"] {
+      flex: 1;
+      font-size: 1rem;
+      padding: 0.5em;
+    }
+    #urlForm button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .copy-container {
+      display: none;
+      margin-bottom: 1em;
+    }
+    #copyBtn {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .post {
+      position: relative;
+      border: 1px solid #ccc;
+      padding: 0.75em 2px 0.75em 0;
+      border-radius: 6px;
+      margin-top: 1em;
+    }
+    .post::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 4px;
+      background-color: var(--stripe-color, transparent);
+      border-top-left-radius: 6px;
+      border-bottom-left-radius: 6px;
+    }
+    .depth-1 {
+      --stripe-color: var(--depth-color-1);
+      margin-left: 0;
+    }
+    .depth-2 {
+      --stripe-color: var(--depth-color-2);
+      margin-left: 1.5em;
+    }
+    .depth-3 {
+      --stripe-color: var(--depth-color-3);
+      margin-left: 2.5em;
+    }
+    .depth-4 {
+      --stripe-color: var(--depth-color-4);
+      margin-left: 3.5em;
+    }
+    .depth-5 {
+      --stripe-color: var(--depth-color-5);
+      margin-left: 4.5em;
+    }
+    .depth-6 {
+      --stripe-color: var(--depth-color-6);
+      margin-left: 5.5em;
+    }
+    .depth-7 {
+      --stripe-color: var(--depth-color-7);
+      margin-left: 6.5em;
+    }
+    .depth-8 {
+      --stripe-color: var(--depth-color-8);
+      margin-left: 7.5em;
+    }
+    .author {
+      font-weight: bold;
+      margin-bottom: 0.25em;
+    }
+    .meta {
+      color: #666;
+      font-size: 0.85rem;
+      margin-bottom: 0.5em;
+      display: flex;
+      gap: 0.5em;
+      align-items: center;
+    }
+    .meta a {
+      font-size: 0.85rem;
+      color: #007bff;
+      text-decoration: none;
+    }
+    .text {
+      white-space: pre-wrap;
+      font-size: 1rem;
+      line-height: 1.4;
+    }
+    @media (max-width: 600px) {
+      /* preserve left padding but add extra right padding */
+      .post {
+        padding-left: 1em;
+      }
+      /* collapse horizontal indent on deep replies */
+      .depth-2,
+      .depth-3,
+      .depth-4,
+      .depth-5,
+      .depth-6,
+      .depth-7,
+      .depth-8 {
+        margin-left: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Bluesky Thread Viewer</h1>
+  <div class="controls">
+    <form id="urlForm">
+      <input
+        type="text"
+        id="postUrl"
+        placeholder="Bluesky post URL"
+        required
+      />
+      <button type="submit">Fetch Thread</button>
+    </form>
+  </div>
+  <div class="copy-container">
+    <button id="copyBtn" disabled>Copy</button>
+  </div>
+  <div id="threadContainer"></div>
+
+  <script>
+    (async () => {
+      const form = document.getElementById('urlForm');
+      const container = document.getElementById('threadContainer');
+      const copyBtn = document.getElementById('copyBtn');
+      const copyContainer = document.querySelector('.copy-container');
+      const postUrl = document.getElementById('postUrl');
+      let lastThread = null;
+
+      postUrl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          form.requestSubmit();
+        }
+      });
+
+      function generateLines(item, prefix = '1', lines = []) {
+        const author =
+          item.post.author.displayName || item.post.author.handle;
+        const text = item.post.record.text.replace(/\n/g, ' ');
+        lines.push(`[${prefix}] ${author}: ${text}`);
+        if (item.replies) {
+          item.replies.forEach((reply, i) => {
+            generateLines(reply, `${prefix}.${i + 1}`, lines);
+          });
+        }
+        return lines;
+      }
+
+      copyBtn.addEventListener('click', async () => {
+        if (!lastThread) return;
+        const lines = generateLines(lastThread);
+        const textToCopy = lines.join('\n\n');
+        try {
+          await navigator.clipboard.writeText(textToCopy);
+          const orig = copyBtn.textContent;
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => (copyBtn.textContent = orig), 2000);
+        } catch (err) {
+          console.error('Copy failed', err);
+        }
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        container.innerHTML = '';
+        copyBtn.disabled = true;
+        copyContainer.style.display = 'none';
+        lastThread = null;
+        try {
+          const url = new URL(postUrl.value.trim());
+          if (url.hostname !== 'bsky.app')
+            throw new Error('URL must be from bsky.app');
+          const parts = url.pathname.split('/').filter(Boolean);
+          if (parts[0] !== 'profile' || parts[2] !== 'post')
+            throw new Error(
+              'Use https://bsky.app/profile/{handle}/post/{postId}'
+            );
+          const rawHandle = parts[1];
+          const actor = rawHandle.includes('.')
+            ? rawHandle
+            : `${rawHandle}.bsky.social`;
+          const postId = parts[3];
+
+          const profileRes = await fetch(
+            `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(
+              actor
+            )}`
+          );
+          if (!profileRes.ok)
+            throw new Error('Profile fetch failed ' + profileRes.status);
+          const profileJson = await profileRes.json();
+          const did = profileJson.did || profileJson.profile?.did;
+          if (!did) throw new Error('Could not parse DID');
+
+          const atUri = `at://${did}/app.bsky.feed.post/${postId}`;
+          const threadRes = await fetch(
+            `https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=${encodeURIComponent(
+              atUri
+            )}&depth=1000&parentHeight=0`
+          );
+          if (!threadRes.ok)
+            throw new Error('Thread fetch failed ' + threadRes.status);
+          const threadJson = await threadRes.json();
+          if (
+            threadJson.thread.$type ===
+            'app.bsky.feed.defs#notFoundPost'
+          )
+            throw new Error('Post not found');
+
+          function displayPost(item, parent, depth = 1) {
+            const el = document.createElement('div');
+            el.className = `post depth-${Math.min(depth, 8)}`;
+            const authorEl = document.createElement('div');
+            authorEl.className = 'author';
+            authorEl.textContent =
+              `${item.post.author.displayName} (@${
+                item.post.author.handle
+              })`;
+            const metaEl = document.createElement('div');
+            metaEl.className = 'meta';
+            metaEl.textContent = new Date(
+              item.post.record.createdAt
+            ).toLocaleString();
+            const link = document.createElement('a');
+            link.href = `https://bsky.app/profile/${item.post.author.handle}/post/${item.post.uri.split('/').pop()}`;
+            link.textContent = 'View';
+            link.target = '_blank';
+            metaEl.appendChild(link);
+            const textEl = document.createElement('div');
+            textEl.className = 'text';
+            textEl.textContent = item.post.record.text;
+            el.append(authorEl, metaEl, textEl);
+            parent.appendChild(el);
+            if (item.replies && item.replies.length) {
+              item.replies.forEach((reply) =>
+                displayPost(reply, el, depth + 1)
+              );
+            }
+          }
+
+          displayPost(threadJson.thread, container);
+          lastThread = threadJson.thread;
+          copyBtn.disabled = false;
+          copyContainer.style.display = 'block';
+        } catch (err) {
+          console.error(err);
+          container.textContent = 'Error: ' + err.message;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
