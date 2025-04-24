@@ -1,0 +1,3 @@
+This tool allows you to view and interact with Bluesky threads by pasting a URL. Enter a Bluesky post URL in the input field to fetch and display the entire conversation thread with color-coded reply depths for improved readability. The interface includes a copy button that formats the thread as numbered text, making it easy to share conversations in other contexts.
+
+<!-- Generated from commit: e4bbf9a964464fd2b3286a0ae24a44a01c52a73d -->
