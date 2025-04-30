@@ -1,0 +1,3 @@
+This HTML Live Preview tool allows you to write HTML code and immediately see the rendered results. Type your HTML in the editor on the left side, and the preview will update on the right side (or toggle between views on mobile devices). The tool includes features to copy your HTML code to the clipboard and supports responsive layouts that adapt to different screen sizes.
+
+<!-- Generated from commit: a418a01e7b7aeae97b6992d21d1f93c04bacd8b8 -->
