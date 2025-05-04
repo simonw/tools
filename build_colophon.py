@@ -214,16 +214,15 @@ def build_colophon():
         html_content += f"""
     <div class="tool" id="{page_name}">
         <div class="tool-name">
-            <div class="heading">
+            <h2 class="heading">
                 <span class="hash-text"><a class="hashref" href="#{page_name}">#</a></span>
                 <span class="main-text"><a href="{tool_url}">{page_name.replace('.html', '')}</a></span>
                 <span class="code-text"><a href="{github_url}">code</a></span>
-            </div>
+            </h2>
         </div>
 """
         # Check for corresponding docs.md file
         docs_file = page_name.replace(".html", ".docs.md")
-        docs_replacement = ""
         if Path(docs_file).exists():
             try:
                 with open(docs_file, "r") as f:
