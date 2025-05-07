@@ -1,3 +1,3 @@
-This calculator helps you estimate the cost of using Large Language Models (LLMs) with different pricing tiers. Enter the number of input and output tokens for your request, then either manually input the cost rates or select a model from the table to automatically populate the pricing. The table displays current market rates for various LLM models from providers like OpenAI, Anthropic, Google, and others, sorted by price.
+This HTML page implements an automatic redirect to the website www.llm-prices.com. The page uses a meta refresh tag with a zero-second delay to immediately redirect the visitor upon loading. For visitors whose browsers don't support automatic redirects or have them disabled, a fallback text message with a clickable link is provided.
 
-<!-- Generated from commit: 4d60d13153a643b3b940ef2f72bcc7f3a32d989c -->
+<!-- Generated from commit: 2a42439302be82e65b92f3525a8dd0d48f83c3f4 -->
