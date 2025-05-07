@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Render JSON from Gemini Image Generation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 15px;
+            background-color: #f4f4f4;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-bottom: 20px;
+            display: block;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #output img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #output p {
+            margin-top: 0;
+            margin-bottom: 1em;
+            white-space: pre-wrap; /* Preserve line breaks from JSON text */
+        }
+        #metadata pre {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.85em;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .section-title {
+            margin-top: 30px;
+            font-size: 1.2em;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Render JSON from Gemini Image Generation</h1>
+
+        <label for="jsonInput">Paste Gemini JSON here:</label>
+        <textarea id="jsonInput" placeholder="Paste your JSON data here..."></textarea>
+        <button id="processButton">Render JSON</button>
+
+        <div id="errorDisplay" class="error"></div>
+
+        <div id="output">
+            <!-- Rendered content will go here -->
+        </div>
+
+        <div id="metadata">
+            <!-- Usage metadata will go here -->
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('processButton').addEventListener('click', () => {
+            const jsonString = document.getElementById('jsonInput').value;
+            const outputDiv = document.getElementById('output');
+            const metadataDiv = document.getElementById('metadata');
+            const errorDiv = document.getElementById('errorDisplay');
+
+            // Clear previous output and errors
+            outputDiv.innerHTML = '';
+            metadataDiv.innerHTML = '';
+            errorDiv.textContent = '';
+
+            if (!jsonString.trim()) {
+                errorDiv.textContent = 'Please paste some JSON data.';
+                return;
+            }
+
+            let jsonData;
+            try {
+                jsonData = JSON.parse(jsonString);
+            } catch (e) {
+                errorDiv.textContent = `Error parsing JSON: ${e.message}`;
+                return;
+            }
+
+            // Render content from candidates
+            if (jsonData.candidates && Array.isArray(jsonData.candidates)) {
+                const candidatesTitle = document.createElement('h2');
+                candidatesTitle.textContent = 'Rendered Content';
+                candidatesTitle.classList.add('section-title');
+                outputDiv.appendChild(candidatesTitle);
+
+                jsonData.candidates.forEach((candidate, index) => {
+                    if (candidate.content && candidate.content.parts && Array.isArray(candidate.content.parts)) {
+                        const candidateHeader = document.createElement('h3');
+                        candidateHeader.textContent = `Candidate ${index + 1}`;
+                        candidateHeader.style.fontSize = '1.1em';
+                        candidateHeader.style.marginTop = '20px';
+                        candidateHeader.style.color = '#444';
+                        outputDiv.appendChild(candidateHeader);
+
+                        candidate.content.parts.forEach(part => {
+                            if (part.text) {
+                                const p = document.createElement('p');
+                                p.textContent = part.text;
+                                outputDiv.appendChild(p);
+                            } else if (part.inlineData && part.inlineData.mimeType && part.inlineData.mimeType.startsWith('image/')) {
+                                const img = document.createElement('img');
+                                img.src = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                                img.alt = 'Rendered Image';
+                                outputDiv.appendChild(img);
+                            }
+                        });
+                    }
+                });
+            } else {
+                console.warn("No 'candidates' array found or it's not an array.");
+            }
+
+            // Render usage metadata
+            if (jsonData.usageMetadata) {
+                const metadataTitle = document.createElement('h2');
+                metadataTitle.textContent = 'Usage Metadata';
+                metadataTitle.classList.add('section-title');
+                metadataDiv.appendChild(metadataTitle);
+
+                const pre = document.createElement('pre');
+                pre.textContent = JSON.stringify(jsonData.usageMetadata, null, 2); // Pretty print
+                metadataDiv.appendChild(pre);
+            } else {
+                console.warn("No 'usageMetadata' object found.");
+            }
+
+             // Render modelVersion if present
+            if (jsonData.modelVersion) {
+                const modelVersionTitle = document.createElement('h2');
+                modelVersionTitle.textContent = 'Model Version';
+                modelVersionTitle.classList.add('section-title');
+                metadataDiv.appendChild(modelVersionTitle); // Appending to metadataDiv for consistency
+
+                const p = document.createElement('p');
+                p.textContent = jsonData.modelVersion;
+                p.style.backgroundColor = '#e9ecef';
+                p.style.padding = '10px';
+                p.style.borderRadius = '4px';
+                p.style.fontFamily = 'monospace';
+                metadataDiv.appendChild(p);
+            }
+        });
+    </script>
+</body>
+</html>
