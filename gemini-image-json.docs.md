@@ -1,3 +1,3 @@
-This tool renders JSON responses from Gemini image generation. Paste the JSON response from Gemini into the text area and click "Render JSON" to display the generated images alongside any text content. The tool also shows usage metadata and model version information extracted from the JSON response.
+This page allows you to visualize Gemini API image generation responses by pasting JSON data from the API. The tool parses the JSON response, displays any generated images as rendered content, and shows additional metadata like usage statistics and model version. You can load an example JSON response or paste your own to see how Gemini's image generation appears.
 
-<!-- Generated from commit: 0349e3c3d99f641481fbd4abf8a97b90116957eb -->
+<!-- Generated from commit: a04c0ba55e68ae0d5056d75529d94556d41369c8 -->
