@@ -2,6 +2,16 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
+## gguf_inspect.py
+
+Inspect a GGUF file (a format used by [llama.cpp](https://github.com/ggml-org/llama.cpp)) and print out the key/value pairs. No dependencies.
+
+```bash
+uv run http://tools.simonwillison.net/python/gguf_inspect.py \
+  ~/.ollama/models/blobs/sha256-b158411543050d042608cef16fdfeec0d9bc1cf2e63a3625f3887fc0c4249521 \
+  --json --exclude tokenizer.ggml.
+```
+
 ## json_extractor.py
 
 Given a text file that includes JSON syntax but is not valid JSON - a Markdown README file for example - this tool finds all valid JSON objects within that text and returns the largest, or all of them if you specify `-a`.
