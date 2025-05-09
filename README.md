@@ -37,6 +37,7 @@ The code lives in [simonw/tools](https://github.com/simonw/tools). Most of these
 
 ## LLM playgrounds and debuggers
 
+- [LLM Pricing Calculator](https://tools.simonwillison.net/llm-prices) - view and calculate API pricing details for multiple LLMs
 - [Haiku](https://tools.simonwillison.net/haiku) generates Haikus from your camera using Claude 3 Haiku
 - [Chrome Prompt Playground](https://tools.simonwillison.net/chrome-prompt-playground) is a UI for running prompts through the Google Chrome Canary experimental Gemini Nano LLM and saving the results in local storage
 - [Gemini API Image Bounding Box Visualizer](https://tools.simonwillison.net/gemini-bbox) - run prompts against Google Gemini models that return bounding box co-ordinates and visualize them against the original image, see [this post](https://simonwillison.net/2024/Aug/26/gemini-bounding-box-visualization/) for details
