@@ -44,6 +44,7 @@
             max-width: 90%;
             cursor: pointer;
             transition: max-width 0.3s ease;
+            border: 2px dashed #666;
         }
         #convertedImage.full-size {
             max-width: unset;
@@ -63,7 +64,7 @@
             margin-top: 10px;
             margin-right: 10px;
         }
-        #widthInput {
+        #widthInput, #paddingInput {
             width: 60px;
         }
         #bgColor {
@@ -100,7 +101,12 @@
         <label for="widthInput">Output Width:</label>
         <input type="number" id="widthInput" value="800" min="1">
     </div>
-    <button onclick="convertSvgToImage()">Convert SVG</button>
+    <div class="option-group">
+        <label for="paddingInput">Padding:</label>
+        <input type="number" id="paddingInput" value="0" min="0">
+        <span>px</span>
+    </div>
+    <button id="convertButton" onclick="convertSvgToImage()">Convert SVG</button>
     <div id="imageContainer"></div>
     <a id="downloadLink" style="display: none;">Download Image</a>
     <span id="fileSize"></span>
@@ -114,12 +120,38 @@
         const svgInput = document.getElementById('svgInput');
         const fileInput = document.getElementById('fileInput');
         const widthInput = document.getElementById('widthInput');
+        const paddingInput = document.getElementById('paddingInput');
         const loadExampleLink = document.getElementById('loadExampleLink');
         const bgColor = document.getElementById('bgColor');
         const transparentBg = document.getElementById('transparentBg');
         const fileSizeSpan = document.getElementById('fileSize');
         const outputDiv = document.getElementById('output');
         const copyImageButton = document.getElementById('copyImageButton');
+        const formatRadios = document.querySelectorAll('input[name="format"]');
+
+        // Add event listeners for instant preview updates
+        paddingInput.addEventListener('input', debounce(convertSvgToImage, 300));
+        widthInput.addEventListener('input', debounce(convertSvgToImage, 300));
+        bgColor.addEventListener('input', debounce(convertSvgToImage, 300));
+        
+        formatRadios.forEach(radio => {
+            radio.addEventListener('change', convertSvgToImage);
+        });
+        
+        transparentBg.addEventListener('change', convertSvgToImage);
+
+        // Debounce function to prevent too many updates
+        function debounce(func, wait) {
+            let timeout;
+            return function() {
+                const context = this;
+                const args = arguments;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    func.apply(context, args);
+                }, wait);
+            };
+        }
 
         // Load example image functionality
         loadExampleLink.addEventListener('click', (e) => {
@@ -129,6 +161,7 @@
                 .then(response => response.text())
                 .then(data => {
                     svgInput.value = data;
+                    convertSvgToImage(); // Update preview with the loaded example
                 })
                 .catch(error => {
                     console.error('Error loading example SVG:', error);
@@ -179,32 +212,39 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 svgInput.value = e.target.result;
+                convertSvgToImage(); // Update preview with the loaded file
             };
             reader.readAsText(file);
         }
 
         function convertSvgToImage() {
-            let svgInput = document.getElementById('svgInput').value;
+            let svgContent = document.getElementById('svgInput').value;
+            
+            // If there's no SVG content, don't try to convert
+            if (!svgContent.trim()) {
+                return;
+            }
+            
             const imageContainer = document.getElementById('imageContainer');
             const base64Output = document.getElementById('base64Output');
             const downloadLink = document.getElementById('downloadLink');
             const format = document.querySelector('input[name="format"]:checked').value;
             const newWidth = parseInt(widthInput.value) || 800;
+            const padding = parseInt(paddingInput.value) || 0;
 
             // Clear previous content
-            imageContainer.innerHTML = '';
             base64Output.textContent = '';
             downloadLink.style.display = 'none';
             fileSizeSpan.textContent = '';
 
             // Find the <?xml tag and ignore everything before it
-            const xmlIndex = svgInput.indexOf('<?xml');
+            const xmlIndex = svgContent.indexOf('<?xml');
             if (xmlIndex !== -1) {
-                svgInput = svgInput.substring(xmlIndex);
+                svgContent = svgContent.substring(xmlIndex);
             }
 
             // Create a temporary SVG element
-            const svgElement = new DOMParser().parseFromString(svgInput, 'image/svg+xml').documentElement;
+            const svgElement = new DOMParser().parseFromString(svgContent, 'image/svg+xml').documentElement;
 
             if (!svgElement || svgElement.nodeName !== 'svg') {
                 alert('Invalid SVG input');
@@ -221,14 +261,19 @@
                 height = parseInt(svgElement.getAttribute('height')) || 150;
             }
 
-            // Calculate new dimensions
+            // Calculate new dimensions with padding
             const aspectRatio = width / height;
-            const newHeight = Math.round(newWidth / aspectRatio);
+            const contentWidth = newWidth;
+            const contentHeight = Math.round(contentWidth / aspectRatio);
+            
+            // Total canvas dimensions including padding
+            const totalWidth = contentWidth + (padding * 2);
+            const totalHeight = contentHeight + (padding * 2);
 
             // Create off-screen canvas
             const canvas = document.createElement('canvas');
-            canvas.width = newWidth;
-            canvas.height = newHeight;
+            canvas.width = totalWidth;
+            canvas.height = totalHeight;
 
             // Draw SVG on canvas
             const ctx = canvas.getContext('2d');
@@ -236,26 +281,28 @@
             // Set background color if not transparent
             if (!transparentBg.checked) {
                 ctx.fillStyle = bgColor.value;
-                ctx.fillRect(0, 0, newWidth, newHeight);
+                ctx.fillRect(0, 0, totalWidth, totalHeight);
             }
 
-            const svgBlob = new Blob([svgInput], {type: 'image/svg+xml;charset=utf-8'});
+            const svgBlob = new Blob([svgContent], {type: 'image/svg+xml;charset=utf-8'});
             const URL = window.URL || window.webkitURL || window;
             const svgUrl = URL.createObjectURL(svgBlob);
 
             const img = new Image();
             img.onload = function() {
-                ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                // Draw the image with padding
+                ctx.drawImage(img, padding, padding, contentWidth, contentHeight);
                 URL.revokeObjectURL(svgUrl);
 
                 // Convert to selected format
-                const imageDataUrl = canvas.toDataURL(format);
+                const imageDataUrl = canvas.toDataURL(format, 0.9);
 
                 // Calculate file size
                 const fileSizeInBytes = Math.round((imageDataUrl.length * 3) / 4);
                 const fileSizeInKB = (fileSizeInBytes / 1024).toFixed(2);
 
                 // Display converted image
+                imageContainer.innerHTML = '';  // Clear previous image
                 const convertedImg = document.createElement('img');
                 convertedImg.src = imageDataUrl;
                 convertedImg.id = 'convertedImage';
@@ -269,7 +316,7 @@
                 fileSizeSpan.textContent = `(${fileSizeInKB} KB)`;
 
                 // Display base64 image tag
-                const imgTag = `<img src="${imageDataUrl}" alt="Converted ${format === 'image/jpeg' ? 'JPEG' : 'PNG'}" width="${newWidth}" height="${newHeight}">`;
+                const imgTag = `<img src="${imageDataUrl}" alt="Converted ${format === 'image/jpeg' ? 'JPEG' : 'PNG'}" width="${totalWidth}" height="${totalHeight}">`;
                 base64Output.textContent = imgTag;
                 outputDiv.style.display = 'block';
             };
