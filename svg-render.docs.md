@@ -1,3 +1,3 @@
-This tool converts SVG images to JPEG or PNG formats. Upload an SVG file or paste SVG code, adjust settings including output format, background color, transparency, and dimensions, then convert to generate a downloadable image. The converted image can be previewed, downloaded, and its HTML image tag with base64 encoding can be copied for embedding in websites.
+This tool converts SVG images to JPEG or PNG format. Upload an SVG file or paste SVG code directly, then customize output settings including dimensions, background color, padding, and transparency. The converter generates a downloadable image and provides a base64-encoded image tag that can be copied for use in web projects.
 
-<!-- Generated from commit: bc43f4cc114a31acc6680227ef4c796ce47a1e23 -->
+<!-- Generated from commit: 24f55ef63d9787ec89625a66bd303241688b3def -->
