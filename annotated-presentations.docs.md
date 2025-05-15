@@ -1,3 +1,3 @@
-The Annotated Presentation Creator allows you to upload presentation slides and add detailed annotations using Markdown. You can provide alt text for accessibility, and the tool supports OCR for automatic text extraction from images. After annotating your slides, generate HTML output using customizable templates that can be deployed to a website.
+The Annotated Presentation Creator allows users to upload presentation slides, add accessibility alt text, and create markdown annotations for each slide. Users can upload multiple image files, write descriptive alt text, and add formatted annotations that are previewed in real-time. The tool also provides OCR functionality to automatically generate alt text for slides, and includes a template system to export the annotated presentation as HTML.
 
-<!-- Generated from commit: b37cbcf79a9a9de422178832f80ddbc6efe3f44a -->
+<!-- Generated from commit: 6c429482d2b7eb09c5e2554fe33c6157137f7bcc -->
