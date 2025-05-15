@@ -1,0 +1,3 @@
+The Annotated Presentation Creator is a tool for creating accessible slide presentations with detailed annotations. Upload your slide images, add alt text descriptions for accessibility, and write annotations using Markdown. The tool supports OCR to automatically generate alt text, saves your work in progress, and can export your slides as HTML using customizable templates.
+
+<!-- Generated from commit: 2d1670812d94eebe1aba61dac9f8a481a4228ce7 -->
