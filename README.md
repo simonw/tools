@@ -12,7 +12,7 @@ The code lives in [simonw/tools](https://github.com/simonw/tools). Most of these
 
 - [OCR](https://tools.simonwillison.net/ocr) for PDF files and images that runs entirely in your browser
 - [Render Markdown](https://tools.simonwillison.net/render-markdown) renders Markdown to HTML using the GitHub Markdown API
-- [Annotated presentation creator](https://til.simonwillison.net/tools/annotated-presentations) to help turn slides into an annotated presentation
+- [Annotated presentation creator](https://tools.simonwillison.net/annotated-presentations) to help turn slides into an annotated presentation
 - [Box shadow CSS generator](https://tools.simonwillison.net/box-shadow) generates the CSS for a box shadow with interactive settings
 - [Compare PDFs](https://tools.simonwillison.net/compare-pdfs) provides a visual comparison of the pages of two PDF files
 - [Image resize and quality comparison](https://tools.simonwillison.net/image-resize-quality) converts an image to JPEGs using a number of different quality settings so you can select the smallest file size that is still usefully legible ([how I built this](https://simonwillison.net/2024/Jul/26/image-resize-and-quality-comparison/))
