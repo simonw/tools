@@ -1,0 +1,3 @@
+The CSS Flexbox Playground provides an interactive environment for experimenting with flexbox layout properties. Users can adjust container settings like flex-direction, justify-content, and align-items through the control panel, and modify individual flex item properties such as flex-grow and align-self by selecting specific items. The playground displays real-time visual results and generates the corresponding CSS code, making it a practical tool for learning and testing flexbox layouts.
+
+<!-- Generated from commit: 77adc930a4d5b3a2e7965a78dcb0055de35a404c -->
