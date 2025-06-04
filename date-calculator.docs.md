@@ -1,0 +1,3 @@
+This Date Calculator tool enables users to calculate and visualize the time span between two dates. Enter a start and end date, and the calculator provides comprehensive information including total days, business days, weekend days, and weeks elapsed. The visual timeline displays the selected date range with a marker for the current date, allowing for easy visualization of time periods.
+
+<!-- Generated from commit: 84f27fdb3fd331e34c87008e1276ad86f440f185 -->
