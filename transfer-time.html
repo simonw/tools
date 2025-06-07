@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transfer time calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .calculator {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+            transform: translateY(-10px);
+            animation: slideIn 0.6s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(-10px);
+            }
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.2em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #34495e;
+            font-size: 1.1em;
+        }
+
+        .input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #e0e6ed;
+            border-radius: 12px;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: white;
+        }
+
+        .unit-selector {
+            display: flex;
+            margin-top: 10px;
+            gap: 10px;
+        }
+
+        .unit-btn {
+            padding: 8px 16px;
+            border: 2px solid #e0e6ed;
+            background: #f8f9fa;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            flex: 1;
+            text-align: center;
+        }
+
+        .unit-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .unit-btn:hover:not(.active) {
+            background: #e9ecef;
+            border-color: #cbd5e0;
+        }
+
+        .result {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 30px;
+            border-left: 4px solid #667eea;
+            display: none;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .result h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .time-display {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .time-breakdown {
+            color: #6c757d;
+            font-size: 0.95em;
+            line-height: 1.4;
+        }
+
+        .calculation-details {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+
+        @media (max-width: 480px) {
+            .calculator {
+                padding: 30px 20px;
+                margin: 10px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            .unit-selector {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="calculator">
+        <h1>Transfer time calculator</h1>
+        
+        <div class="input-group">
+            <label for="fileSize">File size</label>
+            <input type="number" id="fileSize" placeholder="Enter file size" min="0" step="0.01">
+            <div class="unit-selector">
+                <div class="unit-btn active" data-unit="gb">GB</div>
+                <div class="unit-btn" data-unit="mb">MB</div>
+                <div class="unit-btn" data-unit="tb">TB</div>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="uploadSpeed">Transfer speed</label>
+            <input type="number" id="uploadSpeed" placeholder="Enter transfer speed" min="0" step="0.01">
+            <div class="unit-selector">
+                <div class="unit-btn" data-unit="mbps">MB/s</div>
+                <div class="unit-btn active" data-unit="mbits">Mbps</div>
+                <div class="unit-btn" data-unit="kbps">KB/s</div>
+            </div>
+        </div>
+
+
+
+        <div class="result" id="result">
+            <h3>Transfer time</h3>
+            <div class="time-display" id="mainTime"></div>
+            <div class="time-breakdown" id="breakdown"></div>
+            <div class="calculation-details" id="details"></div>
+        </div>
+    </div>
+
+    <script>
+        let fileSizeUnit = 'gb';
+        let speedUnit = 'mbits';
+
+        // Handle unit selection
+        document.querySelectorAll('.unit-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const group = this.parentElement;
+                const isFileSize = group.previousElementSibling.id === 'fileSize';
+                
+                // Remove active class from siblings
+                group.querySelectorAll('.unit-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Update selected unit
+                if (isFileSize) {
+                    fileSizeUnit = this.dataset.unit;
+                } else {
+                    speedUnit = this.dataset.unit;
+                }
+                
+                // Recalculate if both fields have values
+                autoCalculate();
+            });
+        });
+
+        // Auto-calculate when inputs change
+        document.getElementById('fileSize').addEventListener('input', autoCalculate);
+        document.getElementById('uploadSpeed').addEventListener('input', autoCalculate);
+        
+        function autoCalculate() {
+            const fileSizeInput = parseFloat(document.getElementById('fileSize').value);
+            const uploadSpeedInput = parseFloat(document.getElementById('uploadSpeed').value);
+            
+            if (fileSizeInput && uploadSpeedInput && fileSizeInput > 0 && uploadSpeedInput > 0) {
+                calculateUploadTime();
+            } else {
+                // Hide results if inputs are incomplete
+                document.getElementById('result').classList.remove('show');
+            }
+        }
+
+        function calculateUploadTime() {
+            const fileSizeInput = parseFloat(document.getElementById('fileSize').value);
+            const uploadSpeedInput = parseFloat(document.getElementById('uploadSpeed').value);
+
+            if (!fileSizeInput || !uploadSpeedInput || fileSizeInput <= 0 || uploadSpeedInput <= 0) {
+                return; // Don't show error for auto-calculation
+            }
+
+            // Convert file size to MB
+            let fileSizeMB;
+            switch(fileSizeUnit) {
+                case 'mb':
+                    fileSizeMB = fileSizeInput;
+                    break;
+                case 'gb':
+                    fileSizeMB = fileSizeInput * 1024;
+                    break;
+                case 'tb':
+                    fileSizeMB = fileSizeInput * 1024 * 1024;
+                    break;
+            }
+
+            // Convert upload speed to MB/s
+            let speedMBps;
+            switch(speedUnit) {
+                case 'mbps':
+                    speedMBps = uploadSpeedInput;
+                    break;
+                case 'mbits':
+                    speedMBps = uploadSpeedInput / 8; // Convert Mbits to MB/s
+                    break;
+                case 'kbps':
+                    speedMBps = uploadSpeedInput / 1024;
+                    break;
+            }
+
+            // Calculate time in seconds
+            const timeSeconds = fileSizeMB / speedMBps;
+            const timeMinutes = timeSeconds / 60;
+            const timeHours = timeMinutes / 60;
+            const timeDays = timeHours / 24;
+
+            // Format the main display time
+            let mainTimeText;
+            if (timeSeconds < 60) {
+                mainTimeText = `${Math.round(timeSeconds)} seconds`;
+            } else if (timeMinutes < 60) {
+                mainTimeText = `${timeMinutes.toFixed(1)} minutes`;
+            } else if (timeHours < 24) {
+                mainTimeText = `${timeHours.toFixed(1)} hours`;
+            } else {
+                mainTimeText = `${timeDays.toFixed(1)} days`;
+            }
+
+            // Create detailed breakdown
+            const hours = Math.floor(timeHours);
+            const minutes = Math.floor((timeHours - hours) * 60);
+            const seconds = Math.floor(((timeHours - hours) * 60 - minutes) * 60);
+            
+            let breakdownText = '';
+            if (timeDays >= 1) {
+                const days = Math.floor(timeDays);
+                const remainingHours = Math.floor((timeDays - days) * 24);
+                breakdownText = `${days} days, ${remainingHours} hours, ${minutes} minutes, ${seconds} seconds`;
+            } else if (timeHours >= 1) {
+                breakdownText = `${hours} hours, ${minutes} minutes, ${seconds} seconds`;
+            } else if (timeMinutes >= 1) {
+                breakdownText = `${minutes} minutes, ${seconds} seconds`;
+            } else {
+                breakdownText = `${Math.round(timeSeconds)} seconds`;
+            }
+
+            // Create calculation details
+            const fileSizeDisplay = fileSizeInput + ' ' + fileSizeUnit.toUpperCase();
+            const speedDisplay = uploadSpeedInput + ' ' + (speedUnit === 'mbits' ? 'Mbps' : speedUnit === 'mbps' ? 'MB/s' : 'KB/s');
+            const detailsText = `File: ${fileSizeDisplay} (${fileSizeMB.toLocaleString()} MB) • Speed: ${speedDisplay} (${speedMBps.toFixed(2)} MB/s)`;
+
+            // Display results
+            document.getElementById('mainTime').textContent = mainTimeText;
+            document.getElementById('breakdown').textContent = breakdownText;
+            document.getElementById('details').textContent = detailsText;
+            document.getElementById('result').classList.add('show');
+        }
+    </script>
+</body>
+</html>
