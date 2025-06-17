@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSON to Markdown Converter</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background-color: #f5f5f5;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 8px;
+  padding: 30px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  color: #333;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.info-note {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.info-note h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #495057;
+  font-size: 18px;
+}
+
+.info-note p {
+  margin-bottom: 10px;
+  color: #6c757d;
+}
+
+.info-note code {
+  display: block;
+  background-color: #343a40;
+  color: #f8f9fa;
+  padding: 12px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
+
+.converter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  margin-bottom: 20px;
+}
+
+.input-section, .output-section {
+  display: flex;
+  flex-direction: column;
+}
+
+label {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #555;
+}
+
+textarea {
+  width: 100%;
+  height: 300px;
+  padding: 12px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  resize: vertical;
+  transition: border-color 0.3s ease;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+.button-container {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  justify-content: center;
+}
+
+button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-family: Helvetica, Arial, sans-serif;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.copy-btn {
+  background-color: #2196F3;
+  color: white;
+}
+
+.copy-btn:hover {
+  background-color: #1976D2;
+}
+
+.error {
+  color: #f44336;
+  background-color: #ffebee;
+  padding: 10px;
+  border-radius: 4px;
+  margin-top: 10px;
+  display: none;
+}
+
+.success {
+  color: #4CAF50;
+  background-color: #e8f5e8;
+  padding: 10px;
+  border-radius: 4px;
+  margin-top: 10px;
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .converter-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .container {
+    padding: 20px;
+  }
+}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>JSON to Markdown transcript converter</h1>
+    
+    <div class="info-note">
+      <h3>Generate JSON from audio</h3>
+      <p>To create the JSON format this tool expects, use this <a href="https://llm.datasette.io/" target="_blank">LLM</a> command:</p>
+      <code>llm -m gemini-2.5-flash \<br>  -a path-to-audio \<br>  --schema-multi 'timestamp:mm:ss,speaker:best guess at name,text'</code>
+    </div>
+    
+    <div class="converter-grid">
+      <div class="input-section">
+        <label for="json-input">Paste your JSON here:</label>
+        <textarea 
+          id="json-input" 
+          placeholder='Paste your JSON here - conversion happens automatically!
+{"items": [{"speaker": "Speaker Name", "text": "Text here", "timestamp": "01:01"}]}'
+        ></textarea>
+      </div>
+      
+      <div class="output-section">
+        <label for="markdown-output">Markdown output:</label>
+        <textarea 
+          id="markdown-output" 
+          readonly
+          placeholder="Your formatted markdown will appear here..."
+        ></textarea>
+      </div>
+    </div>
+    
+    <div class="button-container">
+      <button class="copy-btn" onclick="copyToClipboard()">Copy Markdown</button>
+    </div>
+    
+    <div id="error-message" class="error"></div>
+    <div id="success-message" class="success"></div>
+  </div>
+
+<script type="module">
+function convertToMarkdown() {
+  const jsonInput = document.getElementById('json-input').value.trim();
+  const markdownOutput = document.getElementById('markdown-output');
+  const errorMessage = document.getElementById('error-message');
+  const successMessage = document.getElementById('success-message');
+  
+  // Clear previous messages
+  errorMessage.style.display = 'none';
+  successMessage.style.display = 'none';
+  
+  if (!jsonInput) {
+    showError('Please paste your JSON data first.');
+    return;
+  }
+  
+  try {
+    const data = JSON.parse(jsonInput);
+    
+    if (!data.items || !Array.isArray(data.items)) {
+      showError('JSON must contain an "items" array.');
+      return;
+    }
+    
+    let markdown = '';
+    
+    data.items.forEach((item, index) => {
+      if (!item.speaker || !item.text || !item.timestamp) {
+        showError(`Item ${index + 1} is missing required fields (speaker, text, timestamp).`);
+        return;
+      }
+      
+      // Format: **[timestamp] Speaker:** text
+      markdown += `**[${item.timestamp}] ${item.speaker}:** ${item.text}\n\n`;
+    });
+    
+    // Remove trailing newlines
+    markdown = markdown.trim();
+    
+    markdownOutput.value = markdown;
+    showSuccess(`Successfully converted ${data.items.length} items to Markdown!`);
+    
+  } catch (error) {
+    showError('Invalid JSON format. Please check your input.');
+  }
+}
+
+function copyToClipboard() {
+  const markdownOutput = document.getElementById('markdown-output');
+  const successMessage = document.getElementById('success-message');
+  
+  if (!markdownOutput.value.trim()) {
+    showError('No markdown to copy. Please paste valid JSON first.');
+    return;
+  }
+  
+  markdownOutput.select();
+  markdownOutput.setSelectionRange(0, 99999); // For mobile devices
+  
+  try {
+    document.execCommand('copy');
+    showSuccess('Markdown copied to clipboard!');
+  } catch (err) {
+    // Fallback for modern browsers
+    navigator.clipboard.writeText(markdownOutput.value).then(() => {
+      showSuccess('Markdown copied to clipboard!');
+    }).catch(() => {
+      showError('Failed to copy to clipboard. Please select and copy manually.');
+    });
+  }
+}
+
+function clearAll() {
+  document.getElementById('json-input').value = '';
+  document.getElementById('markdown-output').value = '';
+  document.getElementById('error-message').style.display = 'none';
+  document.getElementById('success-message').style.display = 'none';
+}
+
+function showError(message) {
+  const errorMessage = document.getElementById('error-message');
+  errorMessage.textContent = message;
+  errorMessage.style.display = 'block';
+  document.getElementById('success-message').style.display = 'none';
+}
+
+function showSuccess(message) {
+  const successMessage = document.getElementById('success-message');
+  successMessage.textContent = message;
+  successMessage.style.display = 'block';
+  document.getElementById('error-message').style.display = 'none';
+}
+
+// Auto-convert on input/paste
+document.getElementById('json-input').addEventListener('input', convertToMarkdown);
+document.getElementById('json-input').addEventListener('paste', () => {
+  // Small delay to ensure pasted content is available
+  setTimeout(convertToMarkdown, 10);
+});
+
+// Make functions globally available
+window.convertToMarkdown = convertToMarkdown;
+window.copyToClipboard = copyToClipboard;
+window.clearAll = clearAll;
+</script>
+</body>
+</html>
