@@ -1,3 +1,3 @@
-This web application allows you to interact with Google's Gemini AI models through a simple chat interface. Users can select different Gemini model versions, send messages, and receive responses in real-time with markdown rendering support. The app requires a Gemini API key on first use and displays usage metadata and response time for each interaction.
+This web application allows you to chat with Google's Gemini AI models through a simple interface. Enter your Gemini API key when prompted (it will be stored in your browser's local storage), select your preferred model from the dropdown menu, and start sending messages. The app displays conversation history, response times, and usage metadata for each interaction.
 
-<!-- Generated from commit: 06a135d665474cf6984659635f7712a8953a572e -->
+<!-- Generated from commit: 6432b3799baafcfbc4d8d9762d8b9b0bfe28c6f5 -->
