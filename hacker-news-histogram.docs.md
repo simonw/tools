@@ -1,0 +1,3 @@
+This tool allows you to compare search terms on Hacker News across time. Enter up to five search terms, select a start year, and the application generates a histogram showing the frequency of each term by month. Results are displayed visually in a chart, numerically in a table, and provided as JSON that can be copied to clipboard.
+
+<!-- Generated from commit: 5213d3598312daad66eee7d2ed8aa262ac281a4d -->
