@@ -1,0 +1,3 @@
+This tool helps you create FFmpeg crop commands visually by uploading a video and selecting the area you want to keep. After uploading a video file, drag and resize the green box to define your crop region, and the tool automatically generates the appropriate FFmpeg command with the correct crop parameters (width, height, x, and y coordinates).
+
+<!-- Generated from commit: 5ace25fa9c8f79eb70ed710b71a3340a52c510a1 -->
