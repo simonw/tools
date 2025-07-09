@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FFmpeg video crop</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+.file-input-container {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+input[type="file"] {
+  font-size: 16px;
+  padding: 10px;
+  border: 2px dashed #ddd;
+  border-radius: 4px;
+  width: 100%;
+  cursor: pointer;
+}
+
+input[type="file"]:hover {
+  border-color: #999;
+}
+
+.video-container {
+  position: relative;
+  display: inline-block;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.crop-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.crop-box {
+  position: absolute;
+  border: 2px solid #4CAF50;
+  background: rgba(76, 175, 80, 0.1);
+  cursor: move;
+  pointer-events: all;
+}
+
+.crop-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #4CAF50;
+  border: 2px solid white;
+  border-radius: 50%;
+}
+
+.crop-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
+.crop-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+.crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+.crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+
+.crop-dimensions {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.7);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.command-container {
+  background: #2d2d2d;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.command-label {
+  color: #999;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.command {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  color: #4CAF50;
+  background: #1a1a1a;
+  padding: 15px;
+  border-radius: 4px;
+  word-break: break-all;
+  user-select: all;
+  cursor: text;
+}
+
+.info {
+  background: #e3f2fd;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 20px;
+  font-size: 14px;
+  color: #1976d2;
+}
+
+.hidden {
+  display: none;
+}
+  </style>
+</head>
+<body>
+  <h1>FFmpeg video crop</h1>
+  
+  <div class="file-input-container">
+    <input type="file" id="videoInput" accept="video/*">
+  </div>
+  
+  <div class="video-container hidden" id="videoContainer">
+    <video id="video" controls></video>
+    <div class="crop-overlay" id="cropOverlay">
+      <div class="crop-box" id="cropBox">
+        <div class="crop-handle nw"></div>
+        <div class="crop-handle ne"></div>
+        <div class="crop-handle sw"></div>
+        <div class="crop-handle se"></div>
+        <div class="crop-dimensions" id="cropDimensions"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="command-container hidden" id="commandContainer">
+    <div class="command-label">FFmpeg command:</div>
+    <div class="command" id="ffmpegCommand"></div>
+  </div>
+  
+  <div class="info">
+    Upload a video file, then drag the green crop box to select the area you want to keep. The ffmpeg command will update automatically as you adjust the crop area.
+  </div>
+
+  <script type="module">
+const videoInput = document.getElementById('videoInput');
+const video = document.getElementById('video');
+const videoContainer = document.getElementById('videoContainer');
+const cropOverlay = document.getElementById('cropOverlay');
+const cropBox = document.getElementById('cropBox');
+const cropDimensions = document.getElementById('cropDimensions');
+const commandContainer = document.getElementById('commandContainer');
+const ffmpegCommand = document.getElementById('ffmpegCommand');
+
+let videoWidth = 0;
+let videoHeight = 0;
+let isDragging = false;
+let isResizing = false;
+let currentHandle = null;
+let startX = 0;
+let startY = 0;
+let startLeft = 0;
+let startTop = 0;
+let startWidth = 0;
+let startHeight = 0;
+
+// Initialize crop box position and size
+function initializeCropBox() {
+  const rect = video.getBoundingClientRect();
+  const overlayRect = cropOverlay.getBoundingClientRect();
+  
+  // Set initial crop box to 50% of video size, centered
+  const initialWidth = rect.width * 0.5;
+  const initialHeight = rect.height * 0.5;
+  const initialLeft = (rect.width - initialWidth) / 2;
+  const initialTop = (rect.height - initialHeight) / 2;
+  
+  cropBox.style.left = initialLeft + 'px';
+  cropBox.style.top = initialTop + 'px';
+  cropBox.style.width = initialWidth + 'px';
+  cropBox.style.height = initialHeight + 'px';
+  
+  updateCommand();
+}
+
+// Update ffmpeg command based on crop box
+function updateCommand() {
+  const rect = video.getBoundingClientRect();
+  const boxRect = cropBox.getBoundingClientRect();
+  const overlayRect = cropOverlay.getBoundingClientRect();
+  
+  // Calculate crop parameters relative to video dimensions
+  const scaleX = videoWidth / rect.width;
+  const scaleY = videoHeight / rect.height;
+  
+  const cropX = Math.round((boxRect.left - overlayRect.left) * scaleX);
+  const cropY = Math.round((boxRect.top - overlayRect.top) * scaleY);
+  const cropW = Math.round(boxRect.width * scaleX);
+  const cropH = Math.round(boxRect.height * scaleY);
+  
+  // Update dimensions display
+  cropDimensions.textContent = `${cropW} × ${cropH}`;
+  
+  // Update ffmpeg command
+  const inputFile = videoInput.files[0] ? videoInput.files[0].name : 'input.mp4';
+  const outputFile = inputFile.replace(/\.[^/.]+$/, '') + '_cropped.mp4';
+  
+  ffmpegCommand.textContent = `ffmpeg -i "${inputFile}" -vf "crop=${cropW}:${cropH}:${cropX}:${cropY}" -c:a copy "${outputFile}"`;
+}
+
+// Handle video file selection
+videoInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file && file.type.startsWith('video/')) {
+    const url = URL.createObjectURL(file);
+    video.src = url;
+    
+    video.addEventListener('loadedmetadata', () => {
+      videoWidth = video.videoWidth;
+      videoHeight = video.videoHeight;
+      
+      videoContainer.classList.remove('hidden');
+      commandContainer.classList.remove('hidden');
+      
+      // Wait for next frame to ensure video is rendered
+      requestAnimationFrame(() => {
+        initializeCropBox();
+      });
+    });
+  }
+});
+
+// Mouse events for dragging crop box
+cropBox.addEventListener('mousedown', (e) => {
+  if (e.target === cropBox || e.target.classList.contains('crop-dimensions')) {
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeft = cropBox.offsetLeft;
+    startTop = cropBox.offsetTop;
+    e.preventDefault();
+  }
+});
+
+// Mouse events for resizing handles
+document.querySelectorAll('.crop-handle').forEach(handle => {
+  handle.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    currentHandle = handle;
+    startX = e.clientX;
+    startY = e.clientY;
+    
+    const rect = cropBox.getBoundingClientRect();
+    const overlayRect = cropOverlay.getBoundingClientRect();
+    
+    startLeft = rect.left - overlayRect.left;
+    startTop = rect.top - overlayRect.top;
+    startWidth = rect.width;
+    startHeight = rect.height;
+    
+    e.preventDefault();
+    e.stopPropagation();
+  });
+});
+
+// Mouse move handler
+document.addEventListener('mousemove', (e) => {
+  if (isDragging) {
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+    
+    let newLeft = startLeft + deltaX;
+    let newTop = startTop + deltaY;
+    
+    // Constrain to video bounds
+    const maxLeft = cropOverlay.offsetWidth - cropBox.offsetWidth;
+    const maxTop = cropOverlay.offsetHeight - cropBox.offsetHeight;
+    
+    newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+    newTop = Math.max(0, Math.min(newTop, maxTop));
+    
+    cropBox.style.left = newLeft + 'px';
+    cropBox.style.top = newTop + 'px';
+    
+    updateCommand();
+  }
+  
+  if (isResizing && currentHandle) {
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+    
+    let newLeft = startLeft;
+    let newTop = startTop;
+    let newWidth = startWidth;
+    let newHeight = startHeight;
+    
+    if (currentHandle.classList.contains('nw')) {
+      newLeft = startLeft + deltaX;
+      newTop = startTop + deltaY;
+      newWidth = startWidth - deltaX;
+      newHeight = startHeight - deltaY;
+    } else if (currentHandle.classList.contains('ne')) {
+      newTop = startTop + deltaY;
+      newWidth = startWidth + deltaX;
+      newHeight = startHeight - deltaY;
+    } else if (currentHandle.classList.contains('sw')) {
+      newLeft = startLeft + deltaX;
+      newWidth = startWidth - deltaX;
+      newHeight = startHeight + deltaY;
+    } else if (currentHandle.classList.contains('se')) {
+      newWidth = startWidth + deltaX;
+      newHeight = startHeight + deltaY;
+    }
+    
+    // Minimum size constraints
+    if (newWidth >= 50 && newHeight >= 50) {
+      // Constrain to video bounds
+      if (newLeft >= 0 && newTop >= 0 && 
+          newLeft + newWidth <= cropOverlay.offsetWidth && 
+          newTop + newHeight <= cropOverlay.offsetHeight) {
+        
+        cropBox.style.left = newLeft + 'px';
+        cropBox.style.top = newTop + 'px';
+        cropBox.style.width = newWidth + 'px';
+        cropBox.style.height = newHeight + 'px';
+        
+        updateCommand();
+      }
+    }
+  }
+});
+
+// Mouse up handler
+document.addEventListener('mouseup', () => {
+  isDragging = false;
+  isResizing = false;
+  currentHandle = null;
+});
+
+// Update on window resize
+window.addEventListener('resize', () => {
+  if (!video.paused && videoWidth > 0) {
+    updateCommand();
+  }
+});
+  </script>
+</body>
+</html>
