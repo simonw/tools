@@ -128,6 +128,7 @@ video {
   word-break: break-all;
   user-select: all;
   cursor: text;
+  margin-bottom: 20px;
 }
 
 .info {
@@ -167,10 +168,12 @@ video {
   <div class="command-container hidden" id="commandContainer">
     <div class="command-label">FFmpeg command:</div>
     <div class="command" id="ffmpegCommand"></div>
+    <div class="command-label">Recommended settings for iPhone compatibility:</div>
+    <div class="command" id="ffmpegCommandIOS"></div>
   </div>
   
   <div class="info">
-    Upload a video file, then drag the green crop box to select the area you want to keep. The ffmpeg command will update automatically as you adjust the crop area.
+    Upload a video file, then drag the green crop box to select the area you want to keep. The ffmpeg commands will update automatically as you adjust the crop area.
   </div>
 
   <script type="module">
@@ -182,6 +185,7 @@ const cropBox = document.getElementById('cropBox');
 const cropDimensions = document.getElementById('cropDimensions');
 const commandContainer = document.getElementById('commandContainer');
 const ffmpegCommand = document.getElementById('ffmpegCommand');
+const ffmpegCommandIOS = document.getElementById('ffmpegCommandIOS');
 
 let videoWidth = 0;
 let videoHeight = 0;
@@ -198,7 +202,6 @@ let startHeight = 0;
 // Initialize crop box position and size
 function initializeCropBox() {
   const rect = video.getBoundingClientRect();
-  const overlayRect = cropOverlay.getBoundingClientRect();
   
   // Set initial crop box to 50% of video size, centered
   const initialWidth = rect.width * 0.5;
@@ -206,15 +209,15 @@ function initializeCropBox() {
   const initialLeft = (rect.width - initialWidth) / 2;
   const initialTop = (rect.height - initialHeight) / 2;
   
-  cropBox.style.left = initialLeft + 'px';
-  cropBox.style.top = initialTop + 'px';
-  cropBox.style.width = initialWidth + 'px';
-  cropBox.style.height = initialHeight + 'px';
+  cropBox.style.left = `${initialLeft}px`;
+  cropBox.style.top = `${initialTop}px`;
+  cropBox.style.width = `${initialWidth}px`;
+  cropBox.style.height = `${initialHeight}px`;
   
   updateCommand();
 }
 
-// Update ffmpeg command based on crop box
+// Update ffmpeg commands based on crop box
 function updateCommand() {
   const rect = video.getBoundingClientRect();
   const boxRect = cropBox.getBoundingClientRect();
@@ -232,11 +235,17 @@ function updateCommand() {
   // Update dimensions display
   cropDimensions.textContent = `${cropW} × ${cropH}`;
   
-  // Update ffmpeg command
+  // Build file names
   const inputFile = videoInput.files[0] ? videoInput.files[0].name : 'input.mp4';
-  const outputFile = inputFile.replace(/\.[^/.]+$/, '') + '_cropped.mp4';
+  const baseName = inputFile.replace(/\.[^/.]+$/, '');
+  const outputFile = `${baseName}_cropped.mp4`;
+  const outputFileIOS = `${baseName}_cropped_ios.mp4`;
   
+  // Standard command
   ffmpegCommand.textContent = `ffmpeg -i "${inputFile}" -vf "crop=${cropW}:${cropH}:${cropX}:${cropY}" -c:a copy "${outputFile}"`;
+  
+  // iPhone‑friendly command
+  ffmpegCommandIOS.textContent = `ffmpeg -i "${inputFile}" -vf "crop=${cropW}:${cropH}:${cropX}:${cropY}" -c:v libx264 -profile:v main -level 3.1 -pix_fmt yuv420p -c:a copy "${outputFileIOS}"`;
 }
 
 // Handle video file selection
@@ -254,10 +263,8 @@ videoInput.addEventListener('change', (e) => {
       commandContainer.classList.remove('hidden');
       
       // Wait for next frame to ensure video is rendered
-      requestAnimationFrame(() => {
-        initializeCropBox();
-      });
-    });
+      requestAnimationFrame(initializeCropBox);
+    }, { once: true });
   }
 });
 
@@ -310,8 +317,8 @@ document.addEventListener('mousemove', (e) => {
     newLeft = Math.max(0, Math.min(newLeft, maxLeft));
     newTop = Math.max(0, Math.min(newTop, maxTop));
     
-    cropBox.style.left = newLeft + 'px';
-    cropBox.style.top = newTop + 'px';
+    cropBox.style.left = `${newLeft}px`;
+    cropBox.style.top = `${newTop}px`;
     
     updateCommand();
   }
@@ -346,15 +353,15 @@ document.addEventListener('mousemove', (e) => {
     // Minimum size constraints
     if (newWidth >= 50 && newHeight >= 50) {
       // Constrain to video bounds
-      if (newLeft >= 0 && newTop >= 0 && 
-          newLeft + newWidth <= cropOverlay.offsetWidth && 
-          newTop + newHeight <= cropOverlay.offsetHeight) {
-        
-        cropBox.style.left = newLeft + 'px';
-        cropBox.style.top = newTop + 'px';
-        cropBox.style.width = newWidth + 'px';
-        cropBox.style.height = newHeight + 'px';
-        
+      if (
+        newLeft >= 0 && newTop >= 0 &&
+        newLeft + newWidth <= cropOverlay.offsetWidth &&
+        newTop + newHeight <= cropOverlay.offsetHeight
+      ) {
+        cropBox.style.left = `${newLeft}px`;
+        cropBox.style.top = `${newTop}px`;
+        cropBox.style.width = `${newWidth}px`;
+        cropBox.style.height = `${newHeight}px`;
         updateCommand();
       }
     }
