@@ -1,3 +1,3 @@
-This page displays Hacker News front page stories with customizable filtering. Enter comma-separated terms in the input field to exclude stories containing those words. The filtered stories display with their title, points, author, comment count, and posting time. Your filter preferences are saved between visits, and you can refresh the content anytime with the Refresh button.
+This web app retrieves and displays Hacker News front page stories with customizable filtering. Enter comma-separated terms in the input field to exclude stories containing those keywords. The app saves your filter preferences in local storage and shows the story title, points, author, comment count, and time since posting for each filtered result.
 
-<!-- Generated from commit: a5a79cad11030e652f9cb2e38cd7ad938d9f97c9 -->
+<!-- Generated from commit: f95b306be7b584f38825607ca6ac253885b4010f -->
