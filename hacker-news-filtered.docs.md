@@ -1,0 +1,3 @@
+This page displays filtered Hacker News stories from the front page, allowing you to exclude content containing specific terms. Enter comma-separated keywords in the filter box to remove stories containing those terms from the results. The page remembers your filter preferences between visits and displays each story with its points, author, and age.
+
+<!-- Generated from commit: 7a3cb5c4328dfb380bf48a1639f243f073aa828b -->
