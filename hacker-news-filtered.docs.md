@@ -1,3 +1,3 @@
-This web app retrieves and displays Hacker News front page stories with customizable filtering. Enter comma-separated terms in the input field to exclude stories containing those keywords. The app saves your filter preferences in local storage and shows the story title, points, author, comment count, and time since posting for each filtered result.
+This page displays a filtered view of Hacker News stories. Users can customize their feed by entering comma-separated terms to exclude from results—for example, filtering out stories containing "ai" or "llm". The interface shows up to 200 top stories with their scores, author information, comment counts, and relative posting times, allowing users to focus on content that matters to them.
 
-<!-- Generated from commit: f95b306be7b584f38825607ca6ac253885b4010f -->
+<!-- Generated from commit: ccde4586a1d95ce9f561580e83c5dafa0eda0935 -->
