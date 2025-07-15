@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hacker News, filtered</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --accent: #ff6600;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 800px;
+      padding: 1rem;
+      line-height: 1.4;
+    }
+    h1 {
+      color: var(--accent);
+      margin: 0 0 1rem;
+      font-size: 1.5rem;
+    }
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      align-items: center;
+    }
+    #filterInput {
+      flex: 1 1 250px;
+      padding: 0.5rem;
+      font-size: 1rem;
+    }
+    button {
+      padding: 0.5rem 0.75rem;
+      font-size: 1rem;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    li {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #eee;
+    }
+    li a {
+      color: inherit;
+      text-decoration: none;
+    }
+    li a:hover {
+      text-decoration: underline;
+    }
+    .meta {
+      font-size: 0.85rem;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hacker News, filtered</h1>
+  <div id="controls">
+    <label for="filterInput">Exclude terms (comma‑separated):</label>
+    <input id="filterInput" type="text" placeholder="llm, ai" />
+    <button id="refreshBtn">Refresh</button>
+  </div>
+  <p id="status">Loading…</p>
+  <ul id="stories"></ul>
+
+  <script>
+    const API_URL = "https://hn.algolia.com/api/v1/search?tags=front_page";
+    const LS_KEY = "hnFilterTerms";
+
+    const filterInput = document.getElementById("filterInput");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const statusEl = document.getElementById("status");
+    const storiesEl = document.getElementById("stories");
+
+    function loadFilterTerms() {
+      const saved = localStorage.getItem(LS_KEY);
+      return saved ? saved.split(/\s*,\s*/).filter(Boolean) : ["llm", "ai"];
+    }
+
+    function saveFilterTerms(terms) {
+      localStorage.setItem(LS_KEY, terms.join(", "));
+    }
+
+    function getFilterTerms() {
+      return filterInput.value.trim().split(/\s*,\s*/).filter(Boolean).map(t => t.toLowerCase());
+    }
+
+    function msSince(dateStr) {
+      return Date.now() - new Date(dateStr).getTime();
+    }
+
+    function timeAgo(dateStr) {
+      const ms = msSince(dateStr);
+      const minutes = Math.floor(ms / 60000);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      return `${days}d ago`;
+    }
+
+    async function fetchStories() {
+      statusEl.textContent = "Loading…";
+      refreshBtn.disabled = true;
+      try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        return data.hits || [];
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Failed to fetch stories.";
+        return [];
+      } finally {
+        refreshBtn.disabled = false;
+      }
+    }
+
+    function filterStories(hits, terms) {
+      if (!terms.length) return hits;
+      return hits.filter(hit => {
+        const haystack = `${hit.title} ${hit.url || ""} ${hit.story_text || ""}`.toLowerCase();
+        return !terms.some(term => haystack.includes(term));
+      });
+    }
+
+    function renderStories(hits) {
+      storiesEl.innerHTML = "";
+      if (!hits.length) {
+        statusEl.textContent = "No stories after applying filter.";
+        return;
+      }
+      statusEl.textContent = `${hits.length} stories shown`;
+      const frag = document.createDocumentFragment();
+      hits.forEach(hit => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = hit.title;
+        li.appendChild(a);
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.innerHTML = `${hit.points} points by ${hit.author} | <a href=\"https://news.ycombinator.com/item?id=${hit.objectID}\" target=\"_blank\" rel=\"noopener\">comments</a> | ${timeAgo(hit.created_at)}`;
+        li.appendChild(meta);
+        frag.appendChild(li);
+      });
+      storiesEl.appendChild(frag);
+    }
+
+    async function refresh() {
+      const terms = getFilterTerms();
+      saveFilterTerms(terms);
+      const hits = await fetchStories();
+      renderStories(filterStories(hits, terms));
+    }
+
+    // Init
+    document.addEventListener("DOMContentLoaded", () => {
+      // Load saved filters
+      const initialTerms = loadFilterTerms();
+      filterInput.value = initialTerms.join(", ");
+      refresh();
+    });
+
+    // Listeners
+    refreshBtn.addEventListener("click", refresh);
+    filterInput.addEventListener("keyup", (e) => {
+      if (e.key === "Enter") refresh();
+    });
+  </script>
+</body>
+</html>
