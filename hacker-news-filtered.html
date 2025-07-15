@@ -68,6 +68,10 @@
     .meta a {
       color: #555;
     }
+    .loading {
+      color: #999;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -81,13 +85,17 @@
   <ul id="stories"></ul>
 
   <script>
-    const API_URL = "https://hn.algolia.com/api/v1/search?tags=front_page";
+    const API_TOP = 'https://hacker-news.firebaseio.com/v0/topstories.json';
+    const API_ITEM = id => `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
+    const POSTS_TO_FETCH = 200;
     const LS_KEY = "hnFilterTerms";
 
     const filterInput = document.getElementById("filterInput");
     const refreshBtn = document.getElementById("refreshBtn");
     const statusEl = document.getElementById("status");
     const storiesEl = document.getElementById("stories");
+
+    let allStories = []; // Store all fetched stories
 
     function loadFilterTerms() {
       const saved = localStorage.getItem(LS_KEY);
@@ -102,75 +110,127 @@
       return filterInput.value.trim().split(/\s*,\s*/).filter(Boolean).map(t => t.toLowerCase());
     }
 
-    function msSince(dateStr) {
-      return Date.now() - new Date(dateStr).getTime();
+    function timeAgo(unixSeconds) {
+      const seconds = Math.floor(Date.now() / 1000) - unixSeconds;
+      const intervals = [
+        { d: 60,    n: 'second' },
+        { d: 60,    n: 'minute' },
+        { d: 24,    n: 'hour'   },
+        { d: 7,     n: 'day'    },
+        { d: 4.345, n: 'week'   },
+        { d: 12,    n: 'month'  },
+        { d: 1e9,   n: 'year'   } // effectively "else"
+      ];
+
+      let count = seconds, i = 0;
+      while (count >= intervals[i].d) {
+        count /= intervals[i].d;
+        i++;
+      }
+
+      count = Math.floor(count);
+      const unit = intervals[i].n + (count !== 1 ? 's' : '');
+      return `${count} ${unit} ago`;
     }
 
-    function timeAgo(dateStr) {
-      const ms = msSince(dateStr);
-      const minutes = Math.floor(ms / 60000);
-      if (minutes < 60) return `${minutes}m ago`;
-      const hours = Math.floor(minutes / 60);
-      if (hours < 24) return `${hours}h ago`;
-      const days = Math.floor(hours / 24);
-      return `${days}d ago`;
+    function escapeHTML(str) {
+      if (!str) return '';
+      return str.replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
     }
 
-    async function fetchStories() {
-      statusEl.textContent = "Loading…";
-      refreshBtn.disabled = true;
+    async function fetchStory(id) {
       try {
-        const res = await fetch(API_URL);
-        const data = await res.json();
-        return data.hits || [];
+        const res = await fetch(API_ITEM(id));
+        const story = await res.json();
+        return story;
       } catch (err) {
-        console.error(err);
+        console.error(`Failed to fetch story ${id}:`, err);
+        return null;
+      }
+    }
+
+    async function loadTopStories() {
+      statusEl.textContent = "Loading top stories…";
+      refreshBtn.disabled = true;
+      
+      try {
+        // Fetch top story IDs
+        const res = await fetch(API_TOP);
+        const ids = await res.json();
+        
+        // Fetch story details for the first POSTS_TO_FETCH stories
+        const storyPromises = ids.slice(0, POSTS_TO_FETCH).map(fetchStory);
+        
+        statusEl.textContent = `Loading ${POSTS_TO_FETCH} stories…`;
+        
+        // Wait for all stories to load
+        const stories = await Promise.all(storyPromises);
+        
+        // Filter out null/failed stories and stories without titles
+        allStories = stories.filter(story => story && story.title);
+        
+        // Apply current filter and render
+        applyFilterAndRender();
+        
+      } catch (err) {
+        console.error('Failed to load stories:', err);
         statusEl.textContent = "Failed to fetch stories.";
-        return [];
+        allStories = [];
       } finally {
         refreshBtn.disabled = false;
       }
     }
 
-    function filterStories(hits, terms) {
-      if (!terms.length) return hits;
-      return hits.filter(hit => {
-        const haystack = `${hit.title} ${hit.url || ""} ${hit.story_text || ""}`.toLowerCase();
+    function filterStories(stories, terms) {
+      if (!terms.length) return stories;
+      return stories.filter(story => {
+        const haystack = `${story.title} ${story.url || ""} ${story.text || ""}`.toLowerCase();
         return !terms.some(term => haystack.includes(term));
       });
     }
 
-    function renderStories(hits) {
+    function renderStories(stories) {
       storiesEl.innerHTML = "";
-      if (!hits.length) {
-        statusEl.textContent = "No stories after applying filter.";
+      
+      if (!stories.length) {
+        statusEl.textContent = allStories.length ? "No stories after applying filter." : "No stories loaded.";
         return;
       }
-      statusEl.textContent = `${hits.length} stories shown`;
+      
+      statusEl.textContent = `${stories.length} stories shown (of ${allStories.length} loaded)`;
+      
       const frag = document.createDocumentFragment();
-      hits.forEach(hit => {
+      stories.forEach(story => {
         const li = document.createElement("li");
+        
         const a = document.createElement("a");
-        a.href = hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`;
+        a.href = story.url || `https://news.ycombinator.com/item?id=${story.id}`;
         a.target = "_blank";
         a.rel = "noopener";
-        a.textContent = hit.title;
+        a.textContent = story.title;
         li.appendChild(a);
 
         const meta = document.createElement("div");
         meta.className = "meta";
-        meta.innerHTML = `${hit.points} points by <a href=\"https://news.ycombinator.com/user?id=${hit.author}\" target=\"_blank\" rel=\"noopener\">${hit.author}</a> | <a href=\"https://news.ycombinator.com/item?id=${hit.objectID}\" target=\"_blank\" rel=\"noopener\">${hit.num_comments} comments</a> | <span title=\"${hit.created_at}\">${timeAgo(hit.created_at)}</span>`;
+        meta.innerHTML = `${story.score || 0} points by <a href="https://news.ycombinator.com/user?id=${story.by}" target="_blank" rel="noopener">${escapeHTML(story.by)}</a> | <a href="https://news.ycombinator.com/item?id=${story.id}" target="_blank" rel="noopener">${story.descendants || 0} comments</a> | ${timeAgo(story.time)}`;
         li.appendChild(meta);
+        
         frag.appendChild(li);
       });
       storiesEl.appendChild(frag);
     }
 
-    async function refresh() {
+    function applyFilterAndRender() {
       const terms = getFilterTerms();
       saveFilterTerms(terms);
-      const hits = await fetchStories();
-      renderStories(filterStories(hits, terms));
+      const filteredStories = filterStories(allStories, terms);
+      renderStories(filteredStories);
+    }
+
+    async function refresh() {
+      await loadTopStories();
     }
 
     // Init
@@ -184,7 +244,9 @@
     // Listeners
     refreshBtn.addEventListener("click", refresh);
     filterInput.addEventListener("keyup", (e) => {
-      if (e.key === "Enter") refresh();
+      if (e.key === "Enter") {
+        applyFilterAndRender(); // Just re-filter existing stories
+      }
     });
   </script>
 </body>
