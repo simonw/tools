@@ -110,27 +110,22 @@
       return filterInput.value.trim().split(/\s*,\s*/).filter(Boolean).map(t => t.toLowerCase());
     }
 
-    function timeAgo(unixSeconds) {
-      const seconds = Math.floor(Date.now() / 1000) - unixSeconds;
-      const intervals = [
-        { d: 60,    n: 'second' },
-        { d: 60,    n: 'minute' },
-        { d: 24,    n: 'hour'   },
-        { d: 7,     n: 'day'    },
-        { d: 4.345, n: 'week'   },
-        { d: 12,    n: 'month'  },
-        { d: 1e9,   n: 'year'   } // effectively "else"
-      ];
+    function msSince(dateStr) {
+      return Date.now() - new Date(dateStr).getTime();
+    }
 
-      let count = seconds, i = 0;
-      while (count >= intervals[i].d) {
-        count /= intervals[i].d;
-        i++;
-      }
+    function timeAgo(dateStr) {
+      const ms = msSince(dateStr);
+      const minutes = Math.floor(ms / 60000);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      return `${days}d ago`;
+    }
 
-      count = Math.floor(count);
-      const unit = intervals[i].n + (count !== 1 ? 's' : '');
-      return `${count} ${unit} ago`;
+    function unixToDateString(unixSeconds) {
+      return new Date(unixSeconds * 1000).toISOString();
     }
 
     function escapeHTML(str) {
@@ -214,7 +209,8 @@
 
         const meta = document.createElement("div");
         meta.className = "meta";
-        meta.innerHTML = `${story.score || 0} points by <a href="https://news.ycombinator.com/user?id=${story.by}" target="_blank" rel="noopener">${escapeHTML(story.by)}</a> | <a href="https://news.ycombinator.com/item?id=${story.id}" target="_blank" rel="noopener">${story.descendants || 0} comments</a> | ${timeAgo(story.time)}`;
+        const dateString = unixToDateString(story.time);
+        meta.innerHTML = `${story.score || 0} points by <a href="https://news.ycombinator.com/user?id=${story.by}" target="_blank" rel="noopener">${escapeHTML(story.by)}</a> | <a href="https://news.ycombinator.com/item?id=${story.id}" target="_blank" rel="noopener">${story.descendants || 0} comments</a> | <span title="${dateString}">${timeAgo(dateString)}</span>`;
         li.appendChild(meta);
         
         frag.appendChild(li);
