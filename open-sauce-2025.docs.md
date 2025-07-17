@@ -1,0 +1,3 @@
+This page displays the schedule for the Open Sauce 2025 conference taking place July 25-27, 2025. The schedule is organized by day (Friday, Saturday, Sunday) with each session showing time, location, description, and speaker information. Users can download the complete schedule as an ICS calendar file for integration with their calendar applications.
+
+<!-- Generated from commit: bb5b4b49b2a38729eca39a51cb13cb3eae07978e -->
