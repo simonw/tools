@@ -206,6 +206,29 @@
             font-size: 1.2rem;
             margin-top: 50px;
         }
+        .now-next {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .now-next h2 {
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: none;
+            margin: 20px 0;
+        }
 
         @media (max-width: 768px) {
             .container {
@@ -243,6 +266,9 @@
             <p style="margin-top: 10px;"><a href="https://simonwillison.net/2025/Jul/17/vibe-scraping/" style="color: white">How I built this</a></p>
         </div>
 
+        <div id="nowNext" class="now-next"></div>
+        <input id="searchInput" class="search-input" type="search" placeholder="Search sessions..." aria-label="Search sessions">
+
         <div class="day-tabs" role="tablist">
             <button id="tab-friday" class="day-tab active" role="tab" aria-controls="friday" aria-selected="true" onclick="showDay('friday', event)">Friday 18th</button>
             <button id="tab-saturday" class="day-tab" role="tab" aria-controls="saturday" aria-selected="false" tabindex="-1" onclick="showDay('saturday', event)">Saturday 19th</button>
@@ -258,6 +284,7 @@
 
     <script>
         let scheduleData = {};
+        let allSessions = [];
 
         async function loadSchedule() {
             try {
@@ -266,6 +293,9 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 scheduleData = await response.json();
+                buildAllSessions();
+                updateNowAndNext();
+                setInterval(updateNowAndNext, 60000);
                 
                 renderSchedule();
                 document.getElementById('loading').style.display = 'none';
@@ -275,13 +305,30 @@
             }
         }
 
-        function renderSchedule() {
+        function renderSchedule(filter = "") {
             const days = ['friday', 'saturday', 'sunday'];
-            
+            const f = filter.toLowerCase();
+
             days.forEach(day => {
                 const dayContainer = document.getElementById(day);
-                const sessions = scheduleData[day] || [];
-                
+                let sessions = scheduleData[day] || [];
+                if (f) {
+                    sessions = sessions.filter(session => {
+                        const combined = [
+                            session.time,
+                            session.title,
+                            session.description,
+                            session.where,
+                            session.speakers ? session.speakers.map(s => s.name).join(' ') : '',
+                            session.moderator ? session.moderator.name : ''
+                        ].join(' ').toLowerCase();
+                        return combined.includes(f);
+                    });
+                }
+                if (sessions.length === 0) {
+                    dayContainer.innerHTML = '<p style="color:white">No sessions found.</p>';
+                    return;
+                }
                 dayContainer.innerHTML = sessions.map(session => `
                     <div class="session-card">
                         <div class="session-header">
@@ -359,6 +406,47 @@
             const hours = Math.floor(minutes / 60);
             const mins = minutes % 60;
             return `${hours.toString().padStart(2, '0')}${mins.toString().padStart(2, '0')}00`;
+        }
+
+        function buildAllSessions() {
+            const order = ['friday', 'saturday', 'sunday'];
+            allSessions = [];
+            order.forEach((day, i) => {
+                const sessions = scheduleData[day] || [];
+                sessions.forEach(session => {
+                    const start = timeToMinutes(session.time) + i * 1440;
+                    const end = start + parseInt(session.length);
+                    allSessions.push({ ...session, day, start, end });
+                });
+            });
+            allSessions.sort((a, b) => a.start - b.start);
+        }
+
+        function updateNowAndNext() {
+            if (!allSessions.length) return;
+            const startDate = new Date('2025-07-18T00:00:00-07:00');
+            const pacificNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+            const minutesNow = Math.floor((pacificNow - startDate) / 60000);
+
+            let current = null;
+            let next = null;
+            for (const session of allSessions) {
+                if (minutesNow >= session.start && minutesNow < session.end) {
+                    current = session;
+                } else if (session.start > minutesNow && !next) {
+                    next = session;
+                }
+            }
+
+            const container = document.getElementById('nowNext');
+            let html = '';
+            if (current) {
+                html += `<h2>Happening Now</h2><p>${current.time} – ${current.title} (${current.where})</p>`;
+            }
+            if (next) {
+                html += `<h2 style="margin-top:10px;">Up Next</h2><p>${next.time} – ${next.title} (${next.where})</p>`;
+            }
+            container.innerHTML = html || '<p>No upcoming sessions.</p>';
         }
 
         function downloadICS() {
@@ -449,6 +537,10 @@ END:VEVENT
             icsContent += 'END:VCALENDAR';
             return icsContent;
         }
+
+        document.getElementById('searchInput').addEventListener('input', e => {
+            renderSchedule(e.target.value);
+        });
 
         // Load schedule when page loads
         loadSchedule();
