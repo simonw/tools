@@ -1,49 +1,397 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Drag and Drop Image</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drag and Drop Image Optimizer</title>
   <style>
-    #dropzone {
-      width: 500px;
-      height: 100px;
-      border: 2px dashed #ccc;
-      text-align: center;
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
       padding: 20px;
-      margin-bottom: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
     }
-    #output {
-      width: 500px;
-      margin-bottom: 20px;
-    }
-    textarea {
-      width: 500px;
-      height: 100px;
-    }
+
     .container {
-      margin-bottom: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
     }
+
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 24px;
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    #dropzone {
+      width: 100%;
+      min-height: 120px;
+      border: 3px dashed #667eea;
+      border-radius: 12px;
+      text-align: center;
+      padding: 24px;
+      margin-bottom: 24px;
+      background: linear-gradient(45deg, #f8f9ff, #f0f2ff);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #667eea;
+      font-weight: 500;
+      font-size: 16px;
+    }
+
+    #dropzone:hover {
+      border-color: #5a67d8;
+      background: linear-gradient(45deg, #f0f2ff, #e8ebff);
+      transform: translateY(-2px);
+    }
+
+    #dropzone.dragover {
+      border-color: #4c51bf;
+      background: linear-gradient(45deg, #e8ebff, #ddd6fe);
+      transform: scale(1.02);
+    }
+
     #fileInput {
       display: none;
+    }
+
+    .controls {
+      margin-bottom: 24px;
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    .control-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #374151;
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #qualityRange {
+      flex: 1;
+      height: 8px;
+      border-radius: 4px;
+      background: #e5e7eb;
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    #qualityRange::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #667eea;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    #qualityRange::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #667eea;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .quality-value {
+      background: #667eea;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      min-width: 40px;
+      text-align: center;
+    }
+
+    .size-info {
+      background: #f3f4f6;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: 500;
+      color: #374151;
+    }
+
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 60px;
+      height: 30px;
+      background: #e5e7eb;
+      border-radius: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .toggle.active {
+      background: #667eea;
+    }
+
+    .toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 24px;
+      height: 24px;
+      background: white;
+      border-radius: 50%;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .toggle.active .toggle-thumb {
+      transform: translateX(30px);
+    }
+
+    .toggle-label {
+      font-weight: 500;
+      color: #374151;
+    }
+
+    #output {
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      border-radius: 12px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      display: none;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+
+    #output.active {
+      display: block;
+    }
+
+    #output:active {
+      transform: scale(0.98);
+    }
+
+    .data-uri-container {
+      margin-bottom: 20px;
+    }
+
+    .data-uri-container label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #374151;
+    }
+
+    .download-btn {
+      display: none;
+      width: 100%;
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+    }
+
+    .download-btn:hover {
+      background: #5a67d8;
+      transform: translateY(-1px);
+    }
+
+    .download-btn.active {
+      display: block;
+    }
+
+    .copy-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .copy-btn {
+      background: #f3f4f6;
+      border: 2px solid #e5e7eb;
+      color: #374151;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .copy-btn:hover {
+      background: #e5e7eb;
+      border-color: #d1d5db;
+    }
+
+    .copy-btn.success {
+      background: #10b981;
+      border-color: #10b981;
+      color: white;
+    }
+
+    #imgDataUri {
+      width: 100%;
+      height: 120px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      background: #f9fafb;
+      resize: vertical;
+    }
+
+    .preview-hint {
+      text-align: center;
+      color: #6b7280;
+      font-size: 14px;
+      margin-top: 8px;
+      margin-bottom: 16px;
+      font-style: italic;
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 12px;
+      }
+      
+      .container {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      #dropzone {
+        min-height: 100px;
+        padding: 20px;
+        font-size: 14px;
+      }
+
+      .slider-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+      }
+
+      .toggle-container {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      #imgDataUri {
+        height: 100px;
+        font-size: 11px;
+      }
     }
   </style>
 </head>
 <body>
-  <div id="dropzone">Click or drag and drop an image here</div>
-  <input type="file" id="fileInput" accept="image/*">
   <div class="container">
-    <label for="qualityRange">JPEG Quality: <span id="qualityValue">75</span></label><br>
-    <input type="range" id="qualityRange" min="0" max="100" value="75" />
+    <h1>🖼️ Image Optimizer</h1>
+    
+    <div id="dropzone">Click or drag and drop an image here</div>
+    <input type="file" id="fileInput" accept="image/*">
+    
+    <div class="controls">
+      <div class="control-group">
+        <label for="qualityRange">JPEG Quality</label>
+        <div class="slider-container">
+          <input type="range" id="qualityRange" min="0" max="100" value="75" />
+          <span class="quality-value" id="qualityValue">75</span>
+        </div>
+      </div>
+      
+      <div class="control-group">
+        <div class="size-info" id="jpegSize">Upload an image to see compression results</div>
+      </div>
+      
+      <div class="control-group">
+        <div class="toggle-container">
+          <span class="toggle-label">Optimized</span>
+          <div class="toggle" id="viewToggle">
+            <div class="toggle-thumb"></div>
+          </div>
+          <span class="toggle-label">Original</span>
+        </div>
+      </div>
+    </div>
+
+    <img id="output" src="" alt="Processed Image" />
+    <div class="preview-hint" id="previewHint" style="display: none;">
+      Hold down on the image to see the <span id="previewText">original</span>
+    </div>
+    
+    <button class="download-btn" id="downloadBtn">📥 Download Optimized Image</button>
+    
+    <div class="data-uri-container">
+      <div class="copy-container">
+        <label for="imgDataUri">Image Data URI:</label>
+        <button class="copy-btn" id="copyBtn">Copy to Clipboard</button>
+      </div>
+      <textarea id="imgDataUri" readonly placeholder="Processed image data will appear here..."></textarea>
+    </div>
   </div>
-  <img id="output" src="" alt="Converted Image" /><br>
-  <div class="container">
-    <label for="imgDataUri">Image Data URI:</label><br>
-    <textarea id="imgDataUri" readonly></textarea>
-  </div>
-  <div id="jpegSize">JPEG Size: 0 bytes</div>
 
   <script>
     const dropzone = document.getElementById('dropzone');
     const fileInput = document.getElementById('fileInput');
+    const output = document.getElementById('output');
+    const imgDataUri = document.getElementById('imgDataUri');
+    const qualityRange = document.getElementById('qualityRange');
+    const qualityValue = document.getElementById('qualityValue');
+    const jpegSize = document.getElementById('jpegSize');
+    const viewToggle = document.getElementById('viewToggle');
+    const previewHint = document.getElementById('previewHint');
+    const previewText = document.getElementById('previewText');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    
+    let originalSrc;
+    let optimizedSrc;
+    let isShowingOriginal = false;
+    let isPressed = false;
+
+    // File input handlers
     dropzone.addEventListener('click', () => {
       fileInput.click();
     });
@@ -53,7 +401,7 @@
       if (file && file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (e) => {
-          imgSrc = e.target.result;
+          originalSrc = e.target.result;
           updateImage();
         };
         reader.readAsDataURL(file);
@@ -61,31 +409,26 @@
         alert('Please select an image file.');
       }
     });
-    const output = document.getElementById('output');
-    const imgDataUri = document.getElementById('imgDataUri');
-    const qualityRange = document.getElementById('qualityRange');
-    const qualityValue = document.getElementById('qualityValue');
-    const jpegSize = document.getElementById('jpegSize');
-    let imgSrc;
 
+    // Drag and drop handlers
     dropzone.addEventListener('dragover', (e) => {
       e.preventDefault();
-      dropzone.style.backgroundColor = '#f0f0f0';
+      dropzone.classList.add('dragover');
     });
 
     dropzone.addEventListener('dragleave', () => {
-      dropzone.style.backgroundColor = '';
+      dropzone.classList.remove('dragover');
     });
 
     dropzone.addEventListener('drop', (e) => {
       e.preventDefault();
-      dropzone.style.backgroundColor = '';
+      dropzone.classList.remove('dragover');
 
       const file = e.dataTransfer.files[0];
       if (file && file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (e) => {
-          imgSrc = e.target.result;
+          originalSrc = e.target.result;
           updateImage();
         };
         reader.readAsDataURL(file);
@@ -94,30 +437,160 @@
       }
     });
 
+    // Quality slider handler
     qualityRange.addEventListener('input', () => {
       qualityValue.textContent = qualityRange.value;
       updateImage();
     });
 
+    // Toggle handler
+    viewToggle.addEventListener('click', () => {
+      viewToggle.classList.toggle('active');
+      updateDisplayedImage();
+      updatePreviewHint();
+    });
+
+    // Download button handler
+    downloadBtn.addEventListener('click', () => {
+      if (optimizedSrc) {
+        const link = document.createElement('a');
+        link.download = 'optimized-image.jpg';
+        link.href = optimizedSrc;
+        link.click();
+      }
+    });
+
+    // Copy button handler
+    copyBtn.addEventListener('click', async () => {
+      if (imgDataUri.value) {
+        try {
+          await navigator.clipboard.writeText(imgDataUri.value);
+          copyBtn.textContent = '✓ Copied!';
+          copyBtn.classList.add('success');
+          setTimeout(() => {
+            copyBtn.textContent = 'Copy to Clipboard';
+            copyBtn.classList.remove('success');
+          }, 2000);
+        } catch (err) {
+          // Fallback for older browsers
+          imgDataUri.select();
+          document.execCommand('copy');
+          copyBtn.textContent = '✓ Copied!';
+          copyBtn.classList.add('success');
+          setTimeout(() => {
+            copyBtn.textContent = 'Copy to Clipboard';
+            copyBtn.classList.remove('success');
+          }, 2000);
+        }
+      }
+    });
+
+    // Image press/hold handlers
+    output.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      isPressed = true;
+      showOppositeImage();
+    });
+
+    output.addEventListener('mouseup', () => {
+      if (isPressed) {
+        isPressed = false;
+        updateDisplayedImage();
+      }
+    });
+
+    output.addEventListener('mouseleave', () => {
+      if (isPressed) {
+        isPressed = false;
+        updateDisplayedImage();
+      }
+    });
+
+    output.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      isPressed = true;
+      showOppositeImage();
+    });
+
+    output.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      if (isPressed) {
+        isPressed = false;
+        updateDisplayedImage();
+      }
+    });
+
+    output.addEventListener('touchcancel', (e) => {
+      e.preventDefault();
+      if (isPressed) {
+        isPressed = false;
+        updateDisplayedImage();
+      }
+    });
+
     function updateImage() {
-      if (!imgSrc) return;
+      if (!originalSrc) return;
+      
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         const aspectRatio = img.height / img.width;
-        canvas.width = 500;
-        canvas.height = 500 * aspectRatio;
+        canvas.width = Math.min(800, img.width);
+        canvas.height = canvas.width * aspectRatio;
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         const quality = qualityRange.value / 100;
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        output.src = dataUrl;
-        imgDataUri.value = `<img src="${dataUrl}" alt="Converted Image" />`;
-        const size = Math.round(dataUrl.length * 3 / 4); // Approximate size in bytes
-        jpegSize.textContent = `JPEG Size: ${size.toLocaleString()} bytes`;
+        optimizedSrc = canvas.toDataURL('image/jpeg', quality);
+        
+        output.classList.add('active');
+        downloadBtn.classList.add('active');
+        previewHint.style.display = 'block';
+        updateDisplayedImage();
+        updatePreviewHint();
+        
+        imgDataUri.value = `<img src="${optimizedSrc}" alt="Optimized Image" />`;
+        
+        // Calculate and display sizes
+        const originalSize = Math.round(originalSrc.length * 3 / 4);
+        const optimizedSize = Math.round(optimizedSrc.length * 3 / 4);
+        const savings = Math.round((1 - optimizedSize / originalSize) * 100);
+        
+        jpegSize.textContent = `Optimized: ${optimizedSize.toLocaleString()} bytes | Original: ${originalSize.toLocaleString()} bytes | Saved: ${savings}%`;
       };
-      img.src = imgSrc;
+      img.src = originalSrc;
     }
-</script>
+
+    function updateDisplayedImage() {
+      if (!originalSrc || !optimizedSrc) return;
+      
+      const showOriginal = viewToggle.classList.contains('active');
+      output.src = showOriginal ? originalSrc : optimizedSrc;
+    }
+
+    function updatePreviewHint() {
+      const showOriginal = viewToggle.classList.contains('active');
+      previewText.textContent = showOriginal ? 'optimized' : 'original';
+    }
+
+    function showOppositeImage() {
+      if (!originalSrc || !optimizedSrc) return;
+      
+      const showOriginal = viewToggle.classList.contains('active');
+      // Show opposite of current toggle state
+      output.src = showOriginal ? optimizedSrc : originalSrc;
+    }
+
+    function showOriginal() {
+      if (originalSrc) {
+        output.src = originalSrc;
+      }
+    }
+
+    function showOptimized() {
+      if (optimizedSrc) {
+        output.src = optimizedSrc;
+      }
+    }
+  </script>
 </body>
 </html>

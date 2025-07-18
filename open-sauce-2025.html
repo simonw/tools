@@ -11,6 +11,29 @@
             box-sizing: border-box;
         }
 
+        .visually-hidden {
+            position: absolute !important;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .visually-hidden.focusable:active,
+        .visually-hidden.focusable:focus {
+            position: static !important;
+            width: auto;
+            height: auto;
+            margin: 0;
+            overflow: visible;
+            clip: auto;
+            white-space: normal;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -167,12 +190,6 @@
             font-size: 0.9rem;
         }
 
-        .speaker-avatar {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: #667eea;
-        }
 
         .length-badge {
             background: #ffc107;
@@ -217,25 +234,26 @@
     </style>
 </head>
 <body>
+    <a href="#friday" class="visually-hidden focusable">Skip to main content</a>
     <div class="container">
         <div class="header">
             <h1>Open Sauce 2025</h1>
             <p>July 18-20, 2025</p>
-            <button class="download-btn" onclick="downloadICS()">📅 Download Calendar (ICS)</button>
+            <button class="download-btn" onclick="downloadICS()" aria-label="Download calendar in ICS format">📅 Download Calendar (ICS)</button>
             <p style="margin-top: 10px;"><a href="https://simonwillison.net/2025/Jul/17/vibe-scraping/" style="color: white">How I built this</a></p>
         </div>
 
-        <div class="day-tabs">
-            <button class="day-tab active" onclick="showDay('friday')">Friday 18th</button>
-            <button class="day-tab" onclick="showDay('saturday')">Saturday 19th</button>
-            <button class="day-tab" onclick="showDay('sunday')">Sunday 20th</button>
+        <div class="day-tabs" role="tablist">
+            <button id="tab-friday" class="day-tab active" role="tab" aria-controls="friday" aria-selected="true" onclick="showDay('friday', event)">Friday 18th</button>
+            <button id="tab-saturday" class="day-tab" role="tab" aria-controls="saturday" aria-selected="false" tabindex="-1" onclick="showDay('saturday', event)">Saturday 19th</button>
+            <button id="tab-sunday" class="day-tab" role="tab" aria-controls="sunday" aria-selected="false" tabindex="-1" onclick="showDay('sunday', event)">Sunday 20th</button>
         </div>
 
-        <div class="loading" id="loading">Loading schedule...</div>
+        <div class="loading" id="loading" role="status" aria-live="polite">Loading schedule...</div>
 
-        <div id="friday" class="day-content active"></div>
-        <div id="saturday" class="day-content"></div>
-        <div id="sunday" class="day-content"></div>
+        <div id="friday" class="day-content active" role="tabpanel" aria-labelledby="tab-friday"></div>
+        <div id="saturday" class="day-content" role="tabpanel" aria-labelledby="tab-saturday" aria-hidden="true"></div>
+        <div id="sunday" class="day-content" role="tabpanel" aria-labelledby="tab-sunday" aria-hidden="true"></div>
     </div>
 
     <script>
@@ -273,13 +291,12 @@
                             </div>
                             <div class="session-location">${session.where}</div>
                         </div>
-                        <div class="session-title">${session.title}</div>
+                        <h3 class="session-title">${session.title}</h3>
                         <div class="session-description">${session.description}</div>
                         ${session.speakers && session.speakers.length > 0 ? `
                             <div class="speakers">
                                 ${session.speakers.map(speaker => `
                                     <div class="speaker">
-                                        <img src="${speaker.media}" alt="${speaker.name}" class="speaker-avatar" onerror="this.style.display='none'">
                                         <span>${speaker.name}</span>
                                     </div>
                                 `).join('')}
@@ -288,7 +305,6 @@
                         ${session.moderator ? `
                             <div class="speakers">
                                 <div class="speaker" style="background: #e3f2fd;">
-                                    <img src="${session.moderator.media}" alt="${session.moderator.name}" class="speaker-avatar" onerror="this.style.display='none'">
                                     <span><strong>Moderator:</strong> ${session.moderator.name}</span>
                                 </div>
                             </div>
@@ -298,22 +314,31 @@
             });
         }
 
-        function showDay(day) {
+        function showDay(day, e) {
             // Hide all day contents
             document.querySelectorAll('.day-content').forEach(content => {
                 content.classList.remove('active');
+                content.setAttribute('aria-hidden', 'true');
             });
-            
-            // Remove active class from all tabs
+
+            // Update all tabs
             document.querySelectorAll('.day-tab').forEach(tab => {
                 tab.classList.remove('active');
+                tab.setAttribute('aria-selected', 'false');
+                tab.setAttribute('tabindex', '-1');
             });
-            
+
             // Show selected day content
-            document.getElementById(day).classList.add('active');
-            
+            const panel = document.getElementById(day);
+            panel.classList.add('active');
+            panel.setAttribute('aria-hidden', 'false');
+
             // Add active class to clicked tab
-            event.target.classList.add('active');
+            const tab = e.currentTarget;
+            tab.classList.add('active');
+            tab.setAttribute('aria-selected', 'true');
+            tab.removeAttribute('tabindex');
+            tab.focus();
         }
 
         function timeToMinutes(timeStr) {
