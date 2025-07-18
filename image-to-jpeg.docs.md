@@ -1,3 +1,3 @@
-This tool converts images to JPEG format with adjustable quality. Users can upload an image by clicking on the drop zone or dragging and dropping a file, then adjust the JPEG compression quality using the slider. The converted image is displayed with its data URI and approximate file size, allowing users to find the optimal balance between image quality and file size.
+The Image Optimizer allows you to compress and optimize your images by adjusting JPEG quality settings. Upload an image by clicking the dropzone or using drag-and-drop, then adjust the quality slider to reduce file size while maintaining appropriate visual quality. Toggle between original and optimized versions to compare quality, and download or copy the data URI of your optimized image when satisfied with the results.
 
-<!-- Generated from commit: a1245241aceb26d444387af58398ee3059520bc8 -->
+<!-- Generated from commit: c080cb104f486599f020d49da5136331279f38fa -->
