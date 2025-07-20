@@ -1,0 +1,3 @@
+This page allows you to test browser-based text-to-speech functionality using the Web Speech API. Enter text in the provided field, select a voice from available options on your device, and adjust speech parameters including rate, pitch, and volume using the sliders. Click the Speak button to hear your text read aloud or Stop to interrupt the speech.
+
+<!-- Generated from commit: 123c95e8a563fb08963be4042f7eda6eb1757191 -->
