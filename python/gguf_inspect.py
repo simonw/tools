@@ -24,12 +24,16 @@ from typing import Any, Dict, List
 # ──────────────────────────────────────────────────────
 
 _PRIM_FMT = {
-    0: "B", 1: "b",
-    2: "H", 3: "h",
-    4: "I", 5: "i",
+    0: "B",
+    1: "b",
+    2: "H",
+    3: "h",
+    4: "I",
+    5: "i",
     6: "f",
-    7: "B",          # BOOL
-    10: "Q", 11: "q",
+    7: "B",  # BOOL
+    10: "Q",
+    11: "q",
     12: "d",
 }
 _PRIM_SIZE = {k: struct.calcsize(v) for k, v in _PRIM_FMT.items()}
@@ -78,7 +82,7 @@ def extract_metadata(path: Path) -> Dict[str, Any]:
     with path.open("rb") as fh:
         if fh.read(4) != b"GGUF":
             raise ValueError("not a GGUF file")
-        _version, = _read("I", fh)
+        (_version,) = _read("I", fh)
         _ntensors, n_kv = _read("QQ", fh)
 
         for _ in range(n_kv):
@@ -88,7 +92,7 @@ def extract_metadata(path: Path) -> Dict[str, Any]:
             if val_type == STRING:
                 value = _read_string(fh)
             elif val_type == ARRAY:
-                elem_type, = _read("I", fh)
+                (elem_type,) = _read("I", fh)
                 (count,) = _read("Q", fh)
                 value = _read_array(elem_type, count, fh)
             else:
@@ -101,6 +105,7 @@ def extract_metadata(path: Path) -> Dict[str, Any]:
 # ──────────────────────────────────────────────────────
 # Output helpers
 # ──────────────────────────────────────────────────────
+
 
 def dump_yaml(meta: Dict[str, Any]) -> None:
     for key in sorted(meta):
@@ -118,6 +123,7 @@ def dump_json(meta: Dict[str, Any]) -> None:
 # ──────────────────────────────────────────────────────
 # CLI
 # ──────────────────────────────────────────────────────
+
 
 def parse_args():
     p = argparse.ArgumentParser(
