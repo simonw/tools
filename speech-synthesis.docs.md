@@ -1,3 +1,3 @@
-This page allows you to test browser-based text-to-speech functionality using the Web Speech API. Enter text in the provided field, select a voice from available options on your device, and adjust speech parameters including rate, pitch, and volume using the sliders. Click the Speak button to hear your text read aloud or Stop to interrupt the speech.
+This speech synthesis tester allows you to convert text to spoken audio using the Web Speech API. Enter your text, select a voice, and adjust the rate, pitch, and volume settings to customize the speech output. The interface provides controls to start and stop speech playback, with visual feedback indicating the current status.
 
-<!-- Generated from commit: 123c95e8a563fb08963be4042f7eda6eb1757191 -->
+<!-- Generated from commit: 811408d27e9e94e432ac8048192fd3b834b36224 -->
