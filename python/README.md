@@ -2,6 +2,21 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
+## modelscope_size.py
+
+Calculate the size of a model on [ModelScope](https://modelscope.cn/).
+
+Example:
+
+```bash
+uv run http://tools.simonwillison.net/python/modelscope_size.py \
+  https://modelscope.cn/models/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8
+```
+Outputs:
+```
+449.1 GB
+```
+
 ## streaming_textual_markdown.py
 
 Stream the Markdown result of an LLM prompt using Textual's streaming Markdown feature.
@@ -9,7 +24,6 @@ Stream the Markdown result of an LLM prompt using Textual's streaming Markdown f
 ```bash
 uv run http://tools.simonwillison.net/python/streaming_textual_markdown.py \
   'Epic saga of a pelican and a wolf becoming friends over their love for welding'
-```
 
 ## check_invisible_text.py
 
