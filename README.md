@@ -8,9 +8,7 @@ The [colophon](https://tools.simonwillison.net/colophon) lists commit messages a
 
 The code lives in [simonw/tools](https://github.com/simonw/tools) and many tools used the Claude custom instructions [described here](https://simonwillison.net/2024/Dec/19/one-shot-python-tools/#custom-instructions).
 
-## Tools
-
-### Image and media
+## Image and media
 - [Social media cropper](https://tools.simonwillison.net/social-media-cropper) crop images to 2×1 for social sharing
 - [Image resize and quality comparison](https://tools.simonwillison.net/image-resize-quality) compare JPEG quality settings
 - [Image to JPEG](https://tools.simonwillison.net/image-to-jpeg) convert PNG or WebP files to JPEG
@@ -25,7 +23,7 @@ The code lives in [simonw/tools](https://github.com/simonw/tools) and many tools
 - [Avatar web component](https://tools.simonwillison.net/avatar-web-component) upload and crop avatars in place
 - [YouTube Thumbnails](https://tools.simonwillison.net/youtube-thumbnails) list thumbnail URLs for a video
 
-### Text and document
+## Text and document
 - [OCR](https://tools.simonwillison.net/ocr) recognize text from images and PDFs in your browser
 - [PDF OCR](https://tools.simonwillison.net/pdf-ocr) run optical character recognition on uploaded PDFs
 - [Compare PDFs](https://tools.simonwillison.net/compare-pdfs) visualize differences between two PDFs
@@ -51,7 +49,7 @@ The code lives in [simonw/tools](https://github.com/simonw/tools) and many tools
 - [SQL Pretty Printer](https://tools.simonwillison.net/sql-pretty-printer) reformat SQL queries for readability
 - [Pipfile.lock parser](https://tools.simonwillison.net/pipfile) extract dependency versions from `Pipfile.lock`
 
-### Data and time utilities
+## Data and time utilities
 - [Timestamp Converter](https://tools.simonwillison.net/unix-timestamp) convert Unix timestamps to readable dates
 - [Timezones](https://tools.simonwillison.net/timezones) compare times across multiple time zones
 - [Date calculator](https://tools.simonwillison.net/date-calculator) count days between dates or only weekdays
@@ -61,7 +59,7 @@ The code lives in [simonw/tools](https://github.com/simonw/tools) and many tools
 - [CSV marker map](https://tools.simonwillison.net/csv-marker-map) plot markers on a map from a CSV file
 - [Species observation map](https://tools.simonwillison.net/species-observation-map) browse recent iNaturalist sightings
 
-### GitHub and development
+## GitHub and development
 - [GitHub API write](https://tools.simonwillison.net/github-api-write) upload text or images directly to a repo
 - [GitHub issue viewer](https://tools.simonwillison.net/github-issue) fetch GitHub issues and comments
 - [GitHub issue to Markdown](https://tools.simonwillison.net/github-issue-to-markdown) turn an issue thread into Markdown
@@ -71,7 +69,7 @@ The code lives in [simonw/tools](https://github.com/simonw/tools) and many tools
 - [Side panel dialog demo](https://tools.simonwillison.net/side-panel-dialog) experiment with the HTML `dialog` element
 - [Broadcast channel chat](https://tools.simonwillison.net/broadcast-channel-chat) chat across tabs using BroadcastChannel
 
-### Bluesky and social tools
+## Bluesky and social tools
 - [Bluesky WebSocket Firehose](https://tools.simonwillison.net/bluesky-firehose) watch real-time activity on Bluesky
 - [Bluesky resolve DID](https://tools.simonwillison.net/bluesky-resolve) convert a handle like `simonwillison.net` into a DID
 - [Bluesky timeline](https://tools.simonwillison.net/bluesky-timeline) view a user’s recent posts and replies
@@ -79,7 +77,7 @@ The code lives in [simonw/tools](https://github.com/simonw/tools) and many tools
 - [Event planner](https://tools.simonwillison.net/event-planner) rough schedule planner stored in localStorage
 - [Passkeys demo](https://tools.simonwillison.net/passkeys) experiment with browser-based passkey authentication
 
-### LLM playgrounds and debuggers
+## LLM playgrounds and debuggers
 - [Haiku](https://tools.simonwillison.net/haiku) generate haikus using Claude Haiku and your webcam
 - [Chrome Prompt Playground](https://tools.simonwillison.net/chrome-prompt-playground) run prompts on Chrome’s Gemini Nano
 - [Gemini bounding box visualizer](https://tools.simonwillison.net/gemini-bbox) visualize bounding boxes returned by Gemini
@@ -93,7 +91,7 @@ The code lives in [simonw/tools](https://github.com/simonw/tools) and many tools
 - [GPT-4o Gist audio player](https://tools.simonwillison.net/gpt-4o-audio-player) play audio responses stored on GitHub Gist
 - [JSON schema builder](https://tools.simonwillison.net/json-schema-builder) build JSON schemas with a visual editor
 
-### Miscellaneous
+## Miscellaneous
 - [Arena animated](https://tools.simonwillison.net/arena-animated) animated chart of the LMSYS Chatbot Arena
 - [California Clock Change](https://tools.simonwillison.net/california-clock-change) see when daylight saving time changes
 - [Open Sauce 2025 schedule](https://tools.simonwillison.net/open-sauce-2025) browse the upcoming conference sessions
