@@ -4,7 +4,10 @@ import re
 from datetime import datetime
 import html
 from pathlib import Path
-import markdown
+try:
+    import markdown  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    markdown = None
 
 
 def format_commit_message(message):
@@ -227,9 +230,12 @@ def build_colophon():
             try:
                 with open(docs_file, "r") as f:
                     docs_content = f.read()
-                    # Render markdown to HTML
-                    docs_html = markdown.markdown(docs_content)
-                    # Add docs above commits
+                    if markdown is not None:
+                        # Render markdown to HTML if library available
+                        docs_html = markdown.markdown(docs_content)
+                    else:
+                        # Fall back to escaped preformatted block
+                        docs_html = '<pre>' + html.escape(docs_content) + '</pre>'
                     html_content += '<div class="docs">' + docs_html + "</div>"
             except Exception as e:
                 print(f"Error reading {docs_file}: {e}")

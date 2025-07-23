@@ -1,65 +1,114 @@
 # tools.simonwillison.net
 
-Miscellaneous HTML+JavaScript tools I have built, almost all with the assistance of LLMs.
+Miscellaneous HTML+JavaScript tools built mostly with the help of LLMs.
 
-This collection is partly **an experiment** in how much it's possible to get done through prompting alone, against projects with extremely low stakes. 
+This collection is an experiment in prompt-driven development with very low stakes.
 
-The **[colophon](https://tools.simonwillison.net/colophon)** includes links to the prompts and chat transcripts I used to create and iterate on each of these tools.
+The [colophon](https://tools.simonwillison.net/colophon) lists commit messages and transcripts for every tool.
 
-The code lives in [simonw/tools](https://github.com/simonw/tools). Most of these used a version of the Claude custom instructions [described here](https://simonwillison.net/2024/Dec/19/one-shot-python-tools/#custom-instructions).
+The code lives in [simonw/tools](https://github.com/simonw/tools) and many tools used the Claude custom instructions [described here](https://simonwillison.net/2024/Dec/19/one-shot-python-tools/#custom-instructions).
 
 ## Tools
 
-- [OCR](https://tools.simonwillison.net/ocr) for PDF files and images that runs entirely in your browser
-- [Render Markdown](https://tools.simonwillison.net/render-markdown) renders Markdown to HTML using the GitHub Markdown API
-- [Annotated presentation creator](https://tools.simonwillison.net/annotated-presentations) to help turn slides into an annotated presentation
-- [Box shadow CSS generator](https://tools.simonwillison.net/box-shadow) generates the CSS for a box shadow with interactive settings
-- [Compare PDFs](https://tools.simonwillison.net/compare-pdfs) provides a visual comparison of the pages of two PDF files
-- [Image resize and quality comparison](https://tools.simonwillison.net/image-resize-quality) converts an image to JPEGs using a number of different quality settings so you can select the smallest file size that is still usefully legible ([how I built this](https://simonwillison.net/2024/Jul/26/image-resize-and-quality-comparison/))
-- [YouTube Thumbnails](https://tools.simonwillison.net/youtube-thumbnails) - paste in the URL to a YouTube video, get back all of the URLs to thumbnail images of different sizes for that video
-- [SVG to JPEG/PNG](https://tools.simonwillison.net/svg-render) - turn an SVG file into a rendered JPEG or PNG ([how I built this](https://simonwillison.net/2024/Oct/6/svg-to-jpg-png/))
-- [Jina Reader](https://tools.simonwillison.net/jina-reader) - convert any URL to copyable Markdown using the [Jina Reader API](https://jina.ai/reader/)
-- [Extract URLs](https://tools.simonwillison.net/extract-urls) - copy a section from a web page to your clipboard, paste it in here and get back a plain text list of all of the linked URLs from that section
-- [EXIF Data Viewer](https://tools.simonwillison.net/exif) - view EXIF data for an image
-- [MDN Browser Support Timelines](https://tools.simonwillison.net/mdn-timelines) - search for web features and view the browser support timeline pulled from [MDN](https://developer.mozilla.org/)
-- [Timestamp Converter](https://tools.simonwillison.net/unix-timestamp) - convert between Unix timestamps and human-readable dates
-- [Timezones](https://tools.simonwillison.net/timezones) - select two timezones to see a table comparing their times for the next 48 hours
-- [Social media cropper](https://tools.simonwillison.net/social-media-cropper) - open or paste in an image, crop it to 2x1 and download a compressed JPEG for use as a social media card
-- [Writing Style Analyzer](https://tools.simonwillison.net/writing-style) - identify weasel words, passive voice, duplicate words - adapted from [these shell scripts](https://matt.might.net/articles/shell-scripts-for-passive-voice-weasel-words-duplicates/) published by Matt Might
-- [Navigation for headings](https://tools.simonwillison.net/nav-for-headings) - paste in an HTML document with headings, each heading is assigned a unique ID and the tool then generates a navigation `<ul>`
-- [JSON to YAML](https://tools.simonwillison.net/json-to-yaml) - convert JSON to YAML, showing different styles of YAML output
-- [YAML Explorer](https://tools.simonwillison.net/yaml-explorer) - nested hierarchy explorer for YAML files, which can be loaded from an external URL and have their expand/collapse state persisted in the URL to the tool
-- [Word Counter](https://tools.simonwillison.net/word-counter) - count words across multiple blocks of text, persisted to localStorage
-- [PHP Deserializer](https://tools.simonwillison.net/php-deserializer) - paste in serealized PHP data, get back JSON
-- [SQL Pretty Printer](https://tools.simonwillison.net/sql-pretty-printer) - paste in SQL to pretty print it
-- [Pipfile.lock Dependency Parser](https://tools.simonwillison.net/pipfile) - paste in a `Pipfile.lock` JSON file to extract just the dependency versions]
-- [Paste rich text](https://tools.simonwillison.net/paste-rich-text) - paste from your clipboard and see any rich text as HTML
+### Image and media
+- [Social media cropper](https://tools.simonwillison.net/social-media-cropper) crop images to 2×1 for social sharing
+- [Image resize and quality comparison](https://tools.simonwillison.net/image-resize-quality) compare JPEG quality settings
+- [Image to JPEG](https://tools.simonwillison.net/image-to-jpeg) convert PNG or WebP files to JPEG
+- [Image to SVG](https://tools.simonwillison.net/image-to-svg) trace bitmap images to SVG paths
+- [SVG to JPEG/PNG](https://tools.simonwillison.net/svg-render) render an SVG to a raster image
+- [SVG sandbox](https://tools.simonwillison.net/svg-sandbox) display decoded SVG files safely
+- [SVG progressive render](https://tools.simonwillison.net/svg-progressive-render) watch an SVG draw itself
+- [BBox cropper](https://tools.simonwillison.net/bbox-cropper) draw bounding boxes and read the coordinates
+- [Mask visualizer](https://tools.simonwillison.net/mask-visualizer) inspect JSON masks with bounding boxes
+- [FFmpeg crop helper](https://tools.simonwillison.net/ffmpeg-crop) generate FFmpeg commands for cropped videos
+- [TIFF orientation viewer](https://tools.simonwillison.net/tiff-orientation) inspect EXIF orientation metadata
+- [Avatar web component](https://tools.simonwillison.net/avatar-web-component) upload and crop avatars in place
+- [YouTube Thumbnails](https://tools.simonwillison.net/youtube-thumbnails) list thumbnail URLs for a video
 
-## LLM playgrounds and debuggers
+### Text and document
+- [OCR](https://tools.simonwillison.net/ocr) recognize text from images and PDFs in your browser
+- [PDF OCR](https://tools.simonwillison.net/pdf-ocr) run optical character recognition on uploaded PDFs
+- [Compare PDFs](https://tools.simonwillison.net/compare-pdfs) visualize differences between two PDFs
+- [Render Markdown](https://tools.simonwillison.net/render-markdown) convert Markdown to HTML using the GitHub API
+- [HTML preview](https://tools.simonwillison.net/html-preview) type HTML on the left and see it rendered on the right
+- [RTF to HTML](https://tools.simonwillison.net/rtf-to-html) inspect RTF clipboard data and convert it to HTML
+- [Markdown math](https://tools.simonwillison.net/markdown-math) live preview of Markdown with LaTeX equations
+- [Footnotes experiment](https://tools.simonwillison.net/footnotes-experiment) demo linking footnotes to popups
+- [Reading time calculator](https://tools.simonwillison.net/reading-time) estimate how long text will take to read
+- [Word counter](https://tools.simonwillison.net/word-counter) count words across multiple text blocks
+- [Text wrap balance nav](https://tools.simonwillison.net/text-wrap-balance-nav) explore the `text-wrap: balance` property
+- [Navigation for headings](https://tools.simonwillison.net/nav-for-headings) generate an ID-based table of contents
+- [Paste rich text](https://tools.simonwillison.net/paste-rich-text) inspect HTML and plain text on your clipboard
+- [Paste HTML subset](https://tools.simonwillison.net/paste-html-subset) see which tags survive HTML sanitization
+- [Clipboard viewer](https://tools.simonwillison.net/clipboard-viewer) debug everything stored in your clipboard
+- [Extract URLs](https://tools.simonwillison.net/extract-urls) pull a list of links from pasted HTML
+- [JSON to Markdown transcript](https://tools.simonwillison.net/json-to-markdown-transcript) convert transcript JSON to Markdown
+- [JSON to YAML](https://tools.simonwillison.net/json-to-yaml) convert between JSON and YAML formats
+- [YAML Explorer](https://tools.simonwillison.net/yaml-explorer) browse YAML documents in a collapsible tree
+- [JSON schema builder](https://tools.simonwillison.net/json-schema-builder) visually design a JSON schema
+- [Incomplete JSON printer](https://tools.simonwillison.net/incomplete-json-printer) pretty print partial JSON documents
+- [PHP Deserializer](https://tools.simonwillison.net/php-deserializer) turn serialized PHP into JSON
+- [SQL Pretty Printer](https://tools.simonwillison.net/sql-pretty-printer) reformat SQL queries for readability
+- [Pipfile.lock parser](https://tools.simonwillison.net/pipfile) extract dependency versions from `Pipfile.lock`
 
-- [Haiku](https://tools.simonwillison.net/haiku) generates Haikus from your camera using Claude 3 Haiku
-- [Chrome Prompt Playground](https://tools.simonwillison.net/chrome-prompt-playground) is a UI for running prompts through the Google Chrome Canary experimental Gemini Nano LLM and saving the results in local storage
-- [Gemini API Image Bounding Box Visualizer](https://tools.simonwillison.net/gemini-bbox) - run prompts against Google Gemini models that return bounding box co-ordinates and visualize them against the original image, see [this post](https://simonwillison.net/2024/Aug/26/gemini-bounding-box-visualization/) for details
-- [Claude Token Counter](https://tools.simonwillison.net/claude-token-counter) - counts the number of tokens in a Claude prompt
-- [OpenAI audio input](https://tools.simonwillison.net/openai-audio) - record audio through the microphone and send it to OpenAI's audio model
-- [OpenAI audio output](https://tools.simonwillison.net/openai-audio-output) - run prompts against OpenAI that produce audio output and listen to it or download it from the browser
-- [JSON schema builder](https://tools.simonwillison.net/json-schema-builder) - interactive tool for building a JSON schema
+### Data and time utilities
+- [Timestamp Converter](https://tools.simonwillison.net/unix-timestamp) convert Unix timestamps to readable dates
+- [Timezones](https://tools.simonwillison.net/timezones) compare times across multiple time zones
+- [Date calculator](https://tools.simonwillison.net/date-calculator) count days between dates or only weekdays
+- [Transfer time estimator](https://tools.simonwillison.net/transfer-time) work out how long file transfers will take
+- [Token usage calculator](https://tools.simonwillison.net/token-usage) summarize LLM token logs by model
+- [LLM prices redirect](https://tools.simonwillison.net/llm-prices) quick link to the latest model pricing site
+- [CSV marker map](https://tools.simonwillison.net/csv-marker-map) plot markers on a map from a CSV file
+- [Species observation map](https://tools.simonwillison.net/species-observation-map) browse recent iNaturalist sightings
 
-## Miscellaneous
+### GitHub and development
+- [GitHub API write](https://tools.simonwillison.net/github-api-write) upload text or images directly to a repo
+- [GitHub issue viewer](https://tools.simonwillison.net/github-issue) fetch GitHub issues and comments
+- [GitHub issue to Markdown](https://tools.simonwillison.net/github-issue-to-markdown) turn an issue thread into Markdown
+- [Zip/Wheel explorer](https://tools.simonwillison.net/zip-wheel-explorer) view the contents of Python wheels and zips
+- [Ares phonetic alphabet](https://tools.simonwillison.net/ares) convert text to the ARES emergency phonetic code
+- [Code with Claude 2025](https://tools.simonwillison.net/code-with-claude-2025) prototype workflow for Claude coding
+- [Side panel dialog demo](https://tools.simonwillison.net/side-panel-dialog) experiment with the HTML `dialog` element
+- [Broadcast channel chat](https://tools.simonwillison.net/broadcast-channel-chat) chat across tabs using BroadcastChannel
 
-- [Arena animated](https://tools.simonwillison.net/arena-animated) animates the progression of the LMSYS Chatbot Arena, inspired by [this visualization](https://public.flourish.studio/visualisation/17992181/) by [Peter Gostev](https://www.linkedin.com/posts/peter-gostev_how-companies-llms-compare-over-the-course-activity-7196899934615257090-zilk) (via [Time-Winter-4319 on Reddit](https://www.reddit.com/r/LocalLLaMA/comments/1bp4j19/gpt4_is_no_longer_the_top_dog_timelapse_of/))
-- [California Clock Change](https://tools.simonwillison.net/california-clock-change) - shows when the clocks will next change for daylight saving time in California
-- [Bluesky WebSocket Firehose](https://tools.simonwillison.net/bluesky-firehose) showing a live firehose of Bluesky activity, [described here](https://simonwillison.net/2024/Nov/20/bluesky-websocket-firehose/)
-- [Bluesky resolve DID](https://tools.simonwillison.net/bluesky-resolve) turns a Bluesky ID such as `simonwillison.net` into a DID
-- [Prompts.js](https://tools.simonwillison.net/prompts-js) small JavaScript library enabling `await Prompts.alert("hi")` and `await Prompts.confirm("Continue?")` and `await Prompts.prompt("Enter your name")` 
-- [aria-live-regions](https://tools.simonwillison.net/aria-live-regions) demonstrates ARIA live regions
-- [APSW SQLite query explainer](https://tools.simonwillison.net/apsw-query) - paste in a SQLite SQL query, get back a detailed explanation created using `apsw.ext.query_info()`
-- [Encrypt / decrypt message](https://tools.simonwillison.net/encrypt) - encrypt a message with a passphrase, send someone a link and they can decrypt it again
+### Bluesky and social tools
+- [Bluesky WebSocket Firehose](https://tools.simonwillison.net/bluesky-firehose) watch real-time activity on Bluesky
+- [Bluesky resolve DID](https://tools.simonwillison.net/bluesky-resolve) convert a handle like `simonwillison.net` into a DID
+- [Bluesky timeline](https://tools.simonwillison.net/bluesky-timeline) view a user’s recent posts and replies
+- [Bluesky thread export](https://tools.simonwillison.net/bluesky-thread) save a Bluesky thread to Markdown
+- [Event planner](https://tools.simonwillison.net/event-planner) rough schedule planner stored in localStorage
+- [Passkeys demo](https://tools.simonwillison.net/passkeys) experiment with browser-based passkey authentication
+
+### LLM playgrounds and debuggers
+- [Haiku](https://tools.simonwillison.net/haiku) generate haikus using Claude Haiku and your webcam
+- [Chrome Prompt Playground](https://tools.simonwillison.net/chrome-prompt-playground) run prompts on Chrome’s Gemini Nano
+- [Gemini bounding box visualizer](https://tools.simonwillison.net/gemini-bbox) visualize bounding boxes returned by Gemini
+- [Gemini chat client](https://tools.simonwillison.net/gemini-chat) simple chat UI for the Gemini API
+- [Gemini mask visualizer](https://tools.simonwillison.net/gemini-mask) overlay segmentation masks from Gemini
+- [Gemini image JSON renderer](https://tools.simonwillison.net/gemini-image-json) display images from Gemini JSON output
+- [Claude Token Counter](https://tools.simonwillison.net/claude-token-counter) count tokens for Claude prompts
+- [OpenAI audio input](https://tools.simonwillison.net/openai-audio) record and send audio to OpenAI models
+- [OpenAI audio output](https://tools.simonwillison.net/openai-audio-output) generate speech with OpenAI voices
+- [OpenAI WebRTC demo](https://tools.simonwillison.net/openai-webrtc) interact with OpenAI’s real-time audio API
+- [GPT-4o Gist audio player](https://tools.simonwillison.net/gpt-4o-audio-player) play audio responses stored on GitHub Gist
+- [JSON schema builder](https://tools.simonwillison.net/json-schema-builder) build JSON schemas with a visual editor
+
+### Miscellaneous
+- [Arena animated](https://tools.simonwillison.net/arena-animated) animated chart of the LMSYS Chatbot Arena
+- [California Clock Change](https://tools.simonwillison.net/california-clock-change) see when daylight saving time changes
+- [Open Sauce 2025 schedule](https://tools.simonwillison.net/open-sauce-2025) browse the upcoming conference sessions
+- [OpenFreeMap demo](https://tools.simonwillison.net/openfreemap-demo) MapLibre demo with random points in San Francisco
+- [Progress of the US presidency](https://tools.simonwillison.net/progress) track days elapsed in the current term
+- [User Agent display](https://tools.simonwillison.net/user-agent) show your browser’s user agent string
+- [Encrypt / decrypt message](https://tools.simonwillison.net/encrypt) share short encrypted messages
+- [ARIA live regions](https://tools.simonwillison.net/aria-live-regions) demo of dynamic page announcements
+- [Prompts.js](https://tools.simonwillison.net/prompts-js) small library for nicer JavaScript prompts
+- [APSW SQLite query explainer](https://tools.simonwillison.net/apsw-query) explain SQLite queries using APSW
 
 ## On Observable
 
 On [Observable](https://observablehq.com/):
 
-- [Blog to newsletter](https://observablehq.com/@simonw/blog-to-newsletter) helps me turn my blog into a [newsletter](https://simonw.substack.com)
-- [Convert Claude JSON to Markdown](https://observablehq.com/@simonw/convert-claude-json-to-markdown) for sharing Claude conversation transcripts
+- [Blog to newsletter](https://observablehq.com/@simonw/blog-to-newsletter) helps turn blog posts into a newsletter
+- [Convert Claude JSON to Markdown](https://observablehq.com/@simonw/convert-claude-json-to-markdown) for sharing Claude transcripts
 - [Hacker News homepage with links to comments ordered by most recent first](https://observablehq.com/@simonw/hacker-news-homepage)
