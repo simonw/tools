@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alt Text Extractor</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+
+h1 {
+  color: #333;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.paste-area {
+  width: 100%;
+  min-height: 150px;
+  max-height: 250px;
+  padding: 15px;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  background-color: white;
+  font-size: 16px;
+  margin-bottom: 20px;
+  outline: none;
+  overflow-y: auto;
+}
+
+.paste-area:focus {
+  border-color: #007bff;
+}
+
+.instructions {
+  text-align: center;
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.results {
+  margin-top: 20px;
+}
+
+.image-item {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.image-container {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.extracted-image {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 4px;
+  border: 1px solid #eee;
+}
+
+.alt-text-section {
+  margin-top: 15px;
+}
+
+.alt-text-label {
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.alt-text-display {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 14px;
+  color: #495057;
+  margin-bottom: 10px;
+  word-wrap: break-word;
+}
+
+.alt-text-empty {
+  color: #6c757d;
+  font-style: italic;
+}
+
+.copy-button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.copy-button:hover {
+  background-color: #0056b3;
+}
+
+.copy-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.copy-success {
+  background-color: #28a745;
+}
+
+.clear-button {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.clear-button:hover {
+  background-color: #545b62;
+}
+
+.no-images {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  padding: 20px;
+}
+  </style>
+</head>
+<body>
+  <h1>Alt text extractor</h1>
+  
+  <div class="instructions">
+    Paste rich text content from web pages below to extract images and their alt text
+  </div>
+  
+  <div contenteditable="true" class="paste-area" id="pasteArea" placeholder="Paste your content here..."></div>
+  
+  <button class="clear-button" id="clearButton">Clear</button>
+  
+  <div class="results" id="results"></div>
+
+<script type="module">
+let imageCounter = 0;
+
+const pasteArea = document.getElementById('pasteArea');
+const results = document.getElementById('results');
+const clearButton = document.getElementById('clearButton');
+
+pasteArea.addEventListener('paste', handlePaste);
+clearButton.addEventListener('click', clearAll);
+
+function handlePaste(event) {
+  // Let the paste happen first, then process
+  setTimeout(() => {
+    extractImages();
+  }, 10);
+}
+
+function extractImages() {
+  const images = pasteArea.querySelectorAll('img');
+  
+  if (images.length === 0) {
+    results.innerHTML = '<div class="no-images">No images found in pasted content</div>';
+    return;
+  }
+  
+  results.innerHTML = '';
+  
+  images.forEach((img, index) => {
+    const altText = img.alt || '';
+    const src = img.src;
+    
+    if (src) {
+      createImageItem(src, altText, index);
+    }
+  });
+}
+
+function createImageItem(src, altText, index) {
+  const itemDiv = document.createElement('div');
+  itemDiv.className = 'image-item';
+  
+  const imageContainer = document.createElement('div');
+  imageContainer.className = 'image-container';
+  
+  const img = document.createElement('img');
+  img.src = src;
+  img.className = 'extracted-image';
+  img.alt = altText;
+  
+  imageContainer.appendChild(img);
+  
+  const altSection = document.createElement('div');
+  altSection.className = 'alt-text-section';
+  
+  const altLabel = document.createElement('div');
+  altLabel.className = 'alt-text-label';
+  altLabel.textContent = 'Alt text:';
+  
+  const altDisplay = document.createElement('div');
+  altDisplay.className = 'alt-text-display';
+  
+  if (altText.trim()) {
+    altDisplay.textContent = altText;
+  } else {
+    altDisplay.textContent = 'No alt text found';
+    altDisplay.classList.add('alt-text-empty');
+  }
+  
+  const copyButton = document.createElement('button');
+  copyButton.className = 'copy-button';
+  copyButton.textContent = 'Copy alt text';
+  
+  if (!altText.trim()) {
+    copyButton.disabled = true;
+    copyButton.textContent = 'No alt text to copy';
+  }
+  
+  copyButton.addEventListener('click', () => copyAltText(altText, copyButton));
+  
+  altSection.appendChild(altLabel);
+  altSection.appendChild(altDisplay);
+  altSection.appendChild(copyButton);
+  
+  itemDiv.appendChild(imageContainer);
+  itemDiv.appendChild(altSection);
+  
+  results.appendChild(itemDiv);
+}
+
+async function copyAltText(text, button) {
+  if (!text.trim()) return;
+  
+  try {
+    await navigator.clipboard.writeText(text);
+    
+    const originalText = button.textContent;
+    button.textContent = 'Copied!';
+    button.classList.add('copy-success');
+    
+    setTimeout(() => {
+      button.textContent = originalText;
+      button.classList.remove('copy-success');
+    }, 2000);
+    
+  } catch (err) {
+    console.error('Failed to copy text: ', err);
+    
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      button.textContent = 'Copied!';
+      button.classList.add('copy-success');
+      
+      setTimeout(() => {
+        button.textContent = 'Copy alt text';
+        button.classList.remove('copy-success');
+      }, 2000);
+    } catch (fallbackErr) {
+      console.error('Fallback copy failed: ', fallbackErr);
+    }
+    document.body.removeChild(textArea);
+  }
+}
+
+function clearAll() {
+  pasteArea.innerHTML = '';
+  results.innerHTML = '';
+  pasteArea.focus();
+}
+
+// Set initial focus
+pasteArea.focus();
+</script>
+</body>
+</html>
