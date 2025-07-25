@@ -1,0 +1,3 @@
+This tool extracts images and their alt text from pasted web content. Paste rich text directly into the editable area, and the tool will display each image along with its corresponding alt text below. You can copy the alt text with a single click, making it useful for content audits, accessibility reviews, or extracting image descriptions from web pages.
+
+<!-- Generated from commit: c9b358c72c4fb487a04b0c09539fb9e841b9bc1a -->
