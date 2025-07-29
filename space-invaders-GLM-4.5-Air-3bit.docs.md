@@ -1,0 +1,3 @@
+This HTML document creates a Space Invaders game with modern visuals and responsive controls. Players control a ship that moves horizontally at the bottom of the screen, shooting at alien enemies arranged in rows at the top. The game includes score tracking, multiple lives, particle effects for explosions, and increasing difficulty as players progress. Controls use arrow keys or A/D for movement and spacebar for shooting.
+
+<!-- Generated from commit: b54bb8d969a710bd4febe4a6502ffeb4798e5b2a -->
