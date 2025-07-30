@@ -1,0 +1,3 @@
+This Space Invaders game allows you to control a spaceship to defend against waves of alien invaders. Use the left and right arrow keys to move your ship horizontally, press Space to fire bullets at the aliens, and Esc to pause the game. Your goal is to destroy all invaders while avoiding their projectiles, with different colored enemies worth varying point values.
+
+<!-- Generated from commit: 12e06fb4b5ca5596ed4d2e5a6e578a10d37df316 -->
