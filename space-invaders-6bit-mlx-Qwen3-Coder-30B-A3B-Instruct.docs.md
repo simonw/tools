@@ -1,0 +1,3 @@
+This Space Invaders game allows you to control a spaceship and defend Earth from waves of alien invaders. Use the left and right arrow keys to move your ship, and press the spacebar to shoot at the approaching enemies. As you progress through levels, the difficulty increases with faster enemy movement and more frequent attacks.
+
+<!-- Generated from commit: 15d8ec701da79805333f564569bfba3b0b5e869d -->
