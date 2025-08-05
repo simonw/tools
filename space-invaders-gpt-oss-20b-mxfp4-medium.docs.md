@@ -1,0 +1,3 @@
+This implementation of Space Invaders uses vanilla JavaScript and HTML5 Canvas to create a classic arcade experience. Players control a ship at the bottom of the screen using arrow keys or A/D, shooting bullets with the spacebar to destroy approaching aliens. The game tracks score and displays win/lose conditions when all aliens are destroyed or when aliens reach the player's level.
+
+<!-- Generated from commit: a3aa8b81a332b4fff75ed8ff274118dc937f820c -->
