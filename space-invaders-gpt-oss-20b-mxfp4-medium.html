@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Space Invaders (Vanilla JS)</title>
+<style>
+  body { margin:0; background:#000; color:#fff; font-family:sans-serif;}
+  #gameCanvas{ display:block; margin:auto; background:#111;}
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<script>
+/* ==========================
+   Space Invaders – JavaScript
+   ========================== */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+
+const CANVAS_W = canvas.width;
+const CANVAS_H = canvas.height;
+
+// ----- Game constants -----
+const PLAYER_WIDTH  = 50;
+const PLAYER_HEIGHT = 20;
+const PLAYER_Y      = CANVAS_H - 40; // distance from bottom
+const PLAYER_SPEED  = 6;
+
+const BULLET_WIDTH  = 4;
+const BULLET_HEIGHT = 10;
+const BULLET_SPEED  = 7;
+
+const ALIEN_ROWS    = 5;
+const ALIEN_COLS    = 11;
+const ALIEN_W       = 40;
+const ALIEN_H       = 30;
+const ALIEN_X_SPACER= 15;   // horizontal gap between aliens
+const ALIEN_Y_SPACER= 10;   // vertical gap between aliens
+const ALIEN_START_X = (CANVAS_W - (ALIEN_COLS * ALIEN_W + (ALIEN_COLS-1)*ALIEN_X_SPACER)) / 2;
+const ALIEN_START_Y = 50;
+const ALIEN_DESCEND_STEP = 10; // how far down aliens go when changing direction
+
+// ----- Game state -----
+let playerX   = CANVAS_W/2 - PLAYER_WIDTH/2;
+let bullets   = [];      // {x, y}
+let aliens    = [];      // {x, y, alive:true/false}
+let alienDir  = 1;       // 1 = right, -1 = left
+let alienSpeed= 1.0;     // horizontal speed (pixels per frame)
+let score     = 0;
+let gameOver  = false;
+let winGame   = false;
+
+// ----- Input handling -----
+const keysPressed = {};
+
+window.addEventListener('keydown', e => {
+    keysPressed[e.key] = true;
+});
+
+window.addEventListener('keyup', e => {
+    delete keysPressed[e.key];
+});
+
+// Fire bullet on spacebar
+function fireBullet() {
+    const bulletX = playerX + PLAYER_WIDTH/2 - BULLET_WIDTH/2;
+    bullets.push({x: bulletX, y: PLAYER_Y});
+}
+
+// ----- Game initialization -----
+function initAliens() {
+    aliens = [];
+    for (let r=0; r<ALIEN_ROWS; r++) {
+        for (let c=0; c<ALIEN_COLS; c++) {
+            const x = ALIEN_START_X + c * (ALIEN_W + ALIEN_X_SPACER);
+            const y = ALIEN_START_Y + r * (ALIEN_H + ALIEN_Y_SPACER);
+            aliens.push({x, y, alive:true});
+        }
+    }
+}
+
+function resetGame() {
+    playerX = CANVAS_W/2 - PLAYER_WIDTH/2;
+    bullets = [];
+    initAliens();
+    alienDir  = 1;
+    alienSpeed= 1.0;
+    score     = 0;
+    gameOver  = false;
+    winGame   = false;
+}
+
+resetGame();
+
+// ----- Game loop -----
+function update() {
+    if (gameOver || winGame) return;
+
+    // --- Player movement ---
+    if (keysPressed['ArrowLeft'] || keysPressed['a'] || keysPressed['A']) {
+        playerX -= PLAYER_SPEED;
+        if (playerX < 0) playerX = 0;
+    }
+    if (keysPressed['ArrowRight'] || keysPressed['d'] || keysPressed['D']) {
+        playerX += PLAYER_SPEED;
+        if (playerX + PLAYER_WIDTH > CANVAS_W)
+            playerX = CANVAS_W - PLAYER_WIDTH;
+    }
+
+    // --- Shooting ---
+    if (keysPressed[' ']) {  // space bar
+        fireBullet();
+        delete keysPressed[' ']; // single shot per press
+    }
+
+    // --- Update bullets ---
+    for (let i=bullets.length-1; i>=0; i--) {
+        const b = bullets[i];
+        b.y -= BULLET_SPEED;
+        if (b.y + BULLET_HEIGHT < 0) {  // off screen
+            bullets.splice(i, 1);
+            continue;
+        }
+    }
+
+    // --- Update aliens ---
+    let needDirectionChange = false;
+
+    for (const a of aliens) {
+        if (!a.alive) continue;
+        a.x += alienSpeed * alienDir;
+
+        // Check edge collision
+        if (alienDir === 1 && a.x + ALIEN_W >= CANVAS_W - 10) {
+            needDirectionChange = true;
+        } else if (alienDir === -1 && a.x <= 10) {
+            needDirectionChange = true;
+        }
+    }
+
+    if (needDirectionChange) {
+        alienDir *= -1;   // reverse direction
+        for (const a of aliens) {
+            if (!a.alive) continue;
+            a.y += ALIEN_DESCEND_STEP;
+            // Check for game over: aliens reach player level
+            if (a.y + ALIEN_H >= PLAYER_Y) {
+                gameOver = true;
+            }
+        }
+    }
+
+    // --- Collision detection (bullet vs alien) ---
+    for (let i=bullets.length-1; i>=0; i--) {
+        const b = bullets[i];
+        let hitIndex = -1;
+
+        for (let j=aliens.length-1; j>=0; j--) {
+            const a = aliens[j];
+            if (!a.alive) continue;
+            if (b.x < a.x + ALIEN_W &&
+                b.x + BULLET_WIDTH > a.x &&
+                b.y < a.y + ALIEN_H &&
+                b.y + BULLET_HEIGHT > a.y) {
+
+                // Collision!
+                a.alive = false;
+                hitIndex = j;
+                score += 10;
+                break;
+            }
+        }
+
+        if (hitIndex !== -1 || !b.x) {
+            bullets.splice(i, 1);
+        }
+    }
+
+    // --- Check win condition ---
+    const anyAlive = aliens.some(a => a.alive);
+    if (!anyAlive) {
+        winGame = true;
+    }
+}
+
+function draw() {
+    // Clear canvas
+    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // Draw player
+    ctx.fillStyle = '#0f0';
+    ctx.fillRect(playerX, PLAYER_Y, PLAYER_WIDTH, PLAYER_HEIGHT);
+
+    // Draw bullets
+    ctx.fillStyle = '#ff0';
+    for (const b of bullets) {
+        ctx.fillRect(b.x, b.y, BULLET_WIDTH, BULLET_HEIGHT);
+    }
+
+    // Draw aliens
+    ctx.fillStyle = '#f00';
+    for (const a of aliens) {
+        if (!a.alive) continue;
+        ctx.fillRect(a.x, a.y, ALIEN_W, ALIEN_H);
+    }
+
+    // Draw score
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Score: ${score}`, 10, 30);
+
+    // Game over / win messages
+    if (gameOver) {
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.font = '48px sans-serif';
+        ctx.fillText('GAME OVER', CANVAS_W/2, CANVAS_H/2 - 20);
+
+        ctx.font = '24px sans-serif';
+        ctx.fillText(`Final Score: ${score}`, CANVAS_W/2, CANVAS_H/2 + 30);
+    }
+
+    if (winGame) {
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.font = '48px sans-serif';
+        ctx.fillText('YOU WIN!', CANVAS_W/2, CANVAS_H/2 - 20);
+
+        ctx.font = '24px sans-serif';
+        ctx.fillText(`Final Score: ${score}`, CANVAS_W/2, CANVAS_H/2 + 30);
+    }
+}
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);
+
+// ----- Optional: Restart on click after game over -----
+canvas.addEventListener('click', () => {
+    if (gameOver || winGame) resetGame();
+});
+</script>
+</body>
+</html>
