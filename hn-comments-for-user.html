@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hacker News comments for a user</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f7fa; margin: 0; padding: 20px; color: #222; }
+    h1 { color: #ff6600; font-size: 1.6rem; margin-bottom: 20px; }
+    label { font-weight: bold; margin-right: 8px; }
+    input { padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+    button { padding: 8px 12px; margin: 5px; border: none; border-radius: 6px; cursor: pointer; background: #ff6600; color: white; font-weight: bold; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    textarea { width: 100%; min-height: 400px; margin-top: 15px; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: monospace; font-size: 14px; }
+    .controls { margin-bottom: 10px; }
+    #note { margin-top: 10px; font-size: 14px; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Hacker News comments for a user</h1>
+  <div class="controls">
+    <label for="username">Hacker News username:</label>
+    <input id="username" type="text" placeholder="e.g., pg" />
+    <button id="fetchBtn">Fetch comments</button>
+    <button id="copyBtn" disabled>Copy Output</button>
+  </div>
+  <p>Fetches up to 1,000 recent comments.</p>
+  <textarea id="output" placeholder="Comments will appear here..."></textarea>
+  <div id="note"></div>
+
+  <script>
+    const username = document.getElementById('username');
+    const fetchBtn = document.getElementById('fetchBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const output = document.getElementById('output');
+    const note = document.getElementById('note');
+
+    const apiUrl = (user, page) =>
+      `https://hn.algolia.com/api/v1/search_by_date?tags=comment,author_${encodeURIComponent(user)}&hitsPerPage=1000&page=${page}`;
+
+    const formatDate = (iso) => {
+      const d = new Date(iso);
+      const pad = (n)=> String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    const htmlToText = (html) => {
+      if (!html) return '';
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      return (div.textContent || div.innerText || '').trim();
+    };
+
+    async function fetchComments(user) {
+      if (!user) return;
+      fetchBtn.disabled = true;
+      copyBtn.disabled = true;
+      output.value = '';
+      note.textContent = '';
+      let all = [];
+      const res = await fetch(apiUrl(user, 0));
+      const data = await res.json();
+      all = all.concat(data.hits || []);
+      const lines = all.map(h => {
+        const date = formatDate(h.created_at);
+        const commentUrl = `https://news.ycombinator.com/item?id=${h.objectID}`;
+        const threadUrl = h.story_id ? `https://news.ycombinator.com/item?id=${h.story_id}` : '';
+        const storyTitle = h.story_title || h.title || '(no title)';
+        const text = htmlToText(h.comment_text);
+        return [
+          `Date: ${date}`,
+          `Story: ${storyTitle}`,
+          `Thread: ${threadUrl}`,
+          `Comment: ${commentUrl}`,
+          `Text:`,
+          text || '(no text)',
+          `\n---\n`
+        ].join('\n');
+      });
+      output.value = lines.join('\n');
+      copyBtn.disabled = all.length === 0;
+      fetchBtn.disabled = false;
+      note.textContent = `Fetched ${all.length} comment(s).`;
+    }
+
+    fetchBtn.addEventListener('click', () => fetchComments(username.value.trim()));
+    copyBtn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(output.value);
+      const originalText = copyBtn.textContent;
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => {
+        copyBtn.textContent = originalText;
+      }, 1500);
+    });
+  </script>
+</body>
+</html>
