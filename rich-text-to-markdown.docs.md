@@ -1,0 +1,3 @@
+This tool converts rich text to Markdown format. Paste formatted text from any source into the left panel, and the application automatically extracts the HTML structure, converting elements like bold text, italics, links, and paragraph breaks into proper Markdown syntax. The conversion focuses on common formatting elements while preserving the content structure.
+
+<!-- Generated from commit: 65e450d386ee1440cb42ae8f140bee7f34e72740 -->
