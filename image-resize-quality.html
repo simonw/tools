@@ -1,202 +1,548 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image resize and quality comparison</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        #drop-zone {
-            border: 2px dashed #ccc;
-            border-radius: 20px;
-            width: 100%;
-            height: 200px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-        }
-        #drop-zone.dragover {
-            background-color: #e0e0e0;
-        }
-        #color-picker-container {
-            margin: 20px 0;
-            display: none;
-        }
-        #output {
-            margin-top: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-        .image-container {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .image-container img {
-            max-width: 80%;
-            height: auto;
-            cursor: pointer;
-            transition: max-width 0.3s ease;
-        }
-        .image-container img.full-width {
-            max-width: unset;
-        }
-        .image-info {
-            margin-top: 10px;
-        }
-        .color-picker-label {
-            margin-right: 10px;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Image resize, crop, and quality comparison</title>
+  <style>
+    :root { --bar-thickness: 16px; --accent: #00aaff; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    /* Drop zone is a <label> so clicks natively open the file input */
+    #drop-zone {
+      border: 2px dashed #ccc;
+      border-radius: 20px;
+      width: 100%;
+      min-height: 200px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden; /* no scrollbars here either */
+    }
+    #drop-zone.dragover { background-color: #e0e0e0; }
+
+    /* Hide file input in an accessible way (not display:none) */
+    .visually-hidden-file {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    #cropper-container { margin-top: 16px; }
+
+    #color-picker-container {
+      margin: 20px 0;
+      display: none;
+    }
+
+    #output {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .image-container {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .image-container img {
+      max-width: 80%;
+      height: auto;
+      cursor: pointer;
+      transition: max-width 0.3s ease;
+    }
+    .image-container img.full-width { max-width: unset; }
+    .image-info { margin-top: 10px; }
+    .color-picker-label { margin-right: 10px; }
+
+    /* Cropper (no inner scrollbars) */
+    #cropper {
+      position: relative;
+      width: 100%;
+      overflow: hidden;   /* ensure no horizontal/vertical scrollbar around preview */
+      touch-action: none;
+    }
+    #source-image {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      user-select: none;
+      -webkit-user-drag: none;
+      touch-action: none;
+    }
+
+    .crop-box {
+      position: absolute;
+      border: 2px dashed var(--accent);
+      box-sizing: border-box;
+      touch-action: none;
+    }
+
+    /* Edge bars */
+    .crop-bar {
+      position: absolute;
+      background: rgba(0, 170, 255, 0.7);
+        touch-action: none;
+    }
+    .crop-bar.top, .crop-bar.bottom {
+      height: var(--bar-thickness);
+      left: -8px; right: -8px;
+      cursor: ns-resize;
+    }
+    .crop-bar.left, .crop-bar.right {
+      width: var(--bar-thickness);
+      top: -8px; bottom: -8px;
+      cursor: ew-resize;
+    }
+    .crop-bar.top    { top: -8px; }
+    .crop-bar.bottom { bottom: -8px; }
+    .crop-bar.left   { left: -8px; }
+    .crop-bar.right  { right: -8px; }
+
+    /* Corner handles */
+    .crop-handle {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+      touch-action: none;
+    }
+    .crop-handle.tl { left: -10px; top: -10px; cursor: nwse-resize; }
+    .crop-handle.tr { right: -10px; top: -10px; cursor: nesw-resize; }
+    .crop-handle.bl { left: -10px; bottom: -10px; cursor: nesw-resize; }
+    .crop-handle.br { right: -10px; bottom: -10px; cursor: nwse-resize; }
+
+    /* Faint mask outside the crop */
+    .mask {
+      position: absolute;
+      background: rgba(0,0,0,0.25);
+      pointer-events: none;
+    }
+    .mask.t, .mask.b { left: 0; right: 0; height: 0; }
+    .mask.l, .mask.r { top: 0; bottom: 0; width: 0; }
+  </style>
 </head>
 <body>
-    <h1>Image resize and quality comparison</h1>
-    <div id="drop-zone">
-        <p>Drop an image here, click to select, or paste an image</p>
-    </div>
-    <input type="file" id="file-input" accept="image/*" style="display: none;">
-    <div id="color-picker-container">
-        <label class="color-picker-label" for="background-color">Background Color:</label>
-        <input type="color" id="background-color" value="#ffffff">
-    </div>
-    <div id="output"></div>
+  <h1>Image resize, crop, and quality comparison</h1>
 
-    <script>
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const output = document.getElementById('output');
-        const colorPicker = document.getElementById('background-color');
-        const colorPickerContainer = document.getElementById('color-picker-container');
-        let currentImage = null;
+  <!-- Upload area is a label linked to the hidden file input -->
+  <label id="drop-zone" for="file-input">
+    <p id="dz-instruction">Drop an image here, click to select, or paste an image</p>
+  </label>
+  <input type="file" id="file-input" accept="image/*" class="visually-hidden-file">
 
-        dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        dropZone.addEventListener('drop', handleDrop);
-        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
-        document.addEventListener('paste', handlePaste);
-        colorPicker.addEventListener('input', () => {
-            if (currentImage) {
-                processImage(currentImage);
-            }
-        });
+  <!-- Cropping UI appears BELOW the upload area (no inner scrollbars) -->
+  <div id="cropper-container"></div>
 
-        function handleDrop(e) {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                handleFile(file);
-            }
+  <div id="color-picker-container">
+    <label class="color-picker-label" for="background-color">Background Color:</label>
+    <input type="color" id="background-color" value="#ffffff">
+  </div>
+
+  <div id="output"></div>
+
+  <script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const cropperContainer = document.getElementById('cropper-container');
+    const output = document.getElementById('output');
+    const colorPicker = document.getElementById('background-color');
+    const colorPickerContainer = document.getElementById('color-picker-container');
+
+    let currentImage = null;       // HTMLImageElement created from file
+    let cropRect = null;           // { x, y, width, height } in IMAGE (natural) pixels
+    const MIN_CROP = 20;           // minimum crop size in image pixels
+
+    // Drag & drop + paste still supported
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', handleDrop);
+    fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+    document.addEventListener('paste', handlePaste);
+    colorPicker.addEventListener('input', () => { if (currentImage) processImage(currentImage); });
+    window.addEventListener('resize', () => { if (currentImage) updateCropOverlayPositions(); });
+
+    function handleDrop(e) {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) handleFile(file);
+    }
+
+    function handlePaste(e) {
+      const items = e.clipboardData.items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          handleFile(blob);
+          break;
+        }
+      }
+    }
+
+    function handleFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          currentImage = img;
+          cropRect = { x: 0, y: 0, width: img.width, height: img.height };
+          renderCropper(img);                  // mount cropper BELOW the drop zone
+          checkTransparencyOnArea(img, cropRect);
+          processImage(img);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    /* ---------- Transparency check limited to the cropped area (rounded) ---------- */
+    function checkTransparencyOnArea(img, rect) {
+      const rx = Math.round(rect.x);
+      const ry = Math.round(rect.y);
+      const rw = Math.max(1, Math.round(rect.width));
+      const rh = Math.max(1, Math.round(rect.height));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = rw;
+      canvas.height = rh;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, rx, ry, rw, rh, 0, 0, rw, rh);
+      try {
+        const imageData = ctx.getImageData(0, 0, rw, rh);
+        const data = imageData.data;
+        for (let i = 3; i < data.length; i += 4) {
+          if (data[i] < 255) {
+            colorPickerContainer.style.display = 'block';
+            return;
+          }
+        }
+        colorPickerContainer.style.display = 'none';
+      } catch (_) {
+        // Cross-origin guard; default to showing the picker
+        colorPickerContainer.style.display = 'block';
+      }
+    }
+
+    /* ---------- Cropper rendering and interaction ---------- */
+    function renderCropper(img) {
+      cropperContainer.innerHTML = '';
+
+      const cropper = document.createElement('div');
+      cropper.id = 'cropper';
+
+      const srcImg = document.createElement('img');
+      srcImg.id = 'source-image';
+      srcImg.alt = 'Source image for cropping';
+      srcImg.src = img.src;
+
+      // Crop box + bars
+      const cropBox = document.createElement('div');
+      cropBox.className = 'crop-box';
+      cropBox.setAttribute('aria-label', 'Crop region');
+
+      const barTop = document.createElement('div'); barTop.className = 'crop-bar top'; barTop.dataset.edge = 'top';
+      const barBottom = document.createElement('div'); barBottom.className = 'crop-bar bottom'; barBottom.dataset.edge = 'bottom';
+      const barLeft = document.createElement('div'); barLeft.className = 'crop-bar left'; barLeft.dataset.edge = 'left';
+      const barRight = document.createElement('div'); barRight.className = 'crop-bar right'; barRight.dataset.edge = 'right';
+
+      // Corner handles
+      const hTL = document.createElement('div'); hTL.className = 'crop-handle tl'; hTL.dataset.edge = 'tl';
+      const hTR = document.createElement('div'); hTR.className = 'crop-handle tr'; hTR.dataset.edge = 'tr';
+      const hBL = document.createElement('div'); hBL.className = 'crop-handle bl'; hBL.dataset.edge = 'bl';
+      const hBR = document.createElement('div'); hBR.className = 'crop-handle br'; hBR.dataset.edge = 'br';
+
+      cropBox.appendChild(barTop);
+      cropBox.appendChild(barBottom);
+      cropBox.appendChild(barLeft);
+      cropBox.appendChild(barRight);
+      cropBox.appendChild(hTL);
+      cropBox.appendChild(hTR);
+      cropBox.appendChild(hBL);
+      cropBox.appendChild(hBR);
+
+      // Masks to dim outside crop
+      const maskT = document.createElement('div'); maskT.className = 'mask t';
+      const maskB = document.createElement('div'); maskB.className = 'mask b';
+      const maskL = document.createElement('div'); maskL.className = 'mask l';
+      const maskR = document.createElement('div'); maskR.className = 'mask r';
+
+      cropper.appendChild(srcImg);
+      cropper.appendChild(maskT);
+      cropper.appendChild(maskB);
+      cropper.appendChild(maskL);
+      cropper.appendChild(maskR);
+      cropper.appendChild(cropBox);
+      cropperContainer.appendChild(cropper);
+
+      if (srcImg.complete) {
+        updateCropOverlayPositions();
+      } else {
+        srcImg.addEventListener('load', updateCropOverlayPositions, { once: true });
+      }
+
+      // Pointer events for bars and corners (mouse + touch)
+      [barTop, barBottom, barLeft, barRight, hTL, hTR, hBL, hBR].forEach(el => {
+        el.addEventListener('pointerdown', onBarPointerDown);
+      });
+    }
+
+    function getImageAndScale() {
+      const imgEl = document.getElementById('source-image');
+      const cropper = document.getElementById('cropper');
+      if (!imgEl || !cropper) return { imgEl: null, scaleX: 1, scaleY: 1, imgRect: null, cropperRect: null };
+      const imgRect = imgEl.getBoundingClientRect();
+      const cropperRect = cropper.getBoundingClientRect();
+      const scaleX = imgRect.width / imgEl.naturalWidth;
+      const scaleY = imgRect.height / imgEl.naturalHeight;
+      return { imgEl, scaleX, scaleY, imgRect, cropperRect };
+    }
+
+    function updateCropOverlayPositions() {
+      const { imgEl, scaleX, scaleY, imgRect, cropperRect } = getImageAndScale();
+      if (!imgEl || !cropRect) return;
+
+      const cropBox = document.querySelector('.crop-box');
+      const maskT = document.querySelector('.mask.t');
+      const maskB = document.querySelector('.mask.b');
+      const maskL = document.querySelector('.mask.l');
+      const maskR = document.querySelector('.mask.r');
+
+      // Position crop box (relative to cropper)
+      const imgLeft = imgRect.left - cropperRect.left;
+      const imgTop = imgRect.top - cropperRect.top;
+
+      const left = imgLeft + cropRect.x * scaleX;
+      const top = imgTop + cropRect.y * scaleY;
+      const width = cropRect.width * scaleX;
+      const height = cropRect.height * scaleY;
+
+      cropBox.style.left = left + 'px';
+      cropBox.style.top = top + 'px';
+      cropBox.style.width = width + 'px';
+      cropBox.style.height = height + 'px';
+
+      // Masks (dim outside)
+      maskT.style.left = imgLeft + 'px';
+      maskT.style.top = imgTop + 'px';
+      maskT.style.width = imgRect.width + 'px';
+      maskT.style.height = Math.max(0, top - imgTop) + 'px';
+
+      maskB.style.left = imgLeft + 'px';
+      maskB.style.top = (top + height) + 'px';
+      maskB.style.width = imgRect.width + 'px';
+      maskB.style.height = Math.max(0, (imgTop + imgRect.height) - (top + height)) + 'px';
+
+      maskL.style.left = imgLeft + 'px';
+      maskL.style.top = top + 'px';
+      maskL.style.width = Math.max(0, left - imgLeft) + 'px';
+      maskL.style.height = height + 'px';
+
+      maskR.style.left = (left + width) + 'px';
+      maskR.style.top = top + 'px';
+      maskR.style.width = Math.max(0, (imgLeft + imgRect.width) - (left + width)) + 'px';
+      maskR.style.height = height + 'px';
+    }
+
+    let dragState = null; // { edge, pointerId, startX, startY, startRect }
+
+    function onBarPointerDown(e) {
+      e.preventDefault();
+      const edge = e.currentTarget.dataset.edge;
+      dragState = {
+        edge,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startRect: { ...cropRect }
+      };
+      e.currentTarget.setPointerCapture(e.pointerId);
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp, { once: true });
+      window.addEventListener('pointercancel', onPointerUp, { once: true });
+    }
+
+    function onPointerMove(e) {
+      if (!dragState || !currentImage) return;
+      if (e.pointerId !== dragState.pointerId) return;
+
+      const { scaleX, scaleY } = getImageAndScale();
+      const dxImg = (e.clientX - dragState.startX) / (scaleX || 1);
+      const dyImg = (e.clientY - dragState.startY) / (scaleY || 1);
+
+      let { x, y, width, height } = dragState.startRect;
+
+      switch (dragState.edge) {
+        case 'left': {
+          let newX = clamp(0, x + dxImg, x + width - MIN_CROP);
+          width = x + width - newX;
+          x = newX;
+          break;
+        }
+        case 'right': {
+          let newW = clamp(MIN_CROP, width + dxImg, currentImage.width - x);
+          width = newW;
+          break;
+        }
+        case 'top': {
+          let newY = clamp(0, y + dyImg, y + height - MIN_CROP);
+          height = y + height - newY;
+          y = newY;
+          break;
+        }
+        case 'bottom': {
+          let newH = clamp(MIN_CROP, height + dyImg, currentImage.height - y);
+          height = newH;
+          break;
+        }
+        /* Corners: adjust both axes */
+        case 'tl': {
+          let newX = clamp(0, x + dxImg, x + width - MIN_CROP);
+          let newY = clamp(0, y + dyImg, y + height - MIN_CROP);
+          width = x + width - newX;
+          height = y + height - newY;
+          x = newX; y = newY;
+          break;
+        }
+        case 'tr': {
+          let newW = clamp(MIN_CROP, width + dxImg, currentImage.width - x);
+          let newY = clamp(0, y + dyImg, y + height - MIN_CROP);
+          height = y + height - newY;
+          y = newY; width = newW;
+          break;
+        }
+        case 'bl': {
+          let newX = clamp(0, x + dxImg, x + width - MIN_CROP);
+          let newH = clamp(MIN_CROP, height + dyImg, currentImage.height - y);
+          width = x + width - newX;
+          x = newX; height = newH;
+          break;
+        }
+        case 'br': {
+          let newW = clamp(MIN_CROP, width + dxImg, currentImage.width - x);
+          let newH = clamp(MIN_CROP, height + dyImg, currentImage.height - y);
+          width = newW; height = newH;
+          break;
+        }
+      }
+
+      // Clamp to image bounds
+      x = clamp(0, x, currentImage.width - MIN_CROP);
+      y = clamp(0, y, currentImage.height - MIN_CROP);
+      width = clamp(MIN_CROP, width, currentImage.width - x);
+      height = clamp(MIN_CROP, height, currentImage.height - y);
+
+      cropRect = { x, y, width, height };
+      updateCropOverlayPositions();
+
+      // Update previews live
+      checkTransparencyOnArea(currentImage, cropRect);
+      processImage(currentImage);
+    }
+
+    function onPointerUp() {
+      window.removeEventListener('pointermove', onPointerMove);
+      dragState = null;
+    }
+
+    function clamp(min, val, max) {
+      return Math.max(min, Math.min(val, max));
+    }
+
+    /* ---------- Processing: resize qualities based on CROP area (rounded dims) ---------- */
+    function processImage(img) {
+      output.innerHTML = '';
+      if (!cropRect) return;
+
+      const roundedCropW = Math.max(1, Math.round(cropRect.width));
+      const roundedCropH = Math.max(1, Math.round(cropRect.height));
+
+      const qualities = [1, 0.9, 0.7, 0.5, 0.3];
+      const widths = [
+        roundedCropW,
+        Math.max(1, Math.round(roundedCropW / 2))
+      ];
+
+      widths.forEach(w => {
+        const h = Math.max(1, Math.round(roundedCropH * (w / roundedCropW)));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+
+        // Fill background if color picker is visible (handles transparency)
+        if (colorPickerContainer.style.display === 'block') {
+          ctx.fillStyle = colorPicker.value;
+          ctx.fillRect(0, 0, w, h);
         }
 
-        function handleFile(file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    currentImage = img;
-                    checkTransparency(img);
-                    processImage(img);
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
+        // Draw the CROPPED region scaled to the canvas (rounded source rect)
+        const sx = Math.round(cropRect.x);
+        const sy = Math.round(cropRect.y);
+        const sw = roundedCropW;
+        const sh = roundedCropH;
 
-        function handlePaste(e) {
-            const items = e.clipboardData.items;
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].type.indexOf('image') !== -1) {
-                    const blob = items[i].getAsFile();
-                    handleFile(blob);
-                    break;
-                }
-            }
-        }
+        qualities.forEach(quality => {
+          ctx.clearRect(0, 0, w, h);
+          if (colorPickerContainer.style.display === 'block') {
+            ctx.fillStyle = colorPicker.value;
+            ctx.fillRect(0, 0, w, h);
+          }
+          ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
 
-        function checkTransparency(img) {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            
-            for (let i = 3; i < data.length; i += 4) {
-                if (data[i] < 255) {
-                    colorPickerContainer.style.display = 'block';
-                    return;
-                }
-            }
-            colorPickerContainer.style.display = 'none';
-        }
+          canvas.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            const container = document.createElement('div');
+            container.className = 'image-container';
 
-        function processImage(img) {
-            output.innerHTML = '';
-            const qualities = [1, 0.9, 0.7, 0.5, 0.3];
-            const widths = [img.width, img.width / 2];
-
-            widths.forEach(width => {
-                const heightRatio = width / img.width;
-                const height = img.height * heightRatio;
-
-                qualities.forEach(quality => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-
-                    // Fill background if color picker is visible
-                    if (colorPickerContainer.style.display === 'block') {
-                        ctx.fillStyle = colorPicker.value;
-                        ctx.fillRect(0, 0, width, height);
-                    }
-
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    canvas.toBlob(blob => {
-                        const url = URL.createObjectURL(blob);
-                        const container = document.createElement('div');
-                        container.className = 'image-container';
-                        const resultImg = document.createElement('img');
-                        resultImg.src = url;
-                        resultImg.addEventListener('click', () => {
-                            resultImg.classList.toggle('full-width');
-                        });
-
-                        const infoDiv = document.createElement('div');
-                        infoDiv.className = 'image-info';
-                        infoDiv.innerHTML = `
-                            Width: ${width}px<br>
-                            Quality: ${quality.toFixed(1)}<br>
-                            Size: ${(blob.size / 1024).toFixed(2)} KB
-                        `;
-
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = url;
-                        downloadLink.download = `image_w${width}_q${quality.toFixed(1)}.jpg`;
-                        downloadLink.textContent = 'Download';
-
-                        container.appendChild(resultImg);
-                        container.appendChild(infoDiv);
-                        container.appendChild(downloadLink);
-                        output.appendChild(container);
-                    }, 'image/jpeg', quality);
-                });
+            const resultImg = document.createElement('img');
+            resultImg.src = url;
+            resultImg.alt = `Resized preview ${w}px q${quality.toFixed(1)}`;
+            resultImg.addEventListener('click', () => {
+              resultImg.classList.toggle('full-width');
             });
-        }
-    </script>
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'image-info';
+            infoDiv.innerHTML = `
+              Width: ${w}px<br>
+              Quality: ${quality.toFixed(1)}<br>
+              Size: ${(blob.size / 1024).toFixed(2)} KB
+            `;
+
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = `image_crop_${sw}x${sh}_w${w}_q${quality.toFixed(1)}.jpg`;
+            downloadLink.textContent = 'Download';
+
+            container.appendChild(resultImg);
+            container.appendChild(infoDiv);
+            container.appendChild(downloadLink);
+            output.appendChild(container);
+          }, 'image/jpeg', quality);
+        });
+      });
+    }
+  </script>
 </body>
 </html>
