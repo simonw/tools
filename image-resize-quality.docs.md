@@ -1,3 +1,3 @@
-This tool allows you to compare image quality and filesize at different compression levels. Upload an image by dragging, clicking, or pasting it into the interface. The tool will display versions of your image at original and half size with various quality settings (100%, 90%, 70%, 50%, and 30%), showing file size for each variation. For transparent images, a background color picker lets you choose the fill color.
+This interactive tool allows you to upload images and compare different compression and resize options. Upload an image by dropping it into the designated area, selecting a file, or pasting from your clipboard. Once uploaded, you can adjust the crop area using the handles, then view multiple versions with different quality settings and dimensions. For transparent images, a background color selector appears to customize the fill color.
 
-<!-- Generated from commit: 41c4d15793217943bfd9432c17f154afb1778373 -->
+<!-- Generated from commit: 31c983a8f3c2bf5ba20e2670388094e184cf52df -->
