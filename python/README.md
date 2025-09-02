@@ -2,6 +2,16 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
+## show_image.py
+
+Display an image in the terminal using [rich-pixels](https://pypi.org/project/rich-pixels/):
+
+```bash
+uv run http://tools.simonwillison.net/python/show_image.py \
+  image.jpg
+```
+Add `--lanczos` to use Lanczos scaling, default is NEAREST (crisp pixel art).
+
 ## modelscope_size.py
 
 Calculate the size of a model on [ModelScope](https://modelscope.cn/).
