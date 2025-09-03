@@ -7,7 +7,7 @@ These Python scripts can be run directly from their URLs using `uv run`.
 Display an image in the terminal using [rich-pixels](https://pypi.org/project/rich-pixels/):
 
 ```bash
-uv run http://tools.simonwillison.net/python/show_image.py \
+uv run https://tools.simonwillison.net/python/show_image.py \
   image.jpg
 ```
 Add `--lanczos` to use Lanczos scaling, default is NEAREST (crisp pixel art).
@@ -19,7 +19,7 @@ Calculate the size of a model on [ModelScope](https://modelscope.cn/).
 Example:
 
 ```bash
-uv run http://tools.simonwillison.net/python/modelscope_size.py \
+uv run https://tools.simonwillison.net/python/modelscope_size.py \
   https://modelscope.cn/models/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8
 ```
 Outputs:
@@ -32,7 +32,7 @@ Outputs:
 Stream the Markdown result of an LLM prompt using Textual's streaming Markdown feature.
 
 ```bash
-uv run http://tools.simonwillison.net/python/streaming_textual_markdown.py \
+uv run https://tools.simonwillison.net/python/streaming_textual_markdown.py \
   'Epic saga of a pelican and a wolf becoming friends over their love for welding'
 
 ## check_invisible_text.py
@@ -40,7 +40,7 @@ uv run http://tools.simonwillison.net/python/streaming_textual_markdown.py \
 Check a PDF file for possibly instances of invisible text. [Claude transcript](https://claude.ai/share/0d82324d-d575-40d9-ba85-732ab234197a).
 
 ```bash
-uv run http://tools.simonwillison.net/python/check_invisible_text.py \
+uv run https://tools.simonwillison.net/python/check_invisible_text.py \
   my-file.pdf
 ```
 Example output:
@@ -82,7 +82,7 @@ Page 0: White text (invisible on white background)
 Inspect a GGUF file (a format used by [llama.cpp](https://github.com/ggml-org/llama.cpp)) and print out the key/value pairs. No dependencies.
 
 ```bash
-uv run http://tools.simonwillison.net/python/gguf_inspect.py \
+uv run https://tools.simonwillison.net/python/gguf_inspect.py \
   ~/.ollama/models/blobs/sha256-b158411543050d042608cef16fdfeec0d9bc1cf2e63a3625f3887fc0c4249521 \
   --json --exclude tokenizer.ggml.
 ```
@@ -92,13 +92,13 @@ uv run http://tools.simonwillison.net/python/gguf_inspect.py \
 Given a text file that includes JSON syntax but is not valid JSON - a Markdown README file for example - this tool finds all valid JSON objects within that text and returns the largest, or all of them if you specify `-a`.
 
 ```bash
-uv run http://tools.simonwillison.net/python/json_extractor.py \
+uv run https://tools.simonwillison.net/python/json_extractor.py \
   README.md
 ```
 You can also pipe data into it:
 ```bash
 curl 'https://raw.githubusercontent.com/simonw/json-flatten/refs/heads/main/README.md' \
-  | uv run http://tools.simonwillison.net/python/json_extractor.py
+  | uv run https://tools.simonwillison.net/python/json_extractor.py
 ```
 
 ## http_check.py
@@ -106,7 +106,7 @@ curl 'https://raw.githubusercontent.com/simonw/json-flatten/refs/heads/main/READ
 Check if a given URL supports gzip, ETags and Last-modified conditional GET requests.
 
 ```bash
-uv run http://tools.simonwillison.net/python/http_check.py \
+uv run https://tools.simonwillison.net/python/http_check.py \
   https://simonw.github.io/ollama-models-atom-feed/atom.xml
 ```
 
@@ -115,7 +115,7 @@ uv run http://tools.simonwillison.net/python/http_check.py \
 Replace any lines that are entirely whitespace with blank lines in specified files or folders:
 
 ```bash
-uv run http://tools.simonwillison.net/python/whitespace_cleaner.py \
+uv run https://tools.simonwillison.net/python/whitespace_cleaner.py \
   my-file.txt my-folder
 ```
 Has a `--dry-run` option for seeing how many files it would modify.
@@ -125,7 +125,7 @@ Has a `--dry-run` option for seeing how many files it would modify.
 View the size of the files in all of your Google Cloud buckets. You'll need to have [gcloud installed](https://cloud.google.com/sdk/docs/install) and do the `gcloud auth` dance first.
 
 ```bash
-uv run http://tools.simonwillison.net/python/all_gcp_buckets.py
+uv run https://tools.simonwillison.net/python/all_gcp_buckets.py
 ```
 This will leave `.txt` files for each bucket containing a file listing, in a directory called `bucket_listings_DATE`.
 
@@ -134,19 +134,19 @@ This will leave `.txt` files for each bucket containing a file listing, in a dir
 Run PDF files through the [Mistral OCR](https://mistral.ai/fr/news/mistral-ocr) API:
 
 ```bash
-uv run http://tools.simonwillison.net/python/mistral_ocr.py \
+uv run https://tools.simonwillison.net/python/mistral_ocr.py \
   my-file.pdf > output.md
 ```
 Or to generate HTML and save images and HTML to a directory:
 ```bash
-uv run http://tools.simonwillison.net/python/mistral_ocr.py \
+uv run https://tools.simonwillison.net/python/mistral_ocr.py \
   my-file.pdf -d output-dir -he
 ```
 `-he` is short for `--html --extract-images`.
 
 Or to create HTML with images inlined as base64 URIs:
 ```bash
-uv run http://tools.simonwillison.net/python/mistral_ocr.py \
+uv run https://tools.simonwillison.net/python/mistral_ocr.py \
   my-file.pdf -hi > output.html
 ```
 `-hi` is short for `--html --inline-images`.
@@ -202,7 +202,7 @@ Given input text to stdin and search/highlight terms, outputs matches plus conte
 
 Example usage:
 ```bash
-cat myfile.py | uv run http://tools.simonwillison.net/python/highlight.py re search
+cat myfile.py | uv run https://tools.simonwillison.net/python/highlight.py re search
 ```
 
 ## debug_s3_access.py
@@ -212,7 +212,7 @@ Use this with a URL to an object in an S3 bucket to try and debug why that objec
 Example usage:
 
 ```bash
-uv run http://tools.simonwillison.net/python/debug_s3_access.py \
+uv run https://tools.simonwillison.net/python/debug_s3_access.py \
   https://test-public-bucket-simonw.s3.us-east-1.amazonaws.com/0f550b7b28264d7ea2b3d360e3381a95.jpg
 ```
 Output:
