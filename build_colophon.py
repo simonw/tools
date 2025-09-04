@@ -274,8 +274,22 @@ def build_colophon():
     </div>
 """
 
-    # Close the HTML
+    # Close the HTML with script that expands the correct tool
     html_content += """
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const hash = window.location.hash.slice(1);
+        if (hash) {
+            const element = document.getElementById(hash);
+            if (element) {
+                const details = element.querySelector('details');
+                if (details) {
+                    details.open = true;
+                }
+            }
+        }
+    });
+    </script>
 </body>
 </html>
 """
