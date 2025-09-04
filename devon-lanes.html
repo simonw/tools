@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Devon Lane Driving Simulator</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: linear-gradient(180deg, #87CEEB 0%, #90EE90 100%);
+      min-height: 100vh;
+      color: #2c3e2d;
+    }
+
+    .game-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 15px;
+      padding: 25px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      border: 3px solid #8B4513;
+    }
+
+    h1 {
+      text-align: center;
+      color: #8B4513;
+      font-size: 2.2em;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .subtitle {
+      text-align: center;
+      font-style: italic;
+      color: #556B2F;
+      margin-bottom: 25px;
+      font-size: 1.1em;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      background: #F5F5DC;
+      border: 2px solid #DEB887;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat { text-align: center; }
+    .stat-label { font-weight: bold; color: #8B4513; display: block; font-size: 0.9em; }
+    .stat-value { font-size: 1.4em; color: #2c3e2d; font-weight: bold; }
+
+    .road-view {
+      height: 200px;
+      background: linear-gradient(to bottom, #32CD32, #228B22);
+      border: 3px solid #8B4513;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hedgerow {
+      position: absolute;
+      top: 0; height: 100%; width: 50px;
+      background: repeating-linear-gradient(45deg, #228B22, #228B22 10px, #32CD32 10px, #32CD32 20px);
+    }
+    .hedgerow.left { left: 0; border-right: 2px solid #8B4513; }
+    .hedgerow.right { right: 0; border-left: 2px solid #8B4513; }
+
+    .lane {
+      position: absolute; left: 50px; right: 50px; top: 0; height: 100%;
+      background: #696969;
+      background-image: repeating-linear-gradient(180deg, transparent, transparent 20px, #FFF 20px, #FFF 25px);
+    }
+
+    .vehicle { position: absolute; font-size: 2.5em; transition: all 0.5s ease; text-shadow: 2px 2px 4px rgba(0,0,0,.3); }
+    .player-car { bottom: 20px; left: 50%; transform: translateX(-50%); }
+    .encounter-vehicle { top: -50px; left: 50%; transform: translateX(-50%); animation: approaching 3s linear infinite; }
+
+    @keyframes approaching { from { top: -50px; font-size: 1.5em; } to { top: 50%; font-size: 3em; } }
+
+    .encounter-box {
+      background: #FFF8DC;
+      border: 3px solid #DAA520;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      min-height: 120px;
+    }
+
+    .encounter-title { font-size: 1.3em; font-weight: bold; color: #B8860B; margin-bottom: 10px; border-bottom: 2px solid #DAA520; padding-bottom: 5px; }
+    .encounter-description { margin-bottom: 15px; line-height: 1.4; color: #2c3e2d; }
+
+    .controls { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    button {
+      background: linear-gradient(135deg, #DAA520, #B8860B);
+      color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer;
+      font-family: Helvetica, Arial, sans-serif; font-size: 16px; font-weight: bold; transition: all 0.3s ease;
+      box-shadow: 0 4px 8px rgba(0,0,0,.2); text-shadow: 1px 1px 2px rgba(0,0,0,.3);
+    }
+    button:hover { background: linear-gradient(135deg, #FFD700, #DAA520); transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,.3); }
+    button:active { transform: translateY(0); box-shadow: 0 2px 4px rgba(0,0,0,.2); }
+    button:disabled { background: #999; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .dice-roll { background: #F0E68C; border: 2px solid #DAA520; border-radius: 8px; padding: 10px; margin: 10px 0; text-align: center; font-weight: bold; animation: rollAnimation 0.5s ease-out; }
+    @keyframes rollAnimation { 0% { transform: scale(0.8) rotate(-5deg); } 50% { transform: scale(1.1) rotate(5deg); } 100% { transform: scale(1) rotate(0deg); } }
+
+    .game-over { background: #FFB6C1; border: 3px solid #DC143C; color: #8B0000; text-align: center; font-size: 1.2em; font-weight: bold; }
+    .victory { background: #98FB98; border: 3px solid #32CD32; color: #006400; text-align: center; font-size: 1.2em; font-weight: bold; }
+
+    .flowers { position: absolute; font-size: 1.2em; animation: sway 3s ease-in-out infinite; }
+    @keyframes sway { 0%,100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+
+    /* Dev test panel */
+    details.tests { margin-top: 16px; }
+    .test-pass { font-weight: bold; }
+    .test-fail { color: #8B0000; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <h1>Devon Lane Driving Simulator</h1>
+    <p class="subtitle">"Where every journey is an adventure, and every hedge hides a surprise!"</p>
+
+    <div class="stats" aria-live="polite">
+      <div class="stat">
+        <span class="stat-label">Distance travelled</span>
+        <span class="stat-value" id="distance">0 miles</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Sanity points</span>
+        <span class="stat-value" id="sanity">100</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Encounters survived</span>
+        <span class="stat-value" id="encounters">0</span>
+      </div>
+    </div>
+
+    <div class="road-view">
+      <div class="hedgerow left"></div>
+      <div class="hedgerow right"></div>
+      <div class="lane"></div>
+      <div class="vehicle player-car">🚗</div>
+      <div class="vehicle encounter-vehicle" id="encounterVehicle" style="display:none;"></div>
+      <div class="flowers" style="top: 20px; left: 10px;">🌼</div>
+      <div class="flowers" style="top: 60px; right: 15px;">🌸</div>
+      <div class="flowers" style="bottom: 30px; left: 20px;">🌺</div>
+    </div>
+
+    <div class="encounter-box" id="encounterBox" aria-live="polite">
+      <div class="encounter-title">Welcome to Devon's finest single-track lanes!</div>
+      <div class="encounter-description">
+        You're driving through the picturesque countryside of Devon, where ancient hedgerows tower above your car and the lanes are barely wide enough for a sheep to pass. Every bend could bring a new challenge!
+        <br><br>
+        Your mission: Survive the journey and maintain your sanity while navigating these treacherous lanes.
+      </div>
+      <div class="controls">
+        <button onclick="startJourney()">Begin your perilous journey</button>
+      </div>
+    </div>
+
+    <details class="tests">
+      <summary>Developer Test Output</summary>
+      <ul id="testOutput"></ul>
+    </details>
+  </div>
+
+  <script>
+    // ---- Game Logic ----
+    let gameState = {
+      distance: 0,
+      sanity: 100,
+      encounters: 0,
+      gameOver: false,
+      targetDistance: 10
+    };
+
+    const encounters = [
+      { type: 'bicycle', emoji: '🚴‍♀️', name: 'Lycra-clad Cyclist',
+        description: 'A determined cyclist in full racing gear appears around the bend, wobbling slightly as they navigate the narrow lane.',
+        action: 'Ring your horn gently', difficulty: 8,
+        successText: 'The cyclist gives you a cheerful wave and pulls into a gateway. "Lovely morning!" they call out.',
+        failText: 'The cyclist wobbles dangerously and gives you a rather stern look. Your aggressive driving disturbs the peace.',
+        sanityCost: 5, successSanity: 2 },
+      { type: 'scooter', emoji: '🛵', name: 'Village Scooter',
+        description: 'An elderly gentleman on a mobility scooter putters along at a stately 4mph, completely oblivious to your presence.',
+        action: 'Wait patiently', difficulty: 6,
+        successText: 'The gentleman eventually notices you and courteously moves aside with a tip of his flat cap.',
+        failText: 'Your impatience shows and the gentleman takes even longer to move, muttering about "young drivers these days."',
+        sanityCost: 3, successSanity: 5 },
+      { type: 'motorbike', emoji: '🏍️', name: 'Weekend Warrior',
+        description: 'A leather-clad motorcyclist roars around the corner, clearly enjoying the twisty Devon roads a bit too much.',
+        action: 'Flash your lights', difficulty: 10,
+        successText: 'The biker acknowledges you with a nod and skillfully navigates past without incident.',
+        failText: 'The motorcyclist takes offense to your light-flashing and revs aggressively before speeding off.',
+        sanityCost: 8, successSanity: 3 },
+      { type: 'horse', emoji: '🐴', name: 'Majestic Dartmoor Pony',
+        description: 'A beautiful horse and rider appear ahead. The horse seems nervous about the narrow lane and your metal beast.',
+        action: 'Turn off engine and wait', difficulty: 12,
+        successText: 'The horse calms down and the grateful rider waves as they pass. "Thank you so much!" they call.',
+        failText: 'The horse becomes spooked and rears up. The rider struggles to regain control as you wait anxiously.',
+        sanityCost: 10, successSanity: 8 },
+      { type: 'car', emoji: '🚙', name: "Local's 4WD",
+        description: 'A muddy Land Rover approaches, driven by someone who clearly knows these lanes like the back of their hand.',
+        action: 'Reverse to passing place', difficulty: 8,
+        successText: 'The local driver gives you an appreciative nod and waves as they expertly navigate past.',
+        failText: 'You misjudge the passing place and end up with your wheels in the ditch. Embarrassing!',
+        sanityCost: 6, successSanity: 4 },
+      { type: 'tractor', emoji: '🚜', name: 'Massive Farm Tractor',
+        description: 'An enormous tractor with a full load of hay bales fills the entire lane ahead. The farmer looks apologetic but determined.',
+        action: 'Engage in the Great Reversal', difficulty: 15,
+        successText: 'After a tense standoff, you successfully reverse 200 yards to a farm gate. The farmer waves gratefully.',
+        failText: 'Your reversing skills fail you and you end up stuck in a bramble bush. The farmer has to help push you out.',
+        sanityCost: 15, successSanity: 5 },
+      { type: 'campervan', emoji: '🚐', name: 'The Dreaded German Campervan',
+        description: 'The ultimate Devon lane nightmare approaches: a massive German campervan with confused tourists at the helm, completely filling the lane and showing no signs of stopping.',
+        action: 'Pray to the hedge gods', difficulty: 18,
+        successText: 'Miraculously, the campervan stops and the apologetic tourists manage to somehow squeeze past. You live to tell the tale!',
+        failText: 'The campervan gets thoroughly stuck and you spend an hour helping confused Germans navigate out of the hedge. Your schedule is ruined.',
+        sanityCost: 25, successSanity: 10 }
+    ];
+
+    function rollD20() { return Math.floor(Math.random() * 20) + 1; }
+
+    function getRandomEncounter() {
+      const weights = { bicycle: 25, scooter: 20, motorbike: 15, horse: 15, car: 15, tractor: 8, campervan: 2 };
+      const totalWeight = Object.values(weights).reduce((sum, w) => sum + w, 0);
+      let random = Math.random() * totalWeight;
+      for (const [type, weight] of Object.entries(weights)) {
+        if (random < weight) return encounters.find(e => e.type === type);
+        random -= weight;
+      }
+      return encounters[0];
+    }
+
+    function updateDisplay() {
+      document.getElementById('distance').textContent = `${gameState.distance} miles`;
+      document.getElementById('sanity').textContent = gameState.sanity;
+      document.getElementById('encounters').textContent = gameState.encounters;
+    }
+
+    function showEncounter(encounter) {
+      const encounterVehicle = document.getElementById('encounterVehicle');
+      encounterVehicle.textContent = encounter.emoji;
+      encounterVehicle.style.display = 'block';
+      const encounterBox = document.getElementById('encounterBox');
+      encounterBox.innerHTML = `
+        <div class="encounter-title">Encounter: ${encounter.name}</div>
+        <div class="encounter-description">${encounter.description}</div>
+        <div class="controls">
+          <button onclick="handleEncounter('${encounter.type}')">${encounter.action} (Roll d20, need ${encounter.difficulty}+)</button>
+        </div>
+      `;
+    }
+
+    function handleEncounter(encounterType) {
+      const encounter = encounters.find(e => e.type === encounterType);
+      const roll = rollD20();
+      const success = roll >= encounter.difficulty;
+      const encounterBox = document.getElementById('encounterBox');
+      let resultHTML = `
+        <div class="encounter-title">Encounter: ${encounter.name}</div>
+        <div class="encounter-description">${encounter.description}</div>
+        <div class="dice-roll">🎲 You rolled: ${roll} (needed ${encounter.difficulty}+)</div>
+      `;
+      if (success) {
+        resultHTML += `<div class="encounter-description" style="color:#006400;font-weight:bold;">Success! ${encounter.successText}</div>`;
+        gameState.sanity = Math.min(100, gameState.sanity + encounter.successSanity);
+      } else {
+        resultHTML += `<div class="encounter-description" style="color:#8B0000;font-weight:bold;">Failure! ${encounter.failText}</div>`;
+        gameState.sanity -= encounter.sanityCost;
+      }
+      gameState.encounters++;
+      if (gameState.sanity <= 0) {
+        gameState.gameOver = true;
+        resultHTML += `
+          <div class="game-over">
+            Your sanity has been completely shattered by the Devon lanes! You abandon your car and become a hermit in the hedgerows.<br><br>
+            Final Score: ${gameState.encounters} encounters survived, ${gameState.distance} miles travelled.
+          </div>
+          <div class="controls"><button onclick="restartGame()">Try again (and again...)</button></div>
+        `;
+      } else {
+        resultHTML += `<div class="controls"><button onclick="continueJourney()">Continue your treacherous journey</button></div>`;
+      }
+      encounterBox.innerHTML = resultHTML;
+      updateDisplay();
+      document.getElementById('encounterVehicle').style.display = 'none';
+    }
+
+    function continueJourney() {
+      if (gameState.gameOver) return;
+      gameState.distance += 0.5;
+      if (gameState.distance >= gameState.targetDistance) {
+        const encounterBox = document.getElementById('encounterBox');
+        encounterBox.innerHTML = `
+          <div class="victory">
+            🎉 Congratulations! You've successfully navigated ${gameState.targetDistance} miles of Devon's most challenging single-track lanes!<br><br>
+            Final Stats: ${gameState.encounters} encounters survived, ${gameState.sanity} sanity remaining.<br><br>
+            You are now a true Devon driving legend! 🏆
+          </div>
+          <div class="controls"><button onclick="restartGame()">Take on an even longer journey</button></div>
+        `;
+        gameState.gameOver = true;
+        updateDisplay();
+        return;
+      }
+      updateDisplay();
+      setTimeout(() => { const encounter = getRandomEncounter(); showEncounter(encounter); }, 1000);
+    }
+
+    function startJourney() {
+      const encounterBox = document.getElementById('encounterBox');
+      encounterBox.innerHTML = `
+        <div class="encounter-title">Setting off...</div>
+        <div class="encounter-description">
+          You take a deep breath, grip the steering wheel, and venture forth into the maze of Devon's ancient lanes. The hedgerows loom overhead like green tunnels, and you can hear the distant sound of a tractor somewhere ahead...
+        </div>
+      `;
+      setTimeout(() => { const encounter = getRandomEncounter(); showEncounter(encounter); }, 2000);
+    }
+
+    function restartGame() {
+      gameState = { distance: 0, sanity: 100, encounters: 0, gameOver: false, targetDistance: gameState.targetDistance + 2 };
+      updateDisplay();
+      const encounterBox = document.getElementById('encounterBox');
+      encounterBox.innerHTML = `
+        <div class="encounter-title">Ready for another Devon adventure?</div>
+        <div class="encounter-description">
+          The Devon lanes await! This time you'll need to travel ${gameState.targetDistance} miles. The hedgerows whisper tales of previous drivers who tried and failed...
+          <br><br>Will you join their ranks, or will you become a legend?
+        </div>
+        <div class="controls"><button onclick="startJourney()">Face the lanes once more</button></div>
+      `;
+    }
+
+    // Expose handlers for inline onclick attributes
+    window.startJourney = startJourney;
+    window.handleEncounter = handleEncounter;
+    window.continueJourney = continueJourney;
+    window.restartGame = restartGame;
+
+    // Initial paint
+    updateDisplay();
+
+    // ---- Minimal Test Cases (no framework) ----
+    (function runTests(){
+      const out = document.getElementById('testOutput');
+      function log(name, pass, detail=''){
+        const li = document.createElement('li');
+        li.className = pass ? 'test-pass' : 'test-fail';
+        li.textContent = `${pass ? '✓' : '✗'} ${name}${detail ? ' — ' + detail : ''}`;
+        out && out.appendChild(li);
+        console.assert(pass, name + (detail ? (' — ' + detail) : ''));
+      }
+
+      // Test: rollD20 bounds
+      let inBounds = true; for (let i=0;i<1000;i++){ const r=rollD20(); if (r<1||r>20){ inBounds=false; break; } }
+      log('rollD20 returns values 1..20', inBounds);
+
+      // Test: getRandomEncounter returns known type
+      const validTypes = new Set(encounters.map(e=>e.type));
+      const sample = getRandomEncounter();
+      log('getRandomEncounter returns known encounter', validTypes.has(sample.type), `got ${sample.type}`);
+
+      // Test: updateDisplay updates DOM
+      const oldText = document.getElementById('distance').textContent;
+      const prev = { ...gameState };
+      gameState.distance = 1.5; gameState.sanity = 99; gameState.encounters = 2; updateDisplay();
+      const okDom = document.getElementById('distance').textContent.includes('1.5') && document.getElementById('sanity').textContent==='99' && document.getElementById('encounters').textContent==='2';
+      log('updateDisplay writes stats', okDom);
+      // restore
+      gameState = prev; updateDisplay();
+
+      // Test: continueJourney bumps distance by 0.5 when not over target
+      const before = gameState.distance; const tgt = gameState.targetDistance; const wasOver = before >= tgt; continueJourney();
+      const after = gameState.distance; const advanced = wasOver ? (after===before) : (after===before+0.5);
+      log('continueJourney advances correctly when active', advanced, `before=${before}, after=${after}`);
+
+      // Test: showEncounter populates encounter UI
+      const e = encounters[0]; showEncounter(e);
+      const btnPresent = document.querySelector('#encounterBox button') != null;
+      log('showEncounter renders action button', btnPresent);
+    })();
+  </script>
+</body>
+</html>
