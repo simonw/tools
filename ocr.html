@@ -49,6 +49,17 @@ textarea {
   display: none;
   margin-bottom: 20px;
 }
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.5rem 0 1rem;
+}
+.actions button {
+  padding: 0.5rem 0.75rem;
+  font-size: 14px;
+  cursor: pointer;
+}
 </style>
 </head>
 <body>
@@ -57,6 +68,11 @@ textarea {
   <p>It uses <a href="https://tesseract.projectnaptha.com/">Tesseract.js</a> for OCR and <a href="https://mozilla.github.io/pdf.js/">PDF.js</a> to convert PDFs into images.</p>
   <p><label>Language: <select id="id_language"><option>ENG</option></select></label></p>
   <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.gif" style="display: none;" />
+  
+  <div class="actions">
+    <button id="loadExampleButton" type="button" aria-label="Load example PDF">Load example PDF</button>
+  </div>
+
   <div class="dropzone" id="dropzone">
     Drag and drop a PDF, JPG, PNG, or GIF file here or click to select a file
   </div>
@@ -76,6 +92,10 @@ const imageContainer = document.querySelector('.image-container');
 const fullDocumentTextarea = document.getElementById('fullDocument');
 const fullDocumentSection = document.getElementById('fullDocumentSection');
 const languageSelect = document.getElementById('id_language');
+const loadExampleButton = document.getElementById('loadExampleButton');
+
+const EXAMPLE_URL = 'https://static.simonwillison.net/static/cors-allow/2025/attention-all-you-need.pdf';
+const DROPZONE_DEFAULT_TEXT = dropzone.innerText;
 
 let fileSelectionAllowed = true;
 
@@ -193,7 +213,7 @@ for (const code of Object.values(Tesseract.languages)) {
   const name = LANGUAGES[code];
   const option = document.createElement('option');
   option.value = code;
-  option.textContent = name;
+  option.textContent = name || code;
   if (option.value == 'eng') {
     option.selected = true;
   }
@@ -225,6 +245,7 @@ dropzone.addEventListener('dragover', handleDragOver);
 dropzone.addEventListener('dragleave', handleDragLeave);
 dropzone.addEventListener('drop', handleDrop);
 dropzone.addEventListener('click', handleClick);
+loadExampleButton.addEventListener('click', loadExamplePDF);
 
 async function handleDragOver(event) {
   event.preventDefault();
@@ -260,6 +281,44 @@ fileInput.addEventListener('change', (event) => {
   const file = event.target.files[0];
   processFile(file);
 });
+
+// NEW: Load example PDF via fetch()
+async function loadExamplePDF() {
+  if (!fileSelectionAllowed) return;
+  const previousText = dropzone.innerText;
+  dropzone.innerText = 'Fetching example PDF...';
+  dropzone.classList.add('disabled');
+  fileSelectionAllowed = false;
+
+  try {
+    const response = await fetch(EXAMPLE_URL, { mode: 'cors' });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    const pdfBlob = blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
+    const file = new File([pdfBlob], 'attention-is-all-you-need.pdf', { type: 'application/pdf' });
+
+    // Mirror the fetched file into the hidden <input> for consistency
+    try {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileInput.files = dt.files;
+    } catch (e) {
+      // DataTransfer may not be available in some browsers; safe to ignore.
+    }
+
+    await processFile(file);
+  } catch (err) {
+    console.error('Failed to load example PDF:', err);
+    alert('Sorry—failed to load the example PDF. Please check your connection and try again.');
+  } finally {
+    // Ensure UI returns to default label after processing
+    dropzone.innerText = DROPZONE_DEFAULT_TEXT;
+    dropzone.classList.remove('disabled');
+    fileSelectionAllowed = true;
+  }
+}
 
 async function processFile(file) {
   const worker = await Tesseract.createWorker(languageSelect.value);
