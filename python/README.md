@@ -2,6 +2,8 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
+Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
+
 ## show_image.py
 
 Display an image in the terminal using [rich-pixels](https://pypi.org/project/rich-pixels/):
