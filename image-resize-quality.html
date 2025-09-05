@@ -12,6 +12,51 @@
       margin: 0 auto;
       padding: 20px;
     }
+    /* Toggle switch (iOS-style) */
+    label.toggle { display:flex; align-items:center; gap:10px; font-weight:500; }
+    label.toggle input[type="checkbox"] {
+      position:absolute;
+      opacity:0;
+      width:1px; height:1px; margin:0; padding:0; overflow:hidden;
+      clip:rect(0 0 0 0); clip-path: inset(50%);
+    }
+    label.toggle .toggle-visual {
+      position:relative;
+      width:48px; height:26px;
+      background:#b3b3b3;
+      border-radius:1000px;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+      transition: background .25s ease;
+      flex-shrink:0;
+    }
+    label.toggle .toggle-visual .toggle-knob {
+      position:absolute; top:3px; left:3px;
+      width:20px; height:20px;
+      background:#ffffff;
+      border-radius:50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      transition: transform .25s ease;
+    }
+    label.toggle input[type="checkbox"]:checked + .toggle-visual {
+      background:#2aa7ff;
+    }
+    label.toggle input[type="checkbox"]:checked + .toggle-visual .toggle-knob {
+      transform: translateX(22px);
+    }
+    /* Focus outline */
+    label.toggle input[type="checkbox"]:focus-visible + .toggle-visual {
+      outline:2px solid #005ea6; outline-offset:2px;
+    }
+    /* Dark background adjustments in diff mode */
+    body.diff-mode label.toggle input[type="checkbox"]:focus-visible + .toggle-visual {
+      outline-color:#8fd2ff;
+    }
+  body.diff-mode label.toggle .toggle-visual { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25); }
+  body.diff-mode label.toggle input[type="checkbox"]:not(:checked) + .toggle-visual { background:#555; }
+  body.diff-mode .note { color:#888; }
+  #controls { margin-top: 16px; display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
+  #controls label { cursor:pointer; }
+  .note { font-size: 0.85rem; color:#555; }
     /* Drop zone is a <label> so clicks natively open the file input */
     #drop-zone {
       border: 2px dashed #ccc;
@@ -57,15 +102,36 @@
       text-align: center;
       margin-bottom: 20px;
     }
-    .image-container img {
+    /* Wrapper controls scaling so overlaid images remain perfectly aligned */
+    .image-diff-wrapper {
       max-width: 80%;
-      height: auto;
-      cursor: pointer;
       transition: max-width 0.3s ease;
     }
-    .image-container img.full-width { max-width: unset; }
+    .image-diff-wrapper img {
+      width: 100%;
+      height: auto;
+      cursor: pointer;
+    }
+    .image-diff-wrapper.full-width { max-width: unset; }
     .image-info { margin-top: 10px; }
     .color-picker-label { margin-right: 10px; }
+
+  /* Diff mode styles */
+  .image-diff-wrapper { position: relative; display:inline-block; line-height:0; }
+  /* Default: single image behaves normally */
+  .image-diff-wrapper img { display:block; }
+  .image-diff-wrapper .base-original { display:none; }
+  /* Diff mode overrides */
+  body.diff-mode { background:#111; color:#ccc; }
+  .diff-mode .image-diff-wrapper { isolation:isolate; position:relative; }
+  .diff-mode .image-diff-wrapper .base-original { display:block; width:100%; height:auto; }
+  .diff-mode .image-diff-wrapper .compressed-preview { position:absolute; left:0; top:0; width:100%; height:auto; mix-blend-mode:difference; }
+  .diff-mode .image-container { background:transparent; color:#ccc; }
+  .diff-mode .image-container .image-info { color:#ccc; }
+  .diff-mode a { color:#9ed3ff; }
+  .diff-mode a:visited { color:#b7e0ff; }
+  .diff-mode a:hover, .diff-mode a:focus { color:#d3ecff; }
+  /* Keep same 80% rule in diff mode (no override) for consistent sizing */
 
     /* Cropper (no inner scrollbars) */
     #cropper {
@@ -133,8 +199,7 @@
       background: rgba(0,0,0,0.25);
       pointer-events: none;
     }
-    .mask.t, .mask.b { left: 0; right: 0; height: 0; }
-    .mask.l, .mask.r { top: 0; bottom: 0; width: 0; }
+  .mask.t, .mask.b { left: 0; right: 0; height: 0; }
   </style>
 </head>
 <body>
@@ -154,6 +219,15 @@
     <input type="color" id="background-color" value="#ffffff">
   </div>
 
+  <div id="controls">
+    <label class="toggle" for="toggle-diff">
+      <input type="checkbox" id="toggle-diff" />
+      <span class="toggle-visual" aria-hidden="true"><span class="toggle-knob"></span></span>
+      <span class="toggle-text">Difference overlay mode (Spacebar)</span>
+    </label>
+    <span class="note">Highlights compression artifacts (identical pixels become black)</span>
+  </div>
+
   <div id="output"></div>
 
   <script>
@@ -163,6 +237,7 @@
     const output = document.getElementById('output');
     const colorPicker = document.getElementById('background-color');
     const colorPickerContainer = document.getElementById('color-picker-container');
+  const diffToggle = document.getElementById('toggle-diff');
 
     let currentImage = null;       // HTMLImageElement created from file
     let cropRect = null;           // { x, y, width, height } in IMAGE (natural) pixels
@@ -179,6 +254,20 @@
     document.addEventListener('paste', handlePaste);
     colorPicker.addEventListener('input', () => { if (currentImage) processImage(currentImage); });
     window.addEventListener('resize', () => { if (currentImage) updateCropOverlayPositions(); });
+    diffToggle.addEventListener('change', () => {
+      document.body.classList.toggle('diff-mode', diffToggle.checked);
+    });
+
+    // Spacebar shortcut to toggle diff mode (avoid when focused on interactive form controls)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.code === 'Space') {
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return; // don't override typing
+        e.preventDefault();
+        diffToggle.checked = !diffToggle.checked;
+        diffToggle.dispatchEvent(new Event('change'));
+      }
+    });
 
     function handleDrop(e) {
       e.preventDefault();
@@ -515,12 +604,39 @@
             const container = document.createElement('div');
             container.className = 'image-container';
 
+            // Wrapper enabling CSS difference blend: two stacked <img> elements.
+            const diffWrapper = document.createElement('div');
+            diffWrapper.className = 'image-diff-wrapper';
+            diffWrapper.style.width = w + 'px';
+            diffWrapper.style.height = 'auto';
+
+            // Base original: draw cropped region at same output size to a temp canvas
+            const baseCanvas = document.createElement('canvas');
+            baseCanvas.width = w; baseCanvas.height = h;
+            const bctx = baseCanvas.getContext('2d');
+            if (colorPickerContainer.style.display === 'block') {
+              bctx.fillStyle = colorPicker.value;
+              bctx.fillRect(0,0,w,h);
+            }
+            bctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+            const baseURL = baseCanvas.toDataURL('image/png');
+            const baseImg = document.createElement('img');
+            baseImg.src = baseURL;
+            baseImg.alt = 'Original crop baseline';
+            baseImg.className = 'base-original';
+            baseImg.width = w; baseImg.height = h;
+
             const resultImg = document.createElement('img');
             resultImg.src = url;
             resultImg.alt = `Resized preview ${w}px q${quality.toFixed(1)}`;
+            resultImg.width = w; resultImg.height = h;
+            resultImg.className = 'compressed-preview';
             resultImg.addEventListener('click', () => {
-              resultImg.classList.toggle('full-width');
+              diffWrapper.classList.toggle('full-width');
             });
+
+            diffWrapper.appendChild(baseImg);
+            diffWrapper.appendChild(resultImg);
 
             const infoDiv = document.createElement('div');
             infoDiv.className = 'image-info';
@@ -535,7 +651,7 @@
             downloadLink.download = `image_crop_${sw}x${sh}_w${w}_q${quality.toFixed(1)}.jpg`;
             downloadLink.textContent = 'Download';
 
-            container.appendChild(resultImg);
+            container.appendChild(diffWrapper);
             container.appendChild(infoDiv);
             container.appendChild(downloadLink);
             output.appendChild(container);
