@@ -34,7 +34,7 @@ Stream the Markdown result of an LLM prompt using Textual's streaming Markdown f
 ```bash
 uv run https://tools.simonwillison.net/python/streaming_textual_markdown.py \
   'Epic saga of a pelican and a wolf becoming friends over their love for welding'
-
+```
 ## check_invisible_text.py
 
 Check a PDF file for possibly instances of invisible text. [Claude transcript](https://claude.ai/share/0d82324d-d575-40d9-ba85-732ab234197a).
