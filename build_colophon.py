@@ -20,7 +20,14 @@ def format_commit_message(message):
     return linkified.replace("\n", "<br>")
 
 
-def build_colophon():
+def build_colophon(data=None, local_mode=False):
+    """
+    Build the colophon.html page with development history
+    
+    Args:
+        data (dict, optional): The gathered links data. If None, load from file.
+        local_mode (bool, optional): If True, generate local file links. Default False.
+    """
     # Load the gathered_links.json file
     try:
         with open("gathered_links.json", "r") as f:
@@ -202,7 +209,10 @@ def build_colophon():
 
     # Modified tool heading HTML
     for page_name, page_data in sorted_pages:
-        tool_url = f"https://tools.simonwillison.net/{page_name.replace('.html', '')}"
+        if local_mode:
+            tool_url = f"{page_name}"  # Local file reference
+        else:
+            tool_url = f"https://tools.simonwillison.net/{page_name.replace('.html', '')}"
         github_url = f"https://github.com/simonw/tools/blob/main/{page_name}"
         commits = page_data.get("commits", [])
 
