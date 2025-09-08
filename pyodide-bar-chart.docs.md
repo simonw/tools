@@ -1,0 +1,3 @@
+This demonstration page shows how to use Pyodide to run Python code directly in the browser. It loads the Pyodide runtime along with pandas, numpy, and matplotlib libraries to create a bar chart from sample data without any server-side processing. The chart is rendered as a PNG image and displayed on the page, with options to view the Python source code and re-run the demonstration.
+
+<!-- Generated from commit: c399acf22804bf0358f4a2433f045067698cf4cc -->
