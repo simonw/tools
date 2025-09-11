@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GitHub Account Info Lookup</title>
+  <style>
+    :root {
+      --bg: #0f172a; /* slate-900 */
+      --panel: #111827; /* gray-900 */
+      --muted: #94a3b8; /* slate-400 */
+      --text: #e5e7eb; /* gray-200 */
+      --accent: #22d3ee; /* cyan-400 */
+      --danger: #f87171; /* red-400 */
+      --ok: #34d399; /* green-400 */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 80% -20%, rgba(34,211,238,0.08), transparent 40%),
+                  radial-gradient(1200px 800px at -10% 110%, rgba(34,197,94,0.1), transparent 40%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid; place-items: center; padding: 24px;
+    }
+    .card {
+      width: 100%; max-width: 680px; background: rgba(17,24,39,0.8);
+      border: 1px solid rgba(148,163,184,0.2); border-radius: 16px; padding: 24px; backdrop-filter: blur(6px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    }
+    h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: 0.3px; }
+    p.sub { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+    form { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin: 12px 0 8px; }
+    label { display: none; }
+    input[type="text"] {
+      appearance: none; -webkit-appearance: none;
+      width: 100%; padding: 14px 14px; border-radius: 12px; border: 1px solid rgba(148,163,184,0.25);
+      background: #0b1220; color: var(--text); outline: none; font-size: 16px;
+    }
+    input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,0.2); }
+    button {
+      padding: 14px 18px; border-radius: 12px; border: 1px solid rgba(148,163,184,0.25);
+      background: linear-gradient(180deg, rgba(34,211,238,0.15), rgba(34,211,238,0.05)); color: var(--text);
+      cursor: pointer; font-weight: 600; white-space: nowrap;
+    }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .result { margin-top: 18px; padding: 16px; border-radius: 12px; background: #0b1220; border: 1px dashed rgba(148,163,184,0.25); }
+    .row { display: grid; grid-template-columns: 140px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(148,163,184,0.1); }
+    .row:last-child { border-bottom: none; }
+    .label { color: var(--muted); }
+    .value { font-weight: 600; }
+    .avatar {
+      width: 64px; height: 64px; border-radius: 50%; border: 1px solid rgba(148,163,184,0.25);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.3); object-fit: cover;
+    }
+    .flex { display: flex; align-items: center; gap: 12px; }
+    .muted { color: var(--muted); }
+    .error { color: var(--danger); font-weight: 600; }
+    .ok { color: var(--ok); font-weight: 600; }
+    .footer { margin-top: 12px; font-size: 12px; color: var(--muted); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>GitHub Account Info</h1>
+    <p class="sub">Enter a GitHub username to get its numeric <strong>Account ID</strong> and <strong>Creation Date</strong> via the public GitHub API.</p>
+
+    <form id="lookup-form" autocomplete="off">
+      <label for="username">GitHub username</label>
+      <input id="username" name="username" type="text" inputmode="latin" pattern="[A-Za-z0-9-]+" placeholder="e.g. torvalds" required />
+      <button id="submit-btn" type="submit">Lookup</button>
+    </form>
+
+    <div id="result" class="result" role="status" aria-live="polite">
+      <span class="muted">Results will appear here.</span>
+    </div>
+
+    <p class="footer">Powered by <a href="https://docs.github.com/rest/users/users#get-a-user" target="_blank" rel="noreferrer noopener">GitHub REST API</a>. Unauthenticated requests are limited (HTTP 403 when rate-limited).</p>
+  </div>
+
+  <script>
+    const form = document.getElementById('lookup-form');
+    const result = document.getElementById('result');
+    const submitBtn = document.getElementById('submit-btn');
+    const input = document.getElementById('username');
+
+    function formatDate(iso) {
+      try {
+        const d = new Date(iso);
+        return new Intl.DateTimeFormat(undefined, {
+          year: 'numeric', month: 'long', day: 'numeric',
+          hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+        }).format(d);
+      } catch { return iso; }
+    }
+
+    function sanitize(text) { return text.replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+
+    function setLoading(isLoading) {
+      submitBtn.disabled = isLoading;
+      submitBtn.textContent = isLoading ? 'Looking…' : 'Lookup';
+    }
+
+    async function lookup(username) {
+      const url = `https://api.github.com/users/${encodeURIComponent(username)}`;
+      const headers = { 'Accept': 'application/vnd.github+json' };
+      const started = Date.now();
+      try {
+        const resp = await fetch(url, { headers });
+        const elapsed = Date.now() - started;
+        if (resp.status === 404) {
+          result.innerHTML = `<span class="error">User not found.</span>`;
+          return;
+        }
+        if (resp.status === 403) {
+          // Likely rate limit when unauthenticated
+          const rem = resp.headers.get('X-RateLimit-Remaining');
+          const reset = resp.headers.get('X-RateLimit-Reset');
+          const resetAt = reset ? new Date(parseInt(reset, 10) * 1000) : null;
+          result.innerHTML = `<div class="error">Request blocked (403). You may have hit the unauthenticated rate limit${rem === '0' ? ' (0 requests remaining)' : ''}. Try again later${resetAt ? ` (~${resetAt.toLocaleTimeString()} local)` : ''} or run this page with a GitHub token added as an <code>Authorization</code> header.</div>`;
+          return;
+        }
+        if (!resp.ok) {
+          const text = await resp.text();
+          result.innerHTML = `<div class="error">Unexpected error (${resp.status}). ${sanitize(text).slice(0, 240)}</div>`;
+          return;
+        }
+        const data = await resp.json();
+        const created = formatDate(data.created_at);
+        const avatar = sanitize(data.avatar_url || '');
+        const htmlUrl = sanitize(data.html_url || `https://github.com/${username}`);
+        const name = sanitize(data.name || '');
+        const login = sanitize(data.login || username);
+
+        result.innerHTML = `
+          <div class="row">
+            <div class="label">Account</div>
+            <div class="value flex">
+              <img class="avatar" src="${avatar}" alt="Avatar of ${login}" />
+              <div>
+                <div><a href="${htmlUrl}" target="_blank" rel="noreferrer noopener">${name || login}</a></div>
+                <div class="muted">@${login}</div>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="label">Account ID</div>
+            <div class="value">${sanitize(String(data.id))}</div>
+          </div>
+          <div class="row">
+            <div class="label">Created</div>
+            <div class="value">${sanitize(created)}<span class="muted"> (raw: ${sanitize(data.created_at)})</span></div>
+          </div>
+          <div class="row">
+            <div class="label">API Latency</div>
+            <div class="value muted">~${elapsed} ms</div>
+          </div>
+        `;
+      } catch (err) {
+        result.innerHTML = `<div class="error">Network error. ${sanitize(String(err))}</div>`;
+      }
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const username = input.value.trim();
+      if (!username) return;
+      setLoading(true);
+      result.innerHTML = '<span class="muted">Fetching…</span>';
+      lookup(username).finally(() => setLoading(false));
+    });
+
+    // Convenience: run an initial demo on load
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!input.value) {
+        input.value = 'octocat';
+        form.dispatchEvent(new Event('submit'));
+      }
+    });
+  </script>
+</body>
+</html>
