@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Badge Drawer — Device-Scale Canvas</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171922;
+      --ink: #f6f7fb;
+      --muted: #8e95a5;
+      --accent: #7c7cff;
+      --danger: #ff7272;
+      --ok: #65d488;
+      --border: #262938;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #151824, #10131c);
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    }
+    header h1 { font-size: 16px; margin: 0 10px 0 0; font-weight: 600; letter-spacing: .2px; }
+    .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .control { display: flex; align-items: center; gap: 8px; background: var(--panel); padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
+    .control label { font-size: 12px; color: var(--muted); }
+    input[type="number"], input[type="range"], select { accent-color: var(--accent); }
+    input[type="number"] { width: 90px; background: #0e1017; color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+    input[type="range"] { width: 140px; }
+    button {
+      background: #1b1e2b; color: var(--ink); border: 1px solid var(--border); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; letter-spacing: .2px;
+    }
+    button:hover { background: #202437; }
+    button.primary { background: var(--accent); border-color: #5858ff; color: #fff; }
+    button.danger { background: #2b1b1b; border-color: #3a2525; color: #ffc5c5; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .pill { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); font-size: 12px; color: var(--muted);
+    }
+
+    main { display: grid; grid-template-columns: 1fr 300px; gap: 16px; padding: 16px; }
+    .stage {
+      background: radial-gradient(circle at 30% 20%, #141827, #0f121c 50%);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px; overflow: auto; min-height: 70vh;
+    }
+    .canvasWrap { position: relative; width: max-content; height: max-content; }
+    canvas.view { 
+      border: 1px dashed #333a57; 
+      background: #ffffff; 
+      image-rendering: pixelated; 
+      image-rendering: crisp-edges; 
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    .overlayInfo { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.5); color: #fff; font-size: 12px; padding: 4px 8px; border-radius: 6px; }
+    .sidebar { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > * { flex: 1; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .hr { height: 1px; background: var(--border); margin: 6px 0; }
+    .toolRow { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .badge { font-feature-settings: "tnum" on, "salt" on; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Badge Drawer — Device-Scale Canvas</h1>
+    <div class="controls">
+      <div class="control">
+        <label for="w">W×H</label>
+        <input id="w" type="number" min="16" value="296" />
+        <span class="muted">×</span>
+        <input id="h" type="number" min="16" value="128" />
+        <button id="applyWH">Apply</button>
+      </div>
+      <div class="control">
+        <label for="scale">Zoom</label>
+        <input id="scale" type="range" min="1" max="10" value="4" />
+        <span id="scaleVal" class="pill">4×</span>
+      </div>
+      <div class="control">
+        <label for="brush">Brush</label>
+        <input id="brush" type="range" min="1" max="16" value="3" />
+        <span id="brushVal" class="pill">3 px</span>
+      </div>
+      <div class="control">
+        <label for="previewBW">Preview B/W</label>
+        <input id="previewBW" type="checkbox" />
+      </div>
+      <div class="control">
+        <label for="grid">Grid</label>
+        <input id="grid" type="checkbox" checked />
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="stage">
+      <div class="canvasWrap">
+        <canvas id="view" class="view" width="1184" height="512"></canvas>
+        <div class="overlayInfo badge" id="overlayInfo">296×128 @ 4×</div>
+      </div>
+    </div>
+
+    <aside class="sidebar">
+      <div class="toolRow">
+        <button id="toolBrush" class="primary">Brush</button>
+        <button id="toolEraser">Eraser</button>
+      </div>
+      <div class="row">
+        <button id="undo">Undo</button>
+        <button id="redo">Redo</button>
+      </div>
+      <div class="row">
+        <button id="clear" class="danger">Clear</button>
+      </div>
+      <div class="hr"></div>
+      <div class="row">
+        <input id="bgFile" type="file" accept="image/*" />
+      </div>
+      <div class="muted">Optional: load a background image; it will be fitted into the device canvas.</div>
+      <div class="hr"></div>
+      <div class="row">
+        <button id="download" class="primary">Download PNG</button>
+      </div>
+      <div class="row">
+        <button id="copyToBadge">Copy to Badge</button>
+      </div>
+      <div class="muted">Requires a Chromium browser with Web Serial. The device must run MicroPython with <code>badger2040</code> and <code>pngdec</code> modules.</div>
+    </aside>
+  </main>
+
+  <script>
+    // ---- Config / State ----
+    const state = {
+      width: 296,
+      height: 128,
+      scale: 4,
+      brush: 3,
+      tool: 'brush', // 'brush' | 'eraser'
+      previewBW: false,
+      showGrid: true,
+      drawing: false,
+      last: null, // {x, y}
+      undoStack: [],
+      redoStack: [],
+      maxHistory: 60
+    };
+
+    // Device-resolution backing canvas (not shown)
+    const deviceCanvas = document.createElement('canvas');
+    const dctx = deviceCanvas.getContext('2d', { willReadFrequently: true });
+
+    // Visible canvas
+    const view = document.getElementById('view');
+    const vctx = view.getContext('2d');
+    vctx.imageSmoothingEnabled = false;
+
+    // Controls
+    const wInput = document.getElementById('w');
+    const hInput = document.getElementById('h');
+    const applyWH = document.getElementById('applyWH');
+    const scaleInput = document.getElementById('scale');
+    const scaleVal = document.getElementById('scaleVal');
+    const brushInput = document.getElementById('brush');
+    const brushVal = document.getElementById('brushVal');
+    const toolBrushBtn = document.getElementById('toolBrush');
+    const toolEraserBtn = document.getElementById('toolEraser');
+    const undoBtn = document.getElementById('undo');
+    const redoBtn = document.getElementById('redo');
+    const clearBtn = document.getElementById('clear');
+    const bgFile = document.getElementById('bgFile');
+    const downloadBtn = document.getElementById('download');
+    const copyBtn = document.getElementById('copyToBadge');
+    const overlayInfo = document.getElementById('overlayInfo');
+    const previewBW = document.getElementById('previewBW');
+    const gridToggle = document.getElementById('grid');
+
+    // ---- Init ----
+    function initCanvas(w, h, scale) {
+      state.width = w; state.height = h; state.scale = scale;
+      deviceCanvas.width = w; deviceCanvas.height = h;
+      // Fill white background
+      dctx.save(); dctx.setTransform(1,0,0,1,0,0); dctx.globalCompositeOperation = 'source-over';
+      dctx.fillStyle = '#ffffff'; dctx.fillRect(0,0,w,h); dctx.restore();
+      // Resize view canvas (CSS pixel size)
+      view.width = w * scale; view.height = h * scale;
+      render(); updateOverlay();
+      // Reset history
+      state.undoStack = []; state.redoStack = []; pushHistory();
+    }
+
+    function updateOverlay() {
+      overlayInfo.textContent = `${state.width}×${state.height} @ ${state.scale}×`;
+    }
+
+    function setScale(scale) {
+      state.scale = scale;
+      view.width = state.width * scale; view.height = state.height * scale;
+      render(); updateOverlay();
+    }
+
+    // ---- Rendering ----
+    function render() {
+      vctx.save();
+      vctx.imageSmoothingEnabled = false;
+      // Paint background (white) for a clean edge
+      vctx.fillStyle = '#ffffff';
+      vctx.fillRect(0,0,view.width, view.height);
+
+      if (!state.previewBW) {
+        // Fast path: scale device canvas directly
+        vctx.drawImage(deviceCanvas, 0, 0, view.width, view.height);
+      } else {
+        // On-the-fly BW preview (threshold 200)
+        const bw = toBWCanvas(deviceCanvas, 200);
+        vctx.drawImage(bw, 0, 0, view.width, view.height);
+      }
+
+      if (state.showGrid) drawGrid();
+      vctx.restore();
+    }
+
+    function drawGrid() {
+      const step = 8 * state.scale; // show grid every 8 device px
+      vctx.save();
+      vctx.strokeStyle = 'rgba(0,0,0,0.1)';
+      vctx.lineWidth = 1;
+      for (let x = 0; x <= view.width; x += step) {
+        vctx.beginPath(); vctx.moveTo(x + 0.5, 0); vctx.lineTo(x + 0.5, view.height); vctx.stroke();
+      }
+      for (let y = 0; y <= view.height; y += step) {
+        vctx.beginPath(); vctx.moveTo(0, y + 0.5); vctx.lineTo(view.width, y + 0.5); vctx.stroke();
+      }
+      vctx.restore();
+    }
+
+    // ---- Drawing ----
+    function viewToDevice(clientX, clientY) {
+      const rect = view.getBoundingClientRect();
+      const x = Math.floor((clientX - rect.left) / state.scale);
+      const y = Math.floor((clientY - rect.top) / state.scale);
+      // clamp
+      return { x: Math.max(0, Math.min(state.width-1, x)), y: Math.max(0, Math.min(state.height-1, y)) };
+    }
+
+    function startStroke(x, y) {
+      pushHistory();
+      state.drawing = true;
+      state.last = { x, y };
+      drawPoint(x, y);
+    }
+
+    function drawPoint(x, y) {
+      dctx.save();
+      dctx.imageSmoothingEnabled = false;
+      dctx.lineCap = 'round';
+      dctx.lineJoin = 'round';
+      dctx.strokeStyle = state.tool === 'eraser' ? '#ffffff' : '#000000';
+      dctx.fillStyle = dctx.strokeStyle;
+      const r = Math.max(1, state.brush);
+      // Use a tiny stroke segment to avoid anti-alias gaps
+      dctx.beginPath(); dctx.arc(x + 0.01, y + 0.01, r/2, 0, Math.PI*2); dctx.fill();
+      dctx.restore();
+    }
+
+    function drawLine(x0, y0, x1, y1) {
+      dctx.save();
+      dctx.imageSmoothingEnabled = false;
+      dctx.lineCap = 'round';
+      dctx.lineJoin = 'round';
+      dctx.strokeStyle = state.tool === 'eraser' ? '#ffffff' : '#000000';
+      dctx.lineWidth = Math.max(1, state.brush);
+      dctx.beginPath();
+      dctx.moveTo(x0 + 0.01, y0 + 0.01);
+      dctx.lineTo(x1 + 0.01, y1 + 0.01);
+      dctx.stroke();
+      dctx.restore();
+    }
+
+    function endStroke() {
+      state.drawing = false; state.last = null; render();
+    }
+
+    // Pointer events
+    view.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); view.setPointerCapture(e.pointerId);
+      const { x, y } = viewToDevice(e.clientX, e.clientY);
+      startStroke(x, y); render();
+    });
+
+    view.addEventListener('pointermove', (e) => {
+      if (!state.drawing) return;
+      const { x, y } = viewToDevice(e.clientX, e.clientY);
+      const { x: lx, y: ly } = state.last;
+      drawLine(lx, ly, x, y);
+      state.last = { x, y };
+      render();
+    });
+
+    const end = () => { if (state.drawing) endStroke(); };
+    view.addEventListener('pointerup', end);
+    view.addEventListener('pointercancel', end);
+    view.addEventListener('pointerleave', end);
+    view.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // ---- Undo/Redo ----
+    function pushHistory() {
+      try {
+        const snapshot = dctx.getImageData(0,0,state.width, state.height);
+        state.undoStack.push(snapshot);
+        if (state.undoStack.length > state.maxHistory) state.undoStack.shift();
+        state.redoStack.length = 0; // clear redo on new action
+      } catch (e) { /* ignore */ }
+    }
+
+    function undo() {
+      if (state.undoStack.length <= 1) return; // keep the base state
+      const last = state.undoStack.pop();
+      state.redoStack.push(last);
+      const prev = state.undoStack[state.undoStack.length - 1];
+      dctx.putImageData(prev, 0, 0); render();
+    }
+
+    function redo() {
+      if (state.redoStack.length === 0) return;
+      const img = state.redoStack.pop();
+      state.undoStack.push(img);
+      dctx.putImageData(img, 0, 0); render();
+    }
+
+    undoBtn.addEventListener('click', undo);
+    redoBtn.addEventListener('click', redo);
+
+    // ---- Clear ----
+    clearBtn.addEventListener('click', () => {
+      pushHistory();
+      dctx.fillStyle = '#ffffff';
+      dctx.fillRect(0,0,state.width, state.height);
+      render();
+    });
+
+    // ---- Background image loader ----
+    bgFile.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0]; if (!file) return;
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        pushHistory();
+        // Fit into device canvas (contain)
+        const iw = img.width, ih = img.height;
+        const arImg = iw/ih, arCan = state.width/state.height;
+        let dw, dh; if (arImg > arCan) { dw = state.width; dh = Math.round(dw / arImg); } else { dh = state.height; dw = Math.round(dh * arImg); }
+        const dx = Math.floor((state.width - dw)/2); const dy = Math.floor((state.height - dh)/2);
+        dctx.fillStyle = '#ffffff'; dctx.fillRect(0,0,state.width, state.height);
+        dctx.drawImage(img, dx, dy, dw, dh);
+        URL.revokeObjectURL(url); render();
+      };
+      img.src = url;
+    });
+
+    // ---- Controls wiring ----
+    applyWH.addEventListener('click', () => {
+      const w = Math.max(16, Math.floor(+wInput.value || 296));
+      const h = Math.max(16, Math.floor(+hInput.value || 128));
+      initCanvas(w, h, state.scale);
+    });
+
+    scaleInput.addEventListener('input', () => {
+      const s = Math.max(1, Math.floor(+scaleInput.value || 1));
+      scaleVal.textContent = s + '×';
+      setScale(s);
+    });
+
+    brushInput.addEventListener('input', () => {
+      const b = Math.max(1, Math.floor(+brushInput.value || 1));
+      state.brush = b; brushVal.textContent = `${b} px`;
+    });
+
+    toolBrushBtn.addEventListener('click', () => { state.tool = 'brush'; toolBrushBtn.classList.add('primary'); toolEraserBtn.classList.remove('primary'); });
+    toolEraserBtn.addEventListener('click', () => { state.tool = 'eraser'; toolEraserBtn.classList.add('primary'); toolBrushBtn.classList.remove('primary'); });
+
+    previewBW.addEventListener('change', () => { state.previewBW = previewBW.checked; render(); });
+    gridToggle.addEventListener('change', () => { state.showGrid = gridToggle.checked; render(); });
+
+    // ---- Export helpers ----
+    function toBWCanvas(srcCanvas, threshold = 200) {
+      const out = document.createElement('canvas'); out.width = srcCanvas.width; out.height = srcCanvas.height;
+      const sctx = srcCanvas.getContext('2d', { willReadFrequently: true });
+      const octx = out.getContext('2d');
+      const img = sctx.getImageData(0,0,srcCanvas.width, srcCanvas.height);
+      const data = img.data;
+      for (let i=0; i<data.length; i+=4) {
+        const r=data[i], g=data[i+1], b=data[i+2];
+        const gray = r*0.2627 + g*0.678 + b*0.0593; // BT.2100 luma
+        const bw = gray < threshold ? 0 : 255;
+        data[i]=data[i+1]=data[i+2]=bw; data[i+3]=255;
+      }
+      octx.putImageData(img, 0, 0);
+      return out;
+    }
+
+    downloadBtn.addEventListener('click', async () => {
+      // Export a 1-bit-thresholded PNG to avoid antialiasing on e-ink
+      const bw = toBWCanvas(deviceCanvas, 200);
+      const link = document.createElement('a');
+      link.download = `badge_${state.width}x${state.height}.png`;
+      link.href = bw.toDataURL('image/png'); link.click();
+    });
+
+    // ---- Copy to Badge (Web Serial, MicroPython) ----
+    async function copyToBadge() {
+      if (!('serial' in navigator)) { alert('Web Serial API not supported in this browser. Try Chrome / Edge.'); return; }
+      try {
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+
+        const encoder = new TextEncoderStream();
+        const writableClosed = encoder.readable.pipeTo(port.writable);
+        const writer = encoder.writable.getWriter();
+
+        const decoder = new TextDecoderStream();
+        const readableClosed = port.readable.pipeTo(decoder.writable);
+        const reader = decoder.readable.getReader();
+
+        async function send(cmd) { await writer.write(cmd + '\r\n'); }
+
+        // Enter raw REPL
+        await send('\x03'); // Ctrl-C
+        await send('\x01'); // Ctrl-A
+        await send('');
+
+        const py = `import badger2040\nimport pngdec\n\ndisplay = badger2040.Badger2040()\npng = pngdec.PNG(display.display)\n\ndisplay.led(128)\ndisplay.clear()\n\ntry:\n    png.open_file("badge.png")\n    png.decode()\nexcept (OSError, RuntimeError):\n    print("Badge background error")\n\ndisplay.update()`;
+
+        // Threshold the art and get PNG bytes
+        const bw = toBWCanvas(deviceCanvas, 200);
+        const blob = await new Promise(res => bw.toBlob(res, 'image/png'));
+        const arrbuf = await blob.arrayBuffer();
+        const bytes = new Uint8Array(arrbuf);
+
+        // Write main.py
+        await send(`f = open('main.py', 'w')`);
+        for (const line of py.split('\n')) { await send(`f.write('${line.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}\\n')`); }
+        await send(`f.close()`);
+
+        // Write badge.png
+        await send(`f = open('badge.png', 'wb')`);
+        const chunk = 256;
+        for (let i=0; i<bytes.length; i+=chunk) {
+          const slice = bytes.slice(i, i+chunk);
+          const hex = Array.from(slice).map(b => b.toString(16).padStart(2, '0')).join('');
+          await send(`f.write(bytes.fromhex('${hex}'))`);
+        }
+        await send(`f.close()`);
+
+        await send('import machine; machine.reset()');
+        await send('\x04'); // Ctrl-D
+
+        writer.close(); await writableClosed; reader.cancel(); await readableClosed; await port.close();
+        alert('Transferred! If the screen stays blank, press RST on the badge.');
+      } catch (err) {
+        console.error(err);
+        alert('Transfer failed: ' + err);
+      }
+    }
+
+    copyBtn.addEventListener('click', copyToBadge);
+
+    // ---- Boot ----
+    initCanvas(state.width, state.height, state.scale);
+    // Update control displays
+    wInput.value = state.width; hInput.value = state.height; scaleVal.textContent = state.scale + '×'; brushVal.textContent = state.brush + ' px';
+  </script>
+</body>
+</html>
