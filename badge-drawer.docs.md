@@ -1,0 +1,3 @@
+The Badge Drawer app allows you to create pixel art for e-ink displays at the correct device dimensions. Use the drawing tools to create images with variable brush sizes, and preview how they'll look in black and white mode. The app supports loading background images, undoing/redoing changes, and exporting your work as a PNG file. For compatible devices, you can send your artwork directly to a Badger2040 device running MicroPython.
+
+<!-- Generated from commit: 46ad780e5fe27402ca6c2f7416c586bfdc6c461f -->
