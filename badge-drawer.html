@@ -59,6 +59,7 @@
       image-rendering: pixelated; 
       image-rendering: crisp-edges; 
       box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      touch-action: none; /* Prevent default touch behaviors */
     }
     .overlayInfo { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.5); color: #fff; font-size: 12px; padding: 4px 8px; border-radius: 6px; }
     .sidebar { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
@@ -68,6 +69,129 @@
     .hr { height: 1px; background: var(--border); margin: 6px 0; }
     .toolRow { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .badge { font-feature-settings: "tnum" on, "salt" on; }
+
+    /* Mobile responsive styles */
+    @media (max-width: 768px) {
+      header {
+        padding: 12px 16px;
+      }
+      header h1 {
+        font-size: 14px;
+        margin: 0;
+        width: 100%;
+        margin-bottom: 8px;
+      }
+      .controls {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .control {
+        font-size: 12px;
+        padding: 6px 8px;
+      }
+      .control label {
+        font-size: 11px;
+      }
+      input[type="number"] {
+        width: 70px;
+        font-size: 12px;
+      }
+      input[type="range"] {
+        width: 80px;
+      }
+      
+      main {
+        grid-template-columns: 1fr;
+        padding: 12px;
+        gap: 12px;
+      }
+      
+      .stage {
+        order: 2;
+        padding: 12px;
+        min-height: 50vh;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      
+      .canvasWrap {
+        width: 100%;
+        max-width: 100%;
+        overflow: auto;
+        display: flex;
+        justify-content: center;
+      }
+      
+      canvas.view {
+        width: 100% !important;
+        height: auto;
+        display: block;
+        max-width: none;
+      }
+      
+      .sidebar {
+        order: 1;
+        padding: 12px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: var(--panel);
+        border-radius: 8px;
+      }
+      
+      .toolRow {
+        grid-template-columns: 1fr 1fr;
+      }
+      
+      .overlayInfo {
+        position: relative;
+        top: auto;
+        left: auto;
+        display: inline-block;
+        margin-bottom: 8px;
+        background: rgba(0,0,0,.7);
+      }
+    }
+
+    @media (max-width: 480px) {
+      header {
+        padding: 8px 12px;
+      }
+      
+      .controls {
+        gap: 8px;
+      }
+      
+      .control {
+        padding: 4px 6px;
+        gap: 4px;
+      }
+      
+      input[type="number"] {
+        width: 60px;
+      }
+      
+      input[type="range"] {
+        width: 60px;
+      }
+      
+      main {
+        padding: 8px;
+      }
+      
+      .stage {
+        padding: 8px;
+      }
+      
+      .sidebar {
+        padding: 8px;
+      }
+      
+      button {
+        padding: 6px 8px;
+        font-size: 12px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -104,9 +228,9 @@
 
   <main>
     <div class="stage">
+      <div class="overlayInfo badge" id="overlayInfo">296×128 @ 4×</div>
       <div class="canvasWrap">
         <canvas id="view" class="view" width="1184" height="512"></canvas>
-        <div class="overlayInfo badge" id="overlayInfo">296×128 @ 4×</div>
       </div>
     </div>
 
@@ -196,6 +320,25 @@
       render(); updateOverlay();
       // Reset history
       state.undoStack = []; state.redoStack = []; pushHistory();
+      
+      // Auto-adjust scale on mobile for better usability
+      if (window.innerWidth <= 768) {
+        autoAdjustMobileScale();
+      }
+    }
+
+    // Auto-adjust scale for mobile to use full width
+    function autoAdjustMobileScale() {
+      const containerPadding = 32; // Account for stage padding
+      const availableWidth = window.innerWidth - containerPadding;
+      const newScale = Math.max(1, Math.floor(availableWidth / state.width));
+      
+      if (newScale !== state.scale) {
+        state.scale = newScale;
+        scaleInput.value = newScale;
+        scaleVal.textContent = newScale + '×';
+        setScale(newScale);
+      }
     }
 
     function updateOverlay() {
@@ -205,6 +348,16 @@
     function setScale(scale) {
       state.scale = scale;
       view.width = state.width * scale; view.height = state.height * scale;
+      
+      // On mobile, ensure canvas uses full width by adjusting CSS
+      if (window.innerWidth <= 768) {
+        view.style.width = '100%';
+        view.style.height = 'auto';
+      } else {
+        view.style.width = '';
+        view.style.height = '';
+      }
+      
       render(); updateOverlay();
     }
 
@@ -243,13 +396,100 @@
       vctx.restore();
     }
 
-    // ---- Drawing ----
+    // ---- URL Hash Bookmarking ----
+    function encodeImageToHash() {
+      try {
+        const imageData = dctx.getImageData(0, 0, state.width, state.height);
+        const canvas = document.createElement('canvas');
+        canvas.width = state.width;
+        canvas.height = state.height;
+        const ctx = canvas.getContext('2d');
+        ctx.putImageData(imageData, 0, 0);
+        
+        // Convert to PNG and then to base64
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        
+        // Create hash with dimensions and image data
+        const hashData = {
+          w: state.width,
+          h: state.height,
+          img: base64
+        };
+        
+        // Compress and encode
+        const jsonStr = JSON.stringify(hashData);
+        const compressed = btoa(jsonStr);
+        window.location.hash = compressed;
+      } catch (e) {
+        console.warn('Failed to encode image to hash:', e);
+      }
+    }
+
+    function decodeImageFromHash() {
+      try {
+        const hash = window.location.hash.slice(1);
+        if (!hash) return false;
+        
+        const jsonStr = atob(hash);
+        const hashData = JSON.parse(jsonStr);
+        
+        if (hashData.w && hashData.h && hashData.img) {
+          // Load the image
+          const img = new Image();
+          img.onload = () => {
+            // Resize canvas if needed
+            if (state.width !== hashData.w || state.height !== hashData.h) {
+              initCanvas(hashData.w, hashData.h, state.scale);
+              wInput.value = hashData.w;
+              hInput.value = hashData.h;
+            }
+            
+            // Clear and draw the loaded image
+            dctx.fillStyle = '#ffffff';
+            dctx.fillRect(0, 0, state.width, state.height);
+            dctx.drawImage(img, 0, 0);
+            render();
+            pushHistory();
+          };
+          img.src = 'data:image/png;base64,' + hashData.img;
+          return true;
+        }
+      } catch (e) {
+        console.warn('Failed to decode image from hash:', e);
+      }
+      return false;
+    }
+
+    // Debounced hash update to avoid too frequent updates during drawing
+    let hashUpdateTimeout;
+    function scheduleHashUpdate() {
+      clearTimeout(hashUpdateTimeout);
+      hashUpdateTimeout = setTimeout(encodeImageToHash, 1000); // Update 1 second after last change
+    }
     function viewToDevice(clientX, clientY) {
       const rect = view.getBoundingClientRect();
-      const x = Math.floor((clientX - rect.left) / state.scale);
-      const y = Math.floor((clientY - rect.top) / state.scale);
-      // clamp
-      return { x: Math.max(0, Math.min(state.width-1, x)), y: Math.max(0, Math.min(state.height-1, y)) };
+      const canvasX = clientX - rect.left;
+      const canvasY = clientY - rect.top;
+      
+      // Handle CSS scaling: if canvas is styled with different dimensions than its internal size
+      const cssWidth = rect.width;
+      const cssHeight = rect.height;
+      const internalWidth = view.width;
+      const internalHeight = view.height;
+      
+      // Convert from CSS coordinates to internal canvas coordinates
+      const scaleX = internalWidth / cssWidth;
+      const scaleY = internalHeight / cssHeight;
+      
+      const deviceX = Math.floor((canvasX * scaleX) / state.scale);
+      const deviceY = Math.floor((canvasY * scaleY) / state.scale);
+      
+      // clamp to device bounds
+      return { 
+        x: Math.max(0, Math.min(state.width-1, deviceX)), 
+        y: Math.max(0, Math.min(state.height-1, deviceY)) 
+      };
     }
 
     function startStroke(x, y) {
@@ -288,17 +528,20 @@
 
     function endStroke() {
       state.drawing = false; state.last = null; render();
+      scheduleHashUpdate(); // Update hash after drawing
     }
 
-    // Pointer events
+    // Enhanced pointer events with better mobile support
     view.addEventListener('pointerdown', (e) => {
-      e.preventDefault(); view.setPointerCapture(e.pointerId);
+      e.preventDefault(); 
+      view.setPointerCapture(e.pointerId);
       const { x, y } = viewToDevice(e.clientX, e.clientY);
       startStroke(x, y); render();
     });
 
     view.addEventListener('pointermove', (e) => {
       if (!state.drawing) return;
+      e.preventDefault();
       const { x, y } = viewToDevice(e.clientX, e.clientY);
       const { x: lx, y: ly } = state.last;
       drawLine(lx, ly, x, y);
@@ -306,11 +549,53 @@
       render();
     });
 
-    const end = () => { if (state.drawing) endStroke(); };
+    const end = (e) => { 
+      if (state.drawing) {
+        e.preventDefault();
+        endStroke(); 
+      }
+    };
     view.addEventListener('pointerup', end);
     view.addEventListener('pointercancel', end);
     view.addEventListener('pointerleave', end);
     view.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Additional touch event handlers for better mobile support
+    view.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const { x, y } = viewToDevice(touch.clientX, touch.clientY);
+        startStroke(x, y); render();
+      }
+    }, { passive: false });
+
+    view.addEventListener('touchmove', (e) => {
+      if (!state.drawing) return;
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const { x, y } = viewToDevice(touch.clientX, touch.clientY);
+        const { x: lx, y: ly } = state.last;
+        drawLine(lx, ly, x, y);
+        state.last = { x, y };
+        render();
+      }
+    }, { passive: false });
+
+    view.addEventListener('touchend', (e) => {
+      if (state.drawing) {
+        e.preventDefault();
+        endStroke();
+      }
+    }, { passive: false });
+
+    view.addEventListener('touchcancel', (e) => {
+      if (state.drawing) {
+        e.preventDefault();
+        endStroke();
+      }
+    }, { passive: false });
 
     // ---- Undo/Redo ----
     function pushHistory() {
@@ -328,6 +613,7 @@
       state.redoStack.push(last);
       const prev = state.undoStack[state.undoStack.length - 1];
       dctx.putImageData(prev, 0, 0); render();
+      scheduleHashUpdate();
     }
 
     function redo() {
@@ -335,6 +621,7 @@
       const img = state.redoStack.pop();
       state.undoStack.push(img);
       dctx.putImageData(img, 0, 0); render();
+      scheduleHashUpdate();
     }
 
     undoBtn.addEventListener('click', undo);
@@ -346,6 +633,7 @@
       dctx.fillStyle = '#ffffff';
       dctx.fillRect(0,0,state.width, state.height);
       render();
+      scheduleHashUpdate();
     });
 
     // ---- Background image loader ----
@@ -363,6 +651,7 @@
         dctx.fillStyle = '#ffffff'; dctx.fillRect(0,0,state.width, state.height);
         dctx.drawImage(img, dx, dy, dw, dh);
         URL.revokeObjectURL(url); render();
+        scheduleHashUpdate();
       };
       img.src = url;
     });
@@ -474,10 +763,43 @@
 
     copyBtn.addEventListener('click', copyToBadge);
 
+    // Handle orientation changes and resize events
+    window.addEventListener('resize', () => {
+      if (window.innerWidth <= 768) {
+        autoAdjustMobileScale();
+        view.style.width = '100%';
+        view.style.height = 'auto';
+      } else {
+        view.style.width = '';
+        view.style.height = '';
+      }
+    });
+
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        if (window.innerWidth <= 768) {
+          autoAdjustMobileScale();
+          view.style.width = '100%';
+          view.style.height = 'auto';
+        } else {
+          view.style.width = '';
+          view.style.height = '';
+        }
+      }, 100);
+    });
+
     // ---- Boot ----
-    initCanvas(state.width, state.height, state.scale);
+    // Try to load from hash first, then initialize normally
+    if (!decodeImageFromHash()) {
+      initCanvas(state.width, state.height, state.scale);
+    }
     // Update control displays
     wInput.value = state.width; hInput.value = state.height; scaleVal.textContent = state.scale + '×'; brushVal.textContent = state.brush + ' px';
+
+    // Listen for hash changes (back/forward navigation)
+    window.addEventListener('hashchange', () => {
+      decodeImageFromHash();
+    });
   </script>
 </body>
 </html>
