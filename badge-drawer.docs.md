@@ -1,3 +1,3 @@
-The Badge Drawer app allows you to create pixel art for e-ink displays at the correct device dimensions. Use the drawing tools to create images with variable brush sizes, and preview how they'll look in black and white mode. The app supports loading background images, undoing/redoing changes, and exporting your work as a PNG file. For compatible devices, you can send your artwork directly to a Badger2040 device running MicroPython.
+The Badge Drawer is a digital drawing tool designed for creating images for e-ink badges. This canvas-based editor provides device-scale drawing capabilities where you can create pixel-perfect artwork at specific dimensions like 296×128 pixels. Features include adjustable brush sizes, undo/redo functionality, background image importing, and the ability to export your work as a PNG file or directly to compatible badge hardware via Web Serial.
 
-<!-- Generated from commit: 46ad780e5fe27402ca6c2f7416c586bfdc6c461f -->
+<!-- Generated from commit: 914fd7c3e36f51e88c6674ffa2d9557f881c8072 -->
