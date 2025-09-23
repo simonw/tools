@@ -110,3 +110,5 @@ On [Observable](https://observablehq.com/):
 - [Blog to newsletter](https://observablehq.com/@simonw/blog-to-newsletter) helps turn blog posts into a newsletter
 - [Convert Claude JSON to Markdown](https://observablehq.com/@simonw/convert-claude-json-to-markdown) for sharing Claude transcripts
 - [Hacker News homepage with links to comments ordered by most recent first](https://observablehq.com/@simonw/hacker-news-homepage)
+
+<script type="module" src="homepage-search.js" data-tool-search></script>
