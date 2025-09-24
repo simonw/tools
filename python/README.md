@@ -4,6 +4,16 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## webc_inspect.py
+
+Inspect Wasmer WebC archives (.webc) and print useful summary information. These are files that live in `~/.wasmer/cache/checkouts` and end in `.bin`.
+
+```bash
+uv run https://tools.simonwillison.net/python/webc_inspect.py \
+  ~/.wasmer/cache/checkout/47ff83d2d205df14e7f057a1f0a1c1da70c565d2e32c052f2970a150f5a9b407.bin
+```
+[Example output](https://gist.github.com/simonw/c4193a44938b80bbaad64299fe892a2d).
+
 ## show_image.py
 
 Display an image in the terminal using [rich-pixels](https://pypi.org/project/rich-pixels/):
