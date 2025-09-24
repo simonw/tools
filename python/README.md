@@ -4,6 +4,16 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## codex_to_markdown.py
+
+Convert a Codex CLI session JSONL log into Markdown.
+
+```bash
+uv run https://tools.simonwillison.net/python/codex_to_markdown.py \
+  ~/.codex/sessions/2025/09/24/rollout-2025-09-24T15-33-49-01997ddc-88f4-7e40-8dac-d558f31dd3ca.jsonl
+```
+[Example output](https://gist.github.com/simonw/9745deeb0a318a0fc1cf9beb89fbec8a), showing the session that built this tool.
+
 ## webc_inspect.py
 
 Inspect Wasmer WebC archives (.webc) and print useful summary information. These are files that live in `~/.wasmer/cache/checkouts` and end in `.bin`.
