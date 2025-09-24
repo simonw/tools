@@ -1,0 +1,3 @@
+This interactive lab provides hands-on practice with NumPy vector and matrix operations. Users work through five exercises covering creation, element-wise operations, dot products, matrix multiplication, broadcasting, and array slicing with immediate feedback. The page includes a reference guide of common NumPy operations and a playground environment for experimenting with custom code.
+
+<!-- Generated from commit: e862c3e3f7bc21edfb7841e6fd02c7c9a2963eca -->
