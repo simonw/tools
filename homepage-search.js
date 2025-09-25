@@ -168,9 +168,12 @@ ready(() => {
         margin: 1.25rem 0 1.75rem;
         padding: 0.85rem 0.75rem;
       }
+      .tool-search-input-icon {
+        left: 0.85rem;
+      }
       #tool-search-input {
         font-size: 1.05rem;
-        padding: 0.8rem 0.9rem;
+        padding: 0.8rem 0.9rem 0.8rem 2.55rem;
       }
       .tool-search-option-link {
         padding: 0.7rem 0.8rem 0.75rem;
