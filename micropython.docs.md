@@ -1,0 +1,3 @@
+This page demonstrates a minimal MicroPython WASM implementation that runs Python code directly in your web browser. Enter Python code in the text area and execute it by clicking the Run button, or test the implementation with the Run tests button. The demonstration uses the official MicroPython WebAssembly module loaded from a CDN to provide Python execution capabilities without server-side processing.
+
+<!-- Generated from commit: d7412e708920e03a0ee40c49a78fb7126b9d56f4 -->
