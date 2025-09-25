@@ -37,15 +37,10 @@ ready(() => {
   style.textContent = `
     .tool-search-container {
       margin: 1.5rem 0 2rem;
-      padding: 1rem 1.25rem;
-      border-radius: 0.85rem;
-      border: 1px solid #e1e1e1;
-      background: linear-gradient(180deg, #ffffff 0%, #f7f8ff 100%);
-      box-shadow: 0 8px 24px rgba(23, 43, 99, 0.08);
-    }
-    .tool-search-container:focus-within {
-      border-color: #5b6ef5;
-      box-shadow: 0 12px 32px rgba(47, 64, 179, 0.15);
+      padding: 1.15rem 1.5rem 1rem;
+      border-radius: 0.45rem;
+      border: 1.5px solid #d9dce6;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
     }
     .tool-search-label {
       position: absolute;
@@ -59,23 +54,42 @@ ready(() => {
     }
     .tool-search-input-wrapper {
       position: relative;
+      margin-bottom: 0.95rem;
+    }
+    .tool-search-input-icon {
+      position: absolute;
+      top: 50%;
+      left: 1.1rem;
+      transform: translateY(-50%);
+      width: 1rem;
+      height: 1rem;
+      color: #4c5a85;
+      pointer-events: none;
+    }
+    .tool-search-input-icon svg {
+      display: block;
+      width: 100%;
+      height: 100%;
     }
     #tool-search-input {
       width: 100%;
       box-sizing: border-box;
-      border-radius: 0.75rem;
-      border: 1px solid #cfd2ff;
-      background-color: rgba(255, 255, 255, 0.9);
-      padding: 0.75rem 1rem;
+      border-radius: 0.7rem;
+      border: 1.5px solid #94a3d4;
+      background-color: rgba(255, 255, 255, 0.95);
+      padding: 0.75rem 1rem 0.75rem 2.75rem;
       font-size: 1rem;
       line-height: 1.5;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
+    #tool-search-input::placeholder {
+      color: #4f5c83;
+    }
     #tool-search-input:focus {
       outline: none;
-      border-color: #4454f7;
-      box-shadow: 0 0 0 3px rgba(68, 84, 247, 0.2);
+      border-color: #3b4fd4;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
       background-color: #fff;
     }
     #tool-search-input:disabled {
@@ -83,9 +97,10 @@ ready(() => {
       background-color: rgba(250, 250, 255, 0.8);
     }
     .tool-search-hint {
-      margin: 0.5rem 0 0;
+      margin: 0 0 0;
       font-size: 0.875rem;
-      color: #4a4f67;
+      color: #6f7796;
+      max-width: 32rem;
     }
     .tool-search-results {
       list-style: none;
@@ -96,14 +111,13 @@ ready(() => {
       gap: 0.5rem;
     }
     .tool-search-option {
-      border-radius: 0.75rem;
-      border: 1px solid #d8dcff;
+      border-radius: 0.7rem;
+      border: 1.5px solid #d8dcff;
       background: #ffffff;
       transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
     }
     .tool-search-option.active {
       border-color: #4454f7;
-      box-shadow: 0 6px 18px rgba(68, 84, 247, 0.18);
       transform: translateY(-1px);
     }
     .tool-search-option-link {
@@ -133,8 +147,8 @@ ready(() => {
     }
     .tool-search-empty {
       padding: 0.9rem 1rem;
-      border-radius: 0.75rem;
-      border: 1px dashed #c4c8ff;
+      border-radius: 0.7rem;
+      border: 1.5px dashed #c4c8ff;
       background: rgba(228, 232, 255, 0.5);
       font-size: 0.95rem;
       color: #3e4261;
@@ -177,6 +191,16 @@ ready(() => {
   const inputWrapper = document.createElement('div');
   inputWrapper.className = 'tool-search-input-wrapper';
 
+  const icon = document.createElement('span');
+  icon.className = 'tool-search-input-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.innerHTML = `
+    <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.5" fill="none" />
+      <line x1="13.35" y1="13.35" x2="17" y2="17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+    </svg>
+  `;
+
   const input = document.createElement('input');
   input.type = 'search';
   input.id = 'tool-search-input';
@@ -188,6 +212,9 @@ ready(() => {
   input.setAttribute('aria-haspopup', 'listbox');
   input.setAttribute('role', 'combobox');
   input.disabled = true;
+
+  inputWrapper.appendChild(icon);
+  inputWrapper.appendChild(input);
 
   const hint = document.createElement('p');
   hint.className = 'tool-search-hint';
@@ -205,7 +232,6 @@ ready(() => {
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
 
-  inputWrapper.appendChild(input);
   container.appendChild(label);
   container.appendChild(inputWrapper);
   container.appendChild(hint);
