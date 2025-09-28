@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keyboard Debugger</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Helvetica, Arial, sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+h1 {
+  margin: 20px;
+  font-size: 28px;
+  font-weight: 300;
+  text-align: center;
+}
+
+.key-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  min-height: 300px;
+}
+
+.key {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  padding: 30px 40px;
+  font-size: 72px;
+  font-weight: 700;
+  text-transform: uppercase;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  animation: keyPress 0.2s ease-out;
+  min-width: 120px;
+  text-align: center;
+}
+
+@keyframes keyPress {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.instructions {
+  position: absolute;
+  bottom: 20px;
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.7;
+  max-width: 600px;
+  padding: 0 20px;
+}
+
+.key-info {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.8;
+  font-family: monospace;
+  max-width: 800px;
+  padding: 0 20px;
+  word-wrap: break-word;
+}
+  </style>
+</head>
+<body>
+  <h1>Keyboard debugger</h1>
+  
+  <div class="key-display" id="keyDisplay"></div>
+  
+  <div class="key-info" id="keyInfo"></div>
+  
+  <div class="instructions">
+    Press any key on your keyboard to see it displayed above. Multiple keys can be pressed simultaneously.
+  </div>
+
+<script type="module">
+const keyDisplay = document.getElementById('keyDisplay');
+const keyInfo = document.getElementById('keyInfo');
+const pressedKeys = new Set();
+
+function getKeyLabel(event) {
+  const key = event.key;
+  
+  // Special key mappings
+  const specialKeys = {
+    ' ': 'Space',
+    'Control': 'Ctrl',
+    'Meta': navigator.platform.includes('Mac') ? 'Cmd' : 'Win',
+    'ArrowUp': '↑',
+    'ArrowDown': '↓',
+    'ArrowLeft': '←',
+    'ArrowRight': '→',
+    'Enter': '↵ Enter',
+    'Backspace': '⌫ Backspace',
+    'Tab': '⇥ Tab',
+    'Shift': '⇧ Shift',
+    'CapsLock': '⇪ Caps',
+    'Escape': 'Esc'
+  };
+  
+  return specialKeys[key] || key;
+}
+
+function updateDisplay() {
+  keyDisplay.innerHTML = '';
+  
+  if (pressedKeys.size === 0) {
+    keyDisplay.innerHTML = '<div style="opacity: 0.5; font-size: 24px;">Press any key...</div>';
+  } else {
+    pressedKeys.forEach(keyData => {
+      const keyEl = document.createElement('div');
+      keyEl.className = 'key';
+      keyEl.textContent = keyData.label;
+      keyDisplay.appendChild(keyEl);
+    });
+  }
+}
+
+function updateKeyInfo(event) {
+  if (event) {
+    const info = `Key: "${event.key}" | Code: "${event.code}" | KeyCode: ${event.keyCode}`;
+    keyInfo.textContent = info;
+  } else {
+    keyInfo.textContent = '';
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  // Prevent default for some keys to avoid unwanted behavior
+  if (['Tab', 'F5', 'F11'].includes(e.key)) {
+    e.preventDefault();
+  }
+  
+  const keyData = {
+    code: e.code,
+    label: getKeyLabel(e)
+  };
+  
+  // Remove any existing entry with same code
+  pressedKeys.forEach(k => {
+    if (k.code === keyData.code) {
+      pressedKeys.delete(k);
+    }
+  });
+  
+  pressedKeys.add(keyData);
+  updateDisplay();
+  updateKeyInfo(e);
+});
+
+document.addEventListener('keyup', (e) => {
+  pressedKeys.forEach(k => {
+    if (k.code === e.code) {
+      pressedKeys.delete(k);
+    }
+  });
+  updateDisplay();
+  if (pressedKeys.size === 0) {
+    updateKeyInfo(null);
+  }
+});
+
+// Handle window blur to clear keys
+window.addEventListener('blur', () => {
+  pressedKeys.clear();
+  updateDisplay();
+  updateKeyInfo(null);
+});
+
+// Initial display
+updateDisplay();
+</script>
+</body>
+</html>
