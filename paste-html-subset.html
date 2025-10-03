@@ -115,7 +115,8 @@
       <li><strong>strong</strong> - Bold text</li>
       <li><strong>em</strong> - Italic text</li>
       <li><strong>blockquote</strong> - Quoted text</li>
-      <li><strong>code</strong> - Code snippets</li>
+      <li><strong>code</strong> - Inline code snippets</li>
+      <li><strong>pre</strong> - Preformatted text blocks</li>
       <li><strong>a</strong> - Links (href attribute is preserved)</li>
       <li><strong>h1-h6</strong> - Headings</li>
       <li><strong>ul</strong> - Unordered lists</li>
@@ -156,7 +157,7 @@
   // Function to sanitize HTML and keep only allowed tags and attributes
   function sanitizeHtml(html) {
     const allowedTags = [
-      'p', 'strong', 'em', 'blockquote', 'code', 'a', 
+      'p', 'strong', 'em', 'blockquote', 'code', 'pre', 'a',
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
       'ul', 'ol', 'li', 'dl', 'dt', 'dd'
     ];
@@ -239,15 +240,22 @@
     
     // Split HTML by tags
     const parts = html.split(/(<\/?[^>]+>)/);
-    
+    const preStack = [];
+
     for (let i = 0; i < parts.length; i++) {
-      const part = parts[i].trim();
-      if (!part) continue;
-      
+      const rawPart = parts[i];
+      if (!rawPart) continue;
+
+      const part = rawPart.trim();
+      if (!part && preStack.length === 0) continue;
+
       // Check if it's a tag
       if (part.startsWith('<')) {
         // Closing tag
         if (part.startsWith('</')) {
+          if (/^<\/pre\b/i.test(part) && preStack.length > 0) {
+            preStack.pop();
+          }
           indent = Math.max(0, indent - 1); // Prevent negative indent
           formatted += getIndent(indent) + part + '\n';
         }
@@ -258,6 +266,9 @@
         // Opening tag
         else {
           formatted += getIndent(indent) + part + '\n';
+          if (/^<pre\b/i.test(part)) {
+            preStack.push('pre');
+          }
           // Don't increase indent for inline elements
           if (!part.match(/<(strong|em|code|a)[^>]*>/i)) {
             indent++;
@@ -265,8 +276,11 @@
         }
       }
       // Content
-      else if (part) {
-        formatted += getIndent(indent) + part + '\n';
+      else {
+        const content = preStack.length > 0 ? rawPart : part;
+        if (content || preStack.length > 0) {
+          formatted += getIndent(indent) + content + '\n';
+        }
       }
     }
     
