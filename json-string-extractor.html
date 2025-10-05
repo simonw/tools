@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSON String Extractor</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+h1 {
+  margin: 0 0 20px 0;
+  font-size: 24px;
+  font-weight: normal;
+}
+
+.input-section {
+  margin-bottom: 30px;
+}
+
+#jsonInput {
+  width: 100%;
+  min-height: 150px;
+  padding: 12px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  resize: vertical;
+}
+
+#jsonInput:focus {
+  outline: none;
+  border-color: #4a90e2;
+}
+
+.error {
+  color: #e74c3c;
+  padding: 12px;
+  background: #fef5f5;
+  border-radius: 4px;
+  margin-top: 10px;
+  display: none;
+}
+
+.results {
+  margin-top: 30px;
+}
+
+.string-item {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #fafafa;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}
+
+.string-path {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+  font-family: 'Courier New', monospace;
+}
+
+.string-content {
+  position: relative;
+}
+
+.string-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  resize: none;
+  background: white;
+  overflow-y: hidden;
+}
+
+.copy-button {
+  margin-top: 8px;
+  padding: 8px 16px;
+  background: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+.copy-button:hover {
+  background: #357abd;
+}
+
+.copy-button:active {
+  background: #2868a8;
+}
+
+.copy-button.copied {
+  background: #27ae60;
+}
+
+.load-example-button {
+  padding: 6px 12px;
+  background: #666;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+.load-example-button:hover {
+  background: #555;
+}
+
+.load-example-button:active {
+  background: #444;
+}
+
+.load-example-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.count {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 15px;
+}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>JSON string extractor</h1>
+    <p style="margin: 0 0 20px 0; font-size: 14px; color: #666; line-height: 1.2;">Paste JSON below to extract all strings that are longer than 20 characters or contain newlines. Results are sorted by length and displayed as copyable textareas.</p>
+    
+    <div class="input-section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <label for="jsonInput" style="font-size: 14px; color: #666;">Paste JSON here:</label>
+        <button id="loadExample" class="load-example-button">Load example JSON</button>
+      </div>
+      <textarea id="jsonInput" placeholder="Paste your JSON here..."></textarea>
+      <div id="error" class="error"></div>
+    </div>
+
+    <div id="results" class="results"></div>
+  </div>
+
+  <script type="module">
+const jsonInput = document.getElementById('jsonInput');
+const errorDiv = document.getElementById('error');
+const resultsDiv = document.getElementById('results');
+const loadExampleButton = document.getElementById('loadExample');
+
+async function loadExampleJSON() {
+  loadExampleButton.disabled = true;
+  loadExampleButton.textContent = 'Loading...';
+  
+  try {
+    const response = await fetch('https://gist.githubusercontent.com/simonw/1d1013ba059af76461153722005a039d/raw/0835963f6cc3554fe49c50f273660a6d01e4a7e0/response.json');
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const text = await response.text();
+    jsonInput.value = text;
+    processJSON();
+    
+    loadExampleButton.textContent = 'Load example JSON';
+  } catch (e) {
+    showError(`Failed to load example JSON: ${e.message}`);
+    loadExampleButton.textContent = 'Load example JSON';
+  } finally {
+    loadExampleButton.disabled = false;
+  }
+}
+
+loadExampleButton.addEventListener('click', loadExampleJSON);
+
+function showError(message) {
+  errorDiv.textContent = message;
+  errorDiv.style.display = 'block';
+}
+
+function hideError() {
+  errorDiv.style.display = 'none';
+}
+
+function shouldDisplay(str) {
+  return str.includes('\n') || str.length > 20;
+}
+
+function extractStrings(obj, path = '') {
+  const results = [];
+  
+  if (typeof obj === 'string') {
+    if (shouldDisplay(obj)) {
+      results.push({ path, value: obj });
+    }
+  } else if (Array.isArray(obj)) {
+    obj.forEach((item, index) => {
+      const newPath = path ? `${path}[${index}]` : `[${index}]`;
+      results.push(...extractStrings(item, newPath));
+    });
+  } else if (obj !== null && typeof obj === 'object') {
+    Object.keys(obj).forEach(key => {
+      const newPath = path ? `${path}.${key}` : key;
+      results.push(...extractStrings(obj[key], newPath));
+    });
+  }
+  
+  return results;
+}
+
+function resizeTextarea(textarea) {
+  // Reset height to auto to get the correct scrollHeight
+  textarea.style.height = 'auto';
+  // Set height to scrollHeight to fit content
+  textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+function resizeAllTextareas() {
+  document.querySelectorAll('.string-textarea').forEach(textarea => {
+    resizeTextarea(textarea);
+  });
+}
+
+function copyToClipboard(text, button) {
+  navigator.clipboard.writeText(text).then(() => {
+    const originalText = button.textContent;
+    button.textContent = 'Copied!';
+    button.classList.add('copied');
+    
+    setTimeout(() => {
+      button.textContent = originalText;
+      button.classList.remove('copied');
+    }, 2000);
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+    alert('Failed to copy to clipboard');
+  });
+}
+
+function renderResults(strings) {
+  if (strings.length === 0) {
+    resultsDiv.innerHTML = '<p class="count">No strings found that are longer than 20 characters or contain newlines.</p>';
+    return;
+  }
+  
+  // Sort strings by length (longest first)
+  const sortedStrings = [...strings].sort((a, b) => b.value.length - a.value.length);
+  
+  let html = `<p class="count">Found ${strings.length} string${strings.length === 1 ? '' : 's'}:</p>`;
+  
+  sortedStrings.forEach((item, index) => {
+    const escapedValue = item.value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    
+    html += `
+      <div class="string-item">
+        <div class="string-path">${item.path || '(root)'}</div>
+        <div class="string-content">
+          <textarea class="string-textarea" data-index="${index}">${escapedValue}</textarea>
+          <button class="copy-button" data-index="${index}">Copy to clipboard</button>
+        </div>
+      </div>
+    `;
+  });
+  
+  resultsDiv.innerHTML = html;
+  
+  // Add event listeners to copy buttons
+  document.querySelectorAll('.copy-button').forEach(button => {
+    button.addEventListener('click', () => {
+      const index = button.getAttribute('data-index');
+      const textarea = document.querySelector(`.string-textarea[data-index="${index}"]`);
+      copyToClipboard(textarea.value, button);
+    });
+  });
+  
+  // Resize all textareas after rendering
+  requestAnimationFrame(() => {
+    resizeAllTextareas();
+  });
+}
+
+function processJSON() {
+  const input = jsonInput.value.trim();
+  
+  if (!input) {
+    resultsDiv.innerHTML = '';
+    hideError();
+    return;
+  }
+  
+  try {
+    const parsed = JSON.parse(input);
+    hideError();
+    
+    const strings = extractStrings(parsed);
+    renderResults(strings);
+  } catch (e) {
+    showError(`Invalid JSON: ${e.message}`);
+    resultsDiv.innerHTML = '';
+  }
+}
+
+jsonInput.addEventListener('input', processJSON);
+
+// Resize textareas when window is resized
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    resizeAllTextareas();
+  }, 100);
+});
+
+// Process on load if there's any content
+processJSON();
+  </script>
+</body>
+</html>
