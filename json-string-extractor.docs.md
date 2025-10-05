@@ -1,3 +1,3 @@
-The JSON String Extractor tool helps you find and extract all strings from a JSON document that are longer than 20 characters or contain newlines. After pasting your JSON data into the input area, the tool parses it, extracts matching strings along with their paths, and displays them as resizable text areas sorted by length. Each extracted string can be easily copied to your clipboard with a single click.
+This tool extracts and displays strings from JSON that are either longer than 20 characters or contain newlines. Paste your JSON into the input field or load the example JSON, and the tool will automatically identify matching strings and display them with their path information. Each extracted string can be individually copied to the clipboard using the provided copy buttons.
 
-<!-- Generated from commit: b0a0808ab65e45ba06cacdf15ccb15ba5cbf1563 -->
+<!-- Generated from commit: 5da00b50a2149b972060522234854ef0d8552385 -->
