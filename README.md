@@ -1,6 +1,6 @@
 # tools.simonwillison.net
 
-Miscellaneous HTML+JavaScript tools built mostly with the help of LLMs.
+Miscellaneous HTML+JavaScript tools built mostly with the help of LLMs. See also [/python/](https://tools.simonwillison.net/python/) for tools written using Python.
 
 This collection is an experiment in prompt-driven development with very low stakes.
 
