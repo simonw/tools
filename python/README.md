@@ -4,6 +4,16 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## openai_image.py
+
+Generate an image from a text prompt using OpenAI's image models.
+
+```bash
+uv run https://tools.simonwillison.net/python/openai_image.py \
+  'A racoon eating cheese wearing an inappropriate hat'
+```
+Use `--help` to see all available options.
+
 ## codex_to_markdown.py
 
 Convert a Codex CLI session JSONL log into Markdown.
