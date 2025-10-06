@@ -12,8 +12,31 @@ Generate an image from a text prompt using OpenAI's image models.
 uv run https://tools.simonwillison.net/python/openai_image.py \
   'A racoon eating cheese wearing an inappropriate hat'
 ```
-Use `--help` to see all available options.
+Use `--help` to see all available options:
 
+```
+Usage: openai_image.py [OPTIONS] PROMPT OUTFILE
+
+  Generate an image with OpenAI image models.
+
+  Positional args:   PROMPT   Text prompt describing the image to generate.
+  OUTFILE  Output file path (default: /tmp/image-XXXXXX.png)
+
+Options:
+  -m, --model TEXT                Model to use (known: dall-e-2, dall-e-3,
+                                  gpt-image-1, gpt-image-1-mini)  [default:
+                                  gpt-image-1-mini]
+  --background [transparent|opaque|auto]
+                                  background.
+  --moderation [low|auto]         moderation.
+  --output-format [png|jpeg|webp]
+                                  output format.
+  --quality [standard|hd|low|medium|high|auto]
+                                  quality.
+  --size [auto|1024x1024|1536x1024|1024x1536|256x256|512x512|1792x1024|1024x1792]
+                                  size.
+  -h, --help                      Show this message and exit.
+```
 ## codex_to_markdown.py
 
 Convert a Codex CLI session JSONL log into Markdown.
