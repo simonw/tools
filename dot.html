@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOT File Renderer</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+h1 {
+  margin: 0 0 20px 0;
+  color: #333;
+  font-size: 28px;
+}
+
+.input-section {
+  margin-bottom: 30px;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+  color: #555;
+  font-weight: 500;
+}
+
+textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #4a90e2;
+}
+
+
+
+.output-section {
+  margin-top: 30px;
+}
+
+#output {
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  padding: 20px;
+  min-height: 200px;
+  background: #fafafa;
+  overflow: auto;
+}
+
+#output svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.error {
+  color: #d32f2f;
+  background: #ffebee;
+  padding: 12px;
+  border-radius: 4px;
+  border-left: 4px solid #d32f2f;
+}
+
+.example-link {
+  color: #4a90e2;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 14px;
+  margin-left: 10px;
+}
+
+.example-link:hover {
+  color: #357abd;
+}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>DOT file renderer</h1>
+    
+    <div class="input-section">
+      <label for="dotInput">
+        Paste your .dot file content here
+        <span class="example-link" id="loadExample">Load example</span>
+      </label>
+      <textarea id="dotInput" placeholder="digraph G {&#10;  A -> B;&#10;  B -> C;&#10;}"></textarea>
+    </div>
+
+    <div class="output-section">
+      <label>Output</label>
+      <div id="output"></div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "@viz-js/viz": "https://cdn.jsdelivr.net/npm/@viz-js/viz@3.9.0/+esm"
+    }
+  }
+  </script>
+
+  <script type="module">
+import { instance } from '@viz-js/viz';
+
+const dotInput = document.getElementById('dotInput');
+const output = document.getElementById('output');
+const loadExample = document.getElementById('loadExample');
+
+let viz = null;
+let renderTimeout = null;
+
+// Initialize Viz.js
+instance().then(v => {
+  viz = v;
+  console.log('Viz.js loaded successfully');
+  
+  // Load from URL fragment on page load
+  loadFromURL();
+});
+
+// Example DOT file
+const exampleDot = `digraph G {
+  rankdir=LR;
+  node [shape=box, style=rounded];
+  
+  Start [shape=circle, style=filled, fillcolor=lightgreen];
+  End [shape=doublecircle, style=filled, fillcolor=lightcoral];
+  
+  Start -> Process1 [label="input"];
+  Process1 -> Decision [label="data"];
+  Decision -> Process2 [label="yes"];
+  Decision -> Process3 [label="no"];
+  Process2 -> End;
+  Process3 -> End;
+  
+  Process1 [label="Process\\nData"];
+  Decision [shape=diamond, label="Valid?"];
+  Process2 [label="Accept"];
+  Process3 [label="Reject"];
+}`;
+
+// Load example
+loadExample.addEventListener('click', () => {
+  dotInput.value = exampleDot;
+  updateURL();
+  renderGraph();
+});
+
+// Load from URL fragment
+function loadFromURL() {
+  const hash = window.location.hash.slice(1);
+  if (hash) {
+    try {
+      const decoded = decodeURIComponent(hash);
+      dotInput.value = decoded;
+      renderGraph();
+    } catch (error) {
+      console.error('Failed to load from URL:', error);
+    }
+  }
+}
+
+// Update URL fragment
+function updateURL() {
+  const dotContent = dotInput.value.trim();
+  if (dotContent) {
+    const encoded = encodeURIComponent(dotContent);
+    window.history.replaceState(null, '', '#' + encoded);
+  } else {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+}
+
+// Render graph
+async function renderGraph() {
+  const dotContent = dotInput.value.trim();
+  
+  if (!dotContent) {
+    output.innerHTML = '';
+    return;
+  }
+
+  if (!viz) {
+    output.innerHTML = '<div class="error">Viz.js is still loading, please wait...</div>';
+    return;
+  }
+
+  try {
+    output.innerHTML = '<div style="color: #666;">Rendering...</div>';
+    const svg = await viz.renderSVGElement(dotContent);
+    output.innerHTML = '';
+    output.appendChild(svg);
+  } catch (error) {
+    output.innerHTML = `<div class="error"><strong>Error:</strong> ${error.message}</div>`;
+  }
+}
+
+// Auto-render on input with debouncing
+dotInput.addEventListener('input', () => {
+  clearTimeout(renderTimeout);
+  renderTimeout = setTimeout(() => {
+    updateURL();
+    renderGraph();
+  }, 500);
+});
+
+// Handle browser back/forward
+window.addEventListener('hashchange', () => {
+  loadFromURL();
+});
+  </script>
+</body>
+</html>
