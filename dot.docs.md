@@ -1,0 +1,3 @@
+This tool renders DOT graph description language files into SVG visualizations. Enter your DOT syntax in the text area and see the rendered graph instantly in the output section. The rendered graphs are shareable via URL, and you can load an example graph to see the tool's capabilities or as a starting point for your own graphs.
+
+<!-- Generated from commit: a3fec50f7e8b7b0276fa19aca3f3bb61fb60130d -->
