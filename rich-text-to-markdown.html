@@ -109,7 +109,7 @@
   <div class="wrap">
     <header>
       <h1>Rich Text → Markdown (No React)</h1>
-      <p>Paste formatted text on mobile or desktop. Outputs Markdown with <strong>bold</strong>, <em>italic</em>, inline <a href="#">links</a>, and paragraph breaks.</p>
+      <p>Paste formatted text on mobile or desktop. Outputs Markdown with <strong>bold</strong>, <em>italic</em>, inline <a href="#">links</a>, paragraph breaks, and nested lists.</p>
     </header>
 
     <div class="grid">
@@ -131,7 +131,7 @@
           <button id="copyBtn" type="button">Copy</button>
           <button id="quoteBtn" type="button" style="display:none;">Quote this</button>
         </div>
-        <p class="hint" style="margin-top:10px;">Only <strong>bold</strong>, <em>italic</em>, inline links, line breaks, and paragraph breaks are converted. Other formatting is ignored.</p>
+        <p class="hint" style="margin-top:10px;">Supports <strong>bold</strong>, <em>italic</em>, inline links, lists (including nested), line breaks, and paragraph breaks.</p>
       </section>
     </div>
 
@@ -200,13 +200,19 @@
       return '';
     }
 
-    function walk(node) {
+    function walk(node, state) {
+      if (!state) {
+        state = { listStack: [] };
+      }
       if (node.nodeType === Node.TEXT_NODE) {
         return escapeText(node.nodeValue || '');
       }
       if (node.nodeType !== Node.ELEMENT_NODE) return '';
       const tag = node.tagName;
-      let inner = Array.from(node.childNodes).map(walk).join('');
+      if (tag === 'UL' || tag === 'OL') {
+        return processList(node, state, tag === 'OL');
+      }
+      let inner = Array.from(node.childNodes).map(child => walk(child, state)).join('');
       // Trim inside formatting wrappers to avoid things like ** bold **
       const trimInner = () => inner.replace(/^\s+|\s+$/g, '');
 
@@ -241,21 +247,123 @@
           return inner.trim() + '\n\n';
         case 'SPAN':
           return inner;
-        case 'UL':
-        case 'OL':
-          // Not requested, but flatten to lines so paragraphs remain coherent
-          return Array.from(node.children).map(walk).join('\n') + '\n\n';
         case 'LI':
-          return inner.trim();
+          return processListItem(node, state);
         default:
           return inner;
       }
     }
 
+    function processList(node, state, ordered) {
+      let startIndex = 0;
+      if (ordered) {
+        const startAttr = parseInt(node.getAttribute('start') || '1', 10);
+        if (!Number.isNaN(startAttr)) {
+          startIndex = startAttr - 1;
+        }
+      }
+      state.listStack.push({ type: ordered ? 'ol' : 'ul', index: startIndex });
+      const items = [];
+      for (const child of Array.from(node.children)) {
+        if (child.tagName === 'LI') {
+          items.push(processListItem(child, state));
+        } else {
+          const content = walk(child, state);
+          if (content.trim()) {
+            items.push(content);
+          }
+        }
+      }
+      state.listStack.pop();
+      const listContent = items.filter(Boolean).join('\n');
+      return listContent ? listContent + '\n\n' : '';
+    }
+
+    function processListItem(node, state) {
+      const current = state.listStack[state.listStack.length - 1];
+      if (!current) {
+        return Array.from(node.childNodes).map(child => walk(child, state)).join('').trim();
+      }
+
+      if (current.type === 'ol') {
+        const valueAttr = parseInt(node.getAttribute('value') || '', 10);
+        if (!Number.isNaN(valueAttr)) {
+          current.index = valueAttr - 1;
+        }
+        current.index += 1;
+      }
+
+      const indent = '  '.repeat(Math.max(0, state.listStack.length - 1));
+      const marker = current.type === 'ol' ? `${current.index}. ` : '- ';
+      const bullet = indent + marker;
+      const hangingIndent = ' '.repeat(bullet.length);
+
+      const blocks = [];
+      let buffer = '';
+
+      const flushBuffer = () => {
+        if (!buffer) return;
+        if (buffer.trim()) {
+          blocks.push({ type: 'text', content: buffer.replace(/\n+$/, '') });
+        }
+        buffer = '';
+      };
+
+      for (const child of Array.from(node.childNodes)) {
+        if (child.nodeType === Node.ELEMENT_NODE && (child.tagName === 'UL' || child.tagName === 'OL')) {
+          flushBuffer();
+          const content = walk(child, state).trimEnd();
+          if (content) {
+            blocks.push({ type: 'list', content });
+          }
+        } else {
+          buffer += walk(child, state);
+        }
+      }
+      flushBuffer();
+
+      if (!blocks.length) {
+        return bullet.trimEnd();
+      }
+
+      const lines = [];
+      const firstBlock = blocks.shift();
+
+      if (firstBlock.type === 'list') {
+        lines.push(bullet.trimEnd());
+        lines.push(...firstBlock.content.split('\n'));
+      } else {
+        const textLines = firstBlock.content.split('\n');
+        if (textLines.length) {
+          lines.push(bullet + textLines[0].trim());
+          for (const line of textLines.slice(1)) {
+            const trimmed = line.trim();
+            lines.push(trimmed ? hangingIndent + trimmed : hangingIndent);
+          }
+        } else {
+          lines.push(bullet.trimEnd());
+        }
+      }
+
+      for (const block of blocks) {
+        if (block.type === 'list') {
+          lines.push(...block.content.split('\n'));
+        } else {
+          const textLines = block.content.split('\n');
+          for (const line of textLines) {
+            const trimmed = line.trim();
+            lines.push(trimmed ? hangingIndent + trimmed : hangingIndent);
+          }
+        }
+      }
+
+      return lines.join('\n');
+    }
+
     function htmlToMarkdown(html) {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
-      let md = walk(doc.body);
+      let md = walk(doc.body, { listStack: [] });
       // Normalize newlines: collapse 3+ to 2
       md = md.replace(/\n{3,}/g, '\n\n');
       // Trim extra whitespace around paragraphs

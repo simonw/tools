@@ -1,3 +1,3 @@
-This page converts rich text into Markdown formatting. When you paste formatted text into the input area, it intelligently converts HTML elements like bold, italic, links, and paragraph breaks into their Markdown equivalents. The conversion happens instantly, displaying the resulting Markdown in the output area where you can copy it for use elsewhere.
+This page converts rich text into Markdown formatting. When you paste formatted text into the input area, it intelligently converts HTML elements like bold, italic, links, paragraph breaks, and ordered or unordered lists (including nested lists) into their Markdown equivalents. The conversion happens instantly, displaying the resulting Markdown in the output area where you can copy it for use elsewhere.
 
 <!-- Generated from commit: 4698b5289ece284b464e0c4c98128a7ddc7991d2 -->
