@@ -1,3 +1,3 @@
-This page converts rich text into Markdown formatting. When you paste formatted text into the input area, it intelligently converts HTML elements like bold, italic, links, paragraph breaks, and ordered or unordered lists (including nested lists) into their Markdown equivalents. The conversion happens instantly, displaying the resulting Markdown in the output area where you can copy it for use elsewhere.
+This tool converts rich text to Markdown. Paste formatted text into the input area, and the app automatically transforms it to Markdown in the output field, preserving formatting like bold text, italics, links, lists, and paragraph structure. The conversion happens instantly as you paste or type, and you can copy the resulting Markdown with a single click.
 
-<!-- Generated from commit: 4698b5289ece284b464e0c4c98128a7ddc7991d2 -->
+<!-- Generated from commit: 385ad14624d67c915fc144f5abd5baf9f6149b43 -->
