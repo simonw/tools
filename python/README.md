@@ -4,6 +4,18 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## claude_to_markdown.py
+
+Convert a Claude `.jsonl` conversation log to readable Markdown.
+
+```bash
+uv run https://tools.simonwillison.net/python/claude_to_markdown.py \
+  aed89565-d168-4ff9-bb03-13ea532969ea.jsonl
+```
+Add a second filename to write to that file instead of a `.md` next to the `.jsonl`.
+
+[Example output](https://gist.github.com/simonw/388d62cdb99dd844eb6ce63b538dbbd8) for the session that created this script.
+
 ## openai_image.py
 
 Generate an image from a text prompt using OpenAI's image models.
