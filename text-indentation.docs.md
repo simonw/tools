@@ -1,3 +1,3 @@
-This tool helps you manage text indentation with a set of one-click operations. You can add 2 or 4 spaces of indentation to each line of your text, remove 2 or 4 spaces from the beginning of each line, or strip all leading whitespace. Paste your text into the textarea and use the buttons to transform the indentation as needed.
+This tool allows you to manipulate text indentation and formatting. Paste text in the textarea and use the buttons to add or remove indentation with 2 or 4 spaces, completely remove all indentation, or add/remove quote markers at the beginning of each line. The tool automatically detects when all non-empty lines are quoted and provides an option to unquote.
 
-<!-- Generated from commit: 51e13fce10e6c70cfd3175fefb9c46b514c31430 -->
+<!-- Generated from commit: b30871bf30cc8b195bad85d43291fc0dece96793 -->
