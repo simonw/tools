@@ -1,3 +1,3 @@
-This webpage enables you to generate haikus based on images captured from your device's camera. After granting camera access, capture an image using the center button, and Claude will analyze the image and generate a haiku inspired by what it sees. The interface allows switching between front and rear cameras if your device has multiple cameras available.
+This web application uses your device's camera to capture images and generate haikus inspired by what it sees. After capturing an image with the camera button, the app sends it to Claude AI which creates a unique haiku based on the visual content. Users can switch between front and rear cameras if their device has multiple cameras available.
 
-<!-- Generated from commit: 0249ab83775861f549abb1aa80af0ca3614dc5ff -->
+<!-- Generated from commit: 481983f6237a5ca690c49f6c4762306c15d762b5 -->
