@@ -129,15 +129,50 @@
         const copyImageButton = document.getElementById('copyImageButton');
         const formatRadios = document.querySelectorAll('input[name="format"]');
 
+        // ===== Hash <-> Text Sync Helpers =====
+        function getTextFromHash() {
+            if (!location.hash || location.hash.length <= 1) return null;
+            try {
+                return decodeURIComponent(location.hash.slice(1));
+            } catch (e) {
+                console.warn('Could not decode hash:', e);
+                return null;
+            }
+        }
+        function setHashFromText(text) {
+            // Avoid spamming history with each render
+            const encoded = encodeURIComponent(text);
+            const target = '#' + encoded;
+            if (location.hash !== target) {
+                if (history.replaceState) {
+                    history.replaceState(null, '', target);
+                } else {
+                    location.hash = encoded;
+                }
+            }
+        }
+        function loadFromHashIfPresent() {
+            const text = getTextFromHash();
+            if (text) {
+                svgInput.value = text;
+                convertSvgToImage();
+            }
+        }
+        window.addEventListener('hashchange', () => {
+            const text = getTextFromHash();
+            if (text !== null) {
+                svgInput.value = text;
+                convertSvgToImage();
+            }
+        });
+
         // Add event listeners for instant preview updates
         paddingInput.addEventListener('input', debounce(convertSvgToImage, 300));
         widthInput.addEventListener('input', debounce(convertSvgToImage, 300));
         bgColor.addEventListener('input', debounce(convertSvgToImage, 300));
-        
         formatRadios.forEach(radio => {
             radio.addEventListener('change', convertSvgToImage);
         });
-        
         transparentBg.addEventListener('change', convertSvgToImage);
 
         // Debounce function to prevent too many updates
@@ -173,7 +208,6 @@
         bgColor.addEventListener('input', () => {
             transparentBg.checked = false;
         });
-
         transparentBg.addEventListener('change', () => {
             if (transparentBg.checked) {
                 bgColor.value = "#ffffff";
@@ -186,11 +220,9 @@
             e.preventDefault();
             dropZone.classList.add('dragover');
         });
-
         dropZone.addEventListener('dragleave', () => {
             dropZone.classList.remove('dragover');
         });
-
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
@@ -219,12 +251,17 @@
 
         function convertSvgToImage() {
             let svgContent = document.getElementById('svgInput').value;
-            
-            // If there's no SVG content, don't try to convert
+
+            // If there's no SVG content, don't try to convert (and clear preview)
             if (!svgContent.trim()) {
+                document.getElementById('imageContainer').innerHTML = '';
+                document.getElementById('downloadLink').style.display = 'none';
+                document.getElementById('fileSize').textContent = '';
+                document.getElementById('base64Output').textContent = '';
+                document.getElementById('output').style.display = 'none';
                 return;
             }
-            
+
             const imageContainer = document.getElementById('imageContainer');
             const base64Output = document.getElementById('base64Output');
             const downloadLink = document.getElementById('downloadLink');
@@ -271,7 +308,7 @@
             const aspectRatio = width / height;
             const contentWidth = newWidth;
             const contentHeight = Math.round(contentWidth / aspectRatio);
-            
+
             // Total canvas dimensions including padding
             const totalWidth = contentWidth + (padding * 2);
             const totalHeight = contentHeight + (padding * 2);
@@ -291,14 +328,14 @@
             }
 
             const svgBlob = new Blob([svgContent], {type: 'image/svg+xml;charset=utf-8'});
-            const URL = window.URL || window.webkitURL || window;
-            const svgUrl = URL.createObjectURL(svgBlob);
+            const URL_ = window.URL || window.webkitURL || window;
+            const svgUrl = URL_.createObjectURL(svgBlob);
 
             const img = new Image();
             img.onload = function() {
                 // Draw the image with padding
                 ctx.drawImage(img, padding, padding, contentWidth, contentHeight);
-                URL.revokeObjectURL(svgUrl);
+                URL_.revokeObjectURL(svgUrl);
 
                 // Convert to selected format
                 const imageDataUrl = canvas.toDataURL(format, 0.9);
@@ -325,13 +362,16 @@
                 const imgTag = `<img src="${imageDataUrl}" alt="Converted ${format === 'image/jpeg' ? 'JPEG' : 'PNG'}" width="${totalWidth}" height="${totalHeight}">`;
                 base64Output.textContent = imgTag;
                 outputDiv.style.display = 'block';
+
+                // ✅ Update URL hash with current textarea contents AFTER a successful render
+                setHashFromText(svgInput.value);
             };
             img.src = svgUrl;
         }
 
         function toggleImageSize() {
             const img = document.getElementById('convertedImage');
-            img.classList.toggle('full-size');
+            if (img) img.classList.toggle('full-size');
         }
 
         function copyBase64Tag() {
@@ -345,9 +385,12 @@
             const origText = copyImageButton.innerText;
             copyImageButton.innerText = 'Copied to clipboard';
             setTimeout(() => {
-              copyImageButton.innerText = origText;
+                copyImageButton.innerText = origText;
             }, 2000);
         }
+
+        // On first load, if a hash fragment exists, use it to populate and render
+        window.addEventListener('DOMContentLoaded', loadFromHashIfPresent);
     </script>
 </body>
 </html>
