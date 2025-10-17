@@ -14,12 +14,15 @@ python gather_links.py
 echo "Building colophon page..."
 python build_colophon.py
 
-# Install Jekyll if not present
+# Install Jekyll and theme if not present
 echo "Setting up Jekyll..."
 if ! command -v jekyll &> /dev/null; then
     echo "Jekyll not found, installing..."
     gem install jekyll bundler --no-document
 fi
+
+echo "Installing Jekyll theme..."
+gem install jekyll-theme-primer --no-document
 
 # Build Jekyll site
 echo "Building Jekyll site..."
