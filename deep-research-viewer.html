@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Research Session Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        header .meta {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        button.primary {
+            background: #667eea;
+            color: white;
+        }
+
+        button.primary:hover {
+            background: #5568d3;
+        }
+
+        button.secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        button.secondary:hover {
+            background: #5a6268;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            margin-top: 10px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+            padding-left: 20px;
+        }
+
+        .section-title {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .thinking {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 6px;
+        }
+
+        .thinking h3 {
+            color: #667eea;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .thinking h3::before {
+            content: '🧠';
+            margin-right: 8px;
+        }
+
+        .thinking p {
+            color: #555;
+            white-space: pre-wrap;
+        }
+
+        .search {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 12px 20px;
+            margin: 10px 0;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+        }
+
+        .search::before {
+            content: '🔍';
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+
+        .search code {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .page-open {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 12px 20px;
+            margin: 10px 0;
+            border-radius: 6px;
+        }
+
+        .page-open::before {
+            content: '🌐 ';
+            margin-right: 8px;
+        }
+
+        .page-open a {
+            color: #4caf50;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .page-open a:hover {
+            text-decoration: underline;
+        }
+
+        .final-result {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 25px;
+            border-radius: 8px;
+            margin-top: 30px;
+            overflow-x: auto;
+        }
+
+        .final-result h2 {
+            color: #4ec9b0;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .final-result pre {
+            margin: 0;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.85em;
+            line-height: 1.5;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .stat {
+            flex: 1;
+            min-width: 150px;
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 40px;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-bottom: 20px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -32px;
+            top: 8px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #667eea;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #667eea;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: -27px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e0e0e0;
+        }
+
+        .welcome {
+            text-align: center;
+            padding: 50px 20px;
+            color: #666;
+        }
+
+        .welcome h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .content {
+                padding: 15px;
+            }
+
+            .stats {
+                flex-direction: column;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Deep Research Session Viewer</h1>
+            <div class="meta" id="meta-info">Load a transcript to view details</div>
+        </header>
+
+        <div class="content">
+            <div class="input-section">
+                <div class="button-group">
+                    <button id="loadExample" class="primary">Load example</button>
+                    <button id="loadGist" class="secondary">Load from Gist</button>
+                    <button id="togglePaste" class="secondary">Paste JSON</button>
+                </div>
+                <textarea id="jsonInput" placeholder="Paste your deep research transcript JSON here..." style="display: none;"></textarea>
+            </div>
+
+            <div id="error" style="display: none;"></div>
+
+            <div id="welcome" class="welcome">
+                <h2>Welcome!</h2>
+                <p>Load a deep research transcript using one of the options above.</p>
+            </div>
+
+            <div id="main-content" style="display: none;">
+                <div class="stats" id="stats"></div>
+                <div class="timeline" id="timeline"></div>
+                <div class="final-result" id="final-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const jsonInput = document.getElementById('jsonInput');
+        const errorDiv = document.getElementById('error');
+        const welcomeDiv = document.getElementById('welcome');
+        const mainContent = document.getElementById('main-content');
+        const loadExampleBtn = document.getElementById('loadExample');
+        const loadGistBtn = document.getElementById('loadGist');
+        const togglePasteBtn = document.getElementById('togglePaste');
+
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            welcomeDiv.style.display = 'none';
+            mainContent.style.display = 'none';
+        }
+
+        function hideError() {
+            errorDiv.style.display = 'none';
+        }
+
+        function extractGistId(input) {
+            // Try to extract Gist ID from URL or use input directly
+            const urlMatch = input.match(/gist\.github\.com\/[^\/]+\/([a-fA-F0-9]+)/i);
+            if (urlMatch) {
+                return urlMatch[1];
+            }
+            // Check if it's just a Gist ID (alphanumeric string)
+            if (/^[a-fA-F0-9]+$/i.test(input.trim())) {
+                return input.trim();
+            }
+            return null;
+        }
+
+        async function loadGistJSON(gistId) {
+            const response = await fetch(`https://api.github.com/gists/${gistId}`);
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch Gist: ${response.status} ${response.statusText}`);
+            }
+
+            const gistData = await response.json();
+
+            // Find the first file that contains valid JSON
+            for (const filename in gistData.files) {
+                const file = gistData.files[filename];
+                try {
+                    // Try to parse the content as JSON
+                    const parsed = JSON.parse(file.content);
+                    return parsed;
+                } catch (e) {
+                    // Not valid JSON, continue to next file
+                    continue;
+                }
+            }
+
+            throw new Error('No valid JSON file found in the Gist');
+        }
+
+        async function loadGist() {
+            const input = prompt('Enter a Gist URL or Gist ID:');
+
+            if (!input) {
+                return; // User cancelled
+            }
+
+            const gistId = extractGistId(input);
+
+            if (!gistId) {
+                showError('Invalid Gist URL or ID. Please provide a valid GitHub Gist URL or ID.');
+                return;
+            }
+
+            loadGistBtn.disabled = true;
+            loadGistBtn.textContent = 'Loading...';
+
+            try {
+                const data = await loadGistJSON(gistId);
+                displayTranscript(data);
+
+                // Update the URL hash
+                window.location.hash = `gist=${gistId}`;
+
+                loadGistBtn.textContent = 'Load from Gist';
+            } catch (e) {
+                showError(`Failed to load Gist: ${e.message}`);
+                loadGistBtn.textContent = 'Load from Gist';
+            } finally {
+                loadGistBtn.disabled = false;
+            }
+        }
+
+        async function loadGistFromHash() {
+            const hash = window.location.hash;
+            const gistMatch = hash.match(/gist=([a-fA-F0-9]+)/i);
+
+            if (gistMatch) {
+                const gistId = gistMatch[1];
+                try {
+                    const data = await loadGistJSON(gistId);
+                    displayTranscript(data);
+                } catch (e) {
+                    showError(`Failed to load Gist from URL: ${e.message}`);
+                }
+            }
+        }
+
+        async function loadExample() {
+            loadExampleBtn.disabled = true;
+            loadExampleBtn.textContent = 'Loading...';
+
+            try {
+                const gistId = '3454a4ce40f8547a5c65c911de611ff4';
+                const data = await loadGistJSON(gistId);
+                displayTranscript(data);
+
+                // Update the URL hash
+                window.location.hash = `gist=${gistId}`;
+
+                loadExampleBtn.textContent = 'Load example';
+            } catch (error) {
+                showError(`Error loading example: ${error.message}`);
+                loadExampleBtn.textContent = 'Load example';
+            } finally {
+                loadExampleBtn.disabled = false;
+            }
+        }
+
+        function togglePasteArea() {
+            if (jsonInput.style.display === 'none') {
+                jsonInput.style.display = 'block';
+                togglePasteBtn.textContent = 'Hide paste area';
+                jsonInput.focus();
+            } else {
+                jsonInput.style.display = 'none';
+                togglePasteBtn.textContent = 'Paste JSON';
+            }
+        }
+
+        function processJSON() {
+            const input = jsonInput.value.trim();
+
+            if (!input) {
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(input);
+                hideError();
+                displayTranscript(parsed);
+
+                // Clear hash
+                window.location.hash = '';
+            } catch (e) {
+                showError(`Invalid JSON: ${e.message}`);
+            }
+        }
+
+        function displayTranscript(data) {
+            hideError();
+            welcomeDiv.style.display = 'none';
+            mainContent.style.display = 'block';
+
+            // Display meta info
+            const metaInfo = document.getElementById('meta-info');
+            const date = new Date(data.created_at * 1000);
+            metaInfo.innerHTML = `
+                Model: ${data.model}<br>
+                Status: ${data.status} | Created: ${date.toLocaleString()}
+            `;
+
+            // Count items
+            let thinkingCount = 0;
+            let searchCount = 0;
+            let pageOpenCount = 0;
+            let codeInterpreterCount = 0;
+            let finalResult = null;
+
+            data.output.forEach(item => {
+                if (item.type === 'reasoning' && item.summary && item.summary.length > 0) {
+                    thinkingCount++;
+                }
+                if (item.type === 'web_search_call' && item.action) {
+                    if (item.action.type === 'search') searchCount++;
+                    if (item.action.type === 'open_page') pageOpenCount++;
+                }
+                if (item.type === 'code_interpreter_call') {
+                    codeInterpreterCount++;
+                }
+            });
+
+            // Find final result
+            const lastItem = data.output[data.output.length - 1];
+            if (lastItem.text) {
+                finalResult = lastItem.text;
+            }
+
+            // Display stats
+            const statsDiv = document.getElementById('stats');
+            let statsHtml = `
+                <div class="stat">
+                    <div class="stat-value">${thinkingCount}</div>
+                    <div class="stat-label">Thinking Steps</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">${searchCount}</div>
+                    <div class="stat-label">Searches</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">${pageOpenCount}</div>
+                    <div class="stat-label">Pages Visited</div>
+                </div>
+            `;
+
+            if (codeInterpreterCount > 0) {
+                statsHtml += `
+                    <div class="stat">
+                        <div class="stat-value">${codeInterpreterCount}</div>
+                        <div class="stat-label">Code Executions</div>
+                    </div>
+                `;
+            }
+
+            statsHtml += `
+                <div class="stat">
+                    <div class="stat-value">${data.output.length}</div>
+                    <div class="stat-label">Total Steps</div>
+                </div>
+            `;
+
+            statsDiv.innerHTML = statsHtml;
+
+            // Display timeline
+            const timeline = document.getElementById('timeline');
+            let timelineHtml = '';
+
+            data.output.forEach(item => {
+                if (item.type === 'reasoning' && item.summary && item.summary.length > 0) {
+                    item.summary.forEach(summaryItem => {
+                        if (summaryItem.text) {
+                            timelineHtml += `
+                                <div class="timeline-item">
+                                    <div class="thinking">
+                                        <h3>Thinking</h3>
+                                        <p>${escapeHtml(summaryItem.text)}</p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                }
+
+                if (item.type === 'web_search_call' && item.action) {
+                    if (item.action.type === 'search') {
+                        timelineHtml += `
+                            <div class="timeline-item">
+                                <div class="search">
+                                    Search: <code>${escapeHtml(item.action.query)}</code>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    if (item.action.type === 'open_page') {
+                        timelineHtml += `
+                            <div class="timeline-item">
+                                <div class="page-open">
+                                    Visited: <a href="${escapeHtml(item.action.url)}" target="_blank">${escapeHtml(item.action.url)}</a>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+
+                if (item.type === 'code_interpreter_call' && item.action) {
+                    const code = item.action.code || '';
+                    timelineHtml += `
+                        <div class="timeline-item">
+                            <div class="thinking" style="background: #fff9e6; border-left-color: #ffc107;">
+                                <h3 style="color: #ffc107;">Code Execution</h3>
+                                <pre style="background: #1e1e1e; color: #d4d4d4; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 0.85em;">${escapeHtml(code)}</pre>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            timeline.innerHTML = timelineHtml;
+
+            // Display final result
+            const finalResultDiv = document.getElementById('final-result');
+            if (finalResult) {
+                finalResultDiv.style.display = 'block';
+                finalResultDiv.innerHTML = `
+                    <h2>Final Result</h2>
+                    <pre>${escapeHtml(finalResult)}</pre>
+                `;
+            } else {
+                finalResultDiv.style.display = 'none';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Event listeners
+        loadExampleBtn.addEventListener('click', loadExample);
+        loadGistBtn.addEventListener('click', loadGist);
+        togglePasteBtn.addEventListener('click', togglePasteArea);
+        jsonInput.addEventListener('input', processJSON);
+
+        // Load Gist from hash if present on page load
+        loadGistFromHash();
+    </script>
+</body>
+</html>
