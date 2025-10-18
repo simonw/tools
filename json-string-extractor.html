@@ -158,7 +158,10 @@ h1 {
     <div class="input-section">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <label for="jsonInput" style="font-size: 14px; color: #666;">Paste JSON here:</label>
-        <button id="loadExample" class="load-example-button">Load example JSON</button>
+        <div style="display: flex; gap: 8px;">
+          <button id="loadGist" class="load-example-button">Load Gist</button>
+          <button id="loadExample" class="load-example-button">Load example JSON</button>
+        </div>
       </div>
       <textarea id="jsonInput" placeholder="Paste your JSON here..."></textarea>
       <div id="error" class="error"></div>
@@ -172,6 +175,7 @@ const jsonInput = document.getElementById('jsonInput');
 const errorDiv = document.getElementById('error');
 const resultsDiv = document.getElementById('results');
 const loadExampleButton = document.getElementById('loadExample');
+const loadGistButton = document.getElementById('loadGist');
 
 async function loadExampleJSON() {
   loadExampleButton.disabled = true;
@@ -197,7 +201,96 @@ async function loadExampleJSON() {
   }
 }
 
+function extractGistId(input) {
+  // Try to extract Gist ID from URL or use input directly
+  const urlMatch = input.match(/gist\.github\.com\/[^\/]+\/([a-f0-9]+)/);
+  if (urlMatch) {
+    return urlMatch[1];
+  }
+  // Check if it's just a Gist ID (alphanumeric string)
+  if (/^[a-f0-9]+$/.test(input.trim())) {
+    return input.trim();
+  }
+  return null;
+}
+
+async function loadGistJSON(gistId) {
+  const response = await fetch(`https://api.github.com/gists/${gistId}`);
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Gist: ${response.status} ${response.statusText}`);
+  }
+  
+  const gistData = await response.json();
+  
+  // Find the first file that contains valid JSON
+  for (const filename in gistData.files) {
+    const file = gistData.files[filename];
+    try {
+      // Try to parse the content as JSON
+      JSON.parse(file.content);
+      return file.content;
+    } catch (e) {
+      // Not valid JSON, continue to next file
+      continue;
+    }
+  }
+  
+  throw new Error('No valid JSON file found in the Gist');
+}
+
+async function loadGist() {
+  const input = prompt('Enter a Gist URL or Gist ID:');
+  
+  if (!input) {
+    return; // User cancelled
+  }
+  
+  const gistId = extractGistId(input);
+  
+  if (!gistId) {
+    showError('Invalid Gist URL or ID. Please provide a valid GitHub Gist URL or ID.');
+    return;
+  }
+  
+  loadGistButton.disabled = true;
+  loadGistButton.textContent = 'Loading...';
+  
+  try {
+    const jsonContent = await loadGistJSON(gistId);
+    jsonInput.value = jsonContent;
+    processJSON();
+    
+    // Update the URL hash
+    window.location.hash = `gist=${gistId}`;
+    
+    loadGistButton.textContent = 'Load Gist';
+  } catch (e) {
+    showError(`Failed to load Gist: ${e.message}`);
+    loadGistButton.textContent = 'Load Gist';
+  } finally {
+    loadGistButton.disabled = false;
+  }
+}
+
+async function loadGistFromHash() {
+  const hash = window.location.hash;
+  const gistMatch = hash.match(/gist=([a-f0-9]+)/);
+  
+  if (gistMatch) {
+    const gistId = gistMatch[1];
+    try {
+      const jsonContent = await loadGistJSON(gistId);
+      jsonInput.value = jsonContent;
+      processJSON();
+    } catch (e) {
+      showError(`Failed to load Gist from URL: ${e.message}`);
+    }
+  }
+}
+
 loadExampleButton.addEventListener('click', loadExampleJSON);
+loadGistButton.addEventListener('click', loadGist);
 
 function showError(message) {
   errorDiv.textContent = message;
@@ -338,8 +431,10 @@ window.addEventListener('resize', () => {
   }, 100);
 });
 
-// Process on load if there's any content
-processJSON();
+// Load Gist from hash if present, otherwise process any existing content
+loadGistFromHash().then(() => {
+  processJSON();
+});
   </script>
 </body>
 </html>
