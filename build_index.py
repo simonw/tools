@@ -87,13 +87,17 @@ def _render_recent_section(recently_added: Sequence[dict], recently_updated: Seq
         for tool in tools:
             slug = tool.get("slug", "")
             url = tool.get("url", "#")
+            filename = tool.get("filename", "")
             parsed_date = tool.get("parsed_date")
             if isinstance(parsed_date, datetime):
                 formatted_date = _format_display_date(parsed_date)
             else:
                 formatted_date = ""
+            
+            # Create colophon link for the date
+            colophon_url = f"https://tools.simonwillison.net/colophon#{filename}" if filename else "#"
             date_html = (
-                f'<span class="recent-date"> — {formatted_date}</span>'
+                f'<span class="recent-date"> — <a href="{colophon_url}">{formatted_date}</a></span>'
                 if formatted_date
                 else ""
             )
@@ -138,13 +142,28 @@ def build_index() -> None:
 
     recent_section_html = _render_recent_section(recently_added, recently_updated)
 
-    injection_marker = '<h2 id="image-and-media">Image and media</h2>'
-    if injection_marker in body_html:
-        body_html = body_html.replace(
-            injection_marker, recent_section_html + injection_marker, 1
-        )
+    # Inject the recent section between the comment markers
+    start_marker = '<!-- recently starts -->'
+    end_marker = '<!-- recently stops -->'
+    if start_marker in body_html and end_marker in body_html:
+        # Replace content between markers
+        start_idx = body_html.find(start_marker)
+        end_idx = body_html.find(end_marker)
+        if start_idx < end_idx:
+            body_html = (
+                body_html[:start_idx + len(start_marker)] +
+                '\n' + recent_section_html +
+                body_html[end_idx:]
+            )
     else:
-        body_html = recent_section_html + body_html
+        # Fallback: inject before Image and media heading if markers not found
+        injection_marker = '<h2 id="image-and-media">Image and media</h2>'
+        if injection_marker in body_html:
+            body_html = body_html.replace(
+                injection_marker, recent_section_html + injection_marker, 1
+            )
+        else:
+            body_html = recent_section_html + body_html
 
     full_html = f"""<!DOCTYPE html>
 <html lang="en">
