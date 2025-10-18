@@ -8,6 +8,9 @@ The [colophon](https://tools.simonwillison.net/colophon) lists commit messages a
 
 The code lives in [simonw/tools](https://github.com/simonw/tools) and many tools used the Claude custom instructions [described here](https://simonwillison.net/2024/Dec/19/one-shot-python-tools/#custom-instructions).
 
+<!-- recently starts -->
+<!-- recently stops -->
+
 ## Image and media
 - [Social media cropper](https://tools.simonwillison.net/social-media-cropper) crop images to 2×1 for social sharing
 - [Image resize and quality comparison](https://tools.simonwillison.net/image-resize-quality) compare JPEG quality settings
