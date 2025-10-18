@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Mae sure we have the full git history for finding commit dates:
+git fetch --unshallow
+
 echo "=== Building tools.simonwillison.net for Cloudflare Pages ==="
 
 # Install Python dependencies
