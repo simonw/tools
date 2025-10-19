@@ -40,6 +40,20 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
         return None
 
 
+def _has_distinct_update(tool: dict) -> bool:
+    """Return True if the tool has an update distinct from its creation."""
+
+    updated = _parse_iso_datetime(tool.get("updated"))
+    if updated is None:
+        return False
+
+    created = _parse_iso_datetime(tool.get("created"))
+    if created is None:
+        return True
+
+    return updated > created
+
+
 def _format_display_date(dt: datetime) -> str:
     return f"{_ordinal(dt.day)} {dt.strftime('%B %Y')}"
 
@@ -136,8 +150,9 @@ def build_index() -> None:
     tools = _load_tools()
     recently_added = _select_recent(tools, key="created", limit=5)
     added_slugs = [tool.get("slug") for tool in recently_added]
+    tools_with_updates = [tool for tool in tools if _has_distinct_update(tool)]
     recently_updated = _select_recent(
-        tools, key="updated", limit=5, exclude_slugs=added_slugs
+        tools_with_updates, key="updated", limit=5, exclude_slugs=added_slugs
     )
 
     recent_section_html = _render_recent_section(recently_added, recently_updated)
