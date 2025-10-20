@@ -8,11 +8,14 @@ echo "=== Building tools.simonwillison.net for Cloudflare Pages ==="
 
 # Install Python dependencies
 echo "Installing Python dependencies..."
-pip install --quiet markdown
+pip install --quiet markdown shot-scraper
 
 # Run Python build scripts (but NOT write_docs.py which generates LLM descriptions)
 echo "Gathering links and metadata..."
 python gather_links.py
+
+echo "Generating screenshots..."
+python generate_screenshots.py
 
 echo "Building colophon page..."
 python build_colophon.py
