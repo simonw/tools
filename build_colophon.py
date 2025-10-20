@@ -5,6 +5,36 @@ from datetime import datetime
 import html
 from pathlib import Path
 import markdown
+import hashlib
+
+
+def get_file_hash(file_path):
+    """Calculate SHA256 hash of file content."""
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+
+def get_screenshot_path(page_name):
+    """Get the screenshot path for a given HTML file."""
+    # Check if the HTML file exists
+    html_path = Path(page_name)
+    if not html_path.exists():
+        return None
+
+    # Calculate the hash of the HTML file
+    file_hash = get_file_hash(html_path)
+
+    # Build the expected screenshot path
+    screenshot_name = f"{html_path.stem}.{file_hash}.jpeg"
+    screenshot_path = Path("screenshots") / screenshot_name
+
+    # Return the path if it exists, otherwise None
+    if screenshot_path.exists():
+        return str(screenshot_path)
+    return None
 
 
 def format_commit_message(message):
@@ -99,6 +129,15 @@ def build_colophon():
             margin-bottom: 2rem;
             border-bottom: 1px solid #f0f0f0;
             padding-bottom: 1rem;
+            overflow: auto;
+        }
+        .tool-screenshot {
+            float: right;
+            max-width: 50%;
+            margin-left: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
         }
         .tool-name {
             font-weight: bold;
@@ -210,9 +249,16 @@ def build_colophon():
         commits = list(reversed(commits))
         commit_count = len(commits)
 
+        # Get screenshot path if available
+        screenshot_path = get_screenshot_path(page_name)
+        screenshot_html = ""
+        if screenshot_path:
+            screenshot_html = f'<img src="{screenshot_path}" alt="Screenshot of {page_name.replace(".html", "")}" class="tool-screenshot">'
+
         # Modified tool heading with the new structure
         html_content += f"""
     <div class="tool" id="{page_name}">
+        {screenshot_html}
         <div class="tool-name">
             <h2 class="heading">
                 <span class="hash-text"><a class="hashref" href="#{page_name}">#</a></span>
