@@ -368,5 +368,115 @@ def test_percentage_calculation(page: Page, unused_port_server):
     expect(percentage_cell).to_contain_text("100.0%")
 
 
+def test_cocomo_year_presets(page: Page, unused_port_server):
+    """Test COCOMO year preset switching (2000 vs 2025)"""
+    unused_port_server.start(root)
+    page.goto(f"http://localhost:{unused_port_server.port}/sloccount.html")
+
+    # Wait for initialization
+    analyze_btn = page.locator("#analyze-paste-btn")
+    expect(analyze_btn).to_have_text("Analyze Code", timeout=30000)
+
+    # Analyze some code
+    page.locator("#code-input").fill("def hello():\n    print('Hello')\n    return True\n")
+    page.locator("#filename-input").fill("test.py")
+    analyze_btn.click()
+
+    # Wait for results
+    expect(page.locator("#results")).to_have_class("visible", timeout=10000)
+
+    # Check initial year 2000 values
+    salary_input = page.locator("#salary-input")
+    overhead_input = page.locator("#overhead-input")
+    overhead_mult_input = page.locator("#overhead-multiplier-input")
+
+    expect(salary_input).to_have_value("56286")
+    expect(overhead_input).to_have_value("2.4")
+    expect(overhead_mult_input).to_have_value("2.4")
+
+    # Switch to 2025
+    page.locator("#year-2025").click()
+    page.wait_for_timeout(500)  # Wait for recalculation
+
+    # Check 2025 values
+    expect(salary_input).to_have_value("133080")
+    expect(overhead_input).to_have_value("2.94")
+    expect(overhead_mult_input).to_have_value("1.85")
+
+    # Switch back to 2000
+    page.locator("#year-2000").click()
+    page.wait_for_timeout(500)
+
+    # Should revert to 2000 values
+    expect(salary_input).to_have_value("56286")
+    expect(overhead_input).to_have_value("2.4")
+
+
+def test_cost_estimate_footnote_link(page: Page, unused_port_server):
+    """Test that the footnote asterisk links to cost estimates section"""
+    unused_port_server.start(root)
+    page.goto(f"http://localhost:{unused_port_server.port}/sloccount.html")
+
+    # Wait for initialization
+    expect(page.locator("#analyze-paste-btn")).to_have_text("Analyze Code", timeout=30000)
+
+    # Analyze code to show results
+    page.locator("#code-input").fill("print('test')")
+    page.locator("#filename-input").fill("test.py")
+    page.locator("#analyze-paste-btn").click()
+    expect(page.locator("#results")).to_have_class("visible", timeout=10000)
+
+    # Get initial scroll position
+    initial_y = page.evaluate("window.scrollY")
+
+    # Click the asterisk footnote
+    page.locator('a[href="#cost-estimates-info"]').first.click()
+    page.wait_for_timeout(500)
+
+    # Should have scrolled down
+    new_y = page.evaluate("window.scrollY")
+    assert new_y > initial_y, "Should scroll to cost estimates section"
+
+    # Cost estimates section should be visible
+    expect(page.locator("#cost-estimates-info")).to_be_visible()
+
+
+def test_wasm_javascript_counter(page: Page, unused_port_server):
+    """Test that JavaScript uses WASM c_count counter"""
+    unused_port_server.start(root)
+    page.goto(f"http://localhost:{unused_port_server.port}/sloccount.html")
+
+    # Wait for initialization
+    analyze_btn = page.locator("#analyze-paste-btn")
+    expect(analyze_btn).to_have_text("Analyze Code", timeout=30000)
+
+    # JavaScript code (should be counted by WASM)
+    js_code = """// Comment
+function greet() {
+    console.log("Hi");
+}
+
+function farewell() {
+    console.log("Bye");
+}
+"""
+    page.locator("#code-input").fill(js_code)
+    page.locator("#filename-input").fill("app.js")
+
+    # Analyze
+    analyze_btn.click()
+
+    # Wait for results
+    expect(page.locator("#results")).to_have_class("visible", timeout=10000)
+
+    # Check JavaScript was detected
+    language_table = page.locator("#language-table")
+    expect(language_table).to_contain_text("JavaScript")
+
+    # Should count lines (WASM counter working)
+    total_lines = page.locator("#total-lines").inner_text()
+    assert int(total_lines.replace(",", "")) > 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
