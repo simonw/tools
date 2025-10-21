@@ -26,9 +26,9 @@ def browser_context_args(browser_context_args):
 
 @pytest.fixture(scope="session")
 def static_server():
-    """Start HTTP server on port 8052 for testing"""
+    """Start HTTP server on port 9152 for testing"""
     process = Popen(
-        ["python", "-m", "http.server", "8052", "--directory", root],
+        ["python", "-m", "http.server", "9152", "--directory", root],
         stdout=PIPE,
         stderr=PIPE
     )
@@ -38,7 +38,7 @@ def static_server():
     retries = 5
     while retries > 0:
         try:
-            conn = HTTPConnection("127.0.0.1:8052")
+            conn = HTTPConnection("127.0.0.1:9152")
             conn.request("HEAD", "/")
             response = conn.getresponse()
             conn.close()
@@ -58,7 +58,7 @@ def static_server():
 
 def test_page_loads(page: Page, static_server):
     """Test that the page loads successfully"""
-    page.goto("http://localhost:8052/sloccount.html")
+    page.goto("http://localhost:9152/sloccount.html")
 
     # Check title
     expect(page).to_have_title("SLOCCount - Count Lines of Code")
@@ -70,20 +70,31 @@ def test_page_loads(page: Page, static_server):
 
 def test_tab_switching(page: Page, static_server):
     """Test that tab switching works correctly"""
-    page.goto("http://localhost:8052/sloccount.html")
+    page.goto("http://localhost:9152/sloccount.html")
 
     # Initially, paste tab should be active
     paste_tab = page.locator('[data-tab="paste"]')
+    github_tab = page.locator('[data-tab="github"]')
 
     expect(paste_tab).to_have_class("tab active")
+    expect(github_tab).not_to_have_class("tab active")
 
-    # Note: GitHub tab is currently commented out in sloccount.html
-    # The test has been simplified to only check the paste tab
+    # Click GitHub tab
+    github_tab.click()
+
+    expect(github_tab).to_have_class("tab active")
+    expect(paste_tab).not_to_have_class("tab active")
+
+    # Click back to paste tab
+    paste_tab.click()
+
+    expect(paste_tab).to_have_class("tab active")
+    expect(github_tab).not_to_have_class("tab active")
 
 
 def test_initialization_message(page: Page, static_server):
     """Test that initialization messages appear"""
-    page.goto("http://localhost:8052/sloccount.html")
+    page.goto("http://localhost:9152/sloccount.html")
 
     # Wait for initialization to complete
     # The buttons should change from "Initializing..." to their final text
@@ -96,7 +107,7 @@ def test_initialization_message(page: Page, static_server):
 
 def test_paste_code_validation(page: Page, static_server):
     """Test validation for pasted code analysis"""
-    page.goto("http://localhost:8052/sloccount.html")
+    page.goto("http://localhost:9152/sloccount.html")
 
     # Wait for initialization
     analyze_btn = page.locator("#analyze-paste-btn")
@@ -127,7 +138,7 @@ def test_paste_code_python(page: Page, static_server):
     errors = []
     page.on("pageerror", lambda exc: errors.append(str(exc)))
 
-    page.goto("http://localhost:8052/sloccount.html")
+    page.goto("http://localhost:9152/sloccount.html")
 
     # Wait for initialization
     analyze_btn = page.locator("#analyze-paste-btn")
@@ -180,7 +191,7 @@ if __name__ == "__main__":
 
 def test_paste_code_javascript(page: Page, static_server):
     """Test analyzing pasted JavaScript code"""
-    page.goto("http://localhost:8052/sloccount.html")
+    page.goto("http://localhost:9152/sloccount.html")
 
     # Wait for initialization
     analyze_btn = page.locator("#analyze-paste-btn")
@@ -219,7 +230,7 @@ main();
 
 def test_clear_button(page: Page, static_server):
     """Test that the clear button works"""
-    page.goto("http://localhost:8052/sloccount.html")
+    page.goto("http://localhost:9152/sloccount.html")
 
     # Wait for initialization
     expect(page.locator("#analyze-paste-btn")).to_have_text("Analyze Code", timeout=30000)
@@ -236,11 +247,72 @@ def test_clear_button(page: Page, static_server):
     expect(page.locator("#filename-input")).to_have_value("")
 
 
+def test_github_repo_validation(page: Page, static_server):
+    """Test validation for GitHub repository analysis"""
+    page.goto("http://localhost:9152/sloccount.html")
+
+    # Switch to GitHub tab
+    page.locator('[data-tab="github"]').click()
+
+    # Wait for initialization
+    analyze_btn = page.locator("#analyze-repo-btn")
+    expect(analyze_btn).to_have_text("Analyze Repository", timeout=30000)
+
+    # Try to analyze without URL
+    analyze_btn.click()
+
+    status = page.locator("#status")
+    expect(status).to_have_class("visible error")
+    expect(status).to_contain_text("Please provide a GitHub repository URL")
+
+    # Try with invalid URL
+    page.locator("#repo-input").fill("https://example.com/not/github")
+    analyze_btn.click()
+
+    expect(status).to_have_class("visible error")
+    expect(status).to_contain_text("Invalid format")
+
+
+def test_github_repo_analysis(page: Page, static_server):
+    """Test analyzing a small GitHub repository"""
+    page.goto("http://localhost:9152/sloccount.html")
+
+    # Switch to GitHub tab
+    page.locator('[data-tab="github"]').click()
+
+    # Wait for initialization
+    analyze_btn = page.locator("#analyze-repo-btn")
+    expect(analyze_btn).to_have_text("Analyze Repository", timeout=30000)
+
+    # Use a small public repository for testing
+    # Using the sloccount repo itself as a test
+    page.locator("#repo-input").fill("https://github.com/licquia/sloccount")
+
+    # Analyze (this may take a while)
+    analyze_btn.click()
+
+    # Wait for fetch to start
+    status = page.locator("#status")
+    expect(status).to_contain_text("Fetching", timeout=5000)
+
+    # Wait for results (may take up to 60 seconds)
+    results = page.locator("#results")
+    expect(results).to_have_class("visible", timeout=60000)
+
+    # Check that we got results
+    total_lines = page.locator("#total-lines")
+    expect(total_lines).not_to_have_text("0")
+
+    total_languages = page.locator("#total-languages")
+    # Should have at least one language
+    expect(total_languages).not_to_have_text("0")
+
+
 def test_mobile_responsive(page: Page, static_server):
     """Test mobile responsiveness"""
     # Set mobile viewport
     page.set_viewport_size({"width": 375, "height": 667})
-    page.goto("http://localhost:8052/sloccount.html")
+    page.goto("http://localhost:9152/sloccount.html")
 
     # Check that tabs are visible
     paste_tab = page.locator('[data-tab="paste"]')
@@ -260,7 +332,7 @@ def test_mobile_responsive(page: Page, static_server):
 
 def test_comment_filtering(page: Page, static_server):
     """Test that comments are properly filtered"""
-    page.goto("http://localhost:8052/sloccount.html")
+    page.goto("http://localhost:9152/sloccount.html")
 
     # Wait for initialization
     analyze_btn = page.locator("#analyze-paste-btn")
@@ -298,7 +370,7 @@ def func():
 
 def test_percentage_calculation(page: Page, static_server):
     """Test that percentages are calculated correctly"""
-    page.goto("http://localhost:8052/sloccount.html")
+    page.goto("http://localhost:9152/sloccount.html")
 
     # Wait for initialization
     analyze_btn = page.locator("#analyze-paste-btn")

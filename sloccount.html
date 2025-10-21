@@ -251,7 +251,8 @@
 
     <div class="tabs">
         <button class="tab active" data-tab="paste">Paste Code</button>
-        <!-- <button class="tab" data-tab="github">GitHub Repository</button> -->
+        <button class="tab" data-tab="github">GitHub Repository</button>
+        <button class="tab" data-tab="zip">Upload ZIP</button>
     </div>
 
     <div id="paste-tab" class="tab-content active">
@@ -269,7 +270,6 @@
         </div>
     </div>
 
-    <!-- GitHub tab commented out - will be fixed later
     <div id="github-tab" class="tab-content">
         <div class="input-group">
             <label for="repo-input">GitHub Repository URL:</label>
@@ -279,7 +279,19 @@
             <button id="analyze-repo-btn" disabled>Initializing...</button>
         </div>
     </div>
-    -->
+
+    <div id="zip-tab" class="tab-content">
+        <div class="input-group">
+            <label for="zip-input">Upload ZIP file containing source code:</label>
+            <input type="file" id="zip-input" accept=".zip" style="padding: 10px; border: 2px dashed #ccc; border-radius: 4px; cursor: pointer;">
+            <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                Useful for large repositories. Upload a ZIP file containing your source code.
+            </p>
+        </div>
+        <div class="button-group">
+            <button id="analyze-zip-btn" disabled>Initializing...</button>
+        </div>
+    </div>
 
     <div id="status"></div>
 
@@ -332,12 +344,15 @@
         console.log('Script starting...');
         const tabs = document.querySelectorAll('.tab');
         const pasteTab = document.getElementById('paste-tab');
-        const githubTab = document.getElementById('github-tab'); // May be null (commented out)
+        const githubTab = document.getElementById('github-tab');
+        const zipTab = document.getElementById('zip-tab');
         const codeInput = document.getElementById('code-input');
         const filenameInput = document.getElementById('filename-input');
-        const repoInput = document.getElementById('repo-input'); // May be null (commented out)
+        const repoInput = document.getElementById('repo-input');
+        const zipInput = document.getElementById('zip-input');
         const analyzePasteBtn = document.getElementById('analyze-paste-btn');
-        const analyzeRepoBtn = document.getElementById('analyze-repo-btn'); // May be null (commented out)
+        const analyzeRepoBtn = document.getElementById('analyze-repo-btn');
+        const analyzeZipBtn = document.getElementById('analyze-zip-btn');
         const clearPasteBtn = document.getElementById('clear-paste-btn');
         const statusEl = document.getElementById('status');
         const resultsEl = document.getElementById('results');
@@ -354,6 +369,7 @@
                 const tabName = tab.dataset.tab;
                 pasteTab.classList.toggle('active', tabName === 'paste');
                 githubTab.classList.toggle('active', tabName === 'github');
+                zipTab.classList.toggle('active', tabName === 'zip');
             });
         });
 
@@ -429,10 +445,10 @@
 
                 analyzePasteBtn.textContent = 'Analyze Code';
                 analyzePasteBtn.disabled = false;
-                if (analyzeRepoBtn) {
-                    analyzeRepoBtn.textContent = 'Analyze Repository';
-                    analyzeRepoBtn.disabled = false;
-                }
+                analyzeRepoBtn.textContent = 'Analyze Repository';
+                analyzeRepoBtn.disabled = false;
+                analyzeZipBtn.textContent = 'Analyze ZIP';
+                analyzeZipBtn.disabled = false;
 
                 showStatus('Ready to analyze code!', 'success');
                 setTimeout(hideStatus, 2000);
@@ -591,12 +607,11 @@
 
                 // Get the results from the window variable
                 const capturedOutput = window.perlResults;
-                console.log('Perl results:', capturedOutput);
 
                 // Parse the results
                 const results = [];
                 if (capturedOutput && capturedOutput.trim()) {
-                    const lines = capturedOutput.split('\\n');
+                    const lines = capturedOutput.split('\n');
                     for (const line of lines) {
                         if (line.trim()) {
                             const parts = line.split('|');
@@ -654,57 +669,103 @@
 
         // Analyze GitHub repository
         async function analyzeGitHubRepo() {
-            const repoUrl = repoInput.value.trim();
+            let repoUrl = repoInput.value.trim();
 
             if (!repoUrl) {
-                showStatus('Please provide a GitHub repository URL', 'error');
+                showStatus('Please provide a GitHub repository URL or owner/repo', 'error');
                 return;
             }
 
-            // Parse GitHub URL
-            const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-            if (!match) {
-                showStatus('Invalid GitHub URL. Expected format: https://github.com/owner/repo', 'error');
-                return;
-            }
+            let owner, repo;
 
-            const owner = match[1];
-            const repo = match[2].replace('.git', '');
+            // Try to parse as owner/repo shorthand first
+            const shorthandMatch = repoUrl.match(/^([^\/\s]+)\/([^\/\s]+)$/);
+            if (shorthandMatch) {
+                owner = shorthandMatch[1];
+                repo = shorthandMatch[2].replace('.git', '');
+            } else {
+                // Parse as full GitHub URL
+                const urlMatch = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+                if (!urlMatch) {
+                    showStatus('Invalid format. Use: owner/repo or https://github.com/owner/repo', 'error');
+                    return;
+                }
+                owner = urlMatch[1];
+                repo = urlMatch[2].replace('.git', '');
+            }
 
             try {
                 analyzeRepoBtn.disabled = true;
-                showStatus('Downloading repository archive...', 'info');
+                showStatus('Fetching repository tree from GitHub API...', 'info');
 
-                // Download the repository as a zip
-                const zipUrl = `https://github.com/${owner}/${repo}/archive/HEAD.zip`;
-                const response = await fetch(zipUrl);
+                // Use GitHub Trees API to get all files
+                const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
+                const treeResponse = await fetch(treeUrl);
 
-                if (!response.ok) {
-                    throw new Error('Failed to fetch repository. Make sure the repository is public.');
+                if (!treeResponse.ok) {
+                    if (treeResponse.status === 404) {
+                        throw new Error('Repository not found. Make sure the repository exists and is public.');
+                    } else if (treeResponse.status === 403) {
+                        throw new Error('API rate limit exceeded. Please try again later.');
+                    }
+                    throw new Error(`Failed to fetch repository tree: ${treeResponse.statusText}`);
                 }
 
-                const zipBlob = await response.blob();
-                const zip = await JSZip.loadAsync(zipBlob);
+                const treeData = await treeResponse.json();
 
-                showStatus('Extracting and analyzing files...', 'info');
+                // Filter for code files only
+                const codeExtensions = /\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|scala|lua|vim)$/i;
+                const codeFiles = treeData.tree.filter(item =>
+                    item.type === 'blob' && codeExtensions.test(item.path)
+                );
 
-                // Extract all code files
+                if (codeFiles.length === 0) {
+                    throw new Error('No code files found in repository');
+                }
+
+                // Limit files to avoid rate limiting and browser memory issues
+                const maxFiles = 500;
+                const filesToFetch = codeFiles.slice(0, maxFiles);
+
+                if (codeFiles.length > maxFiles) {
+                    console.log(`Repository has ${codeFiles.length} code files, analyzing first ${maxFiles}`);
+                }
+
+                showStatus(`Fetching ${filesToFetch.length} code files...`, 'info');
+
+                // Fetch files in batches to avoid overwhelming the browser
                 const files = [];
-                const codeExtensions = /\\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|scala|lua|vim)$/i;
+                const batchSize = 10;
 
-                for (const fileName in zip.files) {
-                    const file = zip.files[fileName];
-                    if (!file.dir && codeExtensions.test(fileName)) {
-                        const content = await file.async('text');
-                        const baseName = fileName.split('/').slice(1).join('/'); // Remove root folder
-                        if (baseName) {
-                            files.push({ filename: baseName, content: content });
+                for (let i = 0; i < filesToFetch.length; i += batchSize) {
+                    const batch = filesToFetch.slice(i, i + batchSize);
+                    const batchPromises = batch.map(async (file) => {
+                        try {
+                            // Use raw.githubusercontent.com which has permissive CORS
+                            const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${file.path}`;
+                            const response = await fetch(rawUrl);
+
+                            if (response.ok) {
+                                const content = await response.text();
+                                return { filename: file.path, content: content };
+                            }
+                            return null;
+                        } catch (error) {
+                            console.warn(`Failed to fetch ${file.path}:`, error);
+                            return null;
                         }
-                    }
+                    });
+
+                    const batchResults = await Promise.all(batchPromises);
+                    files.push(...batchResults.filter(f => f !== null));
+
+                    // Update progress
+                    const progress = Math.min(i + batchSize, filesToFetch.length);
+                    showStatus(`Fetched ${progress}/${filesToFetch.length} files...`, 'info');
                 }
 
                 if (files.length === 0) {
-                    throw new Error('No code files found in repository');
+                    throw new Error('Failed to fetch any code files from repository');
                 }
 
                 showStatus(`Analyzing ${files.length} files with Perl sloccount...`, 'info');
@@ -719,6 +780,80 @@
                 console.error('Analysis error:', error);
             } finally {
                 analyzeRepoBtn.disabled = false;
+            }
+        }
+
+        // Analyze uploaded ZIP file
+        let zipAnalysisInProgress = false;
+        async function analyzeZipFile() {
+            if (zipAnalysisInProgress) {
+                console.warn('Analysis already in progress, ignoring click');
+                return;
+            }
+
+            zipAnalysisInProgress = true;
+            const fileInput = zipInput.files[0];
+
+            if (!fileInput) {
+                showStatus('Please select a ZIP file to upload', 'error');
+                zipAnalysisInProgress = false;
+                return;
+            }
+
+            if (!fileInput.name.endsWith('.zip')) {
+                showStatus('Please upload a ZIP file', 'error');
+                zipAnalysisInProgress = false;
+                return;
+            }
+
+            try {
+                analyzeZipBtn.disabled = true;
+                showStatus('Loading ZIP file...', 'info');
+
+                // Use Blob URL with fetch
+                const blobUrl = URL.createObjectURL(fileInput);
+                const response = await fetch(blobUrl);
+                const zipBlob = await response.arrayBuffer();
+                URL.revokeObjectURL(blobUrl);
+
+                const zip = await JSZip.loadAsync(zipBlob);
+
+                showStatus('Extracting code files...', 'info');
+
+                // Extract all code files
+                const files = [];
+                const codeExtensions = /\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|scala|lua|vim)$/i;
+
+                for (const fileName in zip.files) {
+                    const file = zip.files[fileName];
+
+                    if (!file.dir && codeExtensions.test(fileName)) {
+                        try {
+                            const content = await file.async('text');
+                            files.push({ filename: fileName, content: content });
+                        } catch (error) {
+                            console.warn(`Failed to extract ${fileName}:`, error);
+                        }
+                    }
+                }
+
+                if (files.length === 0) {
+                    throw new Error('No code files found in ZIP file');
+                }
+
+                showStatus(`Analyzing ${files.length} files with Perl sloccount...`, 'info');
+
+                const results = await runSloccount(files);
+                displayResults(results);
+
+                showStatus('Analysis complete!', 'success');
+                setTimeout(hideStatus, 3000);
+            } catch (error) {
+                showStatus('Analysis failed: ' + error.message, 'error');
+                console.error('ZIP Analysis error:', error);
+            } finally {
+                analyzeZipBtn.disabled = false;
+                zipAnalysisInProgress = false;
             }
         }
 
@@ -783,9 +918,8 @@
 
         // Event listeners
         analyzePasteBtn.addEventListener('click', analyzePastedCode);
-        if (analyzeRepoBtn) {
-            analyzeRepoBtn.addEventListener('click', analyzeGitHubRepo);
-        }
+        analyzeRepoBtn.addEventListener('click', analyzeGitHubRepo);
+        analyzeZipBtn.addEventListener('click', analyzeZipFile);
 
         // Initialize when page loads
         if (document.readyState === 'loading') {
