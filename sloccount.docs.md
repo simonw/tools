@@ -1,0 +1,3 @@
+SLOCCount is a tool that analyzes source code to count physical Source Lines of Code (SLOC). Users can analyze code by pasting it directly into the text area with a filename for language detection, or by providing a GitHub repository URL. The tool displays total line count, number of languages, files analyzed, and provides a detailed breakdown of lines per language with percentages.
+
+<!-- Generated from commit: 9252215960c3325594fd198451fc13f6451c23ce -->
