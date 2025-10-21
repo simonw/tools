@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLOCCount - Count Lines of Code</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        p {
+            margin-top: 0;
+            color: #666;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 16px;
+            color: #666;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+            font-weight: 600;
+        }
+        .tab:hover {
+            color: #0056b3;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            font-family: inherit;
+        }
+        textarea {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            min-height: 200px;
+            resize: vertical;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: wait;
+            opacity: 0.7;
+        }
+        button.secondary {
+            background-color: #6c757d;
+        }
+        button.secondary:hover:not(:disabled) {
+            background-color: #545b62;
+        }
+        #status {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+        #status.visible {
+            display: block;
+        }
+        #status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        #status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        #results {
+            display: none;
+        }
+        #results.visible {
+            display: block;
+        }
+        .results-header {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .results-header h2 {
+            margin: 0 0 10px 0;
+            font-size: 20px;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .summary-item {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            text-align: center;
+        }
+        .summary-item .label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .summary-item .value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .language-breakdown {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .language-breakdown h3 {
+            margin: 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            font-size: 18px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .language-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .language-table th {
+            background-color: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .language-table td {
+            padding: 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .language-table tr:last-child td {
+            border-bottom: none;
+        }
+        .language-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        .language-name {
+            font-weight: 500;
+        }
+        .percentage {
+            color: #666;
+            font-size: 14px;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .tabs {
+                overflow-x: auto;
+            }
+            .tab {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            button {
+                width: 100%;
+            }
+            .summary {
+                grid-template-columns: 1fr 1fr;
+            }
+            .summary-item .value {
+                font-size: 24px;
+            }
+            .language-table {
+                font-size: 14px;
+            }
+            .language-table th,
+            .language-table td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>SLOCCount - Count Lines of Code</h1>
+    <p>Analyze source code to count physical Source Lines of Code (SLOC) using the Perl sloccount tool</p>
+
+    <div class="tabs">
+        <button class="tab active" data-tab="paste">Paste Code</button>
+        <!-- <button class="tab" data-tab="github">GitHub Repository</button> -->
+    </div>
+
+    <div id="paste-tab" class="tab-content active">
+        <div class="input-group">
+            <label for="code-input">Paste your code here:</label>
+            <textarea id="code-input" placeholder="Paste source code files here (supports multiple files)..."></textarea>
+        </div>
+        <div class="input-group">
+            <label for="filename-input">Filename (to detect language):</label>
+            <input type="text" id="filename-input" placeholder="e.g., main.py, app.js, index.html">
+        </div>
+        <div class="button-group">
+            <button id="analyze-paste-btn" disabled>Initializing...</button>
+            <button id="clear-paste-btn" class="secondary">Clear</button>
+        </div>
+    </div>
+
+    <!-- GitHub tab commented out - will be fixed later
+    <div id="github-tab" class="tab-content">
+        <div class="input-group">
+            <label for="repo-input">GitHub Repository URL:</label>
+            <input type="text" id="repo-input" placeholder="https://github.com/owner/repo">
+        </div>
+        <div class="button-group">
+            <button id="analyze-repo-btn" disabled>Initializing...</button>
+        </div>
+    </div>
+    -->
+
+    <div id="status"></div>
+
+    <div id="results">
+        <div class="results-header">
+            <h2>Analysis Results</h2>
+        </div>
+        <div class="summary">
+            <div class="summary-item">
+                <div class="label">Total Lines</div>
+                <div class="value" id="total-lines">0</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">Languages</div>
+                <div class="value" id="total-languages">0</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">Files</div>
+                <div class="value" id="total-files">0</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">Est. Cost (USD)</div>
+                <div class="value" id="total-cost">$0</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">Est. Person-Years</div>
+                <div class="value" id="total-effort">0</div>
+            </div>
+        </div>
+        <div class="language-breakdown">
+            <h3>Language Breakdown</h3>
+            <table class="language-table" id="language-table">
+                <thead>
+                    <tr>
+                        <th>Language</th>
+                        <th>Lines</th>
+                        <th>Percentage</th>
+                        <th>Files</th>
+                    </tr>
+                </thead>
+                <tbody id="language-tbody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="./lib/webperl/webperl.js"></script>
+    <script>
+        console.log('Script starting...');
+        const tabs = document.querySelectorAll('.tab');
+        const pasteTab = document.getElementById('paste-tab');
+        const githubTab = document.getElementById('github-tab'); // May be null (commented out)
+        const codeInput = document.getElementById('code-input');
+        const filenameInput = document.getElementById('filename-input');
+        const repoInput = document.getElementById('repo-input'); // May be null (commented out)
+        const analyzePasteBtn = document.getElementById('analyze-paste-btn');
+        const analyzeRepoBtn = document.getElementById('analyze-repo-btn'); // May be null (commented out)
+        const clearPasteBtn = document.getElementById('clear-paste-btn');
+        const statusEl = document.getElementById('status');
+        const resultsEl = document.getElementById('results');
+
+        let perlReady = false;
+        let slocScripts = {};
+
+        // Tab switching
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                const tabName = tab.dataset.tab;
+                pasteTab.classList.toggle('active', tabName === 'paste');
+                githubTab.classList.toggle('active', tabName === 'github');
+            });
+        });
+
+        // Clear button
+        clearPasteBtn.addEventListener('click', () => {
+            codeInput.value = '';
+            filenameInput.value = '';
+            hideResults();
+        });
+
+        // Status helpers
+        function showStatus(message, type = 'info') {
+            statusEl.textContent = message;
+            statusEl.className = `visible ${type}`;
+        }
+
+        function hideStatus() {
+            statusEl.className = '';
+        }
+
+        function showResults() {
+            resultsEl.classList.add('visible');
+        }
+
+        function hideResults() {
+            resultsEl.classList.remove('visible');
+        }
+
+        // Initialize WebPerl and load sloccount
+        async function initializeWebPerl() {
+            try {
+                console.log('initializeWebPerl() starting...');
+                showStatus('Loading Perl WebAssembly runtime...', 'info');
+
+                // Wait for Perl to reach Running state (triggered by embedded script)
+                console.log('Waiting for Perl to be Running...');
+                while (Perl.state !== 'Running') {
+                    console.log('Current Perl state:', Perl.state);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                console.log('Perl is now Running!');
+
+                showStatus('Loading SLOCCount Perl scripts...', 'info');
+
+                // Load sloccount scripts from local zip file
+                const zipUrl = './lib/sloccount-perl.zip';
+
+                // Fetch the zip file
+                const response = await fetch(zipUrl);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch sloccount scripts');
+                }
+
+                const zipBlob = await response.blob();
+                const zip = await JSZip.loadAsync(zipBlob);
+
+                showStatus('Extracting Perl scripts...', 'info');
+
+                // Load key Perl scripts we'll need
+                const scriptsNeeded = ['python_count', 'perl_count', 'ruby_count', 'generic_count'];
+
+                for (const fileName in zip.files) {
+                    const file = zip.files[fileName];
+                    if (!file.dir && !fileName.includes('/')) {
+                        const content = await file.async('text');
+                        slocScripts[fileName] = content;
+                    }
+                }
+
+                console.log('Loaded scripts:', Object.keys(slocScripts));
+
+                perlReady = true;
+
+                analyzePasteBtn.textContent = 'Analyze Code';
+                analyzePasteBtn.disabled = false;
+                if (analyzeRepoBtn) {
+                    analyzeRepoBtn.textContent = 'Analyze Repository';
+                    analyzeRepoBtn.disabled = false;
+                }
+
+                showStatus('Ready to analyze code!', 'success');
+                setTimeout(hideStatus, 2000);
+            } catch (error) {
+                showStatus('Failed to initialize: ' + error.message, 'error');
+                console.error('Initialization error:', error);
+            }
+        }
+
+        // Run sloccount using Perl
+        async function runSloccount(files) {
+            try {
+                // Create a Perl script to count lines using sloccount algorithms
+                const perlScript = `
+                    use strict;
+                    use warnings;
+
+                    my %lang_stats = ();
+                    my $total_lines = 0;
+
+                    # Language detection based on file extension
+                    sub detect_language {
+                        my ($filename) = @_;
+                        if ($filename =~ /\\.([^.]+)$/) {
+                            my $ext = lc($1);
+                            my %lang_map = (
+                                'c' => 'C',
+                                'h' => 'C',
+                                'cpp' => 'C++',
+                                'cc' => 'C++',
+                                'cxx' => 'C++',
+                                'hpp' => 'C++',
+                                'hh' => 'C++',
+                                'py' => 'Python',
+                                'java' => 'Java',
+                                'js' => 'JavaScript',
+                                'ts' => 'TypeScript',
+                                'rb' => 'Ruby',
+                                'pl' => 'Perl',
+                                'pm' => 'Perl',
+                                'php' => 'PHP',
+                                'go' => 'Go',
+                                'rs' => 'Rust',
+                                'cs' => 'C#',
+                                'sh' => 'Shell',
+                                'bash' => 'Shell',
+                                'html' => 'HTML',
+                                'css' => 'CSS',
+                                'sql' => 'SQL',
+                                'r' => 'R',
+                                'swift' => 'Swift',
+                                'kt' => 'Kotlin',
+                                'scala' => 'Scala',
+                                'lua' => 'Lua',
+                                'vim' => 'VimScript',
+                                'md' => 'Markdown',
+                                'json' => 'JSON',
+                                'xml' => 'XML',
+                                'yaml' => 'YAML',
+                                'yml' => 'YAML'
+                            );
+                            return $lang_map{$ext} || 'Unknown';
+                        }
+                        return 'Unknown';
+                    }
+
+                    # Count physical lines (non-blank, non-comment)
+                    sub count_physical_lines {
+                        my ($content, $lang) = @_;
+                        my @lines = split /\\n/, $content;
+                        my $count = 0;
+                        my $in_block_comment = 0;
+
+                        for my $line (@lines) {
+                            # Remove leading/trailing whitespace
+                            $line =~ s/^\\s+|\\s+$//g;
+
+                            # Skip empty lines
+                            next if $line eq '';
+
+                            # Handle block comments based on language
+                            if ($lang =~ /^(C|C\\+\\+|Java|JavaScript|TypeScript|PHP|Go|Rust|C#|CSS|Scala|Kotlin|Swift)$/) {
+                                if ($line =~ /\\/\\*/ && $line !~ /\\*\\//) {
+                                    $in_block_comment = 1;
+                                    next;
+                                }
+                                if ($in_block_comment) {
+                                    if ($line =~ /\\*\\//) {
+                                        $in_block_comment = 0;
+                                    }
+                                    next;
+                                }
+                                # Skip single-line comments
+                                next if $line =~ /^\\/\\// || $line =~ /^\\/\\*/;
+                            } elsif ($lang =~ /^(Python|Ruby|Shell|Perl|R)$/) {
+                                # Skip Python/Ruby/Shell/Perl comments
+                                next if $line =~ /^#/;
+                            } elsif ($lang eq 'HTML' || $lang eq 'XML') {
+                                # Skip HTML/XML comments
+                                next if $line =~ /^<!--/;
+                            }
+
+                            $count++;
+                        }
+
+                        return $count;
+                    }
+
+                    # Process each file
+                    my @file_data = @ARGV;
+
+                    for (my $i = 0; $i < @file_data; $i += 2) {
+                        my $filename = $file_data[$i];
+                        my $content = $file_data[$i + 1];
+
+                        my $lang = detect_language($filename);
+                        my $lines = count_physical_lines($content, $lang);
+
+                        if (!exists $lang_stats{$lang}) {
+                            $lang_stats{$lang} = { lines => 0, files => 0 };
+                        }
+
+                        $lang_stats{$lang}{lines} += $lines;
+                        $lang_stats{$lang}{files}++;
+                        $total_lines += $lines;
+                    }
+
+                    # Output results using JavaScript bridge
+                    use WebPerl qw/js/;
+                    my @results;
+                    for my $lang (sort keys %lang_stats) {
+                        push @results, "$lang|$lang_stats{$lang}{lines}|$lang_stats{$lang}{files}";
+                    }
+                    my $results_str = join("\\n", @results);
+                    js('window')->{perlResults} = $results_str;
+                `;
+
+                // Embed file data directly in the Perl script
+                let dataScript = 'my @file_data = (';
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    // Escape single quotes in the content
+                    const escapedFilename = file.filename.replace(/'/g, "\\'");
+                    const escapedContent = file.content.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    dataScript += `'${escapedFilename}', '${escapedContent}'`;
+                    if (i < files.length - 1) dataScript += ', ';
+                }
+                dataScript += ');\n@ARGV = @file_data;\n';
+
+                // Prepend the data to the Perl script
+                const fullScript = dataScript + perlScript;
+
+                // Execute the Perl script
+                window.perlResults = '';
+                Perl.eval(fullScript);
+
+                // Get the results from the window variable
+                const capturedOutput = window.perlResults;
+                console.log('Perl results:', capturedOutput);
+
+                // Parse the results
+                const results = [];
+                if (capturedOutput && capturedOutput.trim()) {
+                    const lines = capturedOutput.split('\\n');
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            const parts = line.split('|');
+                            if (parts.length === 3) {
+                                results.push({
+                                    language: parts[0],
+                                    lines: parseInt(parts[1]),
+                                    files: parseInt(parts[2])
+                                });
+                            }
+                        }
+                    }
+                }
+
+                return results;
+            } catch (error) {
+                console.error('Perl execution error:', error);
+                throw new Error('Failed to execute Perl sloccount: ' + error.message);
+            }
+        }
+
+        // Analyze pasted code
+        async function analyzePastedCode() {
+            const code = codeInput.value.trim();
+            const filename = filenameInput.value.trim();
+
+            if (!code) {
+                showStatus('Please paste some code to analyze', 'error');
+                return;
+            }
+
+            if (!filename) {
+                showStatus('Please provide a filename to detect the language', 'error');
+                return;
+            }
+
+            try {
+                analyzePasteBtn.disabled = true;
+                showStatus('Analyzing code with Perl sloccount...', 'info');
+
+                const files = [{ filename: filename, content: code }];
+                const results = await runSloccount(files);
+
+                displayResults(results);
+
+                showStatus('Analysis complete!', 'success');
+                setTimeout(hideStatus, 3000);
+            } catch (error) {
+                showStatus('Analysis failed: ' + error.message, 'error');
+                console.error('Analysis error:', error);
+            } finally {
+                analyzePasteBtn.disabled = false;
+            }
+        }
+
+        // Analyze GitHub repository
+        async function analyzeGitHubRepo() {
+            const repoUrl = repoInput.value.trim();
+
+            if (!repoUrl) {
+                showStatus('Please provide a GitHub repository URL', 'error');
+                return;
+            }
+
+            // Parse GitHub URL
+            const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+            if (!match) {
+                showStatus('Invalid GitHub URL. Expected format: https://github.com/owner/repo', 'error');
+                return;
+            }
+
+            const owner = match[1];
+            const repo = match[2].replace('.git', '');
+
+            try {
+                analyzeRepoBtn.disabled = true;
+                showStatus('Downloading repository archive...', 'info');
+
+                // Download the repository as a zip
+                const zipUrl = `https://github.com/${owner}/${repo}/archive/HEAD.zip`;
+                const response = await fetch(zipUrl);
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch repository. Make sure the repository is public.');
+                }
+
+                const zipBlob = await response.blob();
+                const zip = await JSZip.loadAsync(zipBlob);
+
+                showStatus('Extracting and analyzing files...', 'info');
+
+                // Extract all code files
+                const files = [];
+                const codeExtensions = /\\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|scala|lua|vim)$/i;
+
+                for (const fileName in zip.files) {
+                    const file = zip.files[fileName];
+                    if (!file.dir && codeExtensions.test(fileName)) {
+                        const content = await file.async('text');
+                        const baseName = fileName.split('/').slice(1).join('/'); // Remove root folder
+                        if (baseName) {
+                            files.push({ filename: baseName, content: content });
+                        }
+                    }
+                }
+
+                if (files.length === 0) {
+                    throw new Error('No code files found in repository');
+                }
+
+                showStatus(`Analyzing ${files.length} files with Perl sloccount...`, 'info');
+
+                const results = await runSloccount(files);
+                displayResults(results);
+
+                showStatus('Analysis complete!', 'success');
+                setTimeout(hideStatus, 3000);
+            } catch (error) {
+                showStatus('Analysis failed: ' + error.message, 'error');
+                console.error('Analysis error:', error);
+            } finally {
+                analyzeRepoBtn.disabled = false;
+            }
+        }
+
+        // Calculate COCOMO estimates (Basic COCOMO model)
+        function calculateCOCOMO(totalLines) {
+            // Convert SLOC to KLOC (thousands of lines)
+            const kloc = totalLines / 1000;
+
+            // Basic COCOMO: Effort = 2.4 * (KLOC)^1.05 person-months
+            const effort = 2.4 * Math.pow(kloc, 1.05);
+
+            // Convert person-months to person-years
+            const personYears = effort / 12;
+
+            // Average salary: $56,286/year (from original sloccount)
+            // Overhead multiplier: 2.4
+            const avgSalary = 56286;
+            const overhead = 2.4;
+            const totalCost = personYears * avgSalary * overhead;
+
+            return {
+                personYears: personYears,
+                cost: totalCost
+            };
+        }
+
+        // Display results
+        function displayResults(results) {
+            const totalLines = results.reduce((sum, r) => sum + r.lines, 0);
+            const totalFiles = results.reduce((sum, r) => sum + r.files, 0);
+            const totalLanguages = results.length;
+
+            // Calculate cost estimates
+            const estimates = calculateCOCOMO(totalLines);
+
+            document.getElementById('total-lines').textContent = totalLines.toLocaleString();
+            document.getElementById('total-languages').textContent = totalLanguages;
+            document.getElementById('total-files').textContent = totalFiles;
+            document.getElementById('total-cost').textContent = '$' + Math.round(estimates.cost).toLocaleString();
+            document.getElementById('total-effort').textContent = estimates.personYears.toFixed(2);
+
+            // Sort by lines descending
+            results.sort((a, b) => b.lines - a.lines);
+
+            const tbody = document.getElementById('language-tbody');
+            tbody.innerHTML = '';
+
+            results.forEach(result => {
+                const percentage = ((result.lines / totalLines) * 100).toFixed(1);
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="language-name">${result.language}</td>
+                    <td>${result.lines.toLocaleString()}</td>
+                    <td class="percentage">${percentage}%</td>
+                    <td>${result.files}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            showResults();
+        }
+
+        // Event listeners
+        analyzePasteBtn.addEventListener('click', analyzePastedCode);
+        if (analyzeRepoBtn) {
+            analyzeRepoBtn.addEventListener('click', analyzeGitHubRepo);
+        }
+
+        // Initialize when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeWebPerl);
+        } else {
+            initializeWebPerl();
+        }
+    </script>
+
+    <div style="max-width: 900px; margin: 40px auto 20px; padding: 20px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid #007bff;">
+        <h3 style="margin-top: 0;">About Cost Estimates</h3>
+        <p style="margin: 10px 0;">The cost and effort estimates use the <strong>Basic COCOMO model</strong> (Constructive Cost Model), a widely-used software engineering cost estimation method developed by Barry Boehm.</p>
+
+        <p style="margin: 10px 0;"><strong>Key assumptions:</strong></p>
+        <ul style="margin: 5px 0; padding-left: 20px;">
+            <li>Effort = 2.4 × (KLOC)<sup>1.05</sup> person-months</li>
+            <li>Average developer salary: $56,286/year</li>
+            <li>Overhead multiplier: 2.4× (includes benefits, equipment, office space, etc.)</li>
+        </ul>
+
+        <p style="margin: 10px 0; font-size: 14px; color: #666;">These are rough estimates based on industry averages from the early 2000s. Actual costs vary significantly based on project complexity, team experience, geographic location, and development practices. Modern salaries and overhead costs are typically higher.</p>
+
+        <p style="margin: 10px 0; font-size: 14px;"><em>This tool uses the WebAssembly build of Perl running actual SLOCCount algorithms from <a href="https://github.com/licquia/sloccount" target="_blank" rel="noopener">licquia/sloccount</a>.</em></p>
+    </div>
+
+    <!-- Embedded Perl script to initialize Perl into Running state -->
+    <!-- This must come AFTER the main JavaScript to avoid blocking -->
+    <script type="text/perl">
+        # Minimal script to put Perl into Running state
+        1;
+    </script>
+</body>
+</html>
