@@ -1,3 +1,3 @@
-SLOCCount analyzes source code to count the number of lines across different languages. Users can submit code via direct paste, GitHub repository URL, or ZIP file upload. The tool generates statistics including total lines, files count, language breakdown, and cost estimates based on the COCOMO model.
+SLOCCount enables source code analysis by counting physical Source Lines of Code (SLOC) using WebAssembly-powered Perl and C programs. The tool supports three input methods: direct code paste, GitHub repository analysis, and ZIP file upload. After analyzing your code, it provides detailed statistics including total lines, language breakdown, and estimated development costs calculated using the Basic COCOMO model.
 
-<!-- Generated from commit: 298a3ee82c23ab56526ac9192914ebd7e8524c10 -->
+<!-- Generated from commit: 473e89edfebc27781b434430f2e8a76adfbe3b16 -->
