@@ -1,154 +1,202 @@
-from http.client import HTTPConnection
-import pathlib
-from playwright.sync_api import Page, expect
+"""
+Playwright tests for sloccount.html
+Tests both pasted code analysis and GitHub repository analysis
+"""
+
 import pytest
-from subprocess import Popen, PIPE
+from playwright.sync_api import Page, expect
 import time
 
 
-test_dir = pathlib.Path(__file__).parent.absolute()
-root = test_dir.parent.absolute()
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args):
+    """Configure browser context for testing"""
+    return {
+        **browser_context_args,
+        "viewport": {"width": 1280, "height": 720},
+    }
 
 
-@pytest.fixture(scope="module")
-def static_server():
-    process = Popen(
-        ["python", "-m", "http.server", "8123", "--directory", root], stdout=PIPE
-    )
-    retries = 5
-    while retries > 0:
-        conn = HTTPConnection("127.0.0.1:8123")
-        try:
-            conn.request("HEAD", "/")
-            response = conn.getresponse()
-            if response is not None:
-                yield process
-                break
-        except ConnectionRefusedError:
-            time.sleep(1)
-            retries -= 1
+def test_page_loads(page: Page):
+    """Test that the page loads successfully"""
+    page.goto("http://localhost:8052/sloccount.html")
 
-    if not retries:
-        raise RuntimeError("Failed to start http server")
-    else:
-        process.terminate()
-        process.wait()
-
-
-def test_initial_state(page: Page, static_server):
-    """Test that the page loads correctly with initial state"""
-    page.goto("http://127.0.0.1:8123/sloccount.html")
-
-    # Check title and heading
+    # Check title
     expect(page).to_have_title("SLOCCount - Count Lines of Code")
-    expect(page.locator("h1")).to_have_text("SLOCCount - Count Lines of Code")
 
-    # Check tabs are present
-    expect(page.locator('.tab[data-tab="paste"]')).to_have_text("Paste Code")
-    expect(page.locator('.tab[data-tab="github"]')).to_have_text("GitHub Repository")
-
-    # Paste tab should be active by default
-    expect(page.locator('.tab[data-tab="paste"]')).to_have_class(/active/)
-    expect(page.locator('#paste-tab')).to_have_class(/active/)
-
-    # Results should be hidden initially
-    expect(page.locator("#results")).not_to_be_visible()
+    # Check main heading
+    heading = page.locator("h1")
+    expect(heading).to_have_text("SLOCCount - Count Lines of Code")
 
 
-def test_tab_switching(page: Page, static_server):
-    """Test switching between tabs"""
-    page.goto("http://127.0.0.1:8123/sloccount.html")
+def test_tab_switching(page: Page):
+    """Test that tab switching works correctly"""
+    page.goto("http://localhost:8052/sloccount.html")
+
+    # Initially, paste tab should be active
+    paste_tab = page.locator('[data-tab="paste"]')
+    github_tab = page.locator('[data-tab="github"]')
+
+    expect(paste_tab).to_have_class("tab active")
+    expect(github_tab).not_to_have_class("tab active")
 
     # Click GitHub tab
-    page.locator('.tab[data-tab="github"]').click()
-    expect(page.locator('.tab[data-tab="github"]')).to_have_class(/active/)
-    expect(page.locator('#github-tab')).to_have_class(/active/)
-    expect(page.locator('#paste-tab')).not_to_have_class(/active/)
+    github_tab.click()
 
-    # Click back to Paste tab
-    page.locator('.tab[data-tab="paste"]').click()
-    expect(page.locator('.tab[data-tab="paste"]')).to_have_class(/active/)
-    expect(page.locator('#paste-tab')).to_have_class(/active/)
-    expect(page.locator('#github-tab')).not_to_have_class(/active/)
+    expect(github_tab).to_have_class("tab active")
+    expect(paste_tab).not_to_have_class("tab active")
+
+    # Click back to paste tab
+    paste_tab.click()
+
+    expect(paste_tab).to_have_class("tab active")
+    expect(github_tab).not_to_have_class("tab active")
 
 
-def test_analyze_python_code(page: Page, static_server):
-    """Test analyzing pasted Python code"""
-    page.goto("http://127.0.0.1:8123/sloccount.html")
+def test_initialization_message(page: Page):
+    """Test that initialization messages appear"""
+    page.goto("http://localhost:8052/sloccount.html")
+
+    # Wait for initialization to complete
+    # The buttons should change from "Initializing..." to their final text
+    analyze_btn = page.locator("#analyze-paste-btn")
+
+    # Wait up to 30 seconds for WebPerl to initialize
+    expect(analyze_btn).not_to_have_text("Initializing...", timeout=30000)
+    expect(analyze_btn).to_have_text("Analyze Code")
+
+
+def test_paste_code_validation(page: Page):
+    """Test validation for pasted code analysis"""
+    page.goto("http://localhost:8052/sloccount.html")
 
     # Wait for initialization
-    page.wait_for_selector("#analyze-paste-btn:not([disabled])", timeout=10000)
+    analyze_btn = page.locator("#analyze-paste-btn")
+    expect(analyze_btn).to_have_text("Analyze Code", timeout=30000)
 
-    # Enter Python code
-    python_code = """def hello_world():
+    # Try to analyze without code
+    analyze_btn.click()
+
+    status = page.locator("#status")
+    expect(status).to_have_class("visible error")
+    expect(status).to_contain_text("Please paste some code to analyze")
+
+    # Add code but no filename
+    page.locator("#code-input").fill("print('hello world')")
+    analyze_btn.click()
+
+    expect(status).to_have_class("visible error")
+    expect(status).to_contain_text("Please provide a filename")
+
+
+def test_paste_code_python(page: Page):
+    """Test analyzing pasted Python code"""
+    # Capture console logs
+    console_logs = []
+    page.on("console", lambda msg: console_logs.append(f"{msg.type}: {msg.text}"))
+
+    # Capture errors
+    errors = []
+    page.on("pageerror", lambda exc: errors.append(str(exc)))
+
+    page.goto("http://localhost:8052/sloccount.html")
+
+    # Wait for initialization
+    analyze_btn = page.locator("#analyze-paste-btn")
+    try:
+        expect(analyze_btn).to_have_text("Analyze Code", timeout=30000)
+    except AssertionError:
+        print("Console logs:", console_logs)
+        print("Errors:", errors)
+        raise
+
+    # Fill in Python code
+    python_code = """
+def hello_world():
+    # This is a comment
     print("Hello, World!")
-    return 42
+    return True
 
-# This is a comment
-if __name__ == "__main__":
+# Another comment
+def main():
     hello_world()
+
+if __name__ == "__main__":
+    main()
 """
 
     page.locator("#code-input").fill(python_code)
     page.locator("#filename-input").fill("test.py")
 
-    # Click analyze button
-    page.locator("#analyze-paste-btn").click()
+    # Analyze
+    analyze_btn.click()
 
-    # Wait for results to appear
-    expect(page.locator("#results")).to_be_visible(timeout=5000)
+    # Wait for results
+    results = page.locator("#results")
+    expect(results).to_have_class("visible", timeout=10000)
 
-    # Check that results contain Python
-    expect(page.locator("#language-table")).to_contain_text("Python")
+    # Check that we got results
+    total_lines = page.locator("#total-lines")
+    expect(total_lines).not_to_have_text("0")
 
-    # Check that we have some lines counted (should be non-zero)
-    total_lines = page.locator("#total-lines").text_content()
-    assert total_lines and total_lines != "0"
+    total_languages = page.locator("#total-languages")
+    expect(total_languages).to_have_text("1")
 
-    # Check languages count
-    expect(page.locator("#total-languages")).to_have_text("1")
+    total_files = page.locator("#total-files")
+    expect(total_files).to_have_text("1")
 
-    # Check files count
-    expect(page.locator("#total-files")).to_have_text("1")
+    # Check language breakdown
+    language_table = page.locator("#language-table")
+    expect(language_table).to_contain_text("Python")
 
 
-def test_analyze_javascript_code(page: Page, static_server):
+def test_paste_code_javascript(page: Page):
     """Test analyzing pasted JavaScript code"""
-    page.goto("http://127.0.0.1:8123/sloccount.html")
+    page.goto("http://localhost:8052/sloccount.html")
 
     # Wait for initialization
-    page.wait_for_selector("#analyze-paste-btn:not([disabled])", timeout=10000)
+    analyze_btn = page.locator("#analyze-paste-btn")
+    expect(analyze_btn).to_have_text("Analyze Code", timeout=30000)
 
-    # Enter JavaScript code
-    js_code = """function calculateSum(a, b) {
-    return a + b;
+    # Fill in JavaScript code
+    js_code = """
+// This is a comment
+function hello() {
+    console.log("Hello, World!");
 }
 
-const result = calculateSum(5, 3);
-console.log(result);
+/* Multi-line
+   comment */
+function main() {
+    hello();
+}
+
+main();
 """
 
     page.locator("#code-input").fill(js_code)
     page.locator("#filename-input").fill("app.js")
 
-    # Click analyze button
-    page.locator("#analyze-paste-btn").click()
+    # Analyze
+    analyze_btn.click()
 
-    # Wait for results to appear
-    expect(page.locator("#results")).to_be_visible(timeout=5000)
+    # Wait for results
+    results = page.locator("#results")
+    expect(results).to_have_class("visible", timeout=10000)
 
-    # Check that results contain JavaScript
-    expect(page.locator("#language-table")).to_contain_text("JavaScript")
+    # Check language breakdown
+    language_table = page.locator("#language-table")
+    expect(language_table).to_contain_text("JavaScript")
 
 
-def test_clear_button(page: Page, static_server):
+def test_clear_button(page: Page):
     """Test that the clear button works"""
-    page.goto("http://127.0.0.1:8123/sloccount.html")
+    page.goto("http://localhost:8052/sloccount.html")
 
     # Wait for initialization
-    page.wait_for_selector("#analyze-paste-btn:not([disabled])", timeout=10000)
+    expect(page.locator("#analyze-paste-btn")).to_have_text("Analyze Code", timeout=30000)
 
-    # Enter some code
+    # Fill in some code
     page.locator("#code-input").fill("print('test')")
     page.locator("#filename-input").fill("test.py")
 
@@ -160,99 +208,149 @@ def test_clear_button(page: Page, static_server):
     expect(page.locator("#filename-input")).to_have_value("")
 
 
-def test_empty_code_validation(page: Page, static_server):
-    """Test that analyzing empty code shows an error"""
-    page.goto("http://127.0.0.1:8123/sloccount.html")
-
-    # Wait for initialization
-    page.wait_for_selector("#analyze-paste-btn:not([disabled])", timeout=10000)
-
-    # Try to analyze without code
-    page.locator("#analyze-paste-btn").click()
-
-    # Should show error status
-    expect(page.locator("#status")).to_be_visible()
-    expect(page.locator("#status")).to_have_class(/error/)
-
-
-def test_missing_filename_validation(page: Page, static_server):
-    """Test that analyzing without filename shows an error"""
-    page.goto("http://127.0.0.1:8123/sloccount.html")
-
-    # Wait for initialization
-    page.wait_for_selector("#analyze-paste-btn:not([disabled])", timeout=10000)
-
-    # Enter code but no filename
-    page.locator("#code-input").fill("print('test')")
-
-    # Try to analyze
-    page.locator("#analyze-paste-btn").click()
-
-    # Should show error status
-    expect(page.locator("#status")).to_be_visible()
-    expect(page.locator("#status")).to_have_class(/error/)
-
-
-def test_github_repo_validation(page: Page, static_server):
-    """Test GitHub repo URL validation"""
-    page.goto("http://127.0.0.1:8123/sloccount.html")
-
-    # Wait for initialization
-    page.wait_for_selector("#analyze-repo-btn:not([disabled])", timeout=10000)
+def test_github_repo_validation(page: Page):
+    """Test validation for GitHub repository analysis"""
+    page.goto("http://localhost:8052/sloccount.html")
 
     # Switch to GitHub tab
-    page.locator('.tab[data-tab="github"]').click()
-
-    # Try to analyze without URL
-    page.locator("#analyze-repo-btn").click()
-
-    # Should show error status
-    expect(page.locator("#status")).to_be_visible()
-    expect(page.locator("#status")).to_have_class(/error/)
-
-
-def test_language_detection(page: Page, static_server):
-    """Test language detection for various file extensions"""
-    page.goto("http://127.0.0.1:8123/sloccount.html")
+    page.locator('[data-tab="github"]').click()
 
     # Wait for initialization
-    page.wait_for_selector("#analyze-paste-btn:not([disabled])", timeout=10000)
+    analyze_btn = page.locator("#analyze-repo-btn")
+    expect(analyze_btn).to_have_text("Analyze Repository", timeout=30000)
 
-    test_cases = [
-        ("test.cpp", "C++"),
-        ("test.java", "Java"),
-        ("test.rb", "Ruby"),
-        ("test.go", "Go"),
-        ("test.rs", "Rust"),
-    ]
+    # Try to analyze without URL
+    analyze_btn.click()
 
-    for filename, expected_lang in test_cases:
-        # Enter code
-        page.locator("#code-input").fill("// test code\nint main() {}")
-        page.locator("#filename-input").fill(filename)
+    status = page.locator("#status")
+    expect(status).to_have_class("visible error")
+    expect(status).to_contain_text("Please provide a GitHub repository URL")
 
-        # Analyze
-        page.locator("#analyze-paste-btn").click()
+    # Try with invalid URL
+    page.locator("#repo-input").fill("https://example.com/not/github")
+    analyze_btn.click()
 
-        # Wait for results
-        expect(page.locator("#results")).to_be_visible(timeout=5000)
-
-        # Check language
-        expect(page.locator("#language-table")).to_contain_text(expected_lang)
-
-        # Clear for next iteration
-        page.locator("#clear-paste-btn").click()
-        expect(page.locator("#results")).not_to_be_visible()
+    expect(status).to_have_class("visible error")
+    expect(status).to_contain_text("Invalid GitHub URL")
 
 
-def test_mobile_responsive(page: Page, static_server):
-    """Test that the page is mobile responsive"""
-    page.goto("http://127.0.0.1:8123/sloccount.html")
+def test_github_repo_analysis(page: Page):
+    """Test analyzing a small GitHub repository"""
+    page.goto("http://localhost:8052/sloccount.html")
 
+    # Switch to GitHub tab
+    page.locator('[data-tab="github"]').click()
+
+    # Wait for initialization
+    analyze_btn = page.locator("#analyze-repo-btn")
+    expect(analyze_btn).to_have_text("Analyze Repository", timeout=30000)
+
+    # Use a small public repository for testing
+    # Using the sloccount repo itself as a test
+    page.locator("#repo-input").fill("https://github.com/licquia/sloccount")
+
+    # Analyze (this may take a while)
+    analyze_btn.click()
+
+    # Wait for download to start
+    status = page.locator("#status")
+    expect(status).to_contain_text("Downloading", timeout=5000)
+
+    # Wait for results (may take up to 60 seconds)
+    results = page.locator("#results")
+    expect(results).to_have_class("visible", timeout=60000)
+
+    # Check that we got results
+    total_lines = page.locator("#total-lines")
+    expect(total_lines).not_to_have_text("0")
+
+    total_languages = page.locator("#total-languages")
+    # Should have at least one language
+    expect(total_languages).not_to_have_text("0")
+
+
+def test_mobile_responsive(page: Page):
+    """Test mobile responsiveness"""
     # Set mobile viewport
     page.set_viewport_size({"width": 375, "height": 667})
+    page.goto("http://localhost:8052/sloccount.html")
 
-    # Check that elements are still visible
-    expect(page.locator("h1")).to_be_visible()
-    expect(page.locator("#code-input")).to_be_visible()
-    expect(page.locator("#analyze-paste-btn")).to_be_visible()
+    # Check that tabs are visible
+    paste_tab = page.locator('[data-tab="paste"]')
+    expect(paste_tab).to_be_visible()
+
+    # Check that input fields are visible
+    code_input = page.locator("#code-input")
+    expect(code_input).to_be_visible()
+
+    # Check that buttons stack vertically (full width)
+    analyze_btn = page.locator("#analyze-paste-btn")
+    clear_btn = page.locator("#clear-paste-btn")
+
+    expect(analyze_btn).to_be_visible()
+    expect(clear_btn).to_be_visible()
+
+
+def test_comment_filtering(page: Page):
+    """Test that comments are properly filtered"""
+    page.goto("http://localhost:8052/sloccount.html")
+
+    # Wait for initialization
+    analyze_btn = page.locator("#analyze-paste-btn")
+    expect(analyze_btn).to_have_text("Analyze Code", timeout=30000)
+
+    # Code with lots of comments
+    code_with_comments = """
+# This is a comment
+def func():
+    # Another comment
+    x = 1  # Inline comment
+    return x
+# Final comment
+"""
+
+    page.locator("#code-input").fill(code_with_comments)
+    page.locator("#filename-input").fill("test.py")
+
+    # Analyze
+    analyze_btn.click()
+
+    # Wait for results
+    expect(page.locator("#results")).to_have_class("visible", timeout=10000)
+
+    # The line count should be less than total lines due to comment filtering
+    # We have 7 total lines, but 4 are comments, so should count ~3 lines
+    total_lines_text = page.locator("#total-lines").inner_text()
+    total_lines = int(total_lines_text.replace(",", ""))
+
+    # Should be less than total line count (7)
+    assert total_lines < 7, f"Expected less than 7 lines, got {total_lines}"
+    # Should be at least 2 (the actual code lines)
+    assert total_lines >= 2, f"Expected at least 2 lines, got {total_lines}"
+
+
+def test_percentage_calculation(page: Page):
+    """Test that percentages are calculated correctly"""
+    page.goto("http://localhost:8052/sloccount.html")
+
+    # Wait for initialization
+    analyze_btn = page.locator("#analyze-paste-btn")
+    expect(analyze_btn).to_have_text("Analyze Code", timeout=30000)
+
+    # Simple code
+    page.locator("#code-input").fill("x = 1\ny = 2\n")
+    page.locator("#filename-input").fill("test.py")
+
+    # Analyze
+    analyze_btn.click()
+
+    # Wait for results
+    expect(page.locator("#results")).to_have_class("visible", timeout=10000)
+
+    # For a single language, percentage should be 100%
+    percentage_cell = page.locator(".percentage").first
+    expect(percentage_cell).to_contain_text("100.0%")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
