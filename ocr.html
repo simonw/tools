@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script defer data-domain="tools.simonwillison.net" src="https://plausible.io/js/script.js"></script>
   <script type="module">
-  import pdfjsDist from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/+esm';
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.mjs";
+  import * as pdfjsLib from './vendor/pdf.mjs';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
+  window.pdfjsLib = pdfjsLib;
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="./vendor/tesseract.min.js"></script>
 <style>
 body {
   padding: 1em;
@@ -321,7 +321,11 @@ async function loadExamplePDF() {
 }
 
 async function processFile(file) {
-  const worker = await Tesseract.createWorker(languageSelect.value);
+  const worker = await Tesseract.createWorker(languageSelect.value, 1, {
+    workerPath: './vendor/worker.min.js',
+    langPath: './vendor',
+    corePath: './vendor/tesseract-core-simd.wasm.js'
+  });
   fullDocumentTextarea.value = '';
   fullDocumentSection.style.display = 'none';
   imageContainer.innerHTML = '';
@@ -385,7 +389,11 @@ async function rerunOCR() {
   let done = 0;
   dropzone.innerText = `Processing ${numImages} image${numImages > 1 ? 's' : ''}`;
 
-  const worker = await Tesseract.createWorker(languageSelect.value);
+  const worker = await Tesseract.createWorker(languageSelect.value, 1, {
+    workerPath: './vendor/worker.min.js',
+    langPath: './vendor',
+    corePath: './vendor/tesseract-core-simd.wasm.js'
+  });
 
   for (let i = 0; i < numImages; i++) {
     const imageURL = images[i].src;
