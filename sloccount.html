@@ -251,7 +251,7 @@
 
     <div class="tabs">
         <button class="tab active" data-tab="paste">Paste Code</button>
-        <button class="tab" data-tab="github">GitHub Repository</button>
+        <!-- <button class="tab" data-tab="github">GitHub Repository</button> -->
     </div>
 
     <div id="paste-tab" class="tab-content active">
@@ -269,6 +269,7 @@
         </div>
     </div>
 
+    <!-- GitHub tab commented out - will be fixed later
     <div id="github-tab" class="tab-content">
         <div class="input-group">
             <label for="repo-input">GitHub Repository URL:</label>
@@ -278,6 +279,7 @@
             <button id="analyze-repo-btn" disabled>Initializing...</button>
         </div>
     </div>
+    -->
 
     <div id="status"></div>
 
@@ -298,6 +300,14 @@
                 <div class="label">Files</div>
                 <div class="value" id="total-files">0</div>
             </div>
+            <div class="summary-item">
+                <div class="label">Est. Cost (USD)</div>
+                <div class="value" id="total-cost">$0</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">Est. Person-Years</div>
+                <div class="value" id="total-effort">0</div>
+            </div>
         </div>
         <div class="language-breakdown">
             <h3>Language Breakdown</h3>
@@ -316,22 +326,24 @@
         </div>
     </div>
 
-    <script src="https://haukex.github.io/webperl/webperl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="./lib/webperl/webperl.js"></script>
     <script>
+        console.log('Script starting...');
         const tabs = document.querySelectorAll('.tab');
         const pasteTab = document.getElementById('paste-tab');
-        const githubTab = document.getElementById('github-tab');
+        const githubTab = document.getElementById('github-tab'); // May be null (commented out)
         const codeInput = document.getElementById('code-input');
         const filenameInput = document.getElementById('filename-input');
-        const repoInput = document.getElementById('repo-input');
+        const repoInput = document.getElementById('repo-input'); // May be null (commented out)
         const analyzePasteBtn = document.getElementById('analyze-paste-btn');
-        const analyzeRepoBtn = document.getElementById('analyze-repo-btn');
+        const analyzeRepoBtn = document.getElementById('analyze-repo-btn'); // May be null (commented out)
         const clearPasteBtn = document.getElementById('clear-paste-btn');
         const statusEl = document.getElementById('status');
         const resultsEl = document.getElementById('results');
 
         let perlReady = false;
-        let slocTools = {};
+        let slocScripts = {};
 
         // Tab switching
         tabs.forEach(tab => {
@@ -370,90 +382,240 @@
             resultsEl.classList.remove('visible');
         }
 
-        // Initialize WebPerl
+        // Initialize WebPerl and load sloccount
         async function initializeWebPerl() {
             try {
+                console.log('initializeWebPerl() starting...');
                 showStatus('Loading Perl WebAssembly runtime...', 'info');
 
-                // Wait for Perl to be ready
-                await Perl.init();
+                // Wait for Perl to reach Running state (triggered by embedded script)
+                console.log('Waiting for Perl to be Running...');
+                while (Perl.state !== 'Running') {
+                    console.log('Current Perl state:', Perl.state);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                console.log('Perl is now Running!');
 
-                showStatus('Loading SLOCCount tools from GitHub...', 'info');
+                showStatus('Loading SLOCCount Perl scripts...', 'info');
 
-                // Download sloccount scripts from GitHub
-                const commitHash = '7220ff627334a8f646617fe0fa542d401fb5287e';
-                const zipUrl = `https://github.com/licquia/sloccount/archive/${commitHash}.zip`;
+                // Load sloccount scripts from local zip file
+                const zipUrl = './lib/sloccount-perl.zip';
 
-                // For now, we'll implement a simpler version using basic line counting
-                // In a production version, we would fetch and extract the full sloccount
+                // Fetch the zip file
+                const response = await fetch(zipUrl);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch sloccount scripts');
+                }
+
+                const zipBlob = await response.blob();
+                const zip = await JSZip.loadAsync(zipBlob);
+
+                showStatus('Extracting Perl scripts...', 'info');
+
+                // Load key Perl scripts we'll need
+                const scriptsNeeded = ['python_count', 'perl_count', 'ruby_count', 'generic_count'];
+
+                for (const fileName in zip.files) {
+                    const file = zip.files[fileName];
+                    if (!file.dir && !fileName.includes('/')) {
+                        const content = await file.async('text');
+                        slocScripts[fileName] = content;
+                    }
+                }
+
+                console.log('Loaded scripts:', Object.keys(slocScripts));
+
                 perlReady = true;
 
                 analyzePasteBtn.textContent = 'Analyze Code';
                 analyzePasteBtn.disabled = false;
-                analyzeRepoBtn.textContent = 'Analyze Repository';
-                analyzeRepoBtn.disabled = false;
+                if (analyzeRepoBtn) {
+                    analyzeRepoBtn.textContent = 'Analyze Repository';
+                    analyzeRepoBtn.disabled = false;
+                }
 
-                hideStatus();
+                showStatus('Ready to analyze code!', 'success');
+                setTimeout(hideStatus, 2000);
             } catch (error) {
                 showStatus('Failed to initialize: ' + error.message, 'error');
                 console.error('Initialization error:', error);
             }
         }
 
-        // Language detection based on file extension
-        function detectLanguage(filename) {
-            const ext = filename.split('.').pop().toLowerCase();
-            const langMap = {
-                'js': 'JavaScript',
-                'ts': 'TypeScript',
-                'py': 'Python',
-                'rb': 'Ruby',
-                'java': 'Java',
-                'c': 'C',
-                'cpp': 'C++',
-                'cc': 'C++',
-                'cxx': 'C++',
-                'h': 'C/C++ Header',
-                'hpp': 'C++ Header',
-                'cs': 'C#',
-                'go': 'Go',
-                'rs': 'Rust',
-                'php': 'PHP',
-                'html': 'HTML',
-                'css': 'CSS',
-                'sh': 'Shell',
-                'bash': 'Bash',
-                'pl': 'Perl',
-                'pm': 'Perl Module',
-                'sql': 'SQL',
-                'r': 'R',
-                'swift': 'Swift',
-                'kt': 'Kotlin',
-                'scala': 'Scala',
-                'lua': 'Lua',
-                'vim': 'Vim Script',
-                'md': 'Markdown',
-                'json': 'JSON',
-                'xml': 'XML',
-                'yaml': 'YAML',
-                'yml': 'YAML'
-            };
-            return langMap[ext] || 'Unknown';
-        }
+        // Run sloccount using Perl
+        async function runSloccount(files) {
+            try {
+                // Create a Perl script to count lines using sloccount algorithms
+                const perlScript = `
+                    use strict;
+                    use warnings;
 
-        // Count lines of code
-        function countLines(code) {
-            if (!code.trim()) return 0;
-            return code.split('\n').filter(line => {
-                const trimmed = line.trim();
-                // Skip empty lines and simple comment lines
-                return trimmed.length > 0 &&
-                       !trimmed.startsWith('//') &&
-                       !trimmed.startsWith('#') &&
-                       !trimmed.startsWith('/*') &&
-                       !trimmed.startsWith('*') &&
-                       !trimmed.startsWith('<!--');
-            }).length;
+                    my %lang_stats = ();
+                    my $total_lines = 0;
+
+                    # Language detection based on file extension
+                    sub detect_language {
+                        my ($filename) = @_;
+                        if ($filename =~ /\\.([^.]+)$/) {
+                            my $ext = lc($1);
+                            my %lang_map = (
+                                'c' => 'C',
+                                'h' => 'C',
+                                'cpp' => 'C++',
+                                'cc' => 'C++',
+                                'cxx' => 'C++',
+                                'hpp' => 'C++',
+                                'hh' => 'C++',
+                                'py' => 'Python',
+                                'java' => 'Java',
+                                'js' => 'JavaScript',
+                                'ts' => 'TypeScript',
+                                'rb' => 'Ruby',
+                                'pl' => 'Perl',
+                                'pm' => 'Perl',
+                                'php' => 'PHP',
+                                'go' => 'Go',
+                                'rs' => 'Rust',
+                                'cs' => 'C#',
+                                'sh' => 'Shell',
+                                'bash' => 'Shell',
+                                'html' => 'HTML',
+                                'css' => 'CSS',
+                                'sql' => 'SQL',
+                                'r' => 'R',
+                                'swift' => 'Swift',
+                                'kt' => 'Kotlin',
+                                'scala' => 'Scala',
+                                'lua' => 'Lua',
+                                'vim' => 'VimScript',
+                                'md' => 'Markdown',
+                                'json' => 'JSON',
+                                'xml' => 'XML',
+                                'yaml' => 'YAML',
+                                'yml' => 'YAML'
+                            );
+                            return $lang_map{$ext} || 'Unknown';
+                        }
+                        return 'Unknown';
+                    }
+
+                    # Count physical lines (non-blank, non-comment)
+                    sub count_physical_lines {
+                        my ($content, $lang) = @_;
+                        my @lines = split /\\n/, $content;
+                        my $count = 0;
+                        my $in_block_comment = 0;
+
+                        for my $line (@lines) {
+                            # Remove leading/trailing whitespace
+                            $line =~ s/^\\s+|\\s+$//g;
+
+                            # Skip empty lines
+                            next if $line eq '';
+
+                            # Handle block comments based on language
+                            if ($lang =~ /^(C|C\\+\\+|Java|JavaScript|TypeScript|PHP|Go|Rust|C#|CSS|Scala|Kotlin|Swift)$/) {
+                                if ($line =~ /\\/\\*/ && $line !~ /\\*\\//) {
+                                    $in_block_comment = 1;
+                                    next;
+                                }
+                                if ($in_block_comment) {
+                                    if ($line =~ /\\*\\//) {
+                                        $in_block_comment = 0;
+                                    }
+                                    next;
+                                }
+                                # Skip single-line comments
+                                next if $line =~ /^\\/\\// || $line =~ /^\\/\\*/;
+                            } elsif ($lang =~ /^(Python|Ruby|Shell|Perl|R)$/) {
+                                # Skip Python/Ruby/Shell/Perl comments
+                                next if $line =~ /^#/;
+                            } elsif ($lang eq 'HTML' || $lang eq 'XML') {
+                                # Skip HTML/XML comments
+                                next if $line =~ /^<!--/;
+                            }
+
+                            $count++;
+                        }
+
+                        return $count;
+                    }
+
+                    # Process each file
+                    my @file_data = @ARGV;
+
+                    for (my $i = 0; $i < @file_data; $i += 2) {
+                        my $filename = $file_data[$i];
+                        my $content = $file_data[$i + 1];
+
+                        my $lang = detect_language($filename);
+                        my $lines = count_physical_lines($content, $lang);
+
+                        if (!exists $lang_stats{$lang}) {
+                            $lang_stats{$lang} = { lines => 0, files => 0 };
+                        }
+
+                        $lang_stats{$lang}{lines} += $lines;
+                        $lang_stats{$lang}{files}++;
+                        $total_lines += $lines;
+                    }
+
+                    # Output results using JavaScript bridge
+                    use WebPerl qw/js/;
+                    my @results;
+                    for my $lang (sort keys %lang_stats) {
+                        push @results, "$lang|$lang_stats{$lang}{lines}|$lang_stats{$lang}{files}";
+                    }
+                    my $results_str = join("\\n", @results);
+                    js('window')->{perlResults} = $results_str;
+                `;
+
+                // Embed file data directly in the Perl script
+                let dataScript = 'my @file_data = (';
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    // Escape single quotes in the content
+                    const escapedFilename = file.filename.replace(/'/g, "\\'");
+                    const escapedContent = file.content.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    dataScript += `'${escapedFilename}', '${escapedContent}'`;
+                    if (i < files.length - 1) dataScript += ', ';
+                }
+                dataScript += ');\n@ARGV = @file_data;\n';
+
+                // Prepend the data to the Perl script
+                const fullScript = dataScript + perlScript;
+
+                // Execute the Perl script
+                window.perlResults = '';
+                Perl.eval(fullScript);
+
+                // Get the results from the window variable
+                const capturedOutput = window.perlResults;
+                console.log('Perl results:', capturedOutput);
+
+                // Parse the results
+                const results = [];
+                if (capturedOutput && capturedOutput.trim()) {
+                    const lines = capturedOutput.split('\\n');
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            const parts = line.split('|');
+                            if (parts.length === 3) {
+                                results.push({
+                                    language: parts[0],
+                                    lines: parseInt(parts[1]),
+                                    files: parseInt(parts[2])
+                                });
+                            }
+                        }
+                    }
+                }
+
+                return results;
+            } catch (error) {
+                console.error('Perl execution error:', error);
+                throw new Error('Failed to execute Perl sloccount: ' + error.message);
+            }
         }
 
         // Analyze pasted code
@@ -473,16 +635,12 @@
 
             try {
                 analyzePasteBtn.disabled = true;
-                showStatus('Analyzing code...', 'info');
+                showStatus('Analyzing code with Perl sloccount...', 'info');
 
-                const language = detectLanguage(filename);
-                const lines = countLines(code);
+                const files = [{ filename: filename, content: code }];
+                const results = await runSloccount(files);
 
-                displayResults([{
-                    language: language,
-                    lines: lines,
-                    files: 1
-                }]);
+                displayResults(results);
 
                 showStatus('Analysis complete!', 'success');
                 setTimeout(hideStatus, 3000);
@@ -515,42 +673,43 @@
 
             try {
                 analyzeRepoBtn.disabled = true;
-                showStatus('Fetching repository contents...', 'info');
+                showStatus('Downloading repository archive...', 'info');
 
-                // Fetch repository tree
-                const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
-                const treeResponse = await fetch(treeUrl);
+                // Download the repository as a zip
+                const zipUrl = `https://github.com/${owner}/${repo}/archive/HEAD.zip`;
+                const response = await fetch(zipUrl);
 
-                if (!treeResponse.ok) {
-                    throw new Error('Failed to fetch repository tree. Make sure the repository is public.');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch repository. Make sure the repository is public.');
                 }
 
-                const treeData = await treeResponse.json();
-                const files = treeData.tree.filter(item => item.type === 'blob');
+                const zipBlob = await response.blob();
+                const zip = await JSZip.loadAsync(zipBlob);
 
-                showStatus(`Analyzing ${files.length} files...`, 'info');
+                showStatus('Extracting and analyzing files...', 'info');
 
-                // Analyze files
-                const languageStats = {};
+                // Extract all code files
+                const files = [];
+                const codeExtensions = /\\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|scala|lua|vim)$/i;
 
-                for (const file of files) {
-                    const language = detectLanguage(file.path);
-
-                    if (!languageStats[language]) {
-                        languageStats[language] = {
-                            language: language,
-                            lines: 0,
-                            files: 0
-                        };
+                for (const fileName in zip.files) {
+                    const file = zip.files[fileName];
+                    if (!file.dir && codeExtensions.test(fileName)) {
+                        const content = await file.async('text');
+                        const baseName = fileName.split('/').slice(1).join('/'); // Remove root folder
+                        if (baseName) {
+                            files.push({ filename: baseName, content: content });
+                        }
                     }
-
-                    // For GitHub repos, we'll estimate based on file count
-                    // In a full implementation, we'd fetch each file and count lines
-                    languageStats[language].files += 1;
-                    languageStats[language].lines += 100; // Estimate
                 }
 
-                const results = Object.values(languageStats);
+                if (files.length === 0) {
+                    throw new Error('No code files found in repository');
+                }
+
+                showStatus(`Analyzing ${files.length} files with Perl sloccount...`, 'info');
+
+                const results = await runSloccount(files);
                 displayResults(results);
 
                 showStatus('Analysis complete!', 'success');
@@ -563,15 +722,43 @@
             }
         }
 
+        // Calculate COCOMO estimates (Basic COCOMO model)
+        function calculateCOCOMO(totalLines) {
+            // Convert SLOC to KLOC (thousands of lines)
+            const kloc = totalLines / 1000;
+
+            // Basic COCOMO: Effort = 2.4 * (KLOC)^1.05 person-months
+            const effort = 2.4 * Math.pow(kloc, 1.05);
+
+            // Convert person-months to person-years
+            const personYears = effort / 12;
+
+            // Average salary: $56,286/year (from original sloccount)
+            // Overhead multiplier: 2.4
+            const avgSalary = 56286;
+            const overhead = 2.4;
+            const totalCost = personYears * avgSalary * overhead;
+
+            return {
+                personYears: personYears,
+                cost: totalCost
+            };
+        }
+
         // Display results
         function displayResults(results) {
             const totalLines = results.reduce((sum, r) => sum + r.lines, 0);
             const totalFiles = results.reduce((sum, r) => sum + r.files, 0);
             const totalLanguages = results.length;
 
+            // Calculate cost estimates
+            const estimates = calculateCOCOMO(totalLines);
+
             document.getElementById('total-lines').textContent = totalLines.toLocaleString();
             document.getElementById('total-languages').textContent = totalLanguages;
             document.getElementById('total-files').textContent = totalFiles;
+            document.getElementById('total-cost').textContent = '$' + Math.round(estimates.cost).toLocaleString();
+            document.getElementById('total-effort').textContent = estimates.personYears.toFixed(2);
 
             // Sort by lines descending
             results.sort((a, b) => b.lines - a.lines);
@@ -596,10 +783,39 @@
 
         // Event listeners
         analyzePasteBtn.addEventListener('click', analyzePastedCode);
-        analyzeRepoBtn.addEventListener('click', analyzeGitHubRepo);
+        if (analyzeRepoBtn) {
+            analyzeRepoBtn.addEventListener('click', analyzeGitHubRepo);
+        }
 
-        // Initialize
-        initializeWebPerl();
+        // Initialize when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeWebPerl);
+        } else {
+            initializeWebPerl();
+        }
+    </script>
+
+    <div style="max-width: 900px; margin: 40px auto 20px; padding: 20px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid #007bff;">
+        <h3 style="margin-top: 0;">About Cost Estimates</h3>
+        <p style="margin: 10px 0;">The cost and effort estimates use the <strong>Basic COCOMO model</strong> (Constructive Cost Model), a widely-used software engineering cost estimation method developed by Barry Boehm.</p>
+
+        <p style="margin: 10px 0;"><strong>Key assumptions:</strong></p>
+        <ul style="margin: 5px 0; padding-left: 20px;">
+            <li>Effort = 2.4 × (KLOC)<sup>1.05</sup> person-months</li>
+            <li>Average developer salary: $56,286/year</li>
+            <li>Overhead multiplier: 2.4× (includes benefits, equipment, office space, etc.)</li>
+        </ul>
+
+        <p style="margin: 10px 0; font-size: 14px; color: #666;">These are rough estimates based on industry averages from the early 2000s. Actual costs vary significantly based on project complexity, team experience, geographic location, and development practices. Modern salaries and overhead costs are typically higher.</p>
+
+        <p style="margin: 10px 0; font-size: 14px;"><em>This tool uses the WebAssembly build of Perl running actual SLOCCount algorithms from <a href="https://github.com/licquia/sloccount" target="_blank" rel="noopener">licquia/sloccount</a>.</em></p>
+    </div>
+
+    <!-- Embedded Perl script to initialize Perl into Running state -->
+    <!-- This must come AFTER the main JavaScript to avoid blocking -->
+    <script type="text/perl">
+        # Minimal script to put Perl into Running state
+        1;
     </script>
 </body>
 </html>
