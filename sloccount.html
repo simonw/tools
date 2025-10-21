@@ -247,7 +247,8 @@
 </head>
 <body>
     <h1>SLOCCount - Count Lines of Code</h1>
-    <p>Analyze source code to count physical Source Lines of Code (SLOC) using the Perl sloccount tool</p>
+    <p>Analyze source code to count physical Source Lines of Code (SLOC) using Perl and C programs running via WebAssembly</p>
+    <p style="font-size: 14px; margin-top: -10px;">Based on <a href="https://dwheeler.com/sloccount/" target="_blank" rel="noopener">SLOCCount</a> by David A. Wheeler</p>
 
     <div class="tabs">
         <button class="tab active" data-tab="paste">Paste Code</button>
@@ -313,11 +314,11 @@
                 <div class="value" id="total-files">0</div>
             </div>
             <div class="summary-item">
-                <div class="label">Est. Cost (USD)</div>
+                <div class="label">Est. Cost (USD)<a href="#cost-estimates-info" style="text-decoration: none; color: #007bff; margin-left: 2px;"><sup>*</sup></a></div>
                 <div class="value" id="total-cost">$0</div>
             </div>
             <div class="summary-item">
-                <div class="label">Est. Person-Years</div>
+                <div class="label">Est. Person-Years<a href="#cost-estimates-info" style="text-decoration: none; color: #007bff; margin-left: 2px;"><sup>*</sup></a></div>
                 <div class="value" id="total-effort">0</div>
             </div>
         </div>
@@ -357,8 +358,39 @@
         const statusEl = document.getElementById('status');
         const resultsEl = document.getElementById('results');
 
+        // Salary input is defined later in HTML, get it lazily
+        let salaryInputEl = null;
+        function getSalaryInput() {
+            if (!salaryInputEl) {
+                salaryInputEl = document.getElementById('salary-input');
+            }
+            return salaryInputEl;
+        }
+
+        // Store current analysis files for recalculation
+        let currentFiles = null;
+
         let perlReady = false;
         let slocScripts = {};
+
+        // Recalculate estimates with new salary
+        async function recalculateWithSalary() {
+            if (!currentFiles || currentFiles.length === 0) {
+                return; // No analysis to recalculate
+            }
+
+            const salary = parseInt(getSalaryInput().value) || 56286;
+
+            try {
+                showStatus('Recalculating with new salary...', 'info');
+                const results = await runSloccount(currentFiles, salary);
+                displayResults(results);
+                hideStatus();
+            } catch (error) {
+                showStatus('Recalculation failed: ' + error.message, 'error');
+                console.error('Recalculation error:', error);
+            }
+        }
 
         // Tab switching
         tabs.forEach(tab => {
@@ -398,6 +430,17 @@
             resultsEl.classList.remove('visible');
         }
 
+        // Helper to dynamically load a script
+        function loadScript(url) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
         // Initialize WebPerl and load sloccount
         async function initializeWebPerl() {
             try {
@@ -428,18 +471,48 @@
 
                 showStatus('Extracting Perl scripts...', 'info');
 
-                // Load key Perl scripts we'll need
-                const scriptsNeeded = ['python_count', 'perl_count', 'ruby_count', 'generic_count'];
+                // Load ALL counter scripts (they all end with _count)
+                const scriptsToLoad = [
+                    'python_count', 'perl_count', 'ruby_count', 'generic_count',
+                    'javascript_count', 'sh_count', 'sql_count', 'lisp_count',
+                    'asm_count', 'ada_count', 'awk_count', 'cobol_count', 'fortran_count',
+                    'f90_count', 'haskell_count', 'makefile_count', 'modula3_count',
+                    'objc_count', 'sed_count', 'tcl_count', 'vbasic_count', 'exp_count',
+                    'csh_count', 'batch_count', 'vbscript_count', 'autohotkey_count',
+                    'autoit_count', 'innosetup_count', 'lex_count'
+                ];
 
-                for (const fileName in zip.files) {
-                    const file = zip.files[fileName];
-                    if (!file.dir && !fileName.includes('/')) {
-                        const content = await file.async('text');
-                        slocScripts[fileName] = content;
+                for (const scriptName of scriptsToLoad) {
+                    if (zip.files[scriptName]) {
+                        const content = await zip.files[scriptName].async('text');
+                        slocScripts[scriptName] = content;
                     }
                 }
 
-                console.log('Loaded scripts:', Object.keys(slocScripts));
+                console.log('Loaded', Object.keys(slocScripts).length, 'counter scripts');
+
+                // Make scripts available to Perl via window object
+                window.counterScripts = slocScripts;
+
+                showStatus('Loading WebAssembly counters...', 'info');
+
+                // Load WASM modules for C-based counters
+                // We'll store their output in this array
+                window.wasmOutput = [];
+
+                // Load c_count WASM (used by many languages)
+                const c_count_module = await loadScript('./lib/wasm/c_count.js');
+                window.CCountModule = await createCCountModule({
+                    print: (text) => { window.wasmOutput.push(text); },
+                    printErr: (text) => { console.error('c_count WASM:', text); },
+                    noInitialRun: true,
+                    stdin: () => null,
+                    // Disable prompts for input
+                    prompt: () => null
+                });
+                console.log('Loaded c_count WASM module');
+
+                showStatus('WebAssembly counters loaded!', 'success');
 
                 perlReady = true;
 
@@ -458,178 +531,224 @@
             }
         }
 
-        // Run sloccount using Perl
-        async function runSloccount(files) {
+        // Run sloccount using REAL sloccount Perl scripts and WASM counters
+        // Run sloccount using REAL sloccount Perl scripts and WASM counters
+        async function runSloccount(files, salary = 56286) {
             try {
-                // Create a Perl script to count lines using sloccount algorithms
-                const perlScript = `
-                    use strict;
-                    use warnings;
+                // Map extensions to counter scripts and whether they need WASM
+                const extToCounter = {
+                    'py': { counter: 'python_count', type: 'perl', lang: 'Python' },
+                    'rb': { counter: 'ruby_count', type: 'perl', lang: 'Ruby' },
+                    'pl': { counter: 'perl_count', type: 'perl', lang: 'Perl' },
+                    'pm': { counter: 'perl_count', type: 'perl', lang: 'Perl' },
+                    'sh': { counter: 'sh_count', type: 'wasm', lang: 'Shell' },
+                    'bash': { counter: 'sh_count', type: 'wasm', lang: 'Shell' },
+                    'js': { counter: 'javascript_count', type: 'wasm', lang: 'JavaScript' },
+                    'ts': { counter: 'javascript_count', type: 'wasm', lang: 'TypeScript' },
+                    'java': { counter: 'generic_count', type: 'wasm', lang: 'Java' },
+                    'c': { counter: 'generic_count', type: 'wasm', lang: 'C' },
+                    'h': { counter: 'generic_count', type: 'wasm', lang: 'C' },
+                    'cpp': { counter: 'generic_count', type: 'wasm', lang: 'C++' },
+                    'cc': { counter: 'generic_count', type: 'wasm', lang: 'C++' },
+                    'cxx': { counter: 'generic_count', type: 'wasm', lang: 'C++' },
+                    'hpp': { counter: 'generic_count', type: 'wasm', lang: 'C++' },
+                    'go': { counter: 'generic_count', type: 'wasm', lang: 'Go' },
+                    'rs': { counter: 'generic_count', type: 'wasm', lang: 'Rust' },
+                    'php': { counter: 'generic_count', type: 'wasm', lang: 'PHP' },
+                    'sql': { counter: 'sql_count', type: 'perl', lang: 'SQL' },
+                };
 
-                    my %lang_stats = ();
-                    my $total_lines = 0;
+                // Group files by counter and language
+                const filesByCounter = {};
+                for (const file of files) {
+                    const match = file.filename.match(/\.([^.]+)$/);
+                    if (!match) continue;
 
-                    # Language detection based on file extension
-                    sub detect_language {
-                        my ($filename) = @_;
-                        if ($filename =~ /\\.([^.]+)$/) {
-                            my $ext = lc($1);
-                            my %lang_map = (
-                                'c' => 'C',
-                                'h' => 'C',
-                                'cpp' => 'C++',
-                                'cc' => 'C++',
-                                'cxx' => 'C++',
-                                'hpp' => 'C++',
-                                'hh' => 'C++',
-                                'py' => 'Python',
-                                'java' => 'Java',
-                                'js' => 'JavaScript',
-                                'ts' => 'TypeScript',
-                                'rb' => 'Ruby',
-                                'pl' => 'Perl',
-                                'pm' => 'Perl',
-                                'php' => 'PHP',
-                                'go' => 'Go',
-                                'rs' => 'Rust',
-                                'cs' => 'C#',
-                                'sh' => 'Shell',
-                                'bash' => 'Shell',
-                                'html' => 'HTML',
-                                'css' => 'CSS',
-                                'sql' => 'SQL',
-                                'r' => 'R',
-                                'swift' => 'Swift',
-                                'kt' => 'Kotlin',
-                                'scala' => 'Scala',
-                                'lua' => 'Lua',
-                                'vim' => 'VimScript',
-                                'md' => 'Markdown',
-                                'json' => 'JSON',
-                                'xml' => 'XML',
-                                'yaml' => 'YAML',
-                                'yml' => 'YAML'
-                            );
-                            return $lang_map{$ext} || 'Unknown';
-                        }
-                        return 'Unknown';
+                    const ext = match[1].toLowerCase();
+                    const counterInfo = extToCounter[ext];
+                    if (!counterInfo) continue;
+
+                    const key = `${counterInfo.type}:${counterInfo.counter}:${counterInfo.lang}`;
+                    if (!filesByCounter[key]) {
+                        filesByCounter[key] = {
+                            type: counterInfo.type,
+                            counter: counterInfo.counter,
+                            lang: counterInfo.lang,
+                            files: []
+                        };
                     }
+                    filesByCounter[key].files.push(file);
+                }
 
-                    # Count physical lines (non-blank, non-comment)
-                    sub count_physical_lines {
-                        my ($content, $lang) = @_;
-                        my @lines = split /\\n/, $content;
-                        my $count = 0;
-                        my $in_block_comment = 0;
+                const langStats = {};
+                let totalLines = 0;
 
-                        for my $line (@lines) {
-                            # Remove leading/trailing whitespace
-                            $line =~ s/^\\s+|\\s+$//g;
+                // Process each counter group
+                for (const key in filesByCounter) {
+                    const group = filesByCounter[key];
 
-                            # Skip empty lines
-                            next if $line eq '';
+                    if (group.type === 'perl') {
+                        // Run Perl counter script
+                        const script = window.counterScripts[group.counter];
+                        if (!script) {
+                            console.warn(`Counter script ${group.counter} not found`);
+                            continue;
+                        }
 
-                            # Handle block comments based on language
-                            if ($lang =~ /^(C|C\\+\\+|Java|JavaScript|TypeScript|PHP|Go|Rust|C#|CSS|Scala|Kotlin|Swift)$/) {
-                                if ($line =~ /\\/\\*/ && $line !~ /\\*\\//) {
-                                    $in_block_comment = 1;
-                                    next;
+                        // Write files to VFS
+                        const filePaths = [];
+                        for (const file of group.files) {
+                            // Use just the basename to avoid directory issues
+                            const basename = file.filename.split('/').pop();
+                            const path = `/tmp/${basename}`;
+
+                            // Store content in window for Perl to access
+                            window._tempFileContent = file.content;
+
+                            Perl.eval(`
+                                use WebPerl qw/js/;
+                                use File::Path qw(make_path);
+
+                                my $path = '${path}';
+                                my $content = js('window')->{_tempFileContent};
+
+                                # Create parent directories if needed
+                                if ($path =~ m{^(.+)/[^/]+$}) {
+                                    make_path($1);
                                 }
-                                if ($in_block_comment) {
-                                    if ($line =~ /\\*\\//) {
-                                        $in_block_comment = 0;
-                                    }
-                                    next;
-                                }
-                                # Skip single-line comments
-                                next if $line =~ /^\\/\\// || $line =~ /^\\/\\*/;
-                            } elsif ($lang =~ /^(Python|Ruby|Shell|Perl|R)$/) {
-                                # Skip Python/Ruby/Shell/Perl comments
-                                next if $line =~ /^#/;
-                            } elsif ($lang eq 'HTML' || $lang eq 'XML') {
-                                # Skip HTML/XML comments
-                                next if $line =~ /^<!--/;
+
+                                open(my $fh, '>', $path) or die "Cannot write $path: $!";
+                                print $fh $content;
+                                close($fh);
+                            `);
+                            filePaths.push(path);
+                        }
+                        window._tempFileContent = null;
+
+                        // Run counter and capture output
+                        window.perlCounterOutput = '';
+                        Perl.eval(`
+                            use warnings;
+                            use WebPerl qw/js/;
+
+                            my $script = js('window')->{counterScripts}{'${group.counter}'};
+                            @ARGV = (${filePaths.map(p => `'${p}'`).join(', ')});
+
+                            my $output = '';
+                            open(my $stdout_fh, '>', \\$output) or die "Cannot redirect: $!";
+                            select $stdout_fh;
+
+                            eval $script;
+                            if ($@) {
+                                $output .= "ERROR: $@";
                             }
 
-                            $count++;
+                            select STDOUT;
+                            close($stdout_fh);
+
+                            js('window')->{perlCounterOutput} = $output;
+                        `);
+
+                        // Parse output
+                        const output = window.perlCounterOutput;
+                        const lines = output.split('\n');
+                        let groupLines = 0;
+                        let groupFiles = 0;
+
+                        for (const line of lines) {
+                            if (line.trim() && !line.startsWith('Total:')) {
+                                const match = line.match(/^(\d+)\s+/);
+                                if (match) {
+                                    groupLines += parseInt(match[1]);
+                                    groupFiles++;
+                                }
+                            }
                         }
 
-                        return $count;
-                    }
+                        if (!langStats[group.lang]) {
+                            langStats[group.lang] = { lines: 0, files: 0 };
+                        }
+                        langStats[group.lang].lines += groupLines;
+                        langStats[group.lang].files += groupFiles;
+                        totalLines += groupLines;
 
-                    # Process each file
-                    my @file_data = @ARGV;
-
-                    for (my $i = 0; $i < @file_data; $i += 2) {
-                        my $filename = $file_data[$i];
-                        my $content = $file_data[$i + 1];
-
-                        my $lang = detect_language($filename);
-                        my $lines = count_physical_lines($content, $lang);
-
-                        if (!exists $lang_stats{$lang}) {
-                            $lang_stats{$lang} = { lines => 0, files => 0 };
+                    } else if (group.type === 'wasm') {
+                        // Run WASM c_count
+                        const CCount = window.CCountModule;
+                        if (!CCount) {
+                            console.warn('c_count WASM module not loaded');
+                            continue;
                         }
 
-                        $lang_stats{$lang}{lines} += $lines;
-                        $lang_stats{$lang}{files}++;
-                        $total_lines += $lines;
-                    }
+                        // Write files to WASM VFS
+                        const filePaths = [];
+                        for (const file of group.files) {
+                            // Use just the basename to avoid directory issues
+                            const basename = file.filename.split('/').pop();
+                            const path = `/tmp/${basename}`;
+                            CCount.FS.writeFile(path, file.content);
+                            filePaths.push(path);
+                        }
 
-                    # Output results using JavaScript bridge
-                    use WebPerl qw/js/;
-                    my @results;
-                    for my $lang (sort keys %lang_stats) {
-                        push @results, "$lang|$lang_stats{$lang}{lines}|$lang_stats{$lang}{files}";
-                    }
-                    my $results_str = join("\\n", @results);
-                    js('window')->{perlResults} = $results_str;
-                `;
+                        // Clear output and run
+                        window.wasmOutput = [];
+                        CCount.callMain(filePaths);
 
-                // Embed file data directly in the Perl script
-                let dataScript = 'my @file_data = (';
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    // Escape single quotes in the content
-                    const escapedFilename = file.filename.replace(/'/g, "\\'");
-                    const escapedContent = file.content.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                    dataScript += `'${escapedFilename}', '${escapedContent}'`;
-                    if (i < files.length - 1) dataScript += ', ';
+                        // Parse output
+                        const output = window.wasmOutput.join('\n');
+                        const lines = output.split('\n');
+                        let groupLines = 0;
+                        let groupFiles = 0;
+
+                        for (const line of lines) {
+                            if (line.trim() && !line.startsWith('Total:')) {
+                                const match = line.match(/^(\d+)\s+/);
+                                if (match) {
+                                    groupLines += parseInt(match[1]);
+                                    groupFiles++;
+                                }
+                            }
+                        }
+
+                        if (!langStats[group.lang]) {
+                            langStats[group.lang] = { lines: 0, files: 0 };
+                        }
+                        langStats[group.lang].lines += groupLines;
+                        langStats[group.lang].files += groupFiles;
+                        totalLines += groupLines;
+                    }
                 }
-                dataScript += ');\n@ARGV = @file_data;\n';
 
-                // Prepend the data to the Perl script
-                const fullScript = dataScript + perlScript;
+                // Calculate COCOMO using editable values
+                const overheadCoeff = parseFloat(document.getElementById('overhead-input')?.value || 2.4);
+                const overheadMultiplier = parseFloat(document.getElementById('overhead-multiplier-input')?.value || 2.4);
 
-                // Execute the Perl script
-                window.perlResults = '';
-                Perl.eval(fullScript);
+                const kloc = totalLines / 1000.0;
+                const effortMonths = overheadCoeff * Math.pow(kloc, 1.05);
+                const personYears = effortMonths / 12.0;
+                const totalCost = personYears * salary * overheadMultiplier;
+                const scheduleMonths = 2.5 * Math.pow(effortMonths, 0.38);
 
-                // Get the results from the window variable
-                const capturedOutput = window.perlResults;
-
-                // Parse the results
+                // Format results
                 const results = [];
-                if (capturedOutput && capturedOutput.trim()) {
-                    const lines = capturedOutput.split('\n');
-                    for (const line of lines) {
-                        if (line.trim()) {
-                            const parts = line.split('|');
-                            if (parts.length === 3) {
-                                results.push({
-                                    language: parts[0],
-                                    lines: parseInt(parts[1]),
-                                    files: parseInt(parts[2])
-                                });
-                            }
-                        }
-                    }
+                for (const lang in langStats) {
+                    results.push({
+                        language: lang,
+                        lines: langStats[lang].lines,
+                        files: langStats[lang].files
+                    });
                 }
+
+                results.cocomo = {
+                    effort: personYears,
+                    cost: totalCost,
+                    schedule: scheduleMonths
+                };
 
                 return results;
             } catch (error) {
-                console.error('Perl execution error:', error);
-                throw new Error('Failed to execute Perl sloccount: ' + error.message);
+                console.error('runSloccount error:', error);
+                throw new Error('Failed to run sloccount: ' + error.message);
             }
         }
 
@@ -653,7 +772,10 @@
                 showStatus('Analyzing code with Perl sloccount...', 'info');
 
                 const files = [{ filename: filename, content: code }];
-                const results = await runSloccount(files);
+                const salary = parseInt(getSalaryInput().value) || 56286;
+
+                const results = await runSloccount(files, salary);
+                currentFiles = files; // Store for recalculation
 
                 displayResults(results);
 
@@ -770,7 +892,10 @@
 
                 showStatus(`Analyzing ${files.length} files with Perl sloccount...`, 'info');
 
-                const results = await runSloccount(files);
+                const salary = parseInt(getSalaryInput().value) || 56286;
+                const results = await runSloccount(files, salary);
+                currentFiles = files; // Store for recalculation
+
                 displayResults(results);
 
                 showStatus('Analysis complete!', 'success');
@@ -843,7 +968,10 @@
 
                 showStatus(`Analyzing ${files.length} files with Perl sloccount...`, 'info');
 
-                const results = await runSloccount(files);
+                const salary = parseInt(getSalaryInput().value) || 56286;
+                const results = await runSloccount(files, salary);
+                currentFiles = files; // Store for recalculation
+
                 displayResults(results);
 
                 showStatus('Analysis complete!', 'success');
@@ -886,14 +1014,14 @@
             const totalFiles = results.reduce((sum, r) => sum + r.files, 0);
             const totalLanguages = results.length;
 
-            // Calculate cost estimates
-            const estimates = calculateCOCOMO(totalLines);
+            // Use COCOMO estimates from Perl (if available)
+            const cocomo = results.cocomo || { effort: 0, cost: 0, schedule: 0 };
 
             document.getElementById('total-lines').textContent = totalLines.toLocaleString();
             document.getElementById('total-languages').textContent = totalLanguages;
             document.getElementById('total-files').textContent = totalFiles;
-            document.getElementById('total-cost').textContent = '$' + Math.round(estimates.cost).toLocaleString();
-            document.getElementById('total-effort').textContent = estimates.personYears.toFixed(2);
+            document.getElementById('total-cost').textContent = '$' + Math.round(cocomo.cost).toLocaleString();
+            document.getElementById('total-effort').textContent = cocomo.effort.toFixed(2);
 
             // Sort by lines descending
             results.sort((a, b) => b.lines - a.lines);
@@ -921,6 +1049,73 @@
         analyzeRepoBtn.addEventListener('click', analyzeGitHubRepo);
         analyzeZipBtn.addEventListener('click', analyzeZipFile);
 
+        // Enter key support for GitHub repo input
+        repoInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                analyzeGitHubRepo();
+            }
+        });
+
+        // Set up event listeners for COCOMO inputs
+        setTimeout(() => {
+            const salaryInput = getSalaryInput();
+            const overheadInput = document.getElementById('overhead-input');
+            const overheadMultiplierInput = document.getElementById('overhead-multiplier-input');
+            const year2000Radio = document.getElementById('year-2000');
+            const year2025Radio = document.getElementById('year-2025');
+
+            // Salary input
+            if (salaryInput) {
+                salaryInput.addEventListener('change', recalculateWithSalary);
+                salaryInput.addEventListener('input', () => {
+                    clearTimeout(salaryInput.recalcTimer);
+                    salaryInput.recalcTimer = setTimeout(recalculateWithSalary, 500);
+                });
+            }
+
+            // Overhead coefficient input
+            if (overheadInput) {
+                overheadInput.addEventListener('change', recalculateWithSalary);
+                overheadInput.addEventListener('input', () => {
+                    clearTimeout(overheadInput.recalcTimer);
+                    overheadInput.recalcTimer = setTimeout(recalculateWithSalary, 500);
+                });
+            }
+
+            // Overhead multiplier input
+            if (overheadMultiplierInput) {
+                overheadMultiplierInput.addEventListener('change', recalculateWithSalary);
+                overheadMultiplierInput.addEventListener('input', () => {
+                    clearTimeout(overheadMultiplierInput.recalcTimer);
+                    overheadMultiplierInput.recalcTimer = setTimeout(recalculateWithSalary, 500);
+                });
+            }
+
+            // Year preset radio buttons
+            if (year2000Radio) {
+                year2000Radio.addEventListener('change', () => {
+                    if (year2000Radio.checked) {
+                        overheadInput.value = 2.4;
+                        salaryInput.value = 56286;
+                        overheadMultiplierInput.value = 2.4;
+                        recalculateWithSalary();
+                    }
+                });
+            }
+
+            if (year2025Radio) {
+                year2025Radio.addEventListener('change', () => {
+                    if (year2025Radio.checked) {
+                        overheadInput.value = 2.94;
+                        salaryInput.value = 133080;
+                        overheadMultiplierInput.value = 1.85;
+                        recalculateWithSalary();
+                    }
+                });
+            }
+        }, 100);
+
         // Initialize when page loads
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initializeWebPerl);
@@ -929,18 +1124,40 @@
         }
     </script>
 
-    <div style="max-width: 900px; margin: 40px auto 20px; padding: 20px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid #007bff;">
+    <div id="cost-estimates-info" style="max-width: 900px; margin: 40px auto 20px; padding: 20px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid #007bff;">
         <h3 style="margin-top: 0;">About Cost Estimates</h3>
         <p style="margin: 10px 0;">The cost and effort estimates use the <strong>Basic COCOMO model</strong> (Constructive Cost Model), a widely-used software engineering cost estimation method developed by Barry Boehm.</p>
 
-        <p style="margin: 10px 0;"><strong>Key assumptions:</strong></p>
-        <ul style="margin: 5px 0; padding-left: 20px;">
-            <li>Effort = 2.4 × (KLOC)<sup>1.05</sup> person-months</li>
-            <li>Average developer salary: $56,286/year</li>
-            <li>Overhead multiplier: 2.4× (includes benefits, equipment, office space, etc.)</li>
-        </ul>
+        <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px; padding: 15px; margin: 15px 0;">
+            <p style="margin: 0 0 10px 0; font-weight: bold; color: #856404;">⚠️ These are EXTREMELY ROUGH estimates</p>
+            <p style="margin: 0 0 10px 0; font-size: 14px; color: #856404;">
+                Actual costs vary wildly based on project complexity, team experience, location, development practices, and many other factors.
+                Use these numbers only as a very rough ballpark estimate.
+            </p>
+            <div style="margin-top: 10px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #856404;">Using estimates from:</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                        <input type="radio" name="estimate-year" value="2000" checked id="year-2000">
+                        <span>Year 2000 (Original SLOCCount)</span>
+                    </label>
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                        <input type="radio" name="estimate-year" value="2025" id="year-2025">
+                        <span>Year 2025 (Updated)</span>
+                    </label>
+                </div>
+                <p style="margin: 8px 0 0 0; font-size: 12px; color: #856404; font-style: italic;">
+                    Note: The 2025 values are <strong>very untrustworthy guesses</strong> from <a href="https://chatgpt.com/share/68f7e0ac-00c4-8006-979e-64d1f0162283" target="_blank" rel="noopener" style="color: #856404; text-decoration: underline;">this ChatGPT conversation</a>, not based on rigorous research.
+                </p>
+            </div>
+        </div>
 
-        <p style="margin: 10px 0; font-size: 14px; color: #666;">These are rough estimates based on industry averages from the early 2000s. Actual costs vary significantly based on project complexity, team experience, geographic location, and development practices. Modern salaries and overhead costs are typically higher.</p>
+        <p style="margin: 10px 0;"><strong>Key assumptions (editable):</strong></p>
+        <ul style="margin: 5px 0; padding-left: 20px;">
+            <li>Effort coefficient: <input type="number" id="overhead-input" value="2.4" min="0.1" max="10" step="0.1" style="width: 60px; padding: 2px 5px; border: 1px solid #ccc; border-radius: 3px;"> × (KLOC)<sup>1.05</sup> person-months</li>
+            <li>Average developer salary: $<input type="number" id="salary-input" value="56286" min="1000" max="1000000" step="1000" style="width: 100px; padding: 2px 5px; border: 1px solid #ccc; border-radius: 3px;">/year</li>
+            <li>Overhead multiplier: <input type="number" id="overhead-multiplier-input" value="2.4" min="1" max="10" step="0.1" style="width: 60px; padding: 2px 5px; border: 1px solid #ccc; border-radius: 3px;">× (includes benefits, equipment, office space, etc.)</li>
+        </ul>
 
         <p style="margin: 10px 0; font-size: 14px;"><em>This tool uses the WebAssembly build of Perl running actual SLOCCount algorithms from <a href="https://github.com/licquia/sloccount" target="_blank" rel="noopener">licquia/sloccount</a>.</em></p>
     </div>

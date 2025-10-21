@@ -53,6 +53,59 @@ SLOCCount is licensed under the **GNU General Public License version 2** (GPL-2.
 
 The zip file includes various language-specific counting scripts (e.g., `python_count`, `c_count`, `perl_count`) and supporting utilities.
 
+### WebAssembly Compilation of C Programs
+
+Many of the original SLOCCount language counters are C programs that need to be compiled. To run these in the browser, they have been compiled to WebAssembly using Emscripten.
+
+**Compiled Programs** (in `lib/wasm/`):
+- `c_count.js` / `c_count.wasm` - Main C/C++/JavaScript/Java counter
+- `php_count.js` / `php_count.wasm` - PHP counter
+- `ml_count.js` / `ml_count.wasm` - ML/OCaml counter
+- `pig_count.js` / `pig_count.wasm` - Pig Latin counter
+- `lexcount1.js` / `lexcount1.wasm` - Lex counter
+
+**Compilation Process:**
+
+The C source files were extracted from the SLOCCount repository and compiled using Emscripten v4.0.17:
+
+```bash
+# Extract C source files from the repository
+unzip -j lib/sloccount-perl.zip "*.c" -d sloccount-c/
+
+# Compile each C program to WebAssembly
+cd sloccount-c
+emcc c_count.c -o c_count.js \
+  -s WASM=1 \
+  -s EXPORTED_RUNTIME_METHODS='["callMain","FS"]' \
+  -s ALLOW_MEMORY_GROWTH=1 \
+  -s FORCE_FILESYSTEM=1 \
+  -s MODULARIZE=1 \
+  -s EXPORT_NAME=createCCountModule
+
+# Repeat for other C programs (php_count, ml_count, pig_count, lexcount1)
+```
+
+**Configuration Options:**
+- `EXPORTED_RUNTIME_METHODS` - Allows calling main() and accessing the virtual filesystem
+- `ALLOW_MEMORY_GROWTH` - Enables dynamic memory allocation
+- `FORCE_FILESYSTEM` - Includes filesystem support for reading files
+- `MODULARIZE` - Creates a module factory function
+- `EXPORT_NAME` - Sets the module constructor name
+
+The WASM modules are loaded dynamically and configured to:
+- Write input files to the virtual filesystem at `/tmp/`
+- Execute via `callMain()` with file paths as arguments
+- Capture output via custom print handlers
+- Disable stdin prompts to prevent browser dialogs
+
+**Usage in Application:**
+
+The main application detects file extensions and routes them to either:
+- **Perl counter scripts** (for Python, Ruby, Perl, SQL, etc.) - run via WebPerl eval
+- **WASM counters** (for JavaScript, C, C++, Java, PHP, etc.) - run via compiled binaries
+
+This hybrid approach uses the original SLOCCount algorithms without modification, running both Perl and C programs entirely in the browser via WebAssembly.
+
 ---
 
 ## Attribution
