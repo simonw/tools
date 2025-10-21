@@ -29,7 +29,7 @@
 ├── gather_links.py          # Collects tool metadata
 ├── README.md                # Main listing of all tools
 ├── build.sh                 # Build script
-├── dev-requirements.txt     # pytest-playwright
+├── pyproject.toml           # Python project config and dependencies
 └── .gitignore
 ```
 
@@ -449,7 +449,7 @@ def test_open_image(page: Page, static_server):
 ### Running Tests
 ```bash
 # Install dependencies
-pip install -r dev-requirements.txt
+pip install -e .
 playwright install
 
 # Run all tests
@@ -516,6 +516,7 @@ jobs:
       with:
         python-version: "3.12"
         cache: 'pip'
+        cache-dependency-path: 'pyproject.toml'
     - name: Cache Playwright browsers
       uses: actions/cache@v4
       with:
@@ -523,7 +524,7 @@ jobs:
         key: ${{ runner.os }}-browsers
     - name: Install dependencies
       run: |
-        pip install -r dev-requirements.txt
+        pip install -e .
         playwright install
     - name: Run test
       run: pytest
