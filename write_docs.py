@@ -86,6 +86,9 @@ def main():
         if args.verbose:
             print(f"Processing {html_file}")
 
+        if docs_file.name == "index.docs.md":
+            continue
+
         # Get the current commit hash for the HTML file
         current_hash = get_current_commit_hash(html_file)
         if not current_hash:

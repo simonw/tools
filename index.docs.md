@@ -1,3 +1,0 @@
-This webpage is a collection of HTML and JavaScript tools built by Simon Willison, mostly with the help of large language models. The tools span various categories including image processing, text manipulation, document handling, development utilities, and LLM-related tools. Each tool is listed with a brief description and organized into logical sections like "Image and media," "Text and document," and "GitHub and development."
-
-<!-- Generated from commit: 0598049edbe8b8b965473d0e5fd8af0dc327eaab -->
