@@ -886,6 +886,14 @@
 
                 const treeData = await treeResponse.json();
 
+                // Check if the tree was truncated by GitHub
+                if (treeData.truncated) {
+                    const zipUrl = `https://github.com/${owner}/${repo}/archive/refs/heads/${defaultBranch}.zip`;
+                    showStatus(`⚠️ This repository is too large and the GitHub API truncated the file list. For complete analysis, download the full repository: ${zipUrl} and use the "Upload ZIP" tab above.`, 'error');
+                    // Give user time to read the warning
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+
                 // Filter for code files only
                 const codeExtensions = /\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|kts|scala|lua|vim|dart|groovy|ex|exs|jl|fs|fsx)$/i;
                 const codeFiles = treeData.tree.filter(item =>
@@ -896,19 +904,7 @@
                     throw new Error('No code files found in repository');
                 }
 
-                // Limit files to avoid rate limiting and browser memory issues
-                const maxFiles = 500;
-                const filesToFetch = codeFiles.slice(0, maxFiles);
-
-                if (codeFiles.length > maxFiles) {
-                    console.log(`Repository has ${codeFiles.length} code files, analyzing first ${maxFiles}`);
-                    const zipUrl = `https://github.com/${owner}/${repo}/archive/refs/heads/${defaultBranch}.zip`;
-                    showStatus(`⚠️ This repository has ${codeFiles.length} code files, but only ${maxFiles} can be analyzed via GitHub API. For complete analysis, download the full repository: ${zipUrl} and use the "Upload ZIP" tab above.`, 'error');
-                    // Give user time to read the warning
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                }
-
-                showStatus(`Fetching ${filesToFetch.length} code files...`, 'info');
+                showStatus(`Fetching ${codeFiles.length} code files...`, 'info');
 
                 // Fetch files in batches to avoid overwhelming the browser
                 const files = [];
