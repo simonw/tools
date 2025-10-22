@@ -489,7 +489,28 @@
                     }
                 }
 
-                console.log('Loaded', Object.keys(slocScripts).length, 'counter scripts');
+                console.log('Loaded', Object.keys(slocScripts).length, 'counter scripts from zip');
+
+                // Load modern language counter scripts from lib/sloc/
+                const modernScripts = [
+                    'kotlin_count', 'swift_count', 'dart_count', 'scala_count',
+                    'groovy_count', 'elixir_count', 'julia_count', 'fsharp_count',
+                    'rust_count', 'go_count'
+                ];
+
+                for (const scriptName of modernScripts) {
+                    try {
+                        const response = await fetch(`./lib/sloc/${scriptName}`);
+                        if (response.ok) {
+                            const content = await response.text();
+                            slocScripts[scriptName] = content;
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to load ${scriptName}:`, error);
+                    }
+                }
+
+                console.log('Total loaded:', Object.keys(slocScripts).length, 'counter scripts');
 
                 // Make scripts available to Perl via window object
                 window.counterScripts = slocScripts;
@@ -552,10 +573,22 @@
                     'cc': { counter: 'generic_count', type: 'wasm', lang: 'C++' },
                     'cxx': { counter: 'generic_count', type: 'wasm', lang: 'C++' },
                     'hpp': { counter: 'generic_count', type: 'wasm', lang: 'C++' },
-                    'go': { counter: 'generic_count', type: 'wasm', lang: 'Go' },
-                    'rs': { counter: 'generic_count', type: 'wasm', lang: 'Rust' },
+                    'go': { counter: 'go_count', type: 'perl', lang: 'Go' },
+                    'rs': { counter: 'rust_count', type: 'perl', lang: 'Rust' },
                     'php': { counter: 'generic_count', type: 'wasm', lang: 'PHP' },
                     'sql': { counter: 'sql_count', type: 'perl', lang: 'SQL' },
+                    // Modern languages (post-2001)
+                    'kt': { counter: 'kotlin_count', type: 'perl', lang: 'Kotlin' },
+                    'kts': { counter: 'kotlin_count', type: 'perl', lang: 'Kotlin' },
+                    'swift': { counter: 'swift_count', type: 'perl', lang: 'Swift' },
+                    'dart': { counter: 'dart_count', type: 'perl', lang: 'Dart' },
+                    'scala': { counter: 'scala_count', type: 'perl', lang: 'Scala' },
+                    'groovy': { counter: 'groovy_count', type: 'perl', lang: 'Groovy' },
+                    'ex': { counter: 'elixir_count', type: 'perl', lang: 'Elixir' },
+                    'exs': { counter: 'elixir_count', type: 'perl', lang: 'Elixir' },
+                    'jl': { counter: 'julia_count', type: 'perl', lang: 'Julia' },
+                    'fs': { counter: 'fsharp_count', type: 'perl', lang: 'F#' },
+                    'fsx': { counter: 'fsharp_count', type: 'perl', lang: 'F#' },
                 };
 
                 // Group files by counter and language
@@ -836,7 +869,7 @@
                 const treeData = await treeResponse.json();
 
                 // Filter for code files only
-                const codeExtensions = /\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|scala|lua|vim)$/i;
+                const codeExtensions = /\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|kts|scala|lua|vim|dart|groovy|ex|exs|jl|fs|fsx)$/i;
                 const codeFiles = treeData.tree.filter(item =>
                     item.type === 'blob' && codeExtensions.test(item.path)
                 );
@@ -947,7 +980,7 @@
 
                 // Extract all code files
                 const files = [];
-                const codeExtensions = /\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|scala|lua|vim)$/i;
+                const codeExtensions = /\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|kts|scala|lua|vim|dart|groovy|ex|exs|jl|fs|fsx)$/i;
 
                 for (const fileName in zip.files) {
                     const file = zip.files[fileName];
