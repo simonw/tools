@@ -8,6 +8,34 @@
 # Kotlin uses C-style comments: // for single-line, /* */ for multi-line
 # This counter handles both types of comments.
 
+# Self-test mode
+if ($ARGV[0] eq "--test") {
+  $test_code = '// Comment at top
+fun greet(name: String): String {
+    /* Multi-line
+       comment */
+    return "Hello, \$name"
+}
+
+// Another comment
+val result = greet("World")
+';
+  open(my $fh, '>', '/tmp/kotlin_test.kt') or die $!;
+  print $fh $test_code;
+  close($fh);
+
+  $output = `perl $0 /tmp/kotlin_test.kt 2>&1`;
+  unlink('/tmp/kotlin_test.kt');
+
+  if ($output =~ /^4 /) {
+    print "PASS: Kotlin counter correctly counted 4 lines (sample: fun greet(), return, }, val result)\n";
+    exit 0;
+  } else {
+    print "FAIL: Expected 4 lines, got: $output";
+    exit 1;
+  }
+}
+
 $total_sloc = 0;
 
 # Do we have "-f" (read list of files from second argument)?
