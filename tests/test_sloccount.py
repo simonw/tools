@@ -521,5 +521,32 @@ def test_modern_languages(page: Page, unused_port_server):
         expect(total_lines).not_to_have_text("0")
 
 
+def test_perl_counter_self_tests():
+    """Test that all Perl counter scripts have working self-tests"""
+    import subprocess
+
+    languages = [
+        'kotlin', 'swift', 'dart', 'scala', 'groovy',
+        'elixir', 'julia', 'fsharp', 'rust', 'go'
+    ]
+
+    for lang in languages:
+        counter_script = root / 'lib' / 'sloc' / f'{lang}_count'
+
+        # Run the self-test
+        result = subprocess.run(
+            ['perl', str(counter_script), '--test'],
+            capture_output=True,
+            text=True,
+            cwd=root
+        )
+
+        # Check that it passed
+        assert result.returncode == 0, f"{lang}_count self-test failed: {result.stdout}{result.stderr}"
+        assert 'PASS' in result.stdout, f"{lang}_count self-test did not print PASS: {result.stdout}"
+        assert lang.capitalize() in result.stdout or lang.upper() in result.stdout, \
+            f"{lang}_count self-test output doesn't mention language: {result.stdout}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
