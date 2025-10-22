@@ -851,15 +851,33 @@
 
             try {
                 analyzeRepoBtn.disabled = true;
+                showStatus('Fetching repository information from GitHub API...', 'info');
+
+                // First, get the repository info to determine the default branch
+                const repoInfoUrl = `https://api.github.com/repos/${owner}/${repo}`;
+                const repoInfoResponse = await fetch(repoInfoUrl);
+
+                if (!repoInfoResponse.ok) {
+                    if (repoInfoResponse.status === 404) {
+                        throw new Error('Repository not found. Make sure the repository exists and is public.');
+                    } else if (repoInfoResponse.status === 403) {
+                        throw new Error('API rate limit exceeded. Please try again later.');
+                    }
+                    throw new Error(`Failed to fetch repository info: ${repoInfoResponse.statusText}`);
+                }
+
+                const repoInfo = await repoInfoResponse.json();
+                const defaultBranch = repoInfo.default_branch || 'main';
+
                 showStatus('Fetching repository tree from GitHub API...', 'info');
 
                 // Use GitHub Trees API to get all files
-                const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
+                const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`;
                 const treeResponse = await fetch(treeUrl);
 
                 if (!treeResponse.ok) {
                     if (treeResponse.status === 404) {
-                        throw new Error('Repository not found. Make sure the repository exists and is public.');
+                        throw new Error('Repository tree not found. Make sure the repository exists and is public.');
                     } else if (treeResponse.status === 403) {
                         throw new Error('API rate limit exceeded. Please try again later.');
                     }
@@ -884,6 +902,10 @@
 
                 if (codeFiles.length > maxFiles) {
                     console.log(`Repository has ${codeFiles.length} code files, analyzing first ${maxFiles}`);
+                    const zipUrl = `https://github.com/${owner}/${repo}/archive/refs/heads/${defaultBranch}.zip`;
+                    showStatus(`⚠️ This repository has ${codeFiles.length} code files, but only ${maxFiles} can be analyzed via GitHub API. For complete analysis, download the full repository: ${zipUrl} and use the "Upload ZIP" tab above.`, 'error');
+                    // Give user time to read the warning
+                    await new Promise(resolve => setTimeout(resolve, 5000));
                 }
 
                 showStatus(`Fetching ${filesToFetch.length} code files...`, 'info');
