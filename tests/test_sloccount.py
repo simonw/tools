@@ -478,5 +478,75 @@ function farewell() {
     assert int(total_lines.replace(",", "")) > 0
 
 
+def test_modern_languages(page: Page, unused_port_server):
+    """Test analyzing modern language files (post-2001)"""
+    unused_port_server.start(root)
+    page.goto(f"http://localhost:{unused_port_server.port}/sloccount.html")
+
+    # Wait for initialization
+    analyze_btn = page.locator("#analyze-paste-btn")
+    expect(analyze_btn).to_have_text("Analyze Code", timeout=30000)
+
+    test_cases = [
+        ("fun main() { println(\"Hello\") }", "main.kt", "Kotlin"),
+        ("defmodule Test do\n  def hello, do: \"world\"\nend", "test.ex", "Elixir"),
+        ("fn main() { println!(\"Hello\"); }", "main.rs", "Rust"),
+        ("package main\n\nfunc main() {\n  println(\"Hello\")\n}", "main.go", "Go"),
+        ("func greet() -> String { return \"Hello\" }", "main.swift", "Swift"),
+        ("void main() { print('Hello'); }", "main.dart", "Dart"),
+        ("object Hello extends App { println(\"Hello\") }", "Hello.scala", "Scala"),
+        ("def greet() { println \"Hello\" }", "main.groovy", "Groovy"),
+        ("function greet()\n  println(\"Hello\")\nend", "main.jl", "Julia"),
+        ("let greet() = printfn \"Hello\"", "main.fs", "F#"),
+    ]
+
+    for code, filename, expected_lang in test_cases:
+        # Fill in code
+        page.locator("#code-input").fill(code)
+        page.locator("#filename-input").fill(filename)
+
+        # Analyze
+        analyze_btn.click()
+
+        # Wait for results
+        results = page.locator("#results")
+        expect(results).to_have_class("visible", timeout=10000)
+
+        # Check that the expected language was detected
+        language_table = page.locator("#language-table")
+        expect(language_table).to_contain_text(expected_lang)
+
+        # Check that we got a non-zero line count
+        total_lines = page.locator("#total-lines")
+        expect(total_lines).not_to_have_text("0")
+
+
+def test_perl_counter_self_tests():
+    """Test that all Perl counter scripts have working self-tests"""
+    import subprocess
+
+    languages = [
+        'kotlin', 'swift', 'dart', 'scala', 'groovy',
+        'elixir', 'julia', 'fsharp', 'rust', 'go'
+    ]
+
+    for lang in languages:
+        counter_script = root / 'lib' / 'sloc' / f'{lang}_count'
+
+        # Run the self-test
+        result = subprocess.run(
+            ['perl', str(counter_script), '--test'],
+            capture_output=True,
+            text=True,
+            cwd=root
+        )
+
+        # Check that it passed
+        assert result.returncode == 0, f"{lang}_count self-test failed: {result.stdout}{result.stderr}"
+        assert 'PASS' in result.stdout, f"{lang}_count self-test did not print PASS: {result.stdout}"
+        assert lang.capitalize() in result.stdout or lang.upper() in result.stdout, \
+            f"{lang}_count self-test output doesn't mention language: {result.stdout}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

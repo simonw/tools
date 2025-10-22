@@ -1,0 +1,97 @@
+#!/usr/bin/perl -w
+# groovy_count - count physical lines of code in Groovy programs.
+# Usage: groovy_count [-f file] [list_of_files]
+#  file: file with a list of files to count (if "-", read list from stdin)
+#  list_of_files: list of files to count
+#  -f file or list_of_files can be used, or both
+#
+# Groovy uses C-style comments: // for single-line, /* */ for multi-line
+# This counter handles both types of comments.
+
+# Self-test mode
+if ($ARGV[0] eq "--test") {
+  $test_code = '// Comment
+def greet(name) {
+    /* Multi-line
+       comment */
+    return "Hello $name"
+}
+
+// Another comment
+def result = greet("World")
+';
+  open(my $fh, '>', '/tmp/groovy_test') or die $!;
+  print $fh $test_code;
+  close($fh);
+
+  $output = `perl $0 /tmp/groovy_test 2>&1`;
+  unlink('/tmp/groovy_test');
+
+  if ($output =~ /^4 /) {
+    print "PASS: Groovy counter correctly counted 4 lines (def greet(), return, }, def result)\n";
+    exit 0;
+  } else {
+    print "FAIL: Expected 4 lines, got: $output";
+    exit 1;
+  }
+}
+
+$total_sloc = 0;
+
+# Do we have "-f" (read list of files from second argument)?
+if (($#ARGV >= 1) && ($ARGV[0] eq "-f")) {
+  # Yes, we have -f
+  if ($ARGV[1] eq "-") {
+    # The list of files is in STDIN
+    while (<STDIN>) {
+      chomp ($_);
+      &count_file ($_);
+    }
+  } else {
+    # The list of files is in the file $ARGV[1]
+    open (FILEWITHLIST, $ARGV[1]) || die "Error: Could not open $ARGV[1]\n";
+    while (<FILEWITHLIST>) {
+      chomp ($_);
+      &count_file ($_);
+    }
+    close FILEWITHLIST;
+  }
+  shift @ARGV; shift @ARGV;
+}
+# Process all (remaining) arguments as file names
+while ($file = shift @ARGV) {
+  &count_file ($file);
+}
+
+print "Total:\n";
+print "$total_sloc\n";
+
+sub count_file {
+  my ($file) = @_;
+  my $sloc = 0;
+  my $incomment = 0;
+
+  open (FILE, $file);
+  while (<FILE>) {
+    if ($incomment) {
+      if (m/\*\//) {  # End of multi-line comment
+        s/^.*?\*\///;
+        $incomment = 0;
+      } else {
+        $_ = "";  # whole line is a comment
+      }
+    }
+    s/\/\/.*//;       # Delete single-line comments
+    if (m/\/\*/) {    # Start of multi-line comment
+      s/\/\*.*?\*\///g;  # Delete /* ... */ on same line
+      if (m/\/\*/) {
+        s/\/\*.*//;
+        $incomment = 1;
+      }
+    }
+    if (m/\S/) {$sloc++;}
+  }
+  print "$sloc $file\n";
+  $total_sloc += $sloc;
+  close (FILE);
+}

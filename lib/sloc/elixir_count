@@ -1,0 +1,80 @@
+#!/usr/bin/perl -w
+# elixir_count - count physical lines of code in Elixir programs.
+# Usage: elixir_count [-f file] [list_of_files]
+#  file: file with a list of files to count (if "-", read list from stdin)
+#  list_of_files: list of files to count
+#  -f file or list_of_files can be used, or both
+#
+# Elixir uses # for single-line comments
+
+# Self-test mode
+if ($ARGV[0] eq "--test") {
+  $test_code = '# Comment
+defmodule Greeter do
+  # Another comment
+  def greet(name) do
+    "Hello #{name}"
+  end
+end
+
+result = Greeter.greet("World")
+';
+  open(my $fh, '>', '/tmp/elixir_test') or die $!;
+  print $fh $test_code;
+  close($fh);
+
+  $output = `perl $0 /tmp/elixir_test 2>&1`;
+  unlink('/tmp/elixir_test');
+
+  if ($output =~ /^6 /) {
+    print "PASS: Elixir counter correctly counted 6 lines (defmodule, def greet(), string, end x2, result =)\n";
+    exit 0;
+  } else {
+    print "FAIL: Expected 5 lines, got: $output";
+    exit 1;
+  }
+}
+
+$total_sloc = 0;
+
+# Do we have "-f" (read list of files from second argument)?
+if (($#ARGV >= 1) && ($ARGV[0] eq "-f")) {
+  # Yes, we have -f
+  if ($ARGV[1] eq "-") {
+    # The list of files is in STDIN
+    while (<STDIN>) {
+      chomp ($_);
+      &count_file ($_);
+    }
+  } else {
+    # The list of files is in the file $ARGV[1]
+    open (FILEWITHLIST, $ARGV[1]) || die "Error: Could not open $ARGV[1]\n";
+    while (<FILEWITHLIST>) {
+      chomp ($_);
+      &count_file ($_);
+    }
+    close FILEWITHLIST;
+  }
+  shift @ARGV; shift @ARGV;
+}
+# Process all (remaining) arguments as file names
+while ($file = shift @ARGV) {
+  &count_file ($file);
+}
+
+print "Total:\n";
+print "$total_sloc\n";
+
+sub count_file {
+  my ($file) = @_;
+  my $sloc = 0;
+
+  open (FILE, $file);
+  while (<FILE>) {
+    s/#.*//;       # Delete # comments
+    if (m/\S/) {$sloc++;}
+  }
+  print "$sloc $file\n";
+  $total_sloc += $sloc;
+  close (FILE);
+}
