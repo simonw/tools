@@ -248,7 +248,7 @@
 <body>
     <h1>SLOCCount - Count Lines of Code</h1>
     <p>Analyze source code to count physical Source Lines of Code (SLOC) using Perl and C programs running via WebAssembly</p>
-    <p style="font-size: 14px; margin-top: -10px;">Based on <a href="https://dwheeler.com/sloccount/" target="_blank" rel="noopener">SLOCCount</a> by David A. Wheeler</p>
+    <p style="font-size: 14px; margin-top: -10px;">Based on <a href="https://dwheeler.com/sloccount/">SLOCCount</a> by David A. Wheeler</p>
 
     <div class="tabs">
         <button class="tab active" data-tab="paste">Paste Code</button>
@@ -413,8 +413,12 @@
         });
 
         // Status helpers
-        function showStatus(message, type = 'info') {
-            statusEl.textContent = message;
+        function showStatus(message, type = 'info', isHtml = false) {
+            if (isHtml) {
+                statusEl.innerHTML = message;
+            } else {
+                statusEl.textContent = message;
+            }
             statusEl.className = `visible ${type}`;
         }
 
@@ -851,15 +855,33 @@
 
             try {
                 analyzeRepoBtn.disabled = true;
+                showStatus('Fetching repository information from GitHub API...', 'info');
+
+                // First, get the repository info to determine the default branch
+                const repoInfoUrl = `https://api.github.com/repos/${owner}/${repo}`;
+                const repoInfoResponse = await fetch(repoInfoUrl);
+
+                if (!repoInfoResponse.ok) {
+                    if (repoInfoResponse.status === 404) {
+                        throw new Error('Repository not found. Make sure the repository exists and is public.');
+                    } else if (repoInfoResponse.status === 403) {
+                        throw new Error('API rate limit exceeded. Please try again later.');
+                    }
+                    throw new Error(`Failed to fetch repository info: ${repoInfoResponse.statusText}`);
+                }
+
+                const repoInfo = await repoInfoResponse.json();
+                const defaultBranch = repoInfo.default_branch || 'main';
+
                 showStatus('Fetching repository tree from GitHub API...', 'info');
 
                 // Use GitHub Trees API to get all files
-                const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
+                const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`;
                 const treeResponse = await fetch(treeUrl);
 
                 if (!treeResponse.ok) {
                     if (treeResponse.status === 404) {
-                        throw new Error('Repository not found. Make sure the repository exists and is public.');
+                        throw new Error('Repository tree not found. Make sure the repository exists and is public.');
                     } else if (treeResponse.status === 403) {
                         throw new Error('API rate limit exceeded. Please try again later.');
                     }
@@ -867,6 +889,13 @@
                 }
 
                 const treeData = await treeResponse.json();
+
+                // Check if the tree was truncated by GitHub
+                if (treeData.truncated) {
+                    const zipUrl = `https://github.com/${owner}/${repo}/archive/refs/heads/${defaultBranch}.zip`;
+                    showStatus(`⚠️ This repository is too large and the GitHub API truncated the file list. Please download the full repository as a ZIP file and use the "Upload ZIP" tab instead: <a href="${zipUrl}" style="color: #004085; text-decoration: underline;">${zipUrl}</a>`, 'error', true);
+                    return; // Stop processing - user must use ZIP upload
+                }
 
                 // Filter for code files only
                 const codeExtensions = /\.(c|h|cpp|cc|cxx|hpp|py|java|js|ts|rb|pl|pm|php|go|rs|cs|sh|bash|html|css|sql|r|swift|kt|kts|scala|lua|vim|dart|groovy|ex|exs|jl|fs|fsx)$/i;
@@ -878,26 +907,18 @@
                     throw new Error('No code files found in repository');
                 }
 
-                // Limit files to avoid rate limiting and browser memory issues
-                const maxFiles = 500;
-                const filesToFetch = codeFiles.slice(0, maxFiles);
-
-                if (codeFiles.length > maxFiles) {
-                    console.log(`Repository has ${codeFiles.length} code files, analyzing first ${maxFiles}`);
-                }
-
-                showStatus(`Fetching ${filesToFetch.length} code files...`, 'info');
+                showStatus(`Fetching ${codeFiles.length} code files...`, 'info');
 
                 // Fetch files in batches to avoid overwhelming the browser
                 const files = [];
                 const batchSize = 10;
 
-                for (let i = 0; i < filesToFetch.length; i += batchSize) {
-                    const batch = filesToFetch.slice(i, i + batchSize);
+                for (let i = 0; i < codeFiles.length; i += batchSize) {
+                    const batch = codeFiles.slice(i, i + batchSize);
                     const batchPromises = batch.map(async (file) => {
                         try {
                             // Use raw.githubusercontent.com which has permissive CORS
-                            const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${file.path}`;
+                            const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/${file.path}`;
                             const response = await fetch(rawUrl);
 
                             if (response.ok) {
@@ -915,8 +936,8 @@
                     files.push(...batchResults.filter(f => f !== null));
 
                     // Update progress
-                    const progress = Math.min(i + batchSize, filesToFetch.length);
-                    showStatus(`Fetched ${progress}/${filesToFetch.length} files...`, 'info');
+                    const progress = Math.min(i + batchSize, codeFiles.length);
+                    showStatus(`Fetched ${progress}/${codeFiles.length} files...`, 'info');
                 }
 
                 if (files.length === 0) {
@@ -1180,7 +1201,7 @@
                     </label>
                 </div>
                 <p style="margin: 8px 0 0 0; font-size: 12px; color: #856404; font-style: italic;">
-                    Note: The 2025 values are <strong>very untrustworthy guesses</strong> from <a href="https://chatgpt.com/share/68f7e0ac-00c4-8006-979e-64d1f0162283" target="_blank" rel="noopener" style="color: #856404; text-decoration: underline;">this ChatGPT conversation</a>, not based on rigorous research.
+                    Note: The 2025 values are <strong>very untrustworthy guesses</strong> from <a href="https://chatgpt.com/share/68f7e0ac-00c4-8006-979e-64d1f0162283" style="color: #856404; text-decoration: underline;">this ChatGPT conversation</a>, not based on rigorous research.
                 </p>
             </div>
         </div>
@@ -1192,7 +1213,7 @@
             <li>Overhead multiplier: <input type="number" id="overhead-multiplier-input" value="2.4" min="1" max="10" step="0.1" style="width: 60px; padding: 2px 5px; border: 1px solid #ccc; border-radius: 3px;">× (includes benefits, equipment, office space, etc.)</li>
         </ul>
 
-        <p style="margin: 10px 0; font-size: 14px;"><em>This tool uses the WebAssembly build of Perl running actual SLOCCount algorithms from <a href="https://github.com/licquia/sloccount" target="_blank" rel="noopener">licquia/sloccount</a>.</em></p>
+        <p style="margin: 10px 0; font-size: 14px;"><em>This tool uses the WebAssembly build of Perl running actual SLOCCount algorithms from <a href="https://github.com/licquia/sloccount">licquia/sloccount</a>.</em></p>
     </div>
 
     <!-- Embedded Perl script to initialize Perl into Running state -->
