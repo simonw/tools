@@ -7,6 +7,34 @@
 #
 # Elixir uses # for single-line comments
 
+# Self-test mode
+if ($ARGV[0] eq "--test") {
+  $test_code = '# Comment
+defmodule Greeter do
+  # Another comment
+  def greet(name) do
+    "Hello #{name}"
+  end
+end
+
+result = Greeter.greet("World")
+';
+  open(my $fh, '>', '/tmp/elixir_test') or die $!;
+  print $fh $test_code;
+  close($fh);
+
+  $output = `perl $0 /tmp/elixir_test 2>&1`;
+  unlink('/tmp/elixir_test');
+
+  if ($output =~ /^6 /) {
+    print "PASS: Elixir counter correctly counted 6 lines (defmodule, def greet(), string, end x2, result =)\n";
+    exit 0;
+  } else {
+    print "FAIL: Expected 5 lines, got: $output";
+    exit 1;
+  }
+}
+
 $total_sloc = 0;
 
 # Do we have "-f" (read list of files from second argument)?

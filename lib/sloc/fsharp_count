@@ -7,6 +7,33 @@
 #
 # F# uses // for single-line comments and (* *) for multi-line comments
 
+# Self-test mode
+if ($ARGV[0] eq "--test") {
+  $test_code = '// Comment
+let greet name =
+    (* Multi-line
+       comment *)
+    sprintf "Hello %s" name
+
+// Another comment
+let result = greet "World"
+';
+  open(my $fh, '>', '/tmp/fsharp_test') or die $!;
+  print $fh $test_code;
+  close($fh);
+
+  $output = `perl $0 /tmp/fsharp_test 2>&1`;
+  unlink('/tmp/fsharp_test');
+
+  if ($output =~ /^3 /) {
+    print "PASS: Fsharp counter correctly counted 3 lines (let greet, sprintf, let result)\n";
+    exit 0;
+  } else {
+    print "FAIL: Expected 4 lines, got: $output";
+    exit 1;
+  }
+}
+
 $total_sloc = 0;
 
 # Do we have "-f" (read list of files from second argument)?

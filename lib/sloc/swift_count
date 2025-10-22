@@ -8,6 +8,33 @@
 # Swift uses C-style comments: // for single-line, /* */ for multi-line
 # This counter handles both types of comments.
 
+# Self-test mode
+if ($ARGV[0] eq "--test") {
+  $test_code = '// Comment
+func greet(name: String) -> String {
+    /* Multi-line
+       comment */
+    return "Hello, \(name)"
+}
+
+let result = greet(name: "World")
+';
+  open(my $fh, '>', '/tmp/swift_test') or die $!;
+  print $fh $test_code;
+  close($fh);
+
+  $output = `perl $0 /tmp/swift_test 2>&1`;
+  unlink('/tmp/swift_test');
+
+  if ($output =~ /^4 /) {
+    print "PASS: Swift counter correctly counted 4 lines (func greet(), return, }, let result)\n";
+    exit 0;
+  } else {
+    print "FAIL: Expected 4 lines, got: $output";
+    exit 1;
+  }
+}
+
 $total_sloc = 0;
 
 # Do we have "-f" (read list of files from second argument)?

@@ -7,6 +7,34 @@
 #
 # Julia uses # for single-line comments and #= =# for multi-line comments
 
+# Self-test mode
+if ($ARGV[0] eq "--test") {
+  $test_code = '# Comment
+function greet(name)
+    #= Multi-line
+       comment =#
+    "Hello $name"
+end
+
+# Another comment
+result = greet("World")
+';
+  open(my $fh, '>', '/tmp/julia_test') or die $!;
+  print $fh $test_code;
+  close($fh);
+
+  $output = `perl $0 /tmp/julia_test 2>&1`;
+  unlink('/tmp/julia_test');
+
+  if ($output =~ /^4 /) {
+    print "PASS: Julia counter correctly counted 4 lines (function greet(), string, end, result =)\n";
+    exit 0;
+  } else {
+    print "FAIL: Expected 4 lines, got: $output";
+    exit 1;
+  }
+}
+
 $total_sloc = 0;
 
 # Do we have "-f" (read list of files from second argument)?
