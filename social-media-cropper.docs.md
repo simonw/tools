@@ -1,3 +1,3 @@
-The Social Media Card Cropper allows you to create customized social media cards with correct aspect ratios for different platforms. Upload images by dropping, selecting, or pasting from clipboard, then crop and adjust your image with the interactive controls. Choose from preset aspect ratios for Twitter/LinkedIn, Facebook, Instagram, or Substack, adjust the background color, and download your finished card in the optimal dimensions for your selected platform.
+This application is a web-based tool for cropping and formatting images into social media cards with predefined aspect ratios including 2:1 for Twitter and LinkedIn, 1.91:1 for Facebook, 1.4:1 for Substack, and 1:1 for Instagram. Users can upload images via drag-and-drop, file selection, or clipboard paste, then use zoom and crop controls to frame the image before applying a customizable background color. The final result is generated as a high-quality JPEG that can be downloaded immediately.
 
-<!-- Generated from commit: 0b619c1351a87bdc2ac89bd2ff2dce55f0be75f8 -->
+<!-- Generated from commit: 85f44a5cf3e61dccd8b2c0ff5b963a5e18bb3b33 -->
