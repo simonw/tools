@@ -1,3 +1,0 @@
-This page provides an interface for recording audio, which can then be submitted to OpenAI's GPT-4o audio model along with a text prompt. The application allows users to record speech through their microphone, review the recording, and submit it to the API for processing. After submission, the page displays both the formatted response and detailed information about token usage and associated costs.
-
-<!-- Generated from commit: 1c63c27fa658f88da2c2928449f28ddb1c3c16c0 -->

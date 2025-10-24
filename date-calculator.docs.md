@@ -1,3 +1,0 @@
-The Date Calculator enables you to determine the exact time span between two dates. Enter your start and end dates, then select your preferred calculation method (all days, business days only, or weekends only). The calculator displays detailed results including total days, weeks, business days, weekend days, and a visual timeline that helps contextualize the date range relative to today.
-
-<!-- Generated from commit: 37b5b99f1580921dae38424b9d5c34228775d66e -->

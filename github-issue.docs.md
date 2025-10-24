@@ -1,3 +1,0 @@
-This page allows you to fetch and convert GitHub issues to markdown format. Enter a GitHub issue URL in the input field and click "Fetch Issue" to retrieve the issue content including comments. You can provide a personal access token for accessing private repositories or to avoid rate limiting, which will be saved in your browser for future use.
-
-<!-- Generated from commit: c7e297ce70f7d38a3ecad3c78a510fe86b2de245 -->

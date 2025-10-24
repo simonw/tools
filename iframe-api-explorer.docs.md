@@ -1,3 +1,0 @@
-The API Explorer provides a sandboxed interface for testing APIs through a secure iframe implementation. Users can enter an API URL and view the JSON response without security risks, as the parent page handles the actual fetch requests through a message-passing protocol. The interface demonstrates secure cross-frame communication using `postMessage()` while maintaining appropriate isolation between contexts.
-
-<!-- Generated from commit: 3011fee9362b436d1b87a9dd2714dd429fafd245 -->

@@ -1,3 +1,0 @@
-The Clipboard Format Viewer allows you to inspect the raw data available when pasting content. When you paste text, images, files, or other content, the tool displays all available formats and their corresponding data in an organized view. Each format is shown in its own section, with special handling for images and files to provide visual previews where possible.
-
-<!-- Generated from commit: 8397ef6722cd4120e7fe701b94a31b25aad960ab -->

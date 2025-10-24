@@ -1,3 +1,0 @@
-This interactive visualization displays the evolution of Elo ratings for large language models in the LMSYS Chatbot Arena over time. The chart shows how different models compare against each other, with higher positions indicating stronger performance. You can control the animation speed using the slider, pause/play the animation with the button, or upload custom JSON data with model ratings. The timeline at the bottom shows the current date being displayed as the animation progresses.
-
-<!-- Generated from commit: 9a2450df1bf8f426e243dc5f4964f0adc725de76 -->

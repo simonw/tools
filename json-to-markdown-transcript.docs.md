@@ -1,3 +1,0 @@
-This tool converts JSON transcripts to Markdown format. Paste your JSON containing timestamps, speakers, and text into the left panel, and the conversion happens automatically. The tool expects a specific JSON structure with an "items" array containing speaker, text, and timestamp fields, which can be generated using the LLM command shown in the instructions.
-
-<!-- Generated from commit: a1be73bf7de8175342f38bcbe7840c6f425ceae4 -->

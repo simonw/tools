@@ -1,3 +1,0 @@
-YAML Explorer is a web-based tool that allows you to visualize and explore YAML data in an interactive tree view. You can paste YAML directly into the text area or load it from a URL, and the tool will convert it into a navigable structure with expandable sections. The explorer preserves your view state in the URL so you can share specific views with others.
-
-<!-- Generated from commit: ee48769f1bf8e56cad82db5a9207ca668f291162 -->

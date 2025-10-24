@@ -1,3 +1,0 @@
-This interactive tool renders Markdown and LaTeX math formulas in real-time. As you type in the text area, the content is converted to formatted HTML in the preview pane, supporting both inline math expressions ($...$) and block math equations ($$...$$). The generated HTML can be copied to clipboard for use in other applications or websites.
-
-<!-- Generated from commit: b04b09214e110d93423059573d0198c46f981c65 -->

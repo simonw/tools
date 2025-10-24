@@ -1,3 +1,0 @@
-The Timestamp Converter tool transforms Unix timestamps into human-readable date and time formats. Enter a Unix timestamp (in seconds or milliseconds) in the input field to see the corresponding UTC and local time displayed below. The converter automatically initializes with the current timestamp and updates the displayed times as you type.
-
-<!-- Generated from commit: 9c103673bb7d2f393911d7f81cfc29c16d160b53 -->

@@ -1,3 +1,0 @@
-This tool converts GitHub issues into markdown format for easy reference and sharing. Enter a GitHub issue URL, click "Convert to markdown," and the tool will fetch the issue content including all comments and format it as markdown. The converted markdown can be copied to your clipboard with a single click for use in documentation or other contexts.
-
-<!-- Generated from commit: d47fdbd7664663805b1b9be3d32d86f796c8b5c3 -->

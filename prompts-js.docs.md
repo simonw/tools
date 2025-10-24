@@ -1,3 +1,0 @@
-Prompts.js is a JavaScript library that provides modern alternatives to the browser's built-in alert, confirm, and prompt dialogs. The library offers an async/await syntax allowing for cleaner code when working with user interactions. Demonstrations on this page show how to trigger different types of dialogs, with the results displayed in a dedicated area below the buttons.
-
-<!-- Generated from commit: 3d76b539136afa6310dfc1bdcb681f4d038f5253 -->

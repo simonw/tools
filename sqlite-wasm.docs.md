@@ -1,3 +1,0 @@
-This interactive tool allows users to query a SQLite database of pelican sightings in Half Moon Bay. The application loads a WASM-based SQLite engine in the browser and initializes a sample database with pelican observation data. Users can modify and execute SQL queries directly in the browser to explore different pelican species, locations, and sighting counts.
-
-<!-- Generated from commit: 95211145625db573557d5fb279f4ebeaaf985303 -->

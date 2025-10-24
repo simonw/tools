@@ -1,3 +1,0 @@
-The Event Planner tool allows users to create events by entering details such as title, description, location, date, time, and timezone. After submitting the form, the application displays the event information, calculates the time remaining until the event, and provides a Google Calendar link for easy addition to your personal calendar. The tool supports multiple US timezones and formats the event details in a clear, readable format.
-
-<!-- Generated from commit: 1d19215d11b88842d1ee77ae6e81a4f908e76d8d -->

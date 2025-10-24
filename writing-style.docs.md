@@ -1,3 +1,0 @@
-The Writing Style Analyzer helps improve your writing by identifying problems that weaken your prose. The tool automatically detects weasel words (vague terms that lack precision), passive voice constructions, and accidentally duplicated words. Paste your text into the input area to receive immediate feedback with highlighted issues and their surrounding context.
-
-<!-- Generated from commit: 0fbf511ab06b62a9fe8061198b90904aab111e93 -->

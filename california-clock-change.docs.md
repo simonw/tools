@@ -1,3 +1,0 @@
-This web application provides information about clock changes due to Daylight Saving Time in California (Pacific Time zone). The page displays the most recent time change, the upcoming change, current time status (PST or PDT), and offers helpful information about how the change might affect daily routines, including pet schedules. The application automatically detects if users are in the Pacific timezone and shows relevant timing details for both past and future clock adjustments.
-
-<!-- Generated from commit: fb991366127d893bee0ba543b9618dc56e2fde74 -->

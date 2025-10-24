@@ -1,3 +1,0 @@
-This bounding box tool allows you to draw selection boxes on images to get coordinates. Upload an image by pasting, dragging, or selecting a file, then draw and adjust your bounding box. The tool generates coordinates as percentages of the image dimensions, making them useful for responsive applications or when working with images of different sizes.
-
-<!-- Generated from commit: d117432950c0c71f304ef9c89da6c91a83883df4 -->

@@ -1,3 +1,0 @@
-This code implements a Gemini model class for the LLM library, enabling interactions with Google's Gemini AI models. It handles configuration settings like API keys, model selection, and temperature, while providing methods to generate text completions and embeddings through the Google Generative AI API. The implementation includes proper error handling and parameter validation.
-
-<!-- Generated from commit: 457c6dec714c6f5da1713945c99e43ceb612f9e8 -->

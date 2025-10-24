@@ -1,3 +1,0 @@
-This tool allows you to visualize the progressive rendering of SVG files. Paste your SVG code into the top text area, set a duration, and click "Render" to see the SVG build gradually character by character. You can also use the live editor to make real-time changes and see them reflected immediately in the preview area below.
-
-<!-- Generated from commit: ba6a1be46cd42730f6e967e38dd26fe69d470f0c -->

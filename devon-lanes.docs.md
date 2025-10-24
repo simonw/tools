@@ -1,3 +1,0 @@
-This driving simulator game challenges players to navigate the narrow lanes of Devon, England. Players encounter various vehicles and obstacles along the journey, requiring successful dice rolls to overcome challenges. The game tracks distance traveled, sanity points, and encounters survived as players work toward reaching their destination while maintaining their mental fortitude through strategic decision making.
-
-<!-- Generated from commit: 7312c5af1360c9f03e81d4eb621b9f08bf050f57 -->

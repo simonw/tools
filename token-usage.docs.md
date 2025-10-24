@@ -1,3 +1,0 @@
-The Token Usage Calculator analyzes token consumption across different LLM API calls. Paste YAML-formatted data from the `llm logs -su` command to view a breakdown of input and output tokens grouped by model name. The calculator automatically processes your data and displays total token usage statistics for each model detected in your logs.
-
-<!-- Generated from commit: 330106eb4f9fd2b4db6ca48c8b520445f62797ba -->

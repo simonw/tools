@@ -1,3 +1,0 @@
-This page allows you to visualize deep research sessions by loading transcripts in JSON format. You can load an example, retrieve data from a GitHub Gist, or paste your own JSON directly. The viewer provides statistics about the research session and displays a detailed timeline of thinking steps, web searches, page visits, and code executions, with the final result shown at the bottom.
-
-<!-- Generated from commit: a8bb00cc9d4d3c07e6d700283d7296593053e9a8 -->

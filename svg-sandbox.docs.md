@@ -1,3 +1,0 @@
-This demonstration shows how to embed SVG graphics directly in HTML using Base64 encoding. The page displays three example SVGs encoded as data URIs within image tags, along with their decoded source code below. Base64 embedding allows SVG graphics to be included without external file dependencies, while the browser's security model prevents any embedded JavaScript from executing when SVGs are loaded as images.
-
-<!-- Generated from commit: a7289c8e90d5ab339e78812479982bf02cc64e6b -->

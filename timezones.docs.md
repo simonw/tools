@@ -1,3 +1,0 @@
-This Timezone Meeting Planner allows you to compare time differences between two timezones. Select locations from the dropdown menus to generate a 48-hour comparison table showing the corresponding times in both locations. The tool updates the URL with your selections so you can share specific timezone comparisons with others.
-
-<!-- Generated from commit: a1420370ae38120819da3ddbb6fcefe1d9844f77 -->

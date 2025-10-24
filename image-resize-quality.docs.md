@@ -1,3 +1,0 @@
-This page allows you to upload an image, crop it to your desired dimensions, and compare different compression and resize options. After uploading (via drag-and-drop, file selection, or paste), you can adjust the crop area using handles and edges, then view multiple versions of your image at different quality levels and sizes. For images with transparency, you can select a background color for the final output, and all processed versions can be downloaded.
-
-<!-- Generated from commit: 27b229c3898652cf7925ee9fe7222105a6fca707 -->

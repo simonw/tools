@@ -1,3 +1,0 @@
-This interactive demo allows you to experiment with the `text-wrap: balance` CSS property on a navigation bar. You can control how many navigation items are displayed using the slider and toggle the text-wrap balance feature on and off to observe how it affects the distribution of navigation links across multiple lines. The navigation bar has a fixed width of 400px to demonstrate wrapping behavior.
-
-<!-- Generated from commit: 2c59da733016245fedb2f9fc4236a3a334059c01 -->

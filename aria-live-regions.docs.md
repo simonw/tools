@@ -1,3 +1,0 @@
-This demo page allows you to test how screen readers announce dynamic content changes through ARIA live regions. The interface lets you choose between "assertive" and "polite" announcement priorities, then test immediate or delayed notifications. The page includes detailed instructions for enabling and using VoiceOver on both macOS and iOS devices to experience how assistive technologies process these dynamic updates.
-
-<!-- Generated from commit: 30ad8d445379deeab726dc7d6c94a67e18de2f32 -->

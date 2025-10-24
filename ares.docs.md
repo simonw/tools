@@ -1,3 +1,0 @@
-This converter transforms regular text into the ARES Phonetic Alphabet, commonly used in emergency communications. Enter text in the input field and click "Convert" to translate each letter and number into its corresponding phonetic code word (Alpha for A, Bravo for B, etc.). Spaces are marked as "(SPACE)" in the output to maintain clarity in the converted message.
-
-<!-- Generated from commit: 9da6f96d4e3c886f1776cdc5b658e47087a279dd -->

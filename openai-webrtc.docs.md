@@ -1,3 +1,0 @@
-This interface connects to OpenAI's real-time audio API using WebRTC technology. Users can start an audio session by providing their OpenAI API token and selecting a voice option, allowing for voice-based interactions with GPT-4o. The page displays detailed statistics about each interaction including token usage and estimated costs, while also maintaining a running log of all session events.
-
-<!-- Generated from commit: c9f3085107fd1177329846de95c840eda64b1748 -->

@@ -1,3 +1,0 @@
-This tool analyzes SQLite queries using the APSW (Another Python SQLite Wrapper) library. Enter your SQL query in the main text area or set up initial database schema in the collapsible section. You can add parameter values if your query uses parameterized statements. After clicking "Execute query," the tool provides detailed information about query execution plans, expanded SQL statements, and other diagnostic data to help you understand and optimize your SQLite queries.
-
-<!-- Generated from commit: 0af31729167e3de7f6ac73afd5e5bc03ba3b68fb -->

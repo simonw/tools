@@ -1,3 +1,0 @@
-This HTML Entity Escaper converts special characters in text to their corresponding HTML entities. The tool transforms characters like ampersands, angle brackets, and quotes into their HTML entity equivalents, making them safe to display on web pages without being interpreted as actual HTML code. After pasting text into the input box, the escaped version appears automatically in the output box for easy copying.
-
-<!-- Generated from commit: 4ac8c4fbe4b847999b7e1a78f70aa4c6673d3939 -->

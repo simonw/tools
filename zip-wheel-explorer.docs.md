@@ -1,3 +1,0 @@
-This tool allows you to explore the contents of package files directly in your browser. Enter a URL to a zip, tar.gz, or wheel file, and the browser will download and extract the contents, displaying a list of files that you can click to view. The tool supports Python wheel packages from PyPI and other package formats without requiring any installation.
-
-<!-- Generated from commit: 6025f629f56b9f36f03faa1cb38286f12148963e -->

@@ -1,3 +1,0 @@
-This tool provides a web-based implementation of SLOCCount that analyzes source code to calculate physical lines of code across multiple programming languages using WebAssembly-compiled Perl and C utilities. Users can analyze code by pasting snippets, providing GitHub repository URLs, or uploading ZIP files, with the results displayed through language breakdowns and COCOMO-based cost and effort estimations. The estimates can be customized by adjusting developer salary, overhead coefficients, and multipliers to reflect different time periods or organizational contexts.
-
-<!-- Generated from commit: a9f4362297af974a148de34752abe9dbc609f8ec -->

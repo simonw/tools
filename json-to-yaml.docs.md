@@ -1,3 +1,0 @@
-This converter transforms JSON to YAML in three different formats: block style (standard indentation), flow style (compact representation), and quoted strings (all string values enclosed in double quotes). Simply paste your JSON into the input field and the tool automatically generates the corresponding YAML formats, with copy buttons for each output style.
-
-<!-- Generated from commit: 5426b541ed61cf6a9d0b74c3acce637ca60a825a -->

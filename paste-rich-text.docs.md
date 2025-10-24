@@ -1,3 +1,0 @@
-This tool allows you to extract HTML code from formatted text copied from websites. Paste content into the editable area to see the underlying HTML code displayed in a dedicated output field. The extracted HTML can be copied to your clipboard with a single click and a preview shows how the content will render when used in another webpage.
-
-<!-- Generated from commit: 49c382ea7f933d489d57cc434db2314f1120886b -->

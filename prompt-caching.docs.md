@@ -1,3 +1,0 @@
-The Prompt Caching Playground allows you to optimize OpenAI API calls by experimenting with prompt structure to maximize cache hit rates. You can test different scenarios, observe cached token counts, and measure performance metrics. The tool supports both the Chat Completions API and Responses API, with caching activating at 1024 tokens and increasing in 128-token increments.
-
-<!-- Generated from commit: 1d6baf40110241775a4260d330a28cd23cb5cfd9 -->

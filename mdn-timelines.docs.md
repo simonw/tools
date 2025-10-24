@@ -1,3 +1,0 @@
-This web application displays timeline views of browser support for web APIs based on MDN's browser compatibility data. Users can search for specific APIs by name, view when different browsers added support for those APIs, and access detailed information including MDN documentation links, specifications, and status indicators. The interface shows a chronological timeline of browser support with version numbers and release dates, along with information about browsers that don't support the selected API.
-
-<!-- Generated from commit: 41ce0b8bbae876c4abd9549ce34f13bb37f07c16 -->

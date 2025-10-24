@@ -1,3 +1,0 @@
-This page displays an interactive CSS grid layout with a symmetrical animation effect. The grid contains four colored blocks of different sizes, with one block (colored green) that can be clicked to expand and cover the entire grid area. When expanded, clicking again triggers a smooth animation that returns the block to its original position and size.
-
-<!-- Generated from commit: 1faccef4c2390ded2dc2db0d0ff59bf3248d4c50 -->

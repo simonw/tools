@@ -1,3 +1,0 @@
-This SQL Pretty Printer tool formats SQL queries according to your preferences. You can customize the dialect, tab width, keyword casing, and indentation style to match your project requirements. The tool displays a formatted version of your SQL in real-time as you type, and provides a copy button for easily transferring the formatted query to your clipboard.
-
-<!-- Generated from commit: 71a762dfc7190f764785b6246e8e17f4fa9a8ecd -->

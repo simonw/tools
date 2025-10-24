@@ -1,3 +1,0 @@
-The Bluesky Thread Viewer allows you to view and export conversation threads from Bluesky social network. Enter a Bluesky post URL to fetch the entire thread with replies, which will display in a hierarchical format with color-coded depth indicators. The tool provides options to copy the thread as formatted text or raw JSON data for sharing or analysis.
-
-<!-- Generated from commit: df243ee77494e724d2db44025dce773948bb6f89 -->

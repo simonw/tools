@@ -1,3 +1,0 @@
-This tool analyzes JPEG images to determine their TIFF orientation metadata. Upload an image by dragging and dropping or clicking to select a file, and the application will extract and display the orientation information. The tool parses the EXIF header to find the orientation tag and shows both the orientation value and a human-readable description of how the image is oriented.
-
-<!-- Generated from commit: 9b6cdd52381f1acf2c1148ed23478da1ce1f199f -->

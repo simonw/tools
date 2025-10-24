@@ -1,3 +1,0 @@
-This demonstration showcases MapLibre GL integration with OpenFreeMap, displaying 1000 randomly generated points within San Francisco. The code provides three different marker implementation options: scaled markers using MapLibre's built-in functionality, custom HTML elements styled as circular markers, and a more performant circle layer using GeoJSON data. The map initializes with a tilted perspective and automatically adjusts its bounds to encompass all generated markers.
-
-<!-- Generated from commit: 450728011c3a103bcd44b2f4440d3dcc56a651a6 -->

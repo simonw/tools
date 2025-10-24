@@ -1,3 +1,0 @@
-This page creates an interactive map with markers based on CSV data. It accepts parameters in the URL to set the center, zoom level, search query, individual markers, and a CSV file URL for bulk marker placement. The markers are displayed on an OpenStreetMap base layer, and the map view automatically updates the URL when panned or zoomed.
-
-<!-- Generated from commit: 82fd5da0b9ce79c2dc7c42627e81f4e320e817f0 -->

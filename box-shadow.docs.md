@@ -1,3 +1,0 @@
-This interactive tool allows you to create and customize CSS box shadows using simple slider controls. Adjust horizontal and vertical offsets, blur radius, spread radius, color, and opacity to generate the perfect shadow effect for your web elements. The tool provides a live preview of your shadow and displays the corresponding CSS code, which you can copy to your clipboard with a single click.
-
-<!-- Generated from commit: 44e0b09ad71ab22503ccf7edc0dbbec209bb2e05 -->

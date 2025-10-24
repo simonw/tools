@@ -1,3 +1,0 @@
-This text editor allows you to create and manage multiple writing sections with real-time word and character counts. Each section auto-saves your content to local storage after one second of inactivity, ensuring your work is preserved between sessions. You can add new sections or remove existing ones as needed, with all changes automatically backed up.
-
-<!-- Generated from commit: cb33238bc7a9029e6453052184287dc8b1679f92 -->

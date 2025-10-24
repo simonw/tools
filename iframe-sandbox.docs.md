@@ -1,3 +1,0 @@
-This page provides an interactive sandbox for testing HTML and JavaScript code with customizable iframe security controls. It features a code editor on the left where you can write HTML, and a preview pane on the right that renders your code within an iframe. The sandbox controls beneath the preview allow you to enable or disable specific security restrictions such as scripts, forms, popups, and same-origin policy, letting you experiment with different security contexts.
-
-<!-- Generated from commit: e62bd12ff34fdeb7a906f9b34303c17ea63d3a41 -->

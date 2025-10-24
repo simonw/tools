@@ -1,3 +1,0 @@
-The Incomplete JSON Pretty Printer formats truncated or incomplete JSON data into a readable structure. It features automatic formatting as you type, copy to clipboard functionality, and a sample example to demonstrate its capabilities. The tool helps developers visualize and work with partial JSON data by applying proper indentation and structure to make the content more readable.
-
-<!-- Generated from commit: 85618b7bf0d4877fb4836d434adf29dbd646ee52 -->

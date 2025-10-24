@@ -1,3 +1,0 @@
-The RTF to HTML Converter transforms Rich Text Format content into HTML with preserved styling. When you paste RTF content into the text area, the tool parses color tables, text formatting, and special characters to generate equivalent HTML with inline styles. The converter displays the original RTF data, the converted HTML code that you can copy, and a preview of how the formatted text will appear.
-
-<!-- Generated from commit: 20db4718bdf4d2f5bc8c354f345fdde34cfc650e -->

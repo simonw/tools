@@ -1,3 +1,0 @@
-This page displays a container with a "Rainbow Border" label and a toggle button to control animation effects. When activated, the container shows an animated rainbow-colored glowing border that pulses and changes color gradients in a continuous flow. The animation uses CSS keyframes to create a smooth transition between colors and opacity levels, giving the border a vibrant, dynamic appearance that loops infinitely until deactivated.
-
-<!-- Generated from commit: 99021c5a96c4d188e92a9341621a105e0d3600ca -->

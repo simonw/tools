@@ -1,3 +1,0 @@
-This tool converts simple schema definitions written in a compact DSL format into JSON Schema. Enter field definitions with types and descriptions in the text area, and the converter generates the appropriate JSON Schema in real-time. Toggle the "Array items schema" checkbox to wrap your schema in an array structure, and use the "Load example" button to see how the syntax works.
-
-<!-- Generated from commit: e3f47637ebdf7e83155643cae1c0def78c7caf93 -->

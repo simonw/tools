@@ -1,3 +1,0 @@
-The Gist Audio Player allows you to play and download audio from GitHub Gists containing OpenAI GPT-4o audio responses. Enter a Gist URL containing base64-encoded WAV data from the GPT-4o-audio-preview model, and the player will extract the audio, display the transcript, and provide playback controls. You can also share specific audio by using the URL parameter format `?gist=GIST_ID`.
-
-<!-- Generated from commit: 0f89a8f69b446e94487459505933e0fdef812f48 -->

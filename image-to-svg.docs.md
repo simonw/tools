@@ -1,3 +1,0 @@
-This tool converts JPG or PNG images to SVG format using the imagetracerjs library. You can upload an image by dragging and dropping it onto the designated area or by clicking to browse your files. After conversion, the SVG appears on screen and its code is displayed in a text field below, which can be copied to the clipboard with a single click.
-
-<!-- Generated from commit: 4ff37f2dfd5d0b5d63e9214fe44c820c471d5a56 -->

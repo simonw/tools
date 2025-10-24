@@ -1,3 +1,0 @@
-This application is a web-based tool for cropping and formatting images into social media cards with predefined aspect ratios including 2:1 for Twitter and LinkedIn, 1.91:1 for Facebook, 1.4:1 for Substack, and 1:1 for Instagram. Users can upload images via drag-and-drop, file selection, or clipboard paste, then use zoom and crop controls to frame the image before applying a customizable background color. The final result is generated as a high-quality JPEG that can be downloaded immediately.
-
-<!-- Generated from commit: 85f44a5cf3e61dccd8b2c0ff5b963a5e18bb3b33 -->
