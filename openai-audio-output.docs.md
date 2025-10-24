@@ -1,3 +1,3 @@
-This page allows you to generate human-like speech from text using OpenAI's GPT-4o audio models. Enter your prompts, select a model and voice, then generate audio output which can be played, downloaded, or shared via GitHub Gist. The interface displays both the audio player and a transcript of the spoken content, along with the complete API response for reference.
+This page provides an interface for generating speech using OpenAI's GPT-4o audio API models. Users input system and user prompts, select a model and voice, then submit to receive audio output along with the API response in JSON format. The page includes features for playing and downloading the generated audio, copying the API response, and optionally saving results to GitHub Gists for sharing.
 
-<!-- Generated from commit: 668115e0f8a3630f8978bf8f8e82e89f06bb1ee1 -->
+<!-- Generated from commit: fdfb6f124df0b26465df11414558634f3c0900ad -->
