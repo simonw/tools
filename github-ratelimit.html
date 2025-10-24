@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Rate Limit Checker</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Courier New', Courier, monospace;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #000;
+  color: #0f0;
+  line-height: 1.6;
+}
+
+h1 {
+  color: #0f0;
+  margin-bottom: 10px;
+  font-weight: bold;
+  text-shadow: 0 0 10px #0f0;
+}
+
+.instructions {
+  background: #001a00;
+  border-left: 4px solid #0f0;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  color: #0f0;
+}
+
+.auth-section {
+  background: #001a00;
+  border-radius: 8px;
+  border: 1px solid #0f0;
+  padding: 20px;
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.section {
+  background: #001a00;
+  border-radius: 8px;
+  border: 1px solid #0f0;
+  padding: 20px;
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+}
+
+.section h2 {
+  margin-top: 0;
+  color: #0f0;
+  font-size: 18px;
+  border-bottom: 2px solid #0f0;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+  text-shadow: 0 0 5px #0f0;
+}
+
+.rate-limit-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 15px;
+  align-items: center;
+}
+
+.rate-limit-label {
+  font-weight: bold;
+  color: #0c0;
+  text-align: right;
+  padding-right: 15px;
+}
+
+.rate-limit-value {
+  color: #0f0;
+  font-size: 18px;
+  padding: 8px 12px;
+  background: #000;
+  border: 1px solid #0f0;
+  border-radius: 4px;
+}
+
+.rate-limit-value.warning {
+  color: #ff0;
+  border-color: #ff0;
+  text-shadow: 0 0 5px #ff0;
+}
+
+.rate-limit-value.critical {
+  color: #f00;
+  border-color: #f00;
+  text-shadow: 0 0 5px #f00;
+}
+
+button {
+  padding: 15px 30px;
+  background: #0f0;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: bold;
+  transition: all 0.3s;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+button:hover {
+  background: #0c0;
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+}
+
+button:active {
+  background: #0a0;
+}
+
+button:disabled {
+  background: #333;
+  color: #666;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.error {
+  background: #1a0000;
+  border-left: 4px solid #f00;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  color: #f00;
+}
+
+.empty-state {
+  text-align: center;
+  color: #0a0;
+  padding: 40px;
+  font-size: 18px;
+}
+
+#authLink {
+  color: #0f0;
+  cursor: pointer;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  box-shadow: none;
+  display: inline;
+}
+
+#authLink:hover {
+  color: #0ff;
+  text-shadow: 0 0 5px #0ff;
+}
+
+.timestamp {
+  color: #0a0;
+  font-size: 14px;
+  font-style: italic;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #0a0;
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: 10px;
+  }
+
+  h1 {
+    font-size: 24px;
+  }
+
+  .rate-limit-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .rate-limit-label {
+    text-align: left;
+    padding-right: 0;
+  }
+}
+  </style>
+</head>
+<body>
+  <h1>GitHub Rate Limit Checker</h1>
+
+  <div class="instructions">
+    <strong>Instructions:</strong> Authenticate with GitHub to check your API rate limits. This helps you monitor your remaining API calls.
+  </div>
+
+  <div class="auth-section" id="authSection">
+    <p>Please authenticate with GitHub to check your rate limits.</p>
+    <button id="authLink">Authenticate with GitHub</button>
+  </div>
+
+  <div id="checkSection" style="display: none; text-align: center; margin-bottom: 20px;">
+    <button id="checkRateLimitBtn">Check Rate Limit</button>
+  </div>
+
+  <div class="results" id="results"></div>
+
+<script type="module">
+const authSection = document.getElementById('authSection');
+const checkSection = document.getElementById('checkSection');
+const authLink = document.getElementById('authLink');
+const checkRateLimitBtn = document.getElementById('checkRateLimitBtn');
+const resultsDiv = document.getElementById('results');
+
+function checkGithubAuth() {
+  const token = localStorage.getItem('github_token');
+
+  if (token) {
+    authSection.style.display = 'none';
+    checkSection.style.display = 'block';
+  } else {
+    authSection.style.display = 'block';
+    checkSection.style.display = 'none';
+  }
+}
+
+function startAuthPoll() {
+  const pollInterval = setInterval(() => {
+    if (localStorage.getItem('github_token')) {
+      checkGithubAuth();
+      clearInterval(pollInterval);
+    }
+  }, 1000);
+}
+
+function formatTimestamp(unixTimestamp) {
+  const date = new Date(unixTimestamp * 1000);
+  return date.toLocaleString();
+}
+
+function formatTimeRemaining(unixTimestamp) {
+  const now = Date.now();
+  const resetTime = unixTimestamp * 1000;
+  const diff = resetTime - now;
+
+  if (diff <= 0) {
+    return 'now';
+  }
+
+  const minutes = Math.floor(diff / 60000);
+  const seconds = Math.floor((diff % 60000) / 1000);
+
+  if (minutes > 60) {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
+  }
+
+  return `${minutes}m ${seconds}s`;
+}
+
+function getRemainingClass(remaining, limit) {
+  const percentage = (remaining / limit) * 100;
+
+  if (percentage <= 10) {
+    return 'critical';
+  } else if (percentage <= 25) {
+    return 'warning';
+  }
+
+  return '';
+}
+
+async function checkRateLimit() {
+  const token = localStorage.getItem('github_token');
+  if (!token) {
+    checkGithubAuth();
+    return;
+  }
+
+  try {
+    checkRateLimitBtn.disabled = true;
+    checkRateLimitBtn.textContent = 'Checking...';
+    resultsDiv.innerHTML = '';
+
+    const response = await fetch('https://api.github.com/rate_limit', {
+      headers: {
+        'Authorization': `token ${token}`,
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch rate limit');
+    }
+
+    const data = await response.json();
+
+    // GitHub's rate_limit endpoint returns a structured response
+    // We'll display the core rate limit and other resources
+    const resources = data.resources;
+
+    // Display each resource type
+    for (const [resourceType, resourceData] of Object.entries(resources)) {
+      const section = document.createElement('div');
+      section.className = 'section';
+
+      const limit = resourceData.limit;
+      const remaining = resourceData.remaining;
+      const used = resourceData.used;
+      const reset = resourceData.reset;
+      const remainingClass = getRemainingClass(remaining, limit);
+
+      section.innerHTML = `
+        <h2>${resourceType.toUpperCase()} API</h2>
+        <div class="rate-limit-grid">
+          <div class="rate-limit-label">Limit:</div>
+          <div class="rate-limit-value">${limit.toLocaleString()}</div>
+
+          <div class="rate-limit-label">Used:</div>
+          <div class="rate-limit-value">${used.toLocaleString()}</div>
+
+          <div class="rate-limit-label">Remaining:</div>
+          <div class="rate-limit-value ${remainingClass}">${remaining.toLocaleString()}</div>
+
+          <div class="rate-limit-label">Resets at:</div>
+          <div class="rate-limit-value">${formatTimestamp(reset)}</div>
+
+          <div class="rate-limit-label">Resets in:</div>
+          <div class="rate-limit-value">${formatTimeRemaining(reset)}</div>
+        </div>
+        <div class="timestamp">Last checked: ${new Date().toLocaleString()}</div>
+      `;
+
+      resultsDiv.appendChild(section);
+    }
+
+  } catch (error) {
+    console.error('Rate limit check failed:', error);
+
+    if (error.message.includes('401') || error.message.includes('403')) {
+      localStorage.removeItem('github_token');
+      checkGithubAuth();
+      resultsDiv.innerHTML = '<div class="error">Authentication failed. Please authenticate again.</div>';
+    } else {
+      resultsDiv.innerHTML = `<div class="error">Failed to check rate limit: ${error.message}</div>`;
+    }
+  } finally {
+    checkRateLimitBtn.disabled = false;
+    checkRateLimitBtn.textContent = 'Check Rate Limit';
+  }
+}
+
+authLink.addEventListener('click', () => {
+  window.open('https://tools.simonwillison.net/github-auth', 'github-auth', 'width=600,height=800');
+  startAuthPoll();
+});
+
+checkRateLimitBtn.addEventListener('click', checkRateLimit);
+
+// Check auth status on page load
+checkGithubAuth();
+</script>
+</body>
+</html>
