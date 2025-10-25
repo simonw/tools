@@ -131,7 +131,7 @@ export default {
           <p>You can close this window.</p>
           <script>
             try {
-              localStorage.setItem('github_token', '${tokenData.access_token}');
+              localStorage.setItem('GITHUB_TOKEN', '${tokenData.access_token}');
             } catch (err) {
               document.body.innerHTML += '<p style="color: #c62828;">Warning: Unable to store token in localStorage</p>';
             }
