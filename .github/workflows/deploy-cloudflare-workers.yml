@@ -1,0 +1,66 @@
+name: Deploy Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cloudflare-workers/**'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  deploy-github-auth:
+    name: Deploy GitHub Auth Worker
+    runs-on: ubuntu-latest
+    # Only run if github-auth files changed or manual trigger
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.modified, 'cloudflare-workers/github-auth/') ||
+      contains(github.event.head_commit.added, 'cloudflare-workers/github-auth/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wrangler
+        run: npm install -g wrangler
+
+      - name: Deploy to Cloudflare Workers
+        working-directory: cloudflare-workers/github-auth
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          wrangler deploy --env production
+
+  # Template for future workers - uncomment and modify as needed
+  # deploy-youtube-auth:
+  #   name: Deploy YouTube Auth Worker
+  #   runs-on: ubuntu-latest
+  #   if: |
+  #     github.event_name == 'workflow_dispatch' ||
+  #     contains(github.event.head_commit.modified, 'cloudflare-workers/youtube-auth/') ||
+  #     contains(github.event.head_commit.added, 'cloudflare-workers/youtube-auth/')
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20'
+  #
+  #     - name: Install Wrangler
+  #       run: npm install -g wrangler
+  #
+  #     - name: Deploy to Cloudflare Workers
+  #       working-directory: cloudflare-workers/youtube-auth
+  #       env:
+  #         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  #         CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  #       run: |
+  #         wrangler deploy --env production
