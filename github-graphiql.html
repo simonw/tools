@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub GraphQL Explorer</title>
+  <link rel="stylesheet" href="https://unpkg.com/graphiql@3.0.10/graphiql.min.css">
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Helvetica, Arial, sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  background: #24292e;
+  color: white;
+  padding: 16px 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+h1 {
+  margin: 0 0 12px 0;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.token-input {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.token-input label {
+  font-size: 14px;
+  color: #e1e4e8;
+}
+
+.token-input input {
+  flex: 1;
+  max-width: 400px;
+  padding: 8px 12px;
+  border: 1px solid #444d56;
+  border-radius: 6px;
+  background: #1f2428;
+  color: white;
+  font-size: 16px;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+.token-input input::placeholder {
+  color: #6a737d;
+}
+
+.token-input button {
+  padding: 8px 16px;
+  background: #2ea44f;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+.token-input button:hover {
+  background: #2c974b;
+}
+
+.token-input button:disabled {
+  background: #94d3a2;
+  cursor: not-allowed;
+}
+
+.info {
+  font-size: 12px;
+  color: #8b949e;
+  margin-top: 8px;
+}
+
+.info a {
+  color: #58a6ff;
+  text-decoration: none;
+}
+
+.info a:hover {
+  text-decoration: underline;
+}
+
+#graphiql-container {
+  flex: 1;
+  overflow: hidden;
+}
+
+.status {
+  padding: 8px 20px;
+  font-size: 12px;
+  background: #f6f8fa;
+  border-top: 1px solid #d0d7de;
+  color: #24292e;
+}
+
+.status.success {
+  background: #dafbe1;
+  color: #0e4429;
+}
+
+.status.error {
+  background: #ffebe9;
+  color: #82071e;
+}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>GitHub GraphQL explorer</h1>
+    <div class="token-input">
+      <label for="token">GitHub token:</label>
+      <input 
+        type="password" 
+        id="token" 
+        placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+        autocomplete="off"
+      >
+      <button id="connect-btn">Connect</button>
+    </div>
+    <div class="info">
+      Get your token at <a href="https://github.com/settings/tokens" target="_blank">github.com/settings/tokens</a>
+    </div>
+  </div>
+  <div id="status" class="status" style="display: none;"></div>
+  <div id="graphiql-container"></div>
+
+  <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/graphiql@3.0.10/graphiql.min.js"></script>
+
+  <script type="module">
+const tokenInput = document.getElementById('token');
+const connectBtn = document.getElementById('connect-btn');
+const statusDiv = document.getElementById('status');
+let graphiqlInstance = null;
+
+// Check for stored token
+const storedToken = sessionStorage.getItem('github_token');
+if (storedToken) {
+  tokenInput.value = storedToken;
+  initializeGraphiQL(storedToken);
+}
+
+connectBtn.addEventListener('click', () => {
+  const token = tokenInput.value.trim();
+  if (token) {
+    sessionStorage.setItem('github_token', token);
+    initializeGraphiQL(token);
+  }
+});
+
+tokenInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    connectBtn.click();
+  }
+});
+
+function showStatus(message, type) {
+  statusDiv.textContent = message;
+  statusDiv.className = `status ${type}`;
+  statusDiv.style.display = 'block';
+  setTimeout(() => {
+    statusDiv.style.display = 'none';
+  }, 3000);
+}
+
+function initializeGraphiQL(token) {
+  const fetcher = async (graphQLParams) => {
+    try {
+      const response = await fetch('https://api.github.com/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(graphQLParams),
+      });
+
+      if (!response.ok) {
+        showStatus(`Error: ${response.status} ${response.statusText}`, 'error');
+        return { errors: [{ message: `HTTP ${response.status}: ${response.statusText}` }] };
+      }
+
+      const result = await response.json();
+      
+      if (result.errors) {
+        showStatus('Query returned errors', 'error');
+      } else {
+        showStatus('Query executed successfully', 'success');
+      }
+      
+      return result;
+    } catch (error) {
+      showStatus(`Network error: ${error.message}`, 'error');
+      return { errors: [{ message: error.message }] };
+    }
+  };
+
+  const container = document.getElementById('graphiql-container');
+  container.innerHTML = '';
+
+  const root = ReactDOM.createRoot(container);
+  root.render(
+    React.createElement(GraphiQL, {
+      fetcher: fetcher,
+      defaultQuery: `# Welcome to GitHub's GraphQL API!
+# 
+# Try this example query to get started:
+
+query {
+  viewer {
+    login
+  }
+}
+`,
+    })
+  );
+
+  showStatus('Connected to GitHub GraphQL API', 'success');
+  connectBtn.textContent = 'Reconnect';
+}
+  </script>
+</body>
+</html>
