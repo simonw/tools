@@ -1,0 +1,3 @@
+This GitHub GraphQL Explorer provides an interactive interface for querying GitHub's GraphQL API with proper authentication. Users input their GitHub personal access token to establish a secure connection and then execute queries against the API using the integrated GraphiQL editor. The interface includes session storage for token persistence, real-time status notifications for query results, and a helpful default query template to get started.
+
+<!-- Generated from commit: a877d8ffb396e42868a1a429b302b674fe100970 -->
