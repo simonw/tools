@@ -1,0 +1,380 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Badge Interactive REPL</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #0d1117;
+            color: #c9d1d9;
+        }
+        .container {
+            background: #161b22;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #58a6ff;
+            margin-top: 0;
+            font-size: 24px;
+        }
+        .controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #238636;
+            color: white;
+            border: 1px solid #2ea043;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        button:hover:not(:disabled) {
+            background: #2ea043;
+        }
+        button:disabled {
+            background: #1f6feb;
+            border-color: #1f6feb;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        button.disconnect {
+            background: #da3633;
+            border-color: #f85149;
+        }
+        button.disconnect:hover:not(:disabled) {
+            background: #f85149;
+        }
+        #terminal {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Courier New', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: 400px;
+            max-height: 500px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+        #commandInput {
+            flex: 1;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 10px;
+            color: #c9d1d9;
+            font-family: 'Courier New', 'Consolas', monospace;
+            font-size: 14px;
+        }
+        #commandInput:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        #commandInput:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .info {
+            background: #1f6feb;
+            border-left: 4px solid #58a6ff;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .terminal-output {
+            color: #8b949e;
+        }
+        .terminal-prompt {
+            color: #58a6ff;
+        }
+        .terminal-error {
+            color: #f85149;
+        }
+        .terminal-success {
+            color: #3fb950;
+        }
+        .terminal-info {
+            color: #79c0ff;
+        }
+        .quick-commands {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .quick-commands button {
+            font-size: 12px;
+            padding: 5px 10px;
+            background: #21262d;
+            border-color: #30363d;
+        }
+        .quick-commands button:hover:not(:disabled) {
+            background: #30363d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Badge Interactive REPL</h1>
+        <div class="info">
+            <strong>Note:</strong> This tool requires the Web Serial API (Chrome/Edge on desktop).
+        </div>
+
+        <div class="controls">
+            <button id="connectBtn" onclick="connect()">Connect to Badge</button>
+            <button class="disconnect" id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button id="clearBtn" onclick="clearTerminal()">Clear Terminal</button>
+        </div>
+
+        <div id="terminal"><span class="terminal-info">Ready to connect. Click "Connect to Badge" to start.</span></div>
+
+        <div class="input-area">
+            <input type="text" id="commandInput" placeholder="Enter Python command (e.g., print('Hello'), import os)" disabled autocomplete="off">
+            <button id="sendBtn" onclick="executeCommand()" disabled>Send</button>
+        </div>
+
+        <div class="quick-commands">
+            <button onclick="quickCommand('import os; print(os.listdir())')" disabled id="qc1">List Files</button>
+            <button onclick="quickCommand('import machine; print(machine.freq())')" disabled id="qc2">CPU Freq</button>
+            <button onclick="quickCommand('import gc; gc.collect(); print(gc.mem_free())')" disabled id="qc3">Free Memory</button>
+            <button onclick="quickCommand('help()')" disabled id="qc4">Help</button>
+        </div>
+    </div>
+
+    <script>
+        let port = null;
+        let reader = null;
+        let writer = null;
+        let readableStreamClosed = null;
+        let writableStreamClosed = null;
+        let readLoopRunning = false;
+        let isConnected = false;
+
+        const terminal = document.getElementById('terminal');
+        const commandInput = document.getElementById('commandInput');
+
+        function appendToTerminal(text, className = '') {
+            const span = document.createElement('span');
+            if (className) {
+                span.className = className;
+            }
+            span.textContent = text;
+            terminal.appendChild(span);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function clearTerminal() {
+            terminal.innerHTML = '';
+        }
+
+        // Handle Enter key in input
+        commandInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                executeCommand();
+            }
+        });
+
+        async function connect() {
+            if (!('serial' in navigator)) {
+                alert('Web Serial API not supported in this browser. Please use Chrome or Edge.');
+                return;
+            }
+
+            try {
+                appendToTerminal('>>> Requesting serial port...\n', 'terminal-info');
+                port = await navigator.serial.requestPort();
+
+                appendToTerminal('>>> Opening port at 115200 baud...\n', 'terminal-info');
+                await port.open({ baudRate: 115200 });
+
+                // Set up streams
+                const textEncoder = new TextEncoderStream();
+                writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
+                writer = textEncoder.writable.getWriter();
+
+                const textDecoder = new TextDecoderStream();
+                readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+                reader = textDecoder.readable.getReader();
+
+                // Start reading loop
+                readLoopRunning = true;
+                readLoop();
+
+                // Send initial commands to enter raw REPL
+                await writer.write('\x03'); // Ctrl-C
+                await sleep(100);
+                await writer.write('\x03'); // Ctrl-C again
+                await sleep(100);
+                await writer.write('\x02'); // Ctrl-B for friendly REPL
+                await sleep(300);
+
+                appendToTerminal('>>> Connected successfully!\n', 'terminal-success');
+                appendToTerminal('>>> MicroPython REPL ready. Type your commands below.\n\n', 'terminal-success');
+
+                isConnected = true;
+                updateUI(true);
+
+            } catch (error) {
+                appendToTerminal(`ERROR: ${error.message}\n`, 'terminal-error');
+                console.error('Error:', error);
+            }
+        }
+
+        async function readLoop() {
+            try {
+                while (readLoopRunning && reader) {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+                    if (value) {
+                        appendToTerminal(value, 'terminal-output');
+                    }
+                }
+            } catch (error) {
+                if (readLoopRunning) {
+                    appendToTerminal(`\nREAD ERROR: ${error.message}\n`, 'terminal-error');
+                    console.error('Read error:', error);
+                }
+            }
+        }
+
+        async function executeCommand() {
+            const command = commandInput.value.trim();
+            if (!command || !isConnected || !writer) return;
+
+            try {
+                // Show the command being sent
+                appendToTerminal(`\n>>> ${command}\n`, 'terminal-prompt');
+
+                // Send the command
+                await writer.write(command + '\r\n');
+
+                // Clear input
+                commandInput.value = '';
+
+            } catch (error) {
+                appendToTerminal(`ERROR: ${error.message}\n`, 'terminal-error');
+                console.error('Send error:', error);
+            }
+        }
+
+        async function quickCommand(cmd) {
+            commandInput.value = cmd;
+            await executeCommand();
+        }
+
+        async function disconnect() {
+            try {
+                appendToTerminal('\n>>> Disconnecting...\n', 'terminal-info');
+
+                readLoopRunning = false;
+
+                if (writer) {
+                    try {
+                        await writer.close();
+                    } catch (e) {
+                        console.error('Writer close error:', e);
+                    }
+                }
+
+                if (reader) {
+                    try {
+                        await reader.cancel();
+                    } catch (e) {
+                        console.error('Reader cancel error:', e);
+                    }
+                }
+
+                try {
+                    await writableStreamClosed;
+                } catch (e) {
+                    console.error('Writable stream error:', e);
+                }
+
+                try {
+                    await readableStreamClosed;
+                } catch (e) {
+                    console.error('Readable stream error:', e);
+                }
+
+                if (port) {
+                    await port.close();
+                }
+
+                port = null;
+                reader = null;
+                writer = null;
+                readableStreamClosed = null;
+                writableStreamClosed = null;
+                isConnected = false;
+
+                appendToTerminal('>>> Disconnected\n\n', 'terminal-success');
+                updateUI(false);
+
+            } catch (error) {
+                appendToTerminal(`DISCONNECT ERROR: ${error.message}\n`, 'terminal-error');
+                console.error('Error:', error);
+            }
+        }
+
+        function updateUI(connected) {
+            document.getElementById('connectBtn').disabled = connected;
+            document.getElementById('disconnectBtn').disabled = !connected;
+            document.getElementById('commandInput').disabled = !connected;
+            document.getElementById('sendBtn').disabled = !connected;
+
+            // Enable/disable quick command buttons
+            const quickBtns = ['qc1', 'qc2', 'qc3', 'qc4'];
+            quickBtns.forEach(id => {
+                document.getElementById(id).disabled = !connected;
+            });
+
+            if (connected) {
+                commandInput.focus();
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', async () => {
+            if (port) {
+                readLoopRunning = false;
+                try {
+                    if (writer) await writer.close();
+                    if (reader) await reader.cancel();
+                    if (port) await port.close();
+                } catch (e) {
+                    console.error('Cleanup error:', e);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
