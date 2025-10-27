@@ -1,0 +1,3 @@
+This page provides an interactive web-based REPL (Read-Eval-Print Loop) for communicating with a MicroPython-enabled badge or microcontroller over a serial connection using the Web Serial API. Users can connect to their device, execute Python commands in real-time, and view the output directly in the terminal interface. The tool includes quick-access buttons for common operations like listing files, checking CPU frequency, and monitoring free memory, making it convenient for development and debugging on embedded devices.
+
+<!-- Generated from commit: e6fe2d270cc8086844565ef50e7fdd143c5ea9dd -->
