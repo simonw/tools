@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Repo Image Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 28px;
+            color: #333;
+        }
+        p {
+            margin-top: 0;
+            color: #666;
+        }
+        .input-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            font-family: inherit;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 12px 24px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: wait;
+            opacity: 0.7;
+        }
+        #status {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+        #status.visible {
+            display: block;
+        }
+        #status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        #status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        #results {
+            display: none;
+        }
+        #results.visible {
+            display: block;
+        }
+        .results-header {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .results-header h2 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            color: #333;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .summary-item {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .summary-item .label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .summary-item .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .image-card {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .image-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+        .image-container {
+            width: 100%;
+            height: 250px;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+        .image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .image-container.loading {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .image-info {
+            padding: 15px;
+        }
+        .image-path {
+            font-size: 14px;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 10px;
+            word-break: break-all;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+        .image-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 13px;
+            color: #666;
+        }
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #999;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .detail-value {
+            color: #333;
+            font-weight: 500;
+        }
+        .error-message {
+            padding: 10px;
+            background-color: #f8d7da;
+            color: #721c24;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .image-grid {
+                grid-template-columns: 1fr;
+            }
+            .summary {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>GitHub Repo Image Viewer</h1>
+    <p>Browse all images in any GitHub repository with file size and dimensions</p>
+
+    <div class="input-section">
+        <div class="input-group">
+            <label for="repo-input">GitHub Repository URL or owner/repo:</label>
+            <input type="text" id="repo-input" placeholder="e.g., simonw/tools or https://github.com/simonw/tools">
+        </div>
+        <div class="button-group">
+            <button id="analyze-btn">Load Images</button>
+        </div>
+    </div>
+
+    <div id="status"></div>
+
+    <div id="results">
+        <div class="results-header">
+            <h2 id="repo-title">Repository Images</h2>
+        </div>
+        <div class="summary">
+            <div class="summary-item">
+                <div class="label">Total Images</div>
+                <div class="value" id="total-images">0</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">Total Size</div>
+                <div class="value" id="total-size">0 KB</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">Image Types</div>
+                <div class="value" id="image-types">0</div>
+            </div>
+        </div>
+        <div class="image-grid" id="image-grid">
+        </div>
+    </div>
+
+    <script>
+        const repoInput = document.getElementById('repo-input');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const statusEl = document.getElementById('status');
+        const resultsEl = document.getElementById('results');
+        const imageGrid = document.getElementById('image-grid');
+        const repoTitle = document.getElementById('repo-title');
+
+        // Status helpers
+        function showStatus(message, type = 'info') {
+            statusEl.textContent = message;
+            statusEl.className = `visible ${type}`;
+        }
+
+        function hideStatus() {
+            statusEl.className = '';
+        }
+
+        function showResults() {
+            resultsEl.classList.add('visible');
+        }
+
+        function hideResults() {
+            resultsEl.classList.remove('visible');
+        }
+
+        // Format bytes to human readable
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Load image and get dimensions
+        async function loadImageInfo(url) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = function() {
+                    resolve({
+                        width: this.naturalWidth,
+                        height: this.naturalHeight,
+                        url: url
+                    });
+                };
+                img.onerror = function() {
+                    reject(new Error('Failed to load image'));
+                };
+                img.src = url;
+            });
+        }
+
+        // Create image card
+        function createImageCard(imageData) {
+            const card = document.createElement('div');
+            card.className = 'image-card';
+
+            const container = document.createElement('div');
+            container.className = 'image-container loading';
+
+            const img = document.createElement('img');
+            img.alt = imageData.path;
+            img.loading = 'lazy';
+
+            // Load image and get dimensions
+            loadImageInfo(imageData.url)
+                .then(info => {
+                    img.src = info.url;
+                    container.classList.remove('loading');
+
+                    // Update dimensions in the card
+                    const dimensionValue = card.querySelector('.dimension-value');
+                    if (dimensionValue) {
+                        dimensionValue.textContent = `${info.width} × ${info.height}`;
+                    }
+                })
+                .catch(error => {
+                    container.classList.remove('loading');
+                    container.innerHTML = `<div class="error-message">Failed to load image</div>`;
+                    console.error('Error loading image:', imageData.path, error);
+                });
+
+            container.appendChild(img);
+
+            const info = document.createElement('div');
+            info.className = 'image-info';
+
+            const path = document.createElement('div');
+            path.className = 'image-path';
+            path.textContent = imageData.path;
+
+            const details = document.createElement('div');
+            details.className = 'image-details';
+            details.innerHTML = `
+                <div class="detail-item">
+                    <span class="detail-label">File Size</span>
+                    <span class="detail-value">${formatBytes(imageData.size)}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Dimensions</span>
+                    <span class="detail-value dimension-value">Loading...</span>
+                </div>
+            `;
+
+            info.appendChild(path);
+            info.appendChild(details);
+
+            card.appendChild(container);
+            card.appendChild(info);
+
+            return card;
+        }
+
+        // Analyze GitHub repository
+        async function analyzeGitHubRepo() {
+            let repoUrl = repoInput.value.trim();
+
+            if (!repoUrl) {
+                showStatus('Please provide a GitHub repository URL or owner/repo', 'error');
+                return;
+            }
+
+            let owner, repo;
+
+            // Try to parse as owner/repo shorthand first
+            const shorthandMatch = repoUrl.match(/^([^\/\s]+)\/([^\/\s]+)$/);
+            if (shorthandMatch) {
+                owner = shorthandMatch[1];
+                repo = shorthandMatch[2].replace('.git', '');
+            } else {
+                // Parse as full GitHub URL
+                const urlMatch = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+                if (!urlMatch) {
+                    showStatus('Invalid format. Use: owner/repo or https://github.com/owner/repo', 'error');
+                    return;
+                }
+                owner = urlMatch[1];
+                repo = urlMatch[2].replace('.git', '');
+            }
+
+            try {
+                analyzeBtn.disabled = true;
+                showStatus('Fetching repository information from GitHub API...', 'info');
+
+                // First, get the repository info to determine the default branch
+                const repoInfoUrl = `https://api.github.com/repos/${owner}/${repo}`;
+                const repoInfoResponse = await fetch(repoInfoUrl);
+
+                if (!repoInfoResponse.ok) {
+                    if (repoInfoResponse.status === 404) {
+                        throw new Error('Repository not found. Make sure the repository exists and is public.');
+                    } else if (repoInfoResponse.status === 403) {
+                        throw new Error('API rate limit exceeded. Please try again later.');
+                    }
+                    throw new Error(`Failed to fetch repository info: ${repoInfoResponse.statusText}`);
+                }
+
+                const repoInfo = await repoInfoResponse.json();
+                const defaultBranch = repoInfo.default_branch || 'main';
+
+                showStatus('Fetching repository tree from GitHub API...', 'info');
+
+                // Use GitHub Trees API to get all files
+                const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`;
+                const treeResponse = await fetch(treeUrl);
+
+                if (!treeResponse.ok) {
+                    if (treeResponse.status === 404) {
+                        throw new Error('Repository tree not found. Make sure the repository exists and is public.');
+                    } else if (treeResponse.status === 403) {
+                        throw new Error('API rate limit exceeded. Please try again later.');
+                    }
+                    throw new Error(`Failed to fetch repository tree: ${treeResponse.statusText}`);
+                }
+
+                const treeData = await treeResponse.json();
+
+                // Check if the tree was truncated by GitHub
+                if (treeData.truncated) {
+                    showStatus('⚠️ This repository is very large and the file list was truncated. Some images may be missing.', 'info');
+                }
+
+                // Filter for image files only
+                const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|svg|webp|ico|tiff|tif)$/i;
+                const imageFiles = treeData.tree.filter(item =>
+                    item.type === 'blob' && imageExtensions.test(item.path)
+                );
+
+                if (imageFiles.length === 0) {
+                    showStatus('No image files found in repository', 'error');
+                    return;
+                }
+
+                showStatus(`Found ${imageFiles.length} images. Loading...`, 'info');
+
+                // Clear previous results
+                imageGrid.innerHTML = '';
+
+                // Update header
+                repoTitle.textContent = `${owner}/${repo} - Images`;
+
+                // Calculate statistics
+                const totalSize = imageFiles.reduce((sum, file) => sum + file.size, 0);
+                const imageTypes = new Set(imageFiles.map(file => {
+                    const match = file.path.match(/\.([^.]+)$/);
+                    return match ? match[1].toLowerCase() : '';
+                }));
+
+                document.getElementById('total-images').textContent = imageFiles.length;
+                document.getElementById('total-size').textContent = formatBytes(totalSize);
+                document.getElementById('image-types').textContent = imageTypes.size;
+
+                showResults();
+
+                // Create image cards
+                for (const file of imageFiles) {
+                    const imageUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/${file.path}`;
+                    const imageData = {
+                        path: file.path,
+                        size: file.size,
+                        url: imageUrl
+                    };
+                    const card = createImageCard(imageData);
+                    imageGrid.appendChild(card);
+                }
+
+                showStatus(`Successfully loaded ${imageFiles.length} images!`, 'success');
+                setTimeout(hideStatus, 3000);
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+                console.error('Analysis error:', error);
+            } finally {
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        // Event listeners
+        analyzeBtn.addEventListener('click', analyzeGitHubRepo);
+
+        // Enter key support
+        repoInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                analyzeGitHubRepo();
+            }
+        });
+    </script>
+</body>
+</html>
