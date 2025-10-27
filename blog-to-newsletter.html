@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blog to Newsletter</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  background: #f6f8fa;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+h1 {
+  margin: 0 0 24px 0;
+  font-size: 28px;
+  font-weight: 600;
+  color: #24292e;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #f6f8fa;
+  border-radius: 6px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-group label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #24292e;
+}
+
+.control-group input[type="range"] {
+  width: 100%;
+  max-width: 400px;
+}
+
+.control-group .range-value {
+  font-size: 14px;
+  color: #586069;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.checkbox-group label {
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+button {
+  padding: 10px 20px;
+  background: #2ea44f;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+button:hover {
+  background: #2c974b;
+}
+
+button:disabled {
+  background: #94d3a2;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  background: #0969da;
+}
+
+button.secondary:hover {
+  background: #0860ca;
+}
+
+button.secondary:disabled {
+  background: #a5c9ff;
+}
+
+.status {
+  padding: 12px;
+  margin-bottom: 20px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.status.success {
+  background: #dafbe1;
+  color: #0e4429;
+}
+
+.status.error {
+  background: #ffebe9;
+  color: #82071e;
+}
+
+.status.info {
+  background: #ddf4ff;
+  color: #0969da;
+}
+
+.stats {
+  padding: 12px;
+  margin-bottom: 20px;
+  background: #f6f8fa;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #586069;
+}
+
+.stories {
+  margin-bottom: 30px;
+}
+
+.stories h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+}
+
+.story-item {
+  padding: 16px;
+  margin-bottom: 12px;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  cursor: move;
+}
+
+.story-item:hover {
+  background: #eaeef2;
+}
+
+.story-item.dragging {
+  opacity: 0.5;
+}
+
+.story-item h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.story-item .meta {
+  font-size: 13px;
+  color: #586069;
+  margin-bottom: 8px;
+}
+
+.story-item .excerpt {
+  font-size: 14px;
+  color: #24292e;
+  line-height: 1.5;
+}
+
+.preview {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 2px solid #d0d7de;
+}
+
+.preview h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 20px 0;
+}
+
+.preview-content {
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  min-height: 200px;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #586069;
+}
+
+.newsletter-output {
+  font-family: Georgia, serif;
+  line-height: 1.6;
+  color: #222;
+}
+
+.newsletter-output h3 {
+  font-size: 20px;
+  margin: 24px 0 12px 0;
+}
+
+.newsletter-output p {
+  margin: 12px 0;
+}
+
+.newsletter-output a {
+  color: #0969da;
+  text-decoration: none;
+}
+
+.newsletter-output a:hover {
+  text-decoration: underline;
+}
+
+.newsletter-output .toc {
+  background: #f6f8fa;
+  padding: 16px;
+  border-radius: 6px;
+  margin-bottom: 24px;
+}
+
+.newsletter-output .toc ul {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.newsletter-output .item-meta {
+  font-size: 14px;
+  color: #586069;
+  font-style: italic;
+}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Blog to Newsletter</h1>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="days-range">
+          Days to include: <span class="range-value" id="days-value">7</span>
+        </label>
+        <input type="range" id="days-range" min="1" max="30" value="7">
+      </div>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="skip-sent" checked>
+        <label for="skip-sent">Skip previously sent content</label>
+      </div>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="truncate-cutoff" checked>
+        <label for="truncate-cutoff">Truncate at cutoff markers</label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="fetch-btn">Fetch Content</button>
+      <button id="copy-newsletter-btn" class="secondary" disabled>Copy Newsletter HTML</button>
+      <button id="copy-extras-btn" class="secondary" disabled>Copy Extras Only</button>
+    </div>
+
+    <div id="status" style="display: none;"></div>
+    <div id="stats" class="stats" style="display: none;"></div>
+
+    <div class="stories" id="stories-container" style="display: none;">
+      <h2>Stories (drag to reorder)</h2>
+      <div id="stories-list"></div>
+    </div>
+
+    <div class="preview">
+      <h2>Newsletter Preview</h2>
+      <div id="preview-content" class="preview-content">
+        <div class="loading">Click "Fetch Content" to begin</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+let contentData = null;
+let previouslySentUrls = new Set();
+
+const daysRange = document.getElementById('days-range');
+const daysValue = document.getElementById('days-value');
+const skipSentCheckbox = document.getElementById('skip-sent');
+const truncateCutoffCheckbox = document.getElementById('truncate-cutoff');
+const fetchBtn = document.getElementById('fetch-btn');
+const copyNewsletterBtn = document.getElementById('copy-newsletter-btn');
+const copyExtrasBtn = document.getElementById('copy-extras-btn');
+const statusDiv = document.getElementById('status');
+const statsDiv = document.getElementById('stats');
+const storiesContainer = document.getElementById('stories-container');
+const storiesList = document.getElementById('stories-list');
+const previewContent = document.getElementById('preview-content');
+
+// Update days value display
+daysRange.addEventListener('input', (e) => {
+  daysValue.textContent = e.target.value;
+});
+
+// Initialize Sortable for drag-and-drop
+let sortable = null;
+
+function showStatus(message, type) {
+  statusDiv.textContent = message;
+  statusDiv.className = `status ${type}`;
+  statusDiv.style.display = 'block';
+  setTimeout(() => {
+    statusDiv.style.display = 'none';
+  }, 5000);
+}
+
+function showStats(entries, blogmarks, quotations, tils, notes) {
+  const total = entries.length + blogmarks.length + quotations.length + tils.length + notes.length;
+  statsDiv.innerHTML = `
+    Found: ${entries.length} blog entries, ${blogmarks.length} links,
+    ${quotations.length} quotations, ${tils.length} TILs, ${notes.length} notes
+    (${total} total items)
+  `;
+  statsDiv.style.display = 'block';
+}
+
+async function fetchPreviouslySent() {
+  try {
+    // Fetch the RSS feed of previous newsletters
+    const response = await fetch('https://simonw.substack.com/feed');
+    const text = await response.text();
+
+    // Parse RSS and extract URLs from content
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, 'text/xml');
+    const items = xml.querySelectorAll('item');
+
+    const urls = new Set();
+    items.forEach(item => {
+      const content = item.querySelector('description')?.textContent || '';
+      // Extract URLs from href attributes
+      const urlMatches = content.matchAll(/href=["']([^"']+)["']/g);
+      for (const match of urlMatches) {
+        urls.add(match[1]);
+      }
+    });
+
+    return urls;
+  } catch (error) {
+    console.error('Error fetching previously sent content:', error);
+    return new Set();
+  }
+}
+
+async function fetchContent() {
+  const days = parseInt(daysRange.value);
+  const skipSent = skipSentCheckbox.checked;
+
+  fetchBtn.disabled = true;
+  showStatus('Fetching content...', 'info');
+
+  try {
+    // Fetch previously sent URLs if needed
+    if (skipSent) {
+      showStatus('Fetching previously sent content...', 'info');
+      previouslySentUrls = await fetchPreviouslySent();
+    } else {
+      previouslySentUrls = new Set();
+    }
+
+    // Calculate date threshold
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const sinceStr = since.toISOString().split('T')[0];
+
+    // Fetch different content types from Datasette
+    const baseUrl = 'https://datasette.simonwillison.net';
+
+    // Fetch blog entries
+    const entriesQuery = `
+      select id, title, url, created, body
+      from blog_entry
+      where created >= '${sinceStr}'
+      order by created desc
+    `;
+
+    const blogmarksQuery = `
+      select id, link_title, link_url, created, commentary, quote_raw
+      from blog_blogmark
+      where created >= '${sinceStr}'
+      order by created desc
+    `;
+
+    const quotationsQuery = `
+      select id, quote, source, source_url, created
+      from blog_quotation
+      where created >= '${sinceStr}'
+      order by created desc
+    `;
+
+    const tilsQuery = `
+      select topic, slug, title, url, created, body
+      from til_til
+      where created >= '${sinceStr}'
+      order by created desc
+    `;
+
+    const notesQuery = `
+      select id, created, body
+      from blog_note
+      where created >= '${sinceStr}'
+      order by created desc
+    `;
+
+    // Execute queries
+    const [entries, blogmarks, quotations, tils, notes] = await Promise.all([
+      executeQuery(baseUrl + '/simonwillisonblog.json', entriesQuery),
+      executeQuery(baseUrl + '/simonwillisonblog.json', blogmarksQuery),
+      executeQuery(baseUrl + '/simonwillisonblog.json', quotationsQuery),
+      executeQuery(baseUrl + '/tils.json', tilsQuery),
+      executeQuery(baseUrl + '/simonwillisonblog.json', notesQuery)
+    ]);
+
+    // Filter out previously sent content
+    const filteredEntries = filterByUrls(entries, 'url');
+    const filteredBlogmarks = filterByUrls(blogmarks, 'link_url');
+    const filteredTils = filterByUrls(tils, 'url');
+
+    contentData = {
+      entries: filteredEntries,
+      blogmarks: filteredBlogmarks,
+      quotations: quotations, // Quotations don't have URLs
+      tils: filteredTils,
+      notes: notes // Notes don't have URLs
+    };
+
+    showStats(filteredEntries, filteredBlogmarks, quotations, filteredTils, notes);
+    renderStories();
+    renderPreview();
+
+    copyNewsletterBtn.disabled = false;
+    copyExtrasBtn.disabled = false;
+    showStatus('Content fetched successfully!', 'success');
+
+  } catch (error) {
+    showStatus(`Error: ${error.message}`, 'error');
+    console.error(error);
+  } finally {
+    fetchBtn.disabled = false;
+  }
+}
+
+async function executeQuery(baseUrl, sql) {
+  const url = `${baseUrl}?sql=${encodeURIComponent(sql)}&_shape=array`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  const data = await response.json();
+  return data;
+}
+
+function filterByUrls(items, urlField) {
+  if (previouslySentUrls.size === 0) {
+    return items;
+  }
+  return items.filter(item => !previouslySentUrls.has(item[urlField]));
+}
+
+function truncateAtCutoff(body) {
+  if (!truncateCutoffCheckbox.checked || !body) {
+    return body;
+  }
+
+  // Look for cutoff markers like <!-- cutoff --> or variations
+  const cutoffIndex = body.search(/<!--\s*cutoff\s*-->/i);
+  if (cutoffIndex !== -1) {
+    return body.substring(0, cutoffIndex);
+  }
+
+  return body;
+}
+
+function renderStories() {
+  if (!contentData) return;
+
+  // Combine all content into stories array
+  const stories = [];
+
+  contentData.entries.forEach(entry => {
+    stories.push({
+      type: 'entry',
+      title: entry.title,
+      url: entry.url,
+      date: entry.created,
+      content: entry.body,
+      data: entry
+    });
+  });
+
+  contentData.tils.forEach(til => {
+    stories.push({
+      type: 'til',
+      title: til.title,
+      url: til.url,
+      date: til.created,
+      topic: til.topic,
+      content: til.body,
+      data: til
+    });
+  });
+
+  // Sort by date (newest first)
+  stories.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  if (stories.length === 0) {
+    storiesContainer.style.display = 'none';
+    return;
+  }
+
+  storiesContainer.style.display = 'block';
+  storiesList.innerHTML = stories.map((story, index) => {
+    const excerpt = story.content ?
+      story.content.substring(0, 200).replace(/<[^>]*>/g, '') + '...' : '';
+
+    return `
+      <div class="story-item" data-index="${index}">
+        <h3>${story.title}</h3>
+        <div class="meta">
+          ${story.type.toUpperCase()} | ${new Date(story.date).toLocaleDateString()}
+          ${story.topic ? ` | ${story.topic}` : ''}
+        </div>
+        <div class="excerpt">${excerpt}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Initialize drag-and-drop
+  if (sortable) {
+    sortable.destroy();
+  }
+  sortable = Sortable.create(storiesList, {
+    animation: 150,
+    ghostClass: 'dragging',
+    onEnd: function() {
+      // Reorder stories based on new DOM order
+      const items = Array.from(storiesList.children);
+      const newStories = items.map(item => {
+        const index = parseInt(item.dataset.index);
+        return stories[index];
+      });
+
+      // Update the entries in contentData
+      const newEntries = [];
+      const newTils = [];
+
+      newStories.forEach(story => {
+        if (story.type === 'entry') {
+          newEntries.push(story.data);
+        } else if (story.type === 'til') {
+          newTils.push(story.data);
+        }
+      });
+
+      contentData.entries = newEntries;
+      contentData.tils = newTils;
+
+      renderPreview();
+    }
+  });
+}
+
+function renderPreview() {
+  if (!contentData) return;
+
+  const html = generateNewsletterHTML();
+  previewContent.innerHTML = html;
+}
+
+function generateNewsletterHTML() {
+  if (!contentData) return '';
+
+  let html = '<div class="newsletter-output">';
+
+  // Generate table of contents
+  const tocItems = [];
+  contentData.entries.forEach(entry => {
+    tocItems.push(`<li><a href="${entry.url}">${entry.title}</a></li>`);
+  });
+  contentData.tils.forEach(til => {
+    tocItems.push(`<li><a href="${til.url}">${til.title}</a> (TIL)</li>`);
+  });
+
+  if (tocItems.length > 0) {
+    html += '<div class="toc"><strong>Featured this week:</strong><ul>';
+    html += tocItems.join('');
+    html += '</ul></div>';
+  }
+
+  // Add blog entries
+  contentData.entries.forEach(entry => {
+    html += `<h3><a href="${entry.url}">${entry.title}</a></h3>`;
+    html += `<p class="item-meta">${new Date(entry.created).toLocaleDateString()}</p>`;
+
+    const body = truncateAtCutoff(entry.body);
+    if (body) {
+      html += marked.parse(body);
+    }
+
+    html += `<p><a href="${entry.url}">Read more</a></p>`;
+  });
+
+  // Add TILs
+  contentData.tils.forEach(til => {
+    html += `<h3><a href="${til.url}">${til.title}</a></h3>`;
+    html += `<p class="item-meta">TIL: ${til.topic} | ${new Date(til.created).toLocaleDateString()}</p>`;
+
+    const body = truncateAtCutoff(til.body);
+    if (body) {
+      html += marked.parse(body);
+    }
+
+    html += `<p><a href="${til.url}">Read more</a></p>`;
+  });
+
+  // Add blogmarks
+  if (contentData.blogmarks.length > 0) {
+    html += '<h3>Links and quotes</h3>';
+    contentData.blogmarks.forEach(mark => {
+      html += `<p><strong><a href="${mark.link_url}">${mark.link_title}</a></strong></p>`;
+
+      if (mark.quote_raw) {
+        html += `<blockquote>${marked.parse(mark.quote_raw)}</blockquote>`;
+      }
+
+      if (mark.commentary) {
+        html += marked.parse(mark.commentary);
+      }
+    });
+  }
+
+  // Add quotations
+  if (contentData.quotations.length > 0) {
+    html += '<h3>Quotations</h3>';
+    contentData.quotations.forEach(q => {
+      html += `<blockquote>${q.quote}</blockquote>`;
+      if (q.source_url) {
+        html += `<p>— <a href="${q.source_url}">${q.source}</a></p>`;
+      } else {
+        html += `<p>— ${q.source}</p>`;
+      }
+    });
+  }
+
+  // Add notes
+  if (contentData.notes.length > 0) {
+    html += '<h3>Notes</h3>';
+    contentData.notes.forEach(note => {
+      html += marked.parse(note.body);
+    });
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function generateExtrasHTML() {
+  if (!contentData) return '';
+
+  let html = '<div class="newsletter-output">';
+
+  // Only blogmarks and quotations
+  if (contentData.blogmarks.length > 0) {
+    html += '<h3>Links</h3>';
+    contentData.blogmarks.forEach(mark => {
+      html += `<p><strong><a href="${mark.link_url}">${mark.link_title}</a></strong></p>`;
+
+      if (mark.quote_raw) {
+        html += `<blockquote>${marked.parse(mark.quote_raw)}</blockquote>`;
+      }
+
+      if (mark.commentary) {
+        html += marked.parse(mark.commentary);
+      }
+    });
+  }
+
+  if (contentData.quotations.length > 0) {
+    html += '<h3>Quotations</h3>';
+    contentData.quotations.forEach(q => {
+      html += `<blockquote>${q.quote}</blockquote>`;
+      if (q.source_url) {
+        html += `<p>— <a href="${q.source_url}">${q.source}</a></p>`;
+      } else {
+        html += `<p>— ${q.source}</p>`;
+      }
+    });
+  }
+
+  html += '</div>';
+  return html;
+}
+
+async function copyToClipboard(text, buttonEl, successMsg) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const originalText = buttonEl.textContent;
+    buttonEl.textContent = successMsg;
+    setTimeout(() => {
+      buttonEl.textContent = originalText;
+    }, 2000);
+    showStatus('Copied to clipboard!', 'success');
+  } catch (error) {
+    showStatus(`Failed to copy: ${error.message}`, 'error');
+  }
+}
+
+// Event listeners
+fetchBtn.addEventListener('click', fetchContent);
+
+copyNewsletterBtn.addEventListener('click', () => {
+  const html = generateNewsletterHTML();
+  copyToClipboard(html, copyNewsletterBtn, '✓ Copied!');
+});
+
+copyExtrasBtn.addEventListener('click', () => {
+  const html = generateExtrasHTML();
+  copyToClipboard(html, copyExtrasBtn, '✓ Copied!');
+});
+
+// Re-render preview when options change
+truncateCutoffCheckbox.addEventListener('change', renderPreview);
+  </script>
+</body>
+</html>
