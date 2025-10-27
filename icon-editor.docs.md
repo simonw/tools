@@ -1,0 +1,3 @@
+This is an interactive 24×24 pixel icon editor that allows users to create custom icons with drawing and erasing tools, color selection, and emoji-to-icon conversion. The application provides preset colors, a touch-friendly interface, and PNG export functionality while automatically saving designs to the browser's URL hash for persistence. Users can start from scratch, load emoji characters onto the canvas, or customize icons by hand with full-color pixel-level control.
+
+<!-- Generated from commit: a1cf1d21cac6f68bb6ae12fda7430cfd21a6d043 -->
