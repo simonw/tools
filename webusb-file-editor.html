@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WebUSB File Editor — Device File Manager</title>
+  <title>MicroPython File Editor — Device File Manager</title>
   <style>
     :root {
       --bg: #0f1115;
@@ -187,6 +187,11 @@
       border-radius: 50%;
       background: var(--danger);
     }
+    .note {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 8px;
+    }
 
     @media (max-width: 768px) {
       main {
@@ -202,13 +207,14 @@
 </head>
 <body>
   <header>
-    <h1>WebUSB File Editor</h1>
+    <h1>MicroPython File Editor</h1>
     <div class="controls">
       <button id="connectBtn" class="primary">Connect Device</button>
       <span id="statusPill" class="status-pill status-disconnected">Disconnected</span>
       <button id="refreshBtn" disabled>Refresh Files</button>
       <button id="newFileBtn" disabled>New File</button>
     </div>
+    <div class="note">Requires a Chromium browser with Web Serial. Works with MicroPython and CircuitPython devices.</div>
   </header>
 
   <main>
@@ -248,13 +254,18 @@
   <script>
     // ---- State ----
     const state = {
-      device: null,
+      port: null,
+      writer: null,
+      reader: null,
+      writableClosed: null,
+      readableClosed: null,
       connected: false,
       currentFile: null,
       currentContent: '',
       originalContent: '',
       modified: false,
-      files: []
+      files: [],
+      currentDir: '/'
     };
 
     // ---- DOM Elements ----
@@ -272,45 +283,30 @@
     const deleteBtn = document.getElementById('deleteBtn');
     const editorContent = document.getElementById('editorContent');
 
-    // ---- WebUSB Communication ----
+    // ---- Web Serial Communication ----
     async function connectDevice() {
-      if (!('usb' in navigator)) {
-        alert('WebUSB is not supported in this browser. Try Chrome, Edge, or Opera.');
+      if (!('serial' in navigator)) {
+        alert('Web Serial API not supported in this browser. Try Chrome / Edge.');
         return;
       }
 
       try {
-        // Request a USB device (CircuitPython/MicroPython devices typically)
-        const device = await navigator.usb.requestDevice({
-          filters: [
-            // CircuitPython devices
-            { vendorId: 0x239A },
-            // Adafruit boards
-            { vendorId: 0x239A },
-            // Generic CDC devices (adjust as needed)
-            { vendorId: 0x2E8A }, // Raspberry Pi Pico
-          ]
-        });
+        state.port = await navigator.serial.requestPort();
+        await state.port.open({ baudRate: 115200 });
 
-        await device.open();
+        const encoder = new TextEncoderStream();
+        state.writableClosed = encoder.readable.pipeTo(state.port.writable);
+        state.writer = encoder.writable.getWriter();
 
-        // Find the correct configuration and interface
-        if (device.configuration === null) {
-          await device.selectConfiguration(1);
-        }
+        const decoder = new TextDecoderStream();
+        state.readableClosed = state.port.readable.pipeTo(decoder.writable);
+        state.reader = decoder.readable.getReader();
 
-        // Claim interface (usually interface 2 for CircuitPython WebUSB)
-        const interfaceNumber = 2; // Common for CircuitPython
-        try {
-          await device.claimInterface(interfaceNumber);
-        } catch (e) {
-          console.warn('Could not claim interface 2, trying interface 0', e);
-          await device.claimInterface(0);
-        }
-
-        state.device = device;
         state.connected = true;
         updateConnectionStatus();
+
+        // Enter raw REPL mode
+        await enterRawREPL();
 
         // Load files
         await loadFileList();
@@ -321,13 +317,23 @@
     }
 
     async function disconnectDevice() {
-      if (state.device) {
+      if (state.port) {
         try {
-          await state.device.close();
+          if (state.writer) {
+            await state.writer.close();
+            await state.writableClosed;
+          }
+          if (state.reader) {
+            await state.reader.cancel();
+            await state.readableClosed;
+          }
+          await state.port.close();
         } catch (e) {
           console.error('Error closing device:', e);
         }
-        state.device = null;
+        state.port = null;
+        state.writer = null;
+        state.reader = null;
         state.connected = false;
         state.files = [];
         updateConnectionStatus();
@@ -336,41 +342,137 @@
       }
     }
 
-    async function sendCommand(command) {
-      if (!state.device) throw new Error('Device not connected');
-
-      const encoder = new TextEncoder();
-      const data = encoder.encode(command + '\n');
-
-      // Send data to device (endpoint 1 is typically OUT for CircuitPython)
-      await state.device.transferOut(1, data);
+    async function send(cmd) {
+      await state.writer.write(cmd + '\r\n');
     }
 
-    async function receiveData() {
-      if (!state.device) throw new Error('Device not connected');
+    async function readUntil(marker, timeout = 5000) {
+      let buffer = '';
+      const startTime = Date.now();
 
-      // Receive data from device (endpoint 1 is typically IN for CircuitPython)
-      const result = await state.device.transferIn(1, 64); // Read up to 64 bytes
-      const decoder = new TextDecoder();
-      return decoder.decode(result.data);
+      while (true) {
+        if (Date.now() - startTime > timeout) {
+          throw new Error('Read timeout');
+        }
+
+        const { value, done } = await state.reader.read();
+        if (done) break;
+
+        buffer += value;
+
+        if (buffer.includes(marker)) {
+          return buffer;
+        }
+      }
+
+      return buffer;
+    }
+
+    async function enterRawREPL() {
+      // Send Ctrl-C to interrupt any running program
+      await send('\x03');
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Send Ctrl-A to enter raw REPL
+      await send('\x01');
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Clear any initial output
+      try {
+        await readUntil('raw REPL; CTRL-B to exit\r\n>', 2000);
+      } catch (e) {
+        console.warn('Could not enter raw REPL cleanly:', e);
+      }
+    }
+
+    async function execPython(code) {
+      // Send the code
+      await send(code);
+
+      // Send Ctrl-D to execute
+      await send('\x04');
+
+      // Wait for execution to complete
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Read output until we get OK or error marker
+      let output = '';
+      try {
+        output = await readUntil('\x04', 3000);
+      } catch (e) {
+        console.error('Error reading output:', e);
+      }
+
+      // Parse output (remove control characters and markers)
+      const lines = output.split('\n');
+      const result = [];
+      let inOutput = false;
+
+      for (const line of lines) {
+        if (line.includes('OK')) break;
+        if (inOutput || line.trim()) {
+          inOutput = true;
+          result.push(line);
+        }
+      }
+
+      return result.join('\n').replace(/\x04/g, '').trim();
     }
 
     // ---- File Operations ----
     async function loadFileList() {
-      // This is a placeholder implementation
-      // In a real implementation, you would send commands to the device
-      // to list files and parse the response
+      try {
+        const code = `
+import os
+def list_files(path):
+    try:
+        items = os.listdir(path)
+        for item in sorted(items):
+            full_path = path + ('/' if path != '/' else '') + item
+            try:
+                stat = os.stat(full_path)
+                is_dir = stat[0] & 0x4000
+                size = stat[6] if not is_dir else 0
+                print(f"{item}|{'d' if is_dir else 'f'}|{size}")
+            except:
+                print(f"{item}|f|0")
+    except Exception as e:
+        print(f"ERROR: {e}")
+list_files('${state.currentDir}')
+`;
 
-      // For demonstration, we'll simulate a file structure
-      state.files = [
-        { name: 'code.py', type: 'file', size: 1234, path: '/code.py' },
-        { name: 'boot.py', type: 'file', size: 456, path: '/boot.py' },
-        { name: 'lib', type: 'directory', path: '/lib' },
-        { name: 'settings.toml', type: 'file', size: 89, path: '/settings.toml' },
-        { name: 'README.txt', type: 'file', size: 567, path: '/README.txt' },
-      ];
+        const output = await execPython(code);
 
-      renderFileList();
+        if (!output || output.includes('ERROR')) {
+          console.error('Error listing files:', output);
+          state.files = [];
+          renderFileList();
+          return;
+        }
+
+        state.files = [];
+        const lines = output.split('\n');
+
+        for (const line of lines) {
+          if (!line.trim() || line.includes('>>>')) continue;
+
+          const parts = line.split('|');
+          if (parts.length === 3) {
+            const [name, type, size] = parts;
+            state.files.push({
+              name: name.trim(),
+              type: type === 'd' ? 'directory' : 'file',
+              size: parseInt(size) || 0,
+              path: state.currentDir + (state.currentDir === '/' ? '' : '/') + name.trim()
+            });
+          }
+        }
+
+        renderFileList();
+      } catch (error) {
+        console.error('Error loading file list:', error);
+        alert('Failed to load files: ' + error.message);
+      }
     }
 
     function renderFileList() {
@@ -391,7 +493,6 @@
         }
 
         const icon = file.type === 'directory' ? '📁' : '📄';
-        const sizeText = file.type === 'file' ? ` (${formatSize(file.size)})` : '';
 
         item.innerHTML = `
           <span class="file-icon">${icon}</span>
@@ -402,12 +503,33 @@
           item.addEventListener('click', () => openFile(file));
         } else {
           item.addEventListener('click', () => {
-            alert('Directory browsing not yet implemented');
+            state.currentDir = file.path;
+            loadFileList();
           });
         }
 
         fileList.appendChild(item);
       });
+
+      // Add parent directory option if not at root
+      if (state.currentDir !== '/') {
+        const parentItem = document.createElement('div');
+        parentItem.className = 'file-item directory';
+        parentItem.innerHTML = `
+          <span class="file-icon">📁</span>
+          <span>..</span>
+        `;
+        parentItem.addEventListener('click', () => {
+          const parts = state.currentDir.split('/').filter(p => p);
+          parts.pop();
+          state.currentDir = '/' + parts.join('/');
+          if (state.currentDir !== '/' && !state.currentDir.startsWith('/')) {
+            state.currentDir = '/' + state.currentDir;
+          }
+          loadFileList();
+        });
+        fileList.insertBefore(parentItem, fileList.firstChild);
+      }
     }
 
     async function openFile(file) {
@@ -417,91 +539,107 @@
 
       state.currentFile = file.path;
 
-      // In a real implementation, send a command to read the file
-      // For now, we'll use placeholder content
-      const content = await readFileFromDevice(file.path);
+      try {
+        const content = await readFileFromDevice(file.path);
+        state.currentContent = content;
+        state.originalContent = content;
+        state.modified = false;
 
-      state.currentContent = content;
-      state.originalContent = content;
-      state.modified = false;
-
-      showEditor(content, file.name);
-      renderFileList();
+        showEditor(content, file.name);
+        renderFileList();
+      } catch (error) {
+        console.error('Error opening file:', error);
+        alert('Failed to open file: ' + error.message);
+      }
     }
 
     async function readFileFromDevice(path) {
-      // Placeholder implementation
-      // In reality, you would send a command to the device to read the file
+      const code = `
+with open('${path.replace(/'/g, "\\'")}', 'r') as f:
+    content = f.read()
+    # Print in chunks to avoid buffer issues
+    chunk_size = 256
+    for i in range(0, len(content), chunk_size):
+        print(content[i:i+chunk_size], end='')
+`;
 
-      const examples = {
-        '/code.py': `import board
-import digitalio
-import time
-
-led = digitalio.DigitalInOut(board.LED)
-led.direction = digitalio.Direction.OUTPUT
-
-while True:
-    led.value = True
-    time.sleep(0.5)
-    led.value = False
-    time.sleep(0.5)`,
-        '/boot.py': `import storage
-# Disable USB drive on boot
-storage.disable_usb_drive()`,
-        '/settings.toml': `# CircuitPython settings
-CIRCUITPY_WEB_API_PASSWORD = "passw0rd"
-CIRCUITPY_WIFI_SSID = "MyNetwork"
-CIRCUITPY_WIFI_PASSWORD = "password123"`,
-        '/README.txt': `This is a sample file on your CircuitPython device.
-
-You can edit this file using the WebUSB File Editor.
-
-Features:
-- View files
-- Edit files
-- Save changes
-- Download files
-- Create new files`
-      };
-
-      return examples[path] || '// File content would be loaded from device\n';
+      const output = await execPython(code);
+      return output;
     }
 
     async function writeFileToDevice(path, content) {
-      // Placeholder implementation
-      // In reality, you would send commands to write the file to the device
-      console.log('Writing to device:', path);
-      console.log('Content:', content);
+      try {
+        // Escape content for Python string
+        const escaped = content
+          .replace(/\\/g, '\\\\')
+          .replace(/'/g, "\\'")
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t');
 
-      // Simulate async operation
-      await new Promise(resolve => setTimeout(resolve, 500));
+        // Write in chunks to avoid buffer issues
+        const chunkSize = 200;
+        const chunks = [];
+        for (let i = 0; i < escaped.length; i += chunkSize) {
+          chunks.push(escaped.slice(i, i + chunkSize));
+        }
 
-      // Update the original content to match saved content
-      state.originalContent = content;
-      state.modified = false;
-      updateModifiedIndicator();
+        let code = `
+with open('${path.replace(/'/g, "\\'")}', 'w') as f:
+`;
 
-      alert('File saved successfully!\n\n(In a real implementation, this would write to the device)');
+        for (const chunk of chunks) {
+          code += `    f.write('${chunk}')\n`;
+        }
+
+        code += `print('WRITTEN')`;
+
+        const output = await execPython(code);
+
+        if (!output.includes('WRITTEN')) {
+          throw new Error('File write failed');
+        }
+
+        state.originalContent = content;
+        state.modified = false;
+        updateModifiedIndicator();
+
+        // Refresh file list to update sizes
+        await loadFileList();
+
+        alert('File saved successfully!');
+      } catch (error) {
+        console.error('Error writing file:', error);
+        alert('Failed to save file: ' + error.message);
+      }
     }
 
     async function deleteFileFromDevice(path) {
-      // Placeholder implementation
-      console.log('Deleting from device:', path);
-
       if (!confirm(`Are you sure you want to delete ${path}?`)) {
         return;
       }
 
-      // Simulate async operation
-      await new Promise(resolve => setTimeout(resolve, 300));
+      try {
+        const code = `
+import os
+os.remove('${path.replace(/'/g, "\\'")}')
+print('DELETED')
+`;
 
-      // Remove from file list
-      state.files = state.files.filter(f => f.path !== path);
-      renderFileList();
-      clearEditor();
+        const output = await execPython(code);
 
-      alert('File deleted!\n\n(In a real implementation, this would delete from the device)');
+        if (!output.includes('DELETED')) {
+          throw new Error('File deletion failed');
+        }
+
+        clearEditor();
+        await loadFileList();
+
+        alert('File deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting file:', error);
+        alert('Failed to delete file: ' + error.message);
+      }
     }
 
     // ---- Editor ----
@@ -547,7 +685,7 @@ Features:
 
     function updateModifiedIndicator() {
       modifiedIndicator.style.display = state.modified ? 'inline-block' : 'none';
-      saveBtn.disabled = !state.modified;
+      saveBtn.disabled = !state.modified || !state.connected;
     }
 
     // ---- UI Updates ----
@@ -597,17 +735,7 @@ Features:
       const filename = prompt('Enter filename (e.g., mycode.py):');
       if (!filename) return;
 
-      const path = '/' + filename;
-
-      // Add to file list
-      state.files.push({
-        name: filename,
-        type: 'file',
-        size: 0,
-        path: path
-      });
-
-      renderFileList();
+      const path = state.currentDir + (state.currentDir === '/' ? '' : '/') + filename;
 
       // Open the new file
       state.currentFile = path;
@@ -624,25 +752,16 @@ Features:
     });
 
     saveAsBtn.addEventListener('click', async () => {
-      const filename = prompt('Save as (filename):', state.currentFile ? state.currentFile.replace('/', '') : 'newfile.py');
+      const filename = prompt('Save as (filename):', state.currentFile ? state.currentFile.split('/').pop() : 'newfile.py');
       if (!filename) return;
 
-      const path = '/' + filename;
+      const path = state.currentDir + (state.currentDir === '/' ? '' : '/') + filename;
       await writeFileToDevice(path, state.currentContent);
-
-      // Add to file list if new
-      if (!state.files.find(f => f.path === path)) {
-        state.files.push({
-          name: filename,
-          type: 'file',
-          size: state.currentContent.length,
-          path: path
-        });
-        renderFileList();
-      }
 
       state.currentFile = path;
       fileName.textContent = filename;
+
+      await loadFileList();
     });
 
     downloadBtn.addEventListener('click', () => {
@@ -650,7 +769,7 @@ Features:
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = state.currentFile ? state.currentFile.replace('/', '') : 'file.txt';
+      a.download = state.currentFile ? state.currentFile.split('/').pop() : 'file.txt';
       a.click();
       URL.revokeObjectURL(url);
     });
