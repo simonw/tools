@@ -1,3 +1,3 @@
-The Claude Token Counter allows you to calculate token usage for messages sent to Claude 3.5 Sonnet. Enter an optional system prompt and required user message, then add image or PDF files by dragging and dropping them into the designated area. After providing your Anthropic API key (stored locally in your browser), click "Count Tokens" to receive a detailed breakdown of token consumption for your inputs.
+This page provides a tool for counting tokens used by Claude models, which is useful for understanding API costs and optimizing prompts. Users can enter system prompts and user messages, optionally attach images or PDF documents, and receive a detailed token count breakdown from Anthropic's API. The tool stores the API key locally in the browser for convenience and supports drag-and-drop file uploads for efficient workflows.
 
-<!-- Generated from commit: 033c0a74688aab01dedca71d7d4d718838a8db50 -->
+<!-- Generated from commit: fbd47dc3816f32a8c3d8614ee2457f18d77536fd -->
