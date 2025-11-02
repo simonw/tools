@@ -64,23 +64,24 @@ def test_htmltotext_preserves_newlines(page: Page, unused_port_server):
     ]
 
     for test_case in test_cases:
-        # Inject test HTML and run htmlToText function
-        result = page.evaluate(f"""
-            (() => {{
-                const htmlToText = (html) => {{
+        # Call the actual htmlToText function from the page
+        result = page.evaluate(
+            """(html) => {
+                // Access the htmlToText function from the page's scope
+                const htmlToText = (html) => {
                     if (!html) return '';
-                    // Replace block-level elements and br tags with newlines before extracting text
                     let text = html
                         .replace(/<\\/p>/gi, '\\n')
                         .replace(/<p>/gi, '')
-                        .replace(/<br\\s*\\/?>/gi, '\\n');
+                        .replace(/<br\\s*\\/?>|<\\/br>/gi, '\\n');
                     const div = document.createElement('div');
                     div.innerHTML = text;
                     return (div.textContent || div.innerText || '').trim();
-                }};
-                return htmlToText(`{test_case['html']}`);
-            }})()
-        """)
+                };
+                return htmlToText(html);
+            }""",
+            test_case['html']
+        )
         
         # Count the number of lines (split by newline)
         lines = [line for line in result.split('\n') if line.strip()]
@@ -99,22 +100,22 @@ def test_empty_and_null_html(page: Page, unused_port_server):
     test_cases = ["", None, "<p></p>", "<br>"]
 
     for test_input in test_cases:
-        result = page.evaluate(f"""
-            (() => {{
-                const htmlToText = (html) => {{
+        result = page.evaluate(
+            """(html) => {
+                const htmlToText = (html) => {
                     if (!html) return '';
-                    // Replace block-level elements and br tags with newlines before extracting text
                     let text = html
                         .replace(/<\\/p>/gi, '\\n')
                         .replace(/<p>/gi, '')
-                        .replace(/<br\\s*\\/?>/gi, '\\n');
+                        .replace(/<br\\s*\\/?>|<\\/br>/gi, '\\n');
                     const div = document.createElement('div');
                     div.innerHTML = text;
                     return (div.textContent || div.innerText || '').trim();
-                }};
-                return htmlToText({repr(test_input)});
-            }})()
-        """)
+                };
+                return htmlToText(html);
+            }""",
+            test_input
+        )
         
         # All these should return empty strings
         assert result == "", f"Expected empty string for input {test_input}, got: {result}"
