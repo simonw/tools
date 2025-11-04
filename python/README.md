@@ -4,7 +4,18 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## extract_issues.py
+
+```bash
+cd datasette
+uv run https://tools.simonwillison.net/python/extract_issues.py 1.0a19
+# or
+uv run https://tools.simonwillison.net/python/extract_issues.py 1.0a19..1.0a20
+```
+Extract GitHub issues referenced in commits between two versions (or from a single version to HEAD) and print them as `#123, #124`.
+
 ## openai_background_prompt.py
+
 ```bash
 OPENAI_API_KEY=$(llm keys get openai) uv run https://tools.simonwillison.net/python/openai_background_prompt.py \
   o4-mini-deep-research 'Describe a research task here'
