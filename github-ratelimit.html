@@ -60,42 +60,98 @@ h1 {
   margin-bottom: 15px;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 20px;
+.rate-limit-card {
+  background: #ffffff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: box-shadow 0.2s;
 }
 
-thead {
-  background: #f6f8fa;
+.rate-limit-card:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
 }
 
-th {
-  text-align: left;
-  padding: 12px;
-  font-weight: 600;
-  color: #57606a;
-  border-bottom: 2px solid #d0d7de;
-  font-size: 14px;
-}
-
-td {
-  padding: 12px;
-  border-bottom: 1px solid #d0d7de;
-  font-size: 14px;
-}
-
-tr:last-child td {
-  border-bottom: none;
-}
-
-tbody tr:hover {
-  background: #f6f8fa;
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
 .resource-name {
   font-weight: 600;
   color: #24292f;
+  font-size: 16px;
+}
+
+.remaining-count {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-container {
+  width: 100%;
+  height: 24px;
+  background: #f6f8fa;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid #d0d7de;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #2da44e 0%, #26a148 100%);
+  transition: width 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.progress-bar.warning {
+  background: linear-gradient(90deg, #bf8700 0%, #9a6700 100%);
+}
+
+.progress-bar.critical {
+  background: linear-gradient(90deg, #d1242f 0%, #cf222e 100%);
+}
+
+.progress-text {
+  white-space: nowrap;
+  padding: 0 8px;
+}
+
+.card-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: #57606a;
+}
+
+.stat-item {
+  flex: 1;
+}
+
+.stat-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  display: block;
+  color: #24292f;
+  font-variant-numeric: tabular-nums;
 }
 
 .number {
@@ -110,11 +166,6 @@ tbody tr:hover {
 .critical {
   color: #cf222e;
   font-weight: 600;
-}
-
-.ditto {
-  color: #57606a;
-  text-align: center;
 }
 
 button {
@@ -185,12 +236,17 @@ button:disabled {
     font-size: 24px;
   }
 
-  table {
-    font-size: 12px;
+  .rate-limit-card {
+    padding: 12px;
   }
 
-  th, td {
-    padding: 8px;
+  .resource-name {
+    font-size: 14px;
+  }
+
+  .card-stats {
+    flex-direction: column;
+    gap: 8px;
   }
 }
   </style>
@@ -303,35 +359,24 @@ async function checkRateLimit() {
 
     const data = await response.json();
 
-    // Create table
+    // Create cards container
     const resultsContainer = document.createElement('div');
     resultsContainer.className = 'results';
 
-    resultsContainer.innerHTML = `
-      <h2>GitHub API Rate Limits</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Resource</th>
-            <th>Limit</th>
-            <th>Used</th>
-            <th>Remaining</th>
-            <th>Resets At</th>
-            <th>Resets In</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody">
-        </tbody>
-      </table>
-      <div class="timestamp">Last checked: ${new Date().toLocaleString()}</div>
-    `;
+    const header = document.createElement('h2');
+    header.textContent = 'GitHub API Rate Limits';
+    resultsContainer.appendChild(header);
+
+    const cardsContainer = document.createElement('div');
+    cardsContainer.id = 'cardsContainer';
+    resultsContainer.appendChild(cardsContainer);
+
+    const timestamp = document.createElement('div');
+    timestamp.className = 'timestamp';
+    timestamp.textContent = `Last checked: ${new Date().toLocaleString()}`;
+    resultsContainer.appendChild(timestamp);
 
     resultsDiv.appendChild(resultsContainer);
-    const tableBody = document.getElementById('tableBody');
-
-    // Track previous row's reset values for ditto marks
-    let prevResetsAt = null;
-    let prevResetsIn = null;
 
     // Display each resource type
     const resources = data.resources;
@@ -342,28 +387,39 @@ async function checkRateLimit() {
       const reset = resourceData.reset;
       const remainingClass = getRemainingClass(remaining, limit);
 
+      const usedPercentage = (used / limit) * 100;
       const resetsAt = formatTimestamp(reset);
       const resetsIn = formatTimeRemaining(reset);
 
-      // Use ditto marks if values match previous row
-      const displayResetsAt = (resetsAt === prevResetsAt) ? '″' : resetsAt;
-      const displayResetsIn = (resetsIn === prevResetsIn) ? '″' : resetsIn;
-
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td class="resource-name">${resourceType}</td>
-        <td class="number">${limit.toLocaleString()}</td>
-        <td class="number">${used.toLocaleString()}</td>
-        <td class="number ${remainingClass}">${remaining.toLocaleString()}</td>
-        <td class="${displayResetsAt === '″' ? 'ditto' : ''}">${displayResetsAt}</td>
-        <td class="${displayResetsIn === '″' ? 'ditto' : ''}">${displayResetsIn}</td>
+      const card = document.createElement('div');
+      card.className = 'rate-limit-card';
+      card.innerHTML = `
+        <div class="card-header">
+          <span class="resource-name">${resourceType}</span>
+          <span class="remaining-count ${remainingClass}">${remaining.toLocaleString()} left</span>
+        </div>
+        <div class="progress-container">
+          <div class="progress-bar ${remainingClass}" style="width: ${usedPercentage}%">
+            <span class="progress-text">${used.toLocaleString()} / ${limit.toLocaleString()} used</span>
+          </div>
+        </div>
+        <div class="card-stats">
+          <div class="stat-item">
+            <span class="stat-label">Limit</span>
+            <span class="stat-value number">${limit.toLocaleString()}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Resets At</span>
+            <span class="stat-value">${resetsAt}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Resets In</span>
+            <span class="stat-value">${resetsIn}</span>
+          </div>
+        </div>
       `;
 
-      tableBody.appendChild(row);
-
-      // Update previous values
-      prevResetsAt = resetsAt;
-      prevResetsIn = resetsIn;
+      cardsContainer.appendChild(card);
     }
 
   } catch (error) {
