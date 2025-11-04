@@ -12,16 +12,16 @@ from pathlib import Path
 def format_timestamp(ts):
     """Format ISO timestamp to readable format."""
     try:
-        dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-        return dt.strftime('%Y-%m-%d %H:%M:%S')
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
     except:
         return ts
 
 
 def format_tool_use(tool):
     """Format tool use content."""
-    name = tool.get('name', 'Unknown')
-    tool_input = tool.get('input', {})
+    name = tool.get("name", "Unknown")
+    tool_input = tool.get("input", {})
 
     md = f"**Tool:** `{name}`\n\n"
 
@@ -35,18 +35,18 @@ def format_tool_use(tool):
 
 def format_tool_result(result):
     """Format tool result content."""
-    content = result.get('content', '')
+    content = result.get("content", "")
 
     if isinstance(content, list):
         # Handle structured content
         parts = []
         for item in content:
             if isinstance(item, dict):
-                if item.get('type') == 'text':
-                    parts.append(item.get('text', ''))
+                if item.get("type") == "text":
+                    parts.append(item.get("text", ""))
             else:
                 parts.append(str(item))
-        content = '\n'.join(parts)
+        content = "\n".join(parts)
 
     md = "**Result:**\n```\n"
     md += str(content)
@@ -64,21 +64,23 @@ def format_message_content(content):
         parts = []
         for item in content:
             if isinstance(item, dict):
-                msg_type = item.get('type', 'text')
+                msg_type = item.get("type", "text")
 
-                if msg_type == 'text':
-                    parts.append(item.get('text', ''))
-                elif msg_type == 'thinking':
-                    thinking = item.get('thinking', '')
+                if msg_type == "text":
+                    parts.append(item.get("text", ""))
+                elif msg_type == "thinking":
+                    thinking = item.get("thinking", "")
                     if thinking:
-                        parts.append(f"<details>\n<summary>💭 Thinking</summary>\n\n{thinking}\n</details>")
-                elif msg_type == 'tool_use':
+                        parts.append(
+                            f"<details>\n<summary>💭 Thinking</summary>\n\n{thinking}\n</details>"
+                        )
+                elif msg_type == "tool_use":
                     parts.append(format_tool_use(item))
-                elif msg_type == 'tool_result':
+                elif msg_type == "tool_result":
                     parts.append(format_tool_result(item))
             else:
                 parts.append(str(item))
-        return '\n\n'.join(parts)
+        return "\n\n".join(parts)
 
     return str(content)
 
@@ -90,21 +92,21 @@ def process_jsonl_line(line):
     except json.JSONDecodeError:
         return None
 
-    entry_type = data.get('type', 'unknown')
+    entry_type = data.get("type", "unknown")
 
     # Skip file history snapshots
-    if entry_type == 'file-history-snapshot':
+    if entry_type == "file-history-snapshot":
         return None
 
     # Process user and assistant messages
-    if entry_type in ['user', 'assistant']:
-        message = data.get('message', {})
-        role = message.get('role', entry_type)
-        content = message.get('content', '')
-        timestamp = data.get('timestamp', '')
+    if entry_type in ["user", "assistant"]:
+        message = data.get("message", {})
+        role = message.get("role", entry_type)
+        content = message.get("content", "")
+        timestamp = data.get("timestamp", "")
 
         # Format header
-        icon = '👤' if role == 'user' else '🤖'
+        icon = "👤" if role == "user" else "🤖"
         header = f"## {icon} {role.upper()}"
 
         if timestamp:
@@ -115,24 +117,24 @@ def process_jsonl_line(line):
 
         # Add metadata if available
         metadata = []
-        if entry_type == 'assistant':
-            model = message.get('model', '')
+        if entry_type == "assistant":
+            model = message.get("model", "")
             if model:
                 metadata.append(f"**Model:** `{model}`")
 
-            usage = message.get('usage', {})
+            usage = message.get("usage", {})
             if usage:
-                input_tokens = usage.get('input_tokens', 0)
-                output_tokens = usage.get('output_tokens', 0)
+                input_tokens = usage.get("input_tokens", 0)
+                output_tokens = usage.get("output_tokens", 0)
                 metadata.append(f"**Tokens:** {input_tokens} in / {output_tokens} out")
 
-        cwd = data.get('cwd', '')
+        cwd = data.get("cwd", "")
         if cwd:
             metadata.append(f"**Working Dir:** `{cwd}`")
 
         result = f"{header}\n\n"
         if metadata:
-            result += '\n'.join(metadata) + '\n\n'
+            result += "\n".join(metadata) + "\n\n"
         result += f"{formatted_content}\n\n---\n"
 
         return result
@@ -150,19 +152,23 @@ def convert_jsonl_to_markdown(input_file, output_file=None):
 
     # Determine output file
     if output_file is None:
-        output_file = input_path.with_suffix('.md')
+        output_file = input_path.with_suffix(".md")
 
     output_path = Path(output_file)
 
     # Process file
     entries_processed = 0
-    with open(input_path, 'r', encoding='utf-8') as infile, \
-         open(output_path, 'w', encoding='utf-8') as outfile:
+    with (
+        open(input_path, "r", encoding="utf-8") as infile,
+        open(output_path, "w", encoding="utf-8") as outfile,
+    ):
 
         # Write header
         outfile.write(f"# Claude Code Conversation Log\n\n")
         outfile.write(f"**Source:** `{input_path.name}`  \n")
-        outfile.write(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        outfile.write(
+            f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        )
         outfile.write("---\n\n")
 
         # Process each line
@@ -177,7 +183,9 @@ def convert_jsonl_to_markdown(input_file, output_file=None):
                     outfile.write(markdown)
                     entries_processed += 1
             except Exception as e:
-                print(f"Warning: Error processing line {line_num}: {e}", file=sys.stderr)
+                print(
+                    f"Warning: Error processing line {line_num}: {e}", file=sys.stderr
+                )
                 continue
 
     print(f"✓ Converted {entries_processed} entries")
@@ -189,7 +197,9 @@ def main():
     """Main entry point."""
     if len(sys.argv) < 2:
         print("Usage: python claude_to_markdown.py <input.jsonl> [output.md]")
-        print("\nConverts Claude Code JSONL conversation logs to readable Markdown format.")
+        print(
+            "\nConverts Claude Code JSONL conversation logs to readable Markdown format."
+        )
         return 1
 
     input_file = sys.argv[1]
@@ -198,5 +208,5 @@ def main():
     return convert_jsonl_to_markdown(input_file, output_file)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

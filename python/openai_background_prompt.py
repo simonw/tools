@@ -138,7 +138,9 @@ def main() -> int:
         help="Enable the web_search_preview tool",
     )
     parser.add_argument(
-        "--code-interpreter", action="store_true", help="Enable the code_interpreter tool"
+        "--code-interpreter",
+        action="store_true",
+        help="Enable the code_interpreter tool",
     )
     parser.add_argument(
         "--poll-interval",

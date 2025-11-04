@@ -71,7 +71,11 @@ def format_value(value: object, indent: int = 0) -> list[str]:
     if isinstance(value, dict):
         lines: list[str] = []
         for key, val in value.items():
-            if key == "command" and isinstance(val, list) and command_has_multiline(val):
+            if (
+                key == "command"
+                and isinstance(val, list)
+                and command_has_multiline(val)
+            ):
                 lines.append(f"{spaces}- **{key}**:")
                 lines.extend(format_command_list(val, indent + 1))
             elif isinstance(val, (dict, list)):
@@ -80,7 +84,9 @@ def format_value(value: object, indent: int = 0) -> list[str]:
             elif isinstance(val, str):
                 if key == "encrypted_content":
                     byte_count = len(val.encode("utf-8"))
-                    lines.append(f"{spaces}- **{key}**: encrypted_content: {byte_count} bytes")
+                    lines.append(
+                        f"{spaces}- **{key}**: encrypted_content: {byte_count} bytes"
+                    )
                     continue
                 embedded = try_format_embedded_command_json(val, indent + 1)
                 if embedded is not None:
@@ -144,13 +150,15 @@ def render_markdown(entries: list[dict], source: Path) -> str:
     if session_meta:
         lines.append("\n## Session Metadata")
         meta_payload = session_meta.get("payload", {})
-        meta_lines = format_value({
-            "timestamp": session_meta.get("timestamp"),
-            "cwd": meta_payload.get("cwd"),
-            "originator": meta_payload.get("originator"),
-            "cli_version": meta_payload.get("cli_version"),
-            "instructions": meta_payload.get("instructions"),
-        })
+        meta_lines = format_value(
+            {
+                "timestamp": session_meta.get("timestamp"),
+                "cwd": meta_payload.get("cwd"),
+                "originator": meta_payload.get("originator"),
+                "cli_version": meta_payload.get("cli_version"),
+                "instructions": meta_payload.get("instructions"),
+            }
+        )
         lines.extend(meta_lines)
 
     lines.append("\n## Events")
@@ -182,12 +190,16 @@ def read_entries(path: Path) -> list[dict]:
             try:
                 entries.append(json.loads(text))
             except json.JSONDecodeError as exc:
-                raise SystemExit(f"Failed to parse JSON on line {number}: {exc}") from exc
+                raise SystemExit(
+                    f"Failed to parse JSON on line {number}: {exc}"
+                ) from exc
     return entries
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Convert Codex JSONL session logs to Markdown")
+    parser = argparse.ArgumentParser(
+        description="Convert Codex JSONL session logs to Markdown"
+    )
     parser.add_argument("path", type=Path, help="Path to the .jsonl file")
     args = parser.parse_args()
 

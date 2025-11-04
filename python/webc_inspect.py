@@ -48,7 +48,9 @@ def read_header(blob: bytes) -> Dict[str, Any]:
     }
 
 
-def locate_cbor_map(blob: bytes, required_keys: Iterable[str], *, search_limit: Optional[int] = None) -> Tuple[int, Dict[str, Any]]:
+def locate_cbor_map(
+    blob: bytes, required_keys: Iterable[str], *, search_limit: Optional[int] = None
+) -> Tuple[int, Dict[str, Any]]:
     """Scan `blob` for a CBOR map that contains the required keys."""
     if search_limit is None:
         search_limit = len(blob)
@@ -63,7 +65,9 @@ def locate_cbor_map(blob: bytes, required_keys: Iterable[str], *, search_limit: 
                 continue
             if isinstance(obj, dict) and all(key in obj for key in required):
                 return offset, obj
-    raise ValueError(f"Failed to locate CBOR map containing keys: {', '.join(required)}")
+    raise ValueError(
+        f"Failed to locate CBOR map containing keys: {', '.join(required)}"
+    )
 
 
 def read_span(blob: bytes, span: Dict[str, Any]) -> bytes:
@@ -171,8 +175,12 @@ def describe_volumes(root: Dict[str, Any], blob: bytes) -> None:
 def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Inspect a Wasmer WebC archive")
     parser.add_argument("archive", help="Path to the .webc archive (or cache blob)")
-    parser.add_argument("--max-root-scan", type=int, default=1 << 20,
-                        help="Number of initial bytes to scan when locating the root CBOR map")
+    parser.add_argument(
+        "--max-root-scan",
+        type=int,
+        default=1 << 20,
+        help="Number of initial bytes to scan when locating the root CBOR map",
+    )
     args = parser.parse_args(argv)
 
     path = Path(args.archive)
@@ -183,8 +191,9 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     data = path.read_bytes()
     header = read_header(data)
     try:
-        root_offset, root = locate_cbor_map(data, ["manifest", "volumes", "signature"],
-                                            search_limit=args.max_root_scan)
+        root_offset, root = locate_cbor_map(
+            data, ["manifest", "volumes", "signature"], search_limit=args.max_root_scan
+        )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -204,8 +213,11 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     if isinstance(span, dict):
         try:
             manifest_chunk = read_span(data, span)
-            _, manifest = locate_cbor_map(manifest_chunk, ["package", "commands"],
-                                          search_limit=len(manifest_chunk))
+            _, manifest = locate_cbor_map(
+                manifest_chunk,
+                ["package", "commands"],
+                search_limit=len(manifest_chunk),
+            )
         except ValueError as exc:
             print(f"warning: could not decode manifest content: {exc}")
         except Exception as exc:
@@ -215,7 +227,9 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
 
     atoms_meta = root.get("atoms")
     if isinstance(atoms_meta, dict):
-        print(f"Atoms blob: span={atoms_meta.get('span')} checksum={format_checksum(atoms_meta.get('checksum'))}")
+        print(
+            f"Atoms blob: span={atoms_meta.get('span')} checksum={format_checksum(atoms_meta.get('checksum'))}"
+        )
 
     signature = root.get("signature")
     if isinstance(signature, dict):

@@ -39,18 +39,24 @@ try:
     from openai._types import NotGiven, NotGivenType  # type: ignore
 except Exception:  # pragma: no cover
     NotGiven = object  # type: ignore
+
     class NotGivenType: ...  # type: ignore
 
+
 # ----------------------------- Introspection helpers -----------------------------
+
 
 def _is_literal(ann) -> bool:
     return get_origin(ann) in (t.Literal, tx.Literal)
 
+
 def _is_union(ann) -> bool:
     return get_origin(ann) in (t.Union, pytypes.UnionType)
 
+
 def _is_optional(ann) -> bool:
     return _is_union(ann) and type(None) in get_args(ann)
+
 
 def _skip_ann(ann) -> bool:
     # Skip NotGiven / sentinel types in unions.
@@ -62,10 +68,12 @@ def _skip_ann(ann) -> bool:
     name = getattr(ann, "__name__", "") or str(ann)
     return "NotGiven" in name or "Omit" in name
 
+
 def _unwrap_optional(ann):
     if _is_optional(ann):
         return tuple(a for a in get_args(ann) if a is not type(None))  # noqa: E721
     return (ann,)
+
 
 def literal_choices(annotation) -> list[str]:
     """Extract all Literal[...] strings from (possibly nested) union/optional types."""
@@ -98,14 +106,18 @@ def literal_choices(annotation) -> list[str]:
             walk(part)
     return out
 
+
 # ----------------------------- CLI construction -----------------------------
 
 PARAMS = ["background", "moderation", "output_format", "quality", "size"]
 
+
 def build_command() -> click.Command:
     # Resolve annotations properly (handles forward refs & __future__ annotations)
     images_mod_globals = sys.modules[Images.__module__].__dict__
-    hints = get_type_hints(Images.generate, globalns=images_mod_globals, include_extras=True)
+    hints = get_type_hints(
+        Images.generate, globalns=images_mod_globals, include_extras=True
+    )
 
     # model choices are “known” but we don’t enforce them; we just show in help
     model_choices = literal_choices(hints.get("model", str))
@@ -116,40 +128,50 @@ def build_command() -> click.Command:
     params.append(click.Argument(["prompt"], metavar="PROMPT"))
 
     # OUTFILE (positional, optional)
-    params.append(click.Argument(
-        ["outfile"],
-        required=False,
-        type=click.Path(dir_okay=False, writable=True, path_type=Path),
-        metavar="OUTFILE",
-    ))
+    params.append(
+        click.Argument(
+            ["outfile"],
+            required=False,
+            type=click.Path(dir_okay=False, writable=True, path_type=Path),
+            metavar="OUTFILE",
+        )
+    )
 
     # -m/--model (not restricted, but show known values)
     model_help = "Model to use"
     if model_choices:
         model_help += f" (known: {', '.join(model_choices)})"
-    params.append(click.Option(
-        ["-m", "--model"],
-        default="gpt-image-1-mini",
-        show_default=True,
-        help=model_help,
-    ))
+    params.append(
+        click.Option(
+            ["-m", "--model"],
+            default="gpt-image-1-mini",
+            show_default=True,
+            help=model_help,
+        )
+    )
 
     # Derive options (background/moderation/output_format/quality/size) with choices from Literal
     for name in PARAMS:
         ann = hints.get(name)
         label = name.replace("_", " ")
         if ann is None:
-            params.append(click.Option([f"--{name.replace('_','-')}"], help=f"{label}."))
+            params.append(
+                click.Option([f"--{name.replace('_','-')}"], help=f"{label}.")
+            )
             continue
         choices = literal_choices(ann)
         if choices:
-            params.append(click.Option(
-                [f"--{name.replace('_','-')}"],
-                type=click.Choice(choices, case_sensitive=True),
-                help=f"{label}.",
-            ))
+            params.append(
+                click.Option(
+                    [f"--{name.replace('_','-')}"],
+                    type=click.Choice(choices, case_sensitive=True),
+                    help=f"{label}.",
+                )
+            )
         else:
-            params.append(click.Option([f"--{name.replace('_','-')}"], help=f"{label}."))
+            params.append(
+                click.Option([f"--{name.replace('_','-')}"], help=f"{label}.")
+            )
 
     @click.pass_context
     def callback(ctx: click.Context, **kw):
@@ -182,10 +204,18 @@ def build_command() -> click.Command:
         # -----------------------------------------
 
         # Pretty-print JSON (minus "data") to stderr in yellow
-        payload = resp.model_dump() if hasattr(resp, "model_dump") else json.loads(json.dumps(resp, default=lambda o: getattr(o, "__dict__", str(o))))
+        payload = (
+            resp.model_dump()
+            if hasattr(resp, "model_dump")
+            else json.loads(
+                json.dumps(resp, default=lambda o: getattr(o, "__dict__", str(o)))
+            )
+        )
         payload.pop("data", None)
         payload["generation_time_in_s"] = generation_time
-        click.secho(json.dumps(payload, indent=2, sort_keys=True), fg="yellow", err=True)
+        click.secho(
+            json.dumps(payload, indent=2, sort_keys=True), fg="yellow", err=True
+        )
 
         # Save image bytes
         outfile.write_bytes(b64decode(resp.data[0].b64_json))
@@ -204,8 +234,10 @@ def build_command() -> click.Command:
         context_settings={"help_option_names": ["-h", "--help"]},
     )
 
+
 def main() -> None:
     build_command()()
+
 
 if __name__ == "__main__":
     main()

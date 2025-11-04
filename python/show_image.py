@@ -21,7 +21,9 @@ from rich.console import Console
 from rich_pixels import Pixels
 
 
-def fit_to_terminal(im: Image.Image, cols: int, rows: int, margin_rows: int = 0) -> tuple[int, int]:
+def fit_to_terminal(
+    im: Image.Image, cols: int, rows: int, margin_rows: int = 0
+) -> tuple[int, int]:
     """Return (new_w, new_h) in *image pixels* to fit terminal size.
 
     rich-pixels uses half-block characters, so 1 terminal row ≈ 2 image rows.
