@@ -1,3 +1,3 @@
-This page provides a GitHub API rate limit checker that allows users to authenticate with their GitHub account and monitor their remaining API quota across different resource types. Users can click the authentication button to sign in via GitHub's authorization flow, after which they can check their current rate limits to see how many requests they have used, remaining, and when the limits reset. The interface displays the information in a table format with visual indicators highlighting when rate limits are running low.
+This page provides a GitHub API rate limit monitoring tool that displays current usage across different API resource categories. Users authenticate with GitHub through a popup window and can then check their remaining API calls, which are visualized with color-coded progress bars indicating usage levels. The tool tracks limits for different resource types (like core, search, and graphql) and shows reset times, helping developers manage their API consumption effectively.
 
-<!-- Generated from commit: fdfb6f124df0b26465df11414558634f3c0900ad -->
+<!-- Generated from commit: feeb7207951864601d28216cdc18a8dd8988f0ef -->
