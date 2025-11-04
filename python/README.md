@@ -4,6 +4,17 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## openai_background_prompt.py
+```bash
+OPENAI_API_KEY=$(llm keys get openai) uv run https://tools.simonwillison.net/python/openai_background_prompt.py \
+  o4-mini-deep-research 'Describe a research task here'
+```
+Runs a prompt against an OpenAI model using the background option, then polls for completion and shows the JSON result when it finishes.
+
+Also works against GPT-5 Pro and other models.
+
+Add `--code-interpreter` to enable the code interpreter tool and `--web-search` to enable the web search tool.
+
 ## claude_to_markdown.py
 
 Convert a Claude `.jsonl` conversation log to readable Markdown.
