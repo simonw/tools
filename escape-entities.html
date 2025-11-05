@@ -38,6 +38,21 @@
             margin-top: 15px;
             margin-bottom: 5px;
         }
+        .mode-selector {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+        }
+        .mode-selector label {
+            display: inline;
+            font-weight: normal;
+            margin-left: 5px;
+            margin-right: 15px;
+        }
+        .mode-selector input[type="radio"] {
+            cursor: pointer;
+        }
         .documentation {
             background-color: #f0f0f0;
             padding: 15px;
@@ -48,16 +63,27 @@
 </head>
 <body>
     <h1>HTML Entity Escaper</h1>
+
+    <div class="mode-selector">
+        <strong>Mode:</strong>
+        <input type="radio" id="escapeMode" name="mode" value="escape" checked>
+        <label for="escapeMode">Escape</label>
+        <input type="radio" id="unescapeMode" name="mode" value="unescape">
+        <label for="unescapeMode">Unescape</label>
+    </div>
+
     <label for="input">Input:</label>
     <textarea id="input" placeholder="Paste your text here"></textarea>
-    <label for="output">Output (with escaped entities):</label>
+    <label for="output" id="outputLabel">Output (with escaped entities):</label>
     <textarea id="output" readonly></textarea>
     <button id="copyButton">Copy to clipboard</button>
 
     <div class="documentation">
         <h2>What this tool does:</h2>
-        <p>This HTML Entity Escaper is a simple tool that helps you convert special characters in your text to their corresponding HTML entities. It's particularly useful when you need to display code or text containing HTML syntax on a web page without it being interpreted as actual HTML.</p>
-        <p>The tool escapes the following characters:</p>
+        <p>This HTML Entity tool helps you convert between special characters and their corresponding HTML entities. It works in two modes:</p>
+
+        <h3>Escape Mode (default):</h3>
+        <p>Converts special characters to HTML entities. This is useful when you need to display code or text containing HTML syntax on a web page without it being interpreted as actual HTML.</p>
         <ul>
             <li><code>&</code> becomes <code>&amp;amp;</code></li>
             <li><code><</code> becomes <code>&amp;lt;</code></li>
@@ -65,13 +91,29 @@
             <li><code>"</code> becomes <code>&amp;quot;</code></li>
             <li><code>'</code> becomes <code>&amp;#39;</code></li>
         </ul>
-        <p>To use the tool, simply paste your text into the input box. The escaped version will automatically appear in the output box. You can then copy the escaped text to your clipboard using the "Copy to clipboard" button.</p>
+
+        <h3>Unescape Mode:</h3>
+        <p>Converts HTML entities back to their original characters. This is useful when you have HTML-encoded text and need to decode it for readability or further processing.</p>
+
+        <p><strong>Supported formats:</strong></p>
+        <ul>
+            <li><strong>Named entities:</strong> <code>&amp;amp;</code> → <code>&</code>, <code>&amp;lt;</code> → <code><</code>, <code>&amp;gt;</code> → <code>></code>, <code>&amp;quot;</code> → <code>"</code></li>
+            <li><strong>Decimal numeric entities:</strong> <code>&amp;#34;</code> → <code>"</code>, <code>&amp;#160;</code> → non-breaking space</li>
+            <li><strong>Hexadecimal numeric entities:</strong> <code>&amp;#x22;</code> → <code>"</code>, <code>&amp;#xA0;</code> → non-breaking space</li>
+        </ul>
+
+        <p>The tool handles all standard HTML entities and any numeric character reference.</p>
+
+        <p>To use the tool, select your desired mode (Escape or Unescape), then paste your text into the input box. The converted text will automatically appear in the output box. You can then copy the result to your clipboard using the "Copy to clipboard" button.</p>
     </div>
 
     <script>
         const input = document.getElementById('input');
         const output = document.getElementById('output');
+        const outputLabel = document.getElementById('outputLabel');
         const copyButton = document.getElementById('copyButton');
+        const escapeModeRadio = document.getElementById('escapeMode');
+        const unescapeModeRadio = document.getElementById('unescapeMode');
 
         function escapeHTML(text) {
             const entities = {
@@ -84,9 +126,38 @@
             return text.replace(/[&<>"']/g, char => entities[char]);
         }
 
-        input.addEventListener('input', () => {
-            output.value = escapeHTML(input.value);
-        });
+        function unescapeHTML(text) {
+            const entities = {
+                '&amp;': '&',
+                '&lt;': '<',
+                '&gt;': '>',
+                '&quot;': '"',
+                '&#39;': "'",
+                '&#x27;': "'"
+            };
+            // First handle named entities and hex/decimal entities we know about
+            let result = text.replace(/&amp;|&lt;|&gt;|&quot;|&#39;|&#x27;/g, entity => entities[entity]);
+            // Then handle any decimal numeric entities like &#34;
+            result = result.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+            // Then handle any hexadecimal numeric entities like &#x22;
+            result = result.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+            return result;
+        }
+
+        function processText() {
+            const mode = document.querySelector('input[name="mode"]:checked').value;
+            if (mode === 'escape') {
+                output.value = escapeHTML(input.value);
+                outputLabel.textContent = 'Output (with escaped entities):';
+            } else {
+                output.value = unescapeHTML(input.value);
+                outputLabel.textContent = 'Output (with unescaped entities):';
+            }
+        }
+
+        input.addEventListener('input', processText);
+        escapeModeRadio.addEventListener('change', processText);
+        unescapeModeRadio.addEventListener('change', processText);
 
         copyButton.addEventListener('click', () => {
             output.select();
