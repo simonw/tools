@@ -93,13 +93,15 @@
         </ul>
 
         <h3>Unescape Mode:</h3>
-        <p>Converts HTML entities back to their original characters. This is useful when you have HTML-encoded text and need to decode it.</p>
+        <p>Converts HTML entities back to their original characters. This is useful when you have HTML-encoded text and need to decode it. Supports both named entities and numeric entities (decimal and hexadecimal).</p>
         <ul>
             <li><code>&amp;amp;</code> becomes <code>&</code></li>
             <li><code>&amp;lt;</code> becomes <code><</code></li>
             <li><code>&amp;gt;</code> becomes <code>></code></li>
-            <li><code>&amp;quot;</code> becomes <code>"</code></li>
-            <li><code>&amp;#39;</code> becomes <code>'</code></li>
+            <li><code>&amp;quot;</code> or <code>&amp;#34;</code> or <code>&amp;#x22;</code> becomes <code>"</code></li>
+            <li><code>&amp;#39;</code> or <code>&amp;#x27;</code> becomes <code>'</code></li>
+            <li>Any decimal entity like <code>&amp;#160;</code> (non-breaking space)</li>
+            <li>Any hexadecimal entity like <code>&amp;#xA0;</code> (non-breaking space)</li>
         </ul>
 
         <p>To use the tool, select your desired mode (Escape or Unescape), then paste your text into the input box. The converted text will automatically appear in the output box. You can then copy the result to your clipboard using the "Copy to clipboard" button.</p>
@@ -133,7 +135,13 @@
                 '&#39;': "'",
                 '&#x27;': "'"
             };
-            return text.replace(/&amp;|&lt;|&gt;|&quot;|&#39;|&#x27;/g, entity => entities[entity]);
+            // First handle named entities and hex/decimal entities we know about
+            let result = text.replace(/&amp;|&lt;|&gt;|&quot;|&#39;|&#x27;/g, entity => entities[entity]);
+            // Then handle any decimal numeric entities like &#34;
+            result = result.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+            // Then handle any hexadecimal numeric entities like &#x22;
+            result = result.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+            return result;
         }
 
         function processText() {
