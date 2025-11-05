@@ -354,7 +354,13 @@ async function checkRateLimit() {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch rate limit');
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem('GITHUB_TOKEN');
+        checkGithubAuth();
+        resultsDiv.innerHTML = '<div class="error">Authentication failed. Please authenticate again.</div>';
+        return;
+      }
+      throw new Error(`Failed to fetch rate limit: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -424,14 +430,7 @@ async function checkRateLimit() {
 
   } catch (error) {
     console.error('Rate limit check failed:', error);
-
-    if (error.message.includes('401') || error.message.includes('403')) {
-      localStorage.removeItem('GITHUB_TOKEN');
-      checkGithubAuth();
-      resultsDiv.innerHTML = '<div class="error">Authentication failed. Please authenticate again.</div>';
-    } else {
-      resultsDiv.innerHTML = `<div class="error">Failed to check rate limit: ${error.message}</div>`;
-    }
+    resultsDiv.innerHTML = `<div class="error">Failed to check rate limit: ${error.message}</div>`;
   } finally {
     checkRateLimitBtn.disabled = false;
     checkRateLimitBtn.textContent = 'Check Rate Limit';
