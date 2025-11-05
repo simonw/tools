@@ -1,3 +1,3 @@
-This HTML Entity Escaper converts special characters in text to their corresponding HTML entities. The tool transforms characters like ampersands, angle brackets, and quotes into their HTML entity equivalents, making them safe to display on web pages without being interpreted as actual HTML code. After pasting text into the input box, the escaped version appears automatically in the output box for easy copying.
+This HTML Entity Escaper tool converts between special characters and their HTML entity representations in both directions. Users can select between Escape mode, which converts characters like `<`, `>`, and `&` into their entity equivalents for safe display in web pages, or Unescape mode, which decodes HTML entities back into readable characters. The tool supports named entities (such as `&amp;`), decimal numeric entities (such as `&#34;`), and hexadecimal numeric entities (such as `&#x22;`), with real-time conversion as users type and a convenient copy-to-clipboard button for the output.
 
-<!-- Generated from commit: 4ac8c4fbe4b847999b7e1a78f70aa4c6673d3939 -->
+<!-- Generated from commit: d8fd1ad5e6048ea6e1f8df91fe531f13cbc6dd3f -->
