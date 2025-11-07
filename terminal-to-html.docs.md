@@ -1,3 +1,3 @@
-This tool converts terminal output in multiple formats (RTF, HTML, and plain text) into clean, styled HTML code. Users paste colored terminal output from their clipboard, and the application parses the formatting to generate corresponding HTML with preserved colors and styling. The tool provides options to copy the generated HTML or save it as a GitHub Gist for easy sharing.
+This tool converts terminal output in various formats (RTF, HTML, or plain text) into standalone HTML documents. Users paste their terminal output, and the application automatically detects the format, preserves colors and formatting, and generates both an HTML code preview and a rendered preview. The tool includes options to copy the generated HTML or save it as a GitHub Gist for easy sharing.
 
-<!-- Generated from commit: fdfb6f124df0b26465df11414558634f3c0900ad -->
+<!-- Generated from commit: 4fe7195c4913ed6d438cc2dd38384d74c95167b6 -->
