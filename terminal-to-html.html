@@ -443,6 +443,20 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function wrapInHtmlDocument(content) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terminal Output</title>
+</head>
+<body style="background: black; margin: 0; padding: 0;">
+${content}
+</body>
+</html>`;
+}
+
 function checkGithubAuth() {
   const token = localStorage.getItem('GITHUB_TOKEN');
   const authLinkContainer = document.getElementById('authLinkContainer');
@@ -570,7 +584,7 @@ pasteArea.addEventListener('paste', async (e) => {
   if (htmlData) {
     // HTML is available, use it directly
     htmlOutput = htmlData;
-    fullHtml = htmlData;
+    fullHtml = wrapInHtmlDocument(htmlData);
   } else {
     // Try RTF
     const rtfData = clipboardData.getData('text/rtf');
@@ -593,7 +607,7 @@ pasteArea.addEventListener('paste', async (e) => {
         if (styles.length > 0) {
           preStyle = ` style="${styles.join('; ')}; padding: 15px; border-radius: 4px;"`;
         }
-        fullHtml = `<pre${preStyle}>${htmlOutput}</pre>`;
+        fullHtml = wrapInHtmlDocument(`<pre${preStyle}>${htmlOutput}</pre>`);
       } catch (error) {
         resultsDiv.innerHTML = `<div class="error">Error parsing RTF: ${error.message}</div>`;
         return;
@@ -604,7 +618,7 @@ pasteArea.addEventListener('paste', async (e) => {
 
       if (plainText) {
         htmlOutput = escapeHtml(plainText);
-        fullHtml = `<pre>${htmlOutput}</pre>`;
+        fullHtml = wrapInHtmlDocument(`<pre>${htmlOutput}</pre>`);
       } else {
         resultsDiv.innerHTML = '<div class="error">No supported format detected in clipboard.</div>';
         return;
