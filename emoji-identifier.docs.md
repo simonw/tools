@@ -1,0 +1,3 @@
+This tool identifies and displays all emojis found in pasted or typed text, showing each emoji alongside its name and Unicode codepoint representation. The application uses a regular expression to extract emojis from the input and cross-references them against a comprehensive emoji database to provide accurate naming information. Results update in real-time as users type or paste content, with a clean visual layout that presents each detected emoji with its corresponding metadata.
+
+<!-- Generated from commit: 5072713dbebf789683182021f37c6b3f654008a4 -->
