@@ -99,6 +99,28 @@ h1 {
   font-style: italic;
 }
 
+.url-section {
+  margin-top: 15px;
+}
+
+.url-label {
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.url-display {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 14px;
+  color: #495057;
+  margin-bottom: 10px;
+  word-wrap: break-word;
+  word-break: break-all;
+}
+
 .copy-button {
   background-color: #007bff;
   color: white;
@@ -242,8 +264,30 @@ function createImageItem(src, altText, index) {
   altSection.appendChild(altDisplay);
   altSection.appendChild(copyButton);
   
+  // Create URL section
+  const urlSection = document.createElement('div');
+  urlSection.className = 'url-section';
+  
+  const urlLabel = document.createElement('div');
+  urlLabel.className = 'url-label';
+  urlLabel.textContent = 'Image URL:';
+  
+  const urlDisplay = document.createElement('div');
+  urlDisplay.className = 'url-display';
+  urlDisplay.textContent = src;
+  
+  const urlCopyButton = document.createElement('button');
+  urlCopyButton.className = 'copy-button';
+  urlCopyButton.textContent = 'Copy URL';
+  urlCopyButton.addEventListener('click', () => copyUrl(src, urlCopyButton));
+  
+  urlSection.appendChild(urlLabel);
+  urlSection.appendChild(urlDisplay);
+  urlSection.appendChild(urlCopyButton);
+  
   itemDiv.appendChild(imageContainer);
   itemDiv.appendChild(altSection);
+  itemDiv.appendChild(urlSection);
   
   results.appendChild(itemDiv);
 }
@@ -278,6 +322,43 @@ async function copyAltText(text, button) {
       
       setTimeout(() => {
         button.textContent = 'Copy alt text';
+        button.classList.remove('copy-success');
+      }, 2000);
+    } catch (fallbackErr) {
+      console.error('Fallback copy failed: ', fallbackErr);
+    }
+    document.body.removeChild(textArea);
+  }
+}
+
+async function copyUrl(url, button) {
+  try {
+    await navigator.clipboard.writeText(url);
+    
+    const originalText = button.textContent;
+    button.textContent = 'Copied!';
+    button.classList.add('copy-success');
+    
+    setTimeout(() => {
+      button.textContent = originalText;
+      button.classList.remove('copy-success');
+    }, 2000);
+    
+  } catch (err) {
+    console.error('Failed to copy URL: ', err);
+    
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = url;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      button.textContent = 'Copied!';
+      button.classList.add('copy-success');
+      
+      setTimeout(() => {
+        button.textContent = 'Copy URL';
         button.classList.remove('copy-success');
       }, 2000);
     } catch (fallbackErr) {
