@@ -105,7 +105,11 @@
                 if (fileInput.files[0]) {
                     // Extract coordinates from the response
                     const coordinates = extractCoordinates(text);
-                    if (coordinates.length > 0) {
+                    const points = extractPoints(text);
+
+                    if (points.length > 0) {
+                        displayImageWithPoints(fileInput.files[0], points);
+                    } else if (coordinates.length > 0) {
                         displayImageWithBoundingBoxes(fileInput.files[0], coordinates);
                     }
                 }
@@ -118,6 +122,23 @@
             const regex = /\[\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\]/g;
             const matches = text.match(regex) || [];
             return matches.map(JSON.parse);
+        }
+
+        function extractPoints(text) {
+            // Try to extract JSON array with point objects
+            try {
+                // Look for JSON array pattern
+                const jsonMatch = text.match(/\[[\s\S]*?\{"point"[\s\S]*?\](?=\s*$|\s*```|\s*\n\n)/);
+                if (jsonMatch) {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].point) {
+                        return parsed;
+                    }
+                }
+            } catch (e) {
+                // If parsing fails, return empty array
+            }
+            return [];
         }
 
         function displayImageWithBoundingBoxes(file, coordinates) {
@@ -226,6 +247,143 @@
                     ctx.textAlign = 'center';
                     for (let i = 0; i <= 1000; i += 100) {
                         const x = 80 + i / 1000 * image.width;
+                        ctx.fillText(i.toString(), x, image.height + 40);
+                        ctx.beginPath();
+                        ctx.moveTo(x, image.height + 20);
+                        ctx.lineTo(x, image.height + 25);
+                        ctx.stroke();
+                    }
+                };
+                image.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function displayImageWithPoints(file, points) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const image = new Image();
+                image.onload = function() {
+                    const canvas = document.getElementById('canvas');
+                    canvas.width = image.width + 100;
+                    canvas.height = image.height + 100;
+                    const ctx = canvas.getContext('2d');
+
+                    // Draw the image
+                    ctx.drawImage(image, 80, 20);
+
+                    // Draw grid lines
+                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';  // Red with 50% opacity
+                    ctx.lineWidth = 1;
+
+                    // Vertical grid lines
+                    for (let i = 0; i <= 1000; i += 100) {
+                        const x = 80 + i / 1000 * image.width;
+                        ctx.beginPath();
+                        ctx.moveTo(x, 20);
+                        ctx.lineTo(x, image.height + 20);
+                        ctx.stroke();
+                    }
+
+                    // Horizontal grid lines
+                    for (let i = 0; i <= 1000; i += 100) {
+                        const y = 20 + (1000 - i) / 1000 * image.height;
+                        ctx.beginPath();
+                        ctx.moveTo(80, y);
+                        ctx.lineTo(image.width + 80, y);
+                        ctx.stroke();
+                    }
+
+                    // Draw points
+                    const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'];
+                    const boundingBoxImages = document.getElementById('boundingBoxImages');
+                    boundingBoxImages.innerHTML = ''; // Clear previous content
+
+                    points.forEach((item, index) => {
+                        const [y, x] = item.point.map(coord => coord / 1000);
+                        const label = item.label || '';
+
+                        // Calculate pixel position
+                        const pixelX = x * image.width + 80;
+                        const pixelY = y * image.height + 20;
+
+                        const color = colors[index % colors.length];
+
+                        // Draw point as a circle
+                        ctx.fillStyle = color;
+                        ctx.strokeStyle = '#FFFFFF';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.arc(pixelX, pixelY, 8, 0, 2 * Math.PI);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        // Draw label background
+                        ctx.font = 'bold 16px Arial';
+                        const textMetrics = ctx.measureText(label);
+                        const textWidth = textMetrics.width;
+                        const textHeight = 16;
+                        const padding = 4;
+
+                        // Position label to the right of the point
+                        const labelX = pixelX + 12;
+                        const labelY = pixelY - 8;
+
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                        ctx.fillRect(labelX, labelY, textWidth + padding * 2, textHeight + padding);
+
+                        // Draw label text
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'top';
+                        ctx.fillText(label, labelX + padding, labelY + padding);
+
+                        // Add point info to the list below
+                        const pointContainer = document.createElement('div');
+                        pointContainer.className = 'bounding-box-container';
+
+                        const title = document.createElement('p');
+                        title.style.color = color;
+                        title.textContent = `Point: [${item.point.join(', ')}] - Label: ${label}`;
+                        pointContainer.appendChild(title);
+
+                        boundingBoxImages.appendChild(pointContainer);
+                    });
+
+                    // Draw axes and labels
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 1;
+                    ctx.font = '26px Arial';
+                    ctx.textAlign = 'right';
+
+                    // Y-axis
+                    ctx.beginPath();
+                    ctx.moveTo(80, 20);
+                    ctx.lineTo(80, image.height + 20);
+                    ctx.stroke();
+
+                    // Y-axis labels and ticks
+                    for (let i = 0; i <= 1000; i += 100) {
+                        const y = 20 + i / 1000 * image.height;
+                        ctx.fillStyle = '#000000';
+                        ctx.fillText(i.toString(), 75, y + 5);
+                        ctx.beginPath();
+                        ctx.moveTo(75, y);
+                        ctx.lineTo(80, y);
+                        ctx.stroke();
+                    }
+
+                    // X-axis
+                    ctx.beginPath();
+                    ctx.moveTo(80, image.height + 20);
+                    ctx.lineTo(image.width + 80, image.height + 20);
+                    ctx.stroke();
+
+                    // X-axis labels and ticks
+                    ctx.textAlign = 'center';
+                    for (let i = 0; i <= 1000; i += 100) {
+                        const x = 80 + i / 1000 * image.width;
+                        ctx.fillStyle = '#000000';
                         ctx.fillText(i.toString(), x, image.height + 40);
                         ctx.beginPath();
                         ctx.moveTo(x, image.height + 20);
