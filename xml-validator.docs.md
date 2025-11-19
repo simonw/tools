@@ -1,0 +1,3 @@
+This XML well-formedness validator allows users to paste XML code and check whether it conforms to XML syntax rules. The tool displays validation results with specific error locations and highlights problematic lines with their corresponding line numbers. When errors are detected, the validator identifies the line and column where the problem occurs and automatically scrolls the highlighted error into view.
+
+<!-- Generated from commit: 8c49c1a81f9cf0673bcd8d20c30fc929c18909b6 -->
