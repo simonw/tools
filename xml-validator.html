@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>XML Well-Formedness Validator</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .section {
+      margin-bottom: 1rem;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 320px;
+      resize: vertical;
+      font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.9rem;
+      padding: 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    textarea#xmlInput {
+      min-height: 100px;
+    }
+
+    button {
+      margin-top: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      background: #2563eb;
+      color: white;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    #result {
+      margin-top: 0.5rem;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    #result.ok {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #22c55e;
+    }
+
+    #result.error {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #f87171;
+    }
+
+    .code-wrapper {
+      background: white;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      overflow: auto;
+      font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.9rem;
+      max-height: 360px;
+    }
+
+    .code-line {
+      display: flex;
+      padding: 0 0.5rem;
+      white-space: pre;
+    }
+
+    .code-line:nth-child(2n) {
+      background: #fafafa;
+    }
+
+    .line-number {
+      width: 3ch;
+      text-align: right;
+      color: #9ca3af;
+      padding-right: 0.8rem;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .line-text {
+      flex: 1;
+    }
+
+    .code-line.error-line {
+      background: #fee2e2 !important;
+    }
+
+    .code-line.error-line .line-text {
+      border-bottom: 1px dashed #b91c1c;
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <h1>XML Well-Formedness Validator</h1>
+  <p class="hint">
+    Paste XML below, then click <strong>Validate XML</strong>. Errors (if any) will be shown with line numbers and highlighted underneath.
+  </p>
+
+  <div class="section">
+    <label for="xmlInput"><strong>XML input</strong></label>
+    <textarea id="xmlInput" spellcheck="false">&lt;root&gt;
+  &lt;item&gt;Hello&lt;/item&gt;
+  &lt;item&gt;World&lt;/item&gt;
+&lt;/root&gt;
+</textarea>
+    <button id="validateBtn">Validate XML</button>
+    <div id="result" aria-live="polite"></div>
+  </div>
+
+  <div class="section">
+    <label><strong>Lines (errors highlighted)</strong></label>
+    <div class="code-wrapper">
+      <div id="xmlLines"></div>
+    </div>
+  </div>
+
+  <script>
+    const textarea = document.getElementById("xmlInput");
+    const validateBtn = document.getElementById("validateBtn");
+    const resultBox = document.getElementById("result");
+    const xmlLinesEl = document.getElementById("xmlLines");
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, ch => {
+        switch (ch) {
+          case "&": return "&amp;";
+          case "<": return "&lt;";
+          case ">": return "&gt;";
+          case '"': return "&quot;";
+          case "'": return "&#39;";
+          default: return ch;
+        }
+      });
+    }
+
+    function renderLines(errorLine) {
+      const text = textarea.value.replace(/\r\n?/g, "\n");
+      const lines = text.split("\n");
+
+      let html = "";
+      for (let i = 0; i < lines.length; i++) {
+        const lineNumber = i + 1;
+        const safeText = lines[i].length ? escapeHtml(lines[i]) : "&nbsp;";
+        const isError = errorLine && lineNumber === errorLine;
+        const classes = "code-line" + (isError ? " error-line" : "");
+        html += `
+          <div class="${classes}" data-line="${lineNumber}">
+            <span class="line-number">${lineNumber}</span>
+            <span class="line-text">${safeText}</span>
+          </div>
+        `;
+      }
+      xmlLinesEl.innerHTML = html;
+    }
+
+    function extractLineAndColumn(errorText) {
+      if (!errorText) return null;
+
+      let match;
+
+      // Chrome / WebKit-style: "error on line 2 at column 6"
+      match = errorText.match(/error on line (\d+)\s+at column\s+(\d+)/i);
+      if (match) {
+        return { line: parseInt(match[1], 10), column: parseInt(match[2], 10) };
+      }
+
+      // Firefox-style: "Line: 2, Column: 6" or "Line Number 2, Column 6"
+      match = errorText.match(/Line(?: Number)?:?\s*(\d+)[^0-9]+Column:?\s*(\d+)/i);
+      if (match) {
+        return { line: parseInt(match[1], 10), column: parseInt(match[2], 10) };
+      }
+
+      return null;
+    }
+
+    function validateXml() {
+      const xmlText = textarea.value;
+      resultBox.textContent = "";
+      resultBox.className = "";
+      renderLines(null);
+
+      if (!xmlText.trim()) {
+        resultBox.textContent = "No XML to validate.";
+        resultBox.className = "error";
+        return;
+      }
+
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+      const parserError = xmlDoc.getElementsByTagName("parsererror")[0];
+
+      if (!parserError) {
+        resultBox.textContent = "XML is well-formed ✅";
+        resultBox.className = "ok";
+        return;
+      }
+
+      const errorText = parserError.textContent || "";
+      const firstLine = errorText.split("\n")[0].trim();
+      const lineInfo = extractLineAndColumn(errorText);
+
+      let message = "XML is not well-formed.";
+      if (lineInfo) {
+        message += ` Error on line ${lineInfo.line}, column ${lineInfo.column}.`;
+      }
+      if (firstLine) {
+        message += ` Details: ${firstLine}`;
+      }
+
+      resultBox.textContent = message;
+      resultBox.className = "error";
+
+      if (lineInfo && lineInfo.line > 0) {
+        renderLines(lineInfo.line);
+        const badLineEl = xmlLinesEl.querySelector(`[data-line="${lineInfo.line}"]`);
+        if (badLineEl && badLineEl.scrollIntoView) {
+          badLineEl.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+      } else {
+        renderLines(null);
+      }
+    }
+
+    // Keep line view in sync as user types
+    textarea.addEventListener("input", () => renderLines(null));
+    validateBtn.addEventListener("click", validateXml);
+
+    // Initial render
+    renderLines(null);
+  </script>
+</body>
+</html>
