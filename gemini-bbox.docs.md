@@ -1,3 +1,3 @@
-This tool visualizes bounding box coordinates returned by the Gemini AI API. Upload an image, specify a prompt that asks for bounding box coordinates in the format [ymin, xmin, ymax, xmax], and the application will display the image with overlaid bounding boxes. The visualization includes a coordinate grid and individual extractions of each detected region, making it easier to understand the spatial relationships in the AI's response.
+This application integrates the Gemini API to analyze images and extract bounding box coordinates, which are then visualized on the original image with a grid overlay and coordinate axes. Users can upload an image, enter a custom prompt requesting bounding box coordinates in `[ymin, xmin, ymax, xmax]` format, and select from multiple Gemini model versions to process the request. The extracted coordinates are automatically drawn as colored rectangles on the canvas, and individual cropped regions corresponding to each bounding box are displayed below for easy reference.
 
-<!-- Generated from commit: 6432b3799baafcfbc4d8d9762d8b9b0bfe28c6f5 -->
+<!-- Generated from commit: 112436f5b9961c275f3fde81c0d07b72df568315 -->
