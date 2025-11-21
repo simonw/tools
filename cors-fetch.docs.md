@@ -1,0 +1,3 @@
+This page provides an interactive tool for testing Cross-Origin Resource Sharing (CORS) behavior and inspecting fetch responses in the browser. Users can enter a URL, send a GET request, and view the HTTP status, response headers (filtered by CORS policies), and response body that the browser exposes. The tool automatically prepends `https://` to URLs without a scheme and displays detailed error messages when CORS restrictions or network issues prevent access to the response.
+
+<!-- Generated from commit: fd5d215875ac2a4abd8b3717a0c8789765a9b8f1 -->
