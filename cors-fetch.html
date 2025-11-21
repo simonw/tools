@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CORS Fetch Tester</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f4f5;
+      color: #111827;
+    }
+
+    .page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin: 0 0 4px;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #6b7280;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 16px 18px 18px;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+      margin-bottom: 16px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #374151;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+
+    /* Base styling for text inputs */
+    input[type="text"] {
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      outline: none;
+      min-width: 0;
+      font-size: 0.9rem;
+    }
+
+    input[type="text"]:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+    }
+
+    /* Specific URL input sizing: keep it short, like a single-line field */
+    #url-input {
+      display: block;
+      width: 100%;
+      padding: 8px 10px;
+      height: 40px;
+      line-height: 1.3;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 9px 18px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #2563eb;
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    button span.spinner {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 2px solid rgba(255, 255, 255, 0.6);
+      border-top-color: transparent;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    .status-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 3px 10px;
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .pill.status-ok {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .pill.status-error {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .section-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 12px 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #111827;
+    }
+
+    .section-title small {
+      font-weight: 400;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+
+    pre {
+      background: #0b1120;
+      color: #e5e7eb;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      max-height: 360px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f9fafb;
+      font-weight: 600;
+      width: 160px;
+      white-space: nowrap;
+    }
+
+    td {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+        monospace;
+      word-break: break-all;
+    }
+
+    .error {
+      color: #b91c1c;
+      font-size: 0.85rem;
+      margin-top: 4px;
+      white-space: pre-wrap;
+    }
+
+    .url-display {
+      font-size: 0.8rem;
+      color: #6b7280;
+      word-break: break-all;
+      margin-bottom: 4px;
+    }
+
+    @media (max-width: 640px) {
+      .card {
+        padding: 12px 12px 14px;
+      }
+
+      .input-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      #url-input {
+        height: 34px;
+        padding: 6px 8px;
+        font-size: 0.85rem;
+      }
+
+      button {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>CORS Fetch Tester</h1>
+    <div class="subtitle">
+      Paste a URL, send a <code>fetch()</code> request, and inspect the status, headers, and response body that the browser
+      lets you see.
+    </div>
+
+    <!-- Request card -->
+    <div class="card">
+      <label for="url-input">Request URL</label>
+      <div class="input-row">
+        <input
+          type="text"
+          id="url-input"
+          placeholder="https://example.com/api"
+          autocomplete="off"
+        />
+        <button id="fetch-btn">
+          <span id="fetch-btn-spinner" class="spinner" style="display:none;"></span>
+          <span id="fetch-btn-label">Send request</span>
+        </button>
+      </div>
+      <div class="hint">
+        • If you omit the scheme, <code>https://</code> will be added.<br />
+        • If the server doesn’t enable CORS, the browser will block access to the response (you’ll see a network error).
+      </div>
+      <div id="request-error" class="error" style="display:none;"></div>
+    </div>
+
+    <!-- Response card -->
+    <div class="card">
+      <div class="section-title">
+        Response
+        <small>(last request)</small>
+      </div>
+      <div id="effective-url" class="url-display"></div>
+      <div class="status-row">
+        <div id="status-pill" class="pill">No request yet</div>
+        <div id="meta-pill" class="pill" style="display:none;"></div>
+      </div>
+      <div id="response-error" class="error" style="display:none;"></div>
+
+      <div class="section-title">
+        Headers
+        <small>Only headers exposed by CORS are visible</small>
+      </div>
+      <div id="headers-container">
+        <div class="hint">No headers yet.</div>
+      </div>
+
+      <div class="section-title">
+        Body
+        <small>Shown as text (UTF-8)</small>
+      </div>
+      <pre id="body-output">// Response body will appear here</pre>
+    </div>
+  </div>
+
+  <script>
+    const urlInput = document.getElementById("url-input");
+    const fetchBtn = document.getElementById("fetch-btn");
+    const fetchBtnLabel = document.getElementById("fetch-btn-label");
+    const fetchBtnSpinner = document.getElementById("fetch-btn-spinner");
+
+    const requestErrorEl = document.getElementById("request-error");
+    const responseErrorEl = document.getElementById("response-error");
+    const statusPill = document.getElementById("status-pill");
+    const metaPill = document.getElementById("meta-pill");
+    const effectiveUrlEl = document.getElementById("effective-url");
+    const headersContainer = document.getElementById("headers-container");
+    const bodyOutput = document.getElementById("body-output");
+
+    function setLoading(isLoading) {
+      fetchBtn.disabled = isLoading;
+      fetchBtnSpinner.style.display = isLoading ? "inline-block" : "none";
+      fetchBtnLabel.textContent = isLoading ? "Loading…" : "Send request";
+    }
+
+    function setStatus(text, ok, extraMeta) {
+      statusPill.textContent = text;
+      statusPill.classList.remove("status-ok", "status-error");
+
+      if (ok === true) {
+        statusPill.classList.add("status-ok");
+      } else if (ok === false) {
+        statusPill.classList.add("status-error");
+      }
+
+      if (extraMeta) {
+        metaPill.style.display = "inline-block";
+        metaPill.textContent = extraMeta;
+      } else {
+        metaPill.style.display = "none";
+      }
+    }
+
+    function clearErrors() {
+      requestErrorEl.style.display = "none";
+      requestErrorEl.textContent = "";
+      responseErrorEl.style.display = "none";
+      responseErrorEl.textContent = "";
+    }
+
+    function renderHeaders(headers) {
+      const entries = [];
+      headers.forEach((value, key) => {
+        entries.push({ key, value });
+      });
+
+      if (entries.length === 0) {
+        headersContainer.innerHTML =
+          '<div class="hint">No headers visible. The server may not be exposing any CORS-readable headers.</div>';
+        return;
+      }
+
+      let html = "<table><thead><tr><th>Header</th><th>Value</th></tr></thead><tbody>";
+      for (const { key, value } of entries) {
+        html +=
+          "<tr><th>" +
+          escapeHtml(key) +
+          "</th><td>" +
+          escapeHtml(value) +
+          "</td></tr>";
+      }
+      html += "</tbody></table>";
+      headersContainer.innerHTML = html;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function normalizeUrl(raw) {
+      const trimmed = raw.trim();
+      if (!trimmed) return "";
+
+      if (!/^https?:\/\//i.test(trimmed)) {
+        return "https://" + trimmed;
+      }
+
+      return trimmed;
+    }
+
+    async function doFetch() {
+      clearErrors();
+      const rawUrl = urlInput.value;
+      const url = normalizeUrl(rawUrl);
+
+      if (!url) {
+        requestErrorEl.textContent = "Please enter a URL.";
+        requestErrorEl.style.display = "block";
+        return;
+      }
+
+      try {
+        new URL(url); // Validate
+      } catch (e) {
+        requestErrorEl.textContent = "That doesn't look like a valid URL.";
+        requestErrorEl.style.display = "block";
+        return;
+      }
+
+      setLoading(true);
+      setStatus("Pending request…", null);
+      effectiveUrlEl.textContent = "";
+      headersContainer.innerHTML =
+        '<div class="hint">Awaiting response…</div>';
+      bodyOutput.textContent = "";
+
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          mode: "cors",
+        });
+
+        const statusText = `${response.status} ${response.statusText}`;
+        setStatus(statusText, response.ok, response.type.toUpperCase());
+
+        effectiveUrlEl.textContent = "Effective URL: " + response.url;
+
+        renderHeaders(response.headers);
+
+        let bodyText;
+        try {
+          bodyText = await response.text();
+        } catch (e) {
+          bodyText =
+            "// Could not read body as text.\n// Error: " + String(e);
+        }
+
+        if (!bodyText) {
+          bodyOutput.textContent =
+            "// Empty response body (or body already consumed).";
+        } else {
+          bodyOutput.textContent = bodyText;
+        }
+      } catch (err) {
+        setStatus("Request failed", false, "NETWORK / CORS ERROR");
+        responseErrorEl.style.display = "block";
+        responseErrorEl.textContent =
+          "The request failed. In a browser, this is often due to CORS or network issues.\n\n" +
+          "Error: " +
+          String(err);
+        headersContainer.innerHTML =
+          '<div class="hint">No headers: the browser blocked access to the response.</div>';
+        bodyOutput.textContent =
+          "// No body: the browser blocked access to the response.\n" +
+          "// This usually means the server has not enabled CORS for this origin.";
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchBtn.addEventListener("click", () => {
+      doFetch();
+    });
+
+    urlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        doFetch();
+      }
+    });
+  </script>
+</body>
+</html>
