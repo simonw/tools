@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wikipedia Wikitext Fetcher</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+font-family: Helvetica, Arial, sans-serif;
+background: #f5f5f5;
+margin: 0;
+padding: 20px;
+min-height: 100vh;
+}
+
+.container {
+max-width: 900px;
+margin: 0 auto;
+}
+
+h1 {
+color: #333;
+margin-bottom: 8px;
+font-size: 24px;
+font-weight: 600;
+}
+
+.subtitle {
+color: #666;
+margin-bottom: 24px;
+font-size: 14px;
+}
+
+.input-group {
+display: flex;
+gap: 10px;
+margin-bottom: 20px;
+}
+
+input[type=“text”] {
+flex: 1;
+padding: 12px 16px;
+font-size: 16px;
+font-family: Helvetica, Arial, sans-serif;
+border: 2px solid #ddd;
+border-radius: 8px;
+outline: none;
+transition: border-color 0.2s;
+}
+
+input[type=“text”]:focus {
+border-color: #0066cc;
+}
+
+button {
+padding: 12px 24px;
+font-size: 16px;
+font-family: Helvetica, Arial, sans-serif;
+background: #0066cc;
+color: white;
+border: none;
+border-radius: 8px;
+cursor: pointer;
+transition: background 0.2s;
+white-space: nowrap;
+}
+
+button:hover {
+background: #0052a3;
+}
+
+button:disabled {
+background: #ccc;
+cursor: not-allowed;
+}
+
+.result-container {
+background: white;
+border-radius: 8px;
+box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+overflow: hidden;
+display: none;
+}
+
+.result-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 12px 16px;
+background: #f8f8f8;
+border-bottom: 1px solid #eee;
+}
+
+.page-title {
+font-weight: 600;
+color: #333;
+}
+
+.copy-btn {
+padding: 8px 16px;
+font-size: 14px;
+background: #28a745;
+}
+
+.copy-btn:hover {
+background: #218838;
+}
+
+.copy-btn.copied {
+background: #6c757d;
+}
+
+.wikitext-output {
+padding: 16px;
+max-height: 500px;
+overflow: auto;
+background: #fafafa;
+}
+
+.wikitext-output pre {
+margin: 0;
+white-space: pre-wrap;
+word-wrap: break-word;
+font-family: ‘Monaco’, ‘Consolas’, monospace;
+font-size: 13px;
+line-height: 1.5;
+color: #333;
+}
+
+.error {
+background: #fff3f3;
+border: 1px solid #ffcccc;
+color: #cc0000;
+padding: 12px 16px;
+border-radius: 8px;
+margin-top: 10px;
+display: none;
+}
+
+.loading {
+text-align: center;
+padding: 40px;
+color: #666;
+display: none;
+}
+
+.spinner {
+display: inline-block;
+width: 24px;
+height: 24px;
+border: 3px solid #ddd;
+border-top-color: #0066cc;
+border-radius: 50%;
+animation: spin 1s linear infinite;
+margin-right: 10px;
+vertical-align: middle;
+}
+
+@keyframes spin {
+to { transform: rotate(360deg); }
+}
+</style>
+
+</head>
+<body>
+  <div class="container">
+    <h1>Wikipedia wikitext fetcher</h1>
+    <p class="subtitle">Paste a Wikipedia URL to fetch its raw wikitext source</p>
+
+```
+<div class="input-group">
+  <input type="text" id="urlInput" placeholder="https://en.wikipedia.org/wiki/Albert_Einstein">
+  <button id="fetchBtn">Fetch wikitext</button>
+</div>
+
+<div class="error" id="error"></div>
+
+<div class="loading" id="loading">
+  <span class="spinner"></span>
+  Fetching wikitext...
+</div>
+
+<div class="result-container" id="resultContainer">
+  <div class="result-header">
+    <span class="page-title" id="pageTitle"></span>
+    <button class="copy-btn" id="copyBtn">Copy</button>
+  </div>
+  <div class="wikitext-output">
+    <pre id="wikitextOutput"></pre>
+  </div>
+</div>
+```
+
+  </div>
+
+  <script type="module">
+const urlInput = document.getElementById('urlInput');
+const fetchBtn = document.getElementById('fetchBtn');
+const errorDiv = document.getElementById('error');
+const loadingDiv = document.getElementById('loading');
+const resultContainer = document.getElementById('resultContainer');
+const pageTitle = document.getElementById('pageTitle');
+const wikitextOutput = document.getElementById('wikitextOutput');
+const copyBtn = document.getElementById('copyBtn');
+
+function extractPageName(url) {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    
+    const match = pathname.match(/\/wiki\/(.+)/);
+    if (match) {
+      return decodeURIComponent(match[1]);
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function showError(message) {
+  errorDiv.textContent = message;
+  errorDiv.style.display = 'block';
+  resultContainer.style.display = 'none';
+  loadingDiv.style.display = 'none';
+}
+
+function hideError() {
+  errorDiv.style.display = 'none';
+}
+
+async function fetchWikitext() {
+  const url = urlInput.value.trim();
+  
+  if (!url) {
+    showError('Please enter a Wikipedia URL');
+    return;
+  }
+  
+  const pageName = extractPageName(url);
+  
+  if (!pageName) {
+    showError('Invalid Wikipedia URL. Please use a URL like: https://en.wikipedia.org/wiki/Page_Name');
+    return;
+  }
+  
+  hideError();
+  loadingDiv.style.display = 'block';
+  resultContainer.style.display = 'none';
+  fetchBtn.disabled = true;
+  
+  try {
+    const apiUrl = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(pageName)}&prop=wikitext&format=json&origin=*`;
+    
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+    
+    if (data.error) {
+      throw new Error(data.error.info || 'Page not found');
+    }
+    
+    if (!data.parse || !data.parse.wikitext) {
+      throw new Error('No wikitext found for this page');
+    }
+    
+    const wikitext = data.parse.wikitext['*'];
+    const title = data.parse.title;
+    
+    pageTitle.textContent = title;
+    wikitextOutput.textContent = wikitext;
+    resultContainer.style.display = 'block';
+    copyBtn.textContent = 'Copy';
+    copyBtn.classList.remove('copied');
+    
+  } catch (err) {
+    showError(`Error: ${err.message}`);
+  } finally {
+    loadingDiv.style.display = 'none';
+    fetchBtn.disabled = false;
+  }
+}
+
+async function copyWikitext() {
+  const text = wikitextOutput.textContent;
+  
+  try {
+    await navigator.clipboard.writeText(text);
+    copyBtn.textContent = 'Copied!';
+    copyBtn.classList.add('copied');
+    
+    setTimeout(() => {
+      copyBtn.textContent = 'Copy';
+      copyBtn.classList.remove('copied');
+    }, 2000);
+  } catch (err) {
+    showError('Failed to copy to clipboard');
+  }
+}
+
+fetchBtn.addEventListener('click', fetchWikitext);
+copyBtn.addEventListener('click', copyWikitext);
+
+urlInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    fetchWikitext();
+  }
+});
+  </script>
+
+</body>
+</html>
