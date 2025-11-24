@@ -521,7 +521,9 @@ async function createGist(htmlContent) {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to create gist');
+      const error = new Error('Failed to create gist');
+      error.status = response.status;
+      throw error;
     }
 
     const data = await response.json();
@@ -555,9 +557,15 @@ async function createGist(htmlContent) {
 
   } catch (error) {
     console.error('Gist creation failed:', error);
-    localStorage.removeItem('GITHUB_TOKEN');
-    checkGithubAuth();
-    gistLinks.innerHTML = '<div style="color: #f00;">Failed to create gist. Please try again.</div>';
+    // Only remove token for authentication errors (401, 403)
+    // Don't log out for rate limiting (429) or other errors
+    if (error.status === 401 || error.status === 403) {
+      localStorage.removeItem('GITHUB_TOKEN');
+      checkGithubAuth();
+      gistLinks.innerHTML = '<div style="color: #f00;">Authentication failed. Please authenticate again.</div>';
+    } else {
+      gistLinks.innerHTML = '<div style="color: #f00;">Failed to create gist. Please try again.</div>';
+    }
   } finally {
     saveGistBtn.disabled = false;
     saveGistBtn.textContent = 'Save this to a Gist';
