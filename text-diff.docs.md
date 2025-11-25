@@ -1,0 +1,3 @@
+This text diff tool allows users to compare two blocks of text and visualize the differences between them using character-level analysis. The tool employs a longest common subsequence (LCS) algorithm to identify which characters have been removed (displayed with red strikethrough) and which have been added (displayed with green highlighting). Users can paste their original and modified text into the input fields, click the compare button, and instantly see a detailed breakdown of all changes in an easy-to-read format.
+
+<!-- Generated from commit: b3c628b84c5c6a3b7fcfff10aa5de98b7f5d6962 -->
