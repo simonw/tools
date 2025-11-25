@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text Diff Tool</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+h1 {
+  margin: 0 0 30px 0;
+  color: #333;
+  font-size: 28px;
+  font-weight: 500;
+}
+
+.input-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+}
+
+label {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #555;
+}
+
+textarea {
+  width: 100%;
+  height: 200px;
+  padding: 12px;
+  font-size: 16px;
+  font-family: 'Courier New', monospace;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #4a90e2;
+}
+
+.button-section {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+button {
+  background: #4a90e2;
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  font-size: 16px;
+  font-family: Helvetica, Arial, sans-serif;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: #357abd;
+}
+
+button:active {
+  background: #2868a8;
+}
+
+.results-section {
+  display: none;
+}
+
+.results-section.visible {
+  display: block;
+}
+
+.results-header {
+  font-size: 18px;
+  font-weight: 500;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.diff-container {
+  background: #fafafa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 20px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-x: auto;
+}
+
+.removed {
+  background-color: #ffebee;
+  color: #c62828;
+  text-decoration: line-through;
+}
+
+.added {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.legend {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+}
+
+.legend-box.removed {
+  background-color: #ffebee;
+}
+
+.legend-box.added {
+  background-color: #e8f5e9;
+}
+
+@media (max-width: 768px) {
+  .input-section {
+    grid-template-columns: 1fr;
+  }
+  
+  .container {
+    padding: 20px;
+  }
+}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Text diff tool</h1>
+    
+    <div class="input-section">
+      <div class="input-group">
+        <label for="text1">Original text</label>
+        <textarea id="text1" placeholder="Paste your original text here..."></textarea>
+      </div>
+      <div class="input-group">
+        <label for="text2">Modified text</label>
+        <textarea id="text2" placeholder="Paste your modified text here..."></textarea>
+      </div>
+    </div>
+    
+    <div class="button-section">
+      <button id="compareBtn">Compare texts</button>
+    </div>
+    
+    <div class="results-section" id="results">
+      <div class="results-header">Difference view</div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-box removed"></div>
+          <span>Removed</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-box added"></div>
+          <span>Added</span>
+        </div>
+      </div>
+      <div class="diff-container" id="diffOutput"></div>
+    </div>
+  </div>
+
+  <script type="module">
+const text1Input = document.getElementById('text1');
+const text2Input = document.getElementById('text2');
+const compareBtn = document.getElementById('compareBtn');
+const resultsSection = document.getElementById('results');
+const diffOutput = document.getElementById('diffOutput');
+
+function computeDiff(text1, text2) {
+  const len1 = text1.length;
+  const len2 = text2.length;
+  
+  // Create a matrix for dynamic programming
+  const matrix = Array(len1 + 1).fill(null).map(() => Array(len2 + 1).fill(0));
+  
+  // Fill the matrix with LCS lengths
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      if (text1[i - 1] === text2[j - 1]) {
+        matrix[i][j] = matrix[i - 1][j - 1] + 1;
+      } else {
+        matrix[i][j] = Math.max(matrix[i - 1][j], matrix[i][j - 1]);
+      }
+    }
+  }
+  
+  // Backtrack to find the diff
+  const diff = [];
+  let i = len1;
+  let j = len2;
+  
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && text1[i - 1] === text2[j - 1]) {
+      diff.unshift({ type: 'equal', char: text1[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || matrix[i][j - 1] >= matrix[i - 1][j])) {
+      diff.unshift({ type: 'added', char: text2[j - 1] });
+      j--;
+    } else if (i > 0) {
+      diff.unshift({ type: 'removed', char: text1[i - 1] });
+      i--;
+    }
+  }
+  
+  return diff;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function renderDiff(diff) {
+  let html = '';
+  
+  for (const item of diff) {
+    const escapedChar = escapeHtml(item.char);
+    
+    if (item.type === 'removed') {
+      html += `<span class="removed">${escapedChar}</span>`;
+    } else if (item.type === 'added') {
+      html += `<span class="added">${escapedChar}</span>`;
+    } else {
+      html += escapedChar;
+    }
+  }
+  
+  return html;
+}
+
+compareBtn.addEventListener('click', () => {
+  const text1 = text1Input.value;
+  const text2 = text2Input.value;
+  
+  if (!text1 && !text2) {
+    alert('Please enter text in at least one field');
+    return;
+  }
+  
+  const diff = computeDiff(text1, text2);
+  const html = renderDiff(diff);
+  
+  diffOutput.innerHTML = html;
+  resultsSection.classList.add('visible');
+  
+  // Scroll to results
+  resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+  </script>
+</body>
+</html>
