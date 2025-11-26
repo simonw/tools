@@ -1,3 +1,3 @@
-This application allows users to retrieve the raw wikitext source code from Wikipedia articles by entering a Wikipedia URL. The tool validates the URL format, fetches the wikitext content via the Wikipedia API, and displays it in a formatted output panel with a copy-to-clipboard function. The interface includes real-time feedback with error handling, loading states, and a temporary confirmation message when content is successfully copied.
+This tool retrieves the raw wikitext markup from Wikipedia articles by accepting a Wikipedia URL and querying the Wikipedia API. The application displays the fetched wikitext in a formatted output area and provides functionality to copy the entire source code to the clipboard. It includes error handling for invalid URLs and network failures, as well as visual feedback during the fetching process.
 
-<!-- Generated from commit: 4972d4e4513ebc0a52c73f6a06b2fe11d8c885dc -->
+<!-- Generated from commit: 92480eb07095a95d9c69424e44a770c0e0a56e2b -->
