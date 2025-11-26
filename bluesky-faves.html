@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bluesky Favorites Viewer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 1em;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #0070ff;
+      margin-bottom: 0.5em;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 1.5em;
+    }
+    .controls {
+      background: white;
+      padding: 1.5em;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1.5em;
+    }
+    form {
+      display: flex;
+      gap: 0.5em;
+    }
+    input[type="text"] {
+      flex: 1;
+      font-size: 1rem;
+      padding: 0.75em;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #0070ff;
+      box-shadow: 0 0 0 3px rgba(0, 112, 255, 0.1);
+    }
+    button {
+      background-color: #0070ff;
+      color: white;
+      border: none;
+      padding: 0.75em 1.5em;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    button:hover {
+      background-color: #0060df;
+    }
+    .copy-container {
+      display: none;
+      margin-top: 1em;
+      gap: 0.5em;
+    }
+    .copy-container button {
+      background-color: #28a745;
+    }
+    .copy-container button:hover {
+      background-color: #218838;
+    }
+    .status {
+      margin-top: 1em;
+      padding: 0.75em;
+      border-radius: 4px;
+      display: none;
+    }
+    .status.loading {
+      display: block;
+      background-color: #e3f2fd;
+      color: #1565c0;
+    }
+    .status.error {
+      display: block;
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+    .user-info {
+      display: none;
+      background: white;
+      padding: 1em;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1.5em;
+    }
+    .user-info.visible {
+      display: flex;
+      align-items: center;
+      gap: 1em;
+    }
+    .user-avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .user-details h2 {
+      margin: 0 0 0.25em 0;
+      font-size: 1.25rem;
+    }
+    .user-details .handle {
+      color: #666;
+      font-size: 0.9rem;
+    }
+    .user-details .stats {
+      color: #888;
+      font-size: 0.85rem;
+      margin-top: 0.25em;
+    }
+    .post {
+      background: white;
+      border-radius: 8px;
+      padding: 1em;
+      margin-bottom: 1em;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .post-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75em;
+      margin-bottom: 0.75em;
+    }
+    .post-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .post-author-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .post-author {
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .post-handle {
+      color: #6b7280;
+      font-size: 0.875rem;
+    }
+    .post-meta {
+      color: #6b7280;
+      font-size: 0.8rem;
+      margin-top: 0.25em;
+      display: flex;
+      gap: 0.75em;
+      align-items: center;
+    }
+    .post-meta a {
+      color: #0070ff;
+      text-decoration: none;
+    }
+    .post-meta a:hover {
+      text-decoration: underline;
+    }
+    .post-text {
+      white-space: pre-wrap;
+      font-size: 1rem;
+      line-height: 1.5;
+      color: #374151;
+      word-break: break-word;
+    }
+    .post-embed {
+      margin-top: 0.75em;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .post-embed img {
+      max-width: 100%;
+      display: block;
+    }
+    .post-embed.external {
+      padding: 0.75em;
+      background: #f9fafb;
+    }
+    .post-embed.external .embed-title {
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 0.25em;
+    }
+    .post-embed.external .embed-description {
+      font-size: 0.875rem;
+      color: #6b7280;
+    }
+    .post-embed.external .embed-uri {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      margin-top: 0.25em;
+    }
+    .post-stats {
+      display: flex;
+      gap: 1em;
+      margin-top: 0.75em;
+      padding-top: 0.75em;
+      border-top: 1px solid #f0f0f0;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .post-stats span {
+      display: flex;
+      align-items: center;
+      gap: 0.25em;
+    }
+    .load-more {
+      text-align: center;
+      margin: 1.5em 0;
+    }
+    .load-more button {
+      background-color: #6b7280;
+    }
+    .load-more button:hover {
+      background-color: #4b5563;
+    }
+    @media (max-width: 600px) {
+      form {
+        flex-direction: column;
+      }
+      button {
+        width: 100%;
+      }
+      .post-header {
+        gap: 0.5em;
+      }
+      .post-avatar {
+        width: 40px;
+        height: 40px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Bluesky Favorites Viewer</h1>
+    <p class="subtitle">View posts liked by any Bluesky user</p>
+
+    <div class="controls">
+      <form id="userForm">
+        <input type="text" id="userInput" placeholder="Profile URL, DID, or @username (e.g., @simonw.net)" required />
+        <button type="submit">Fetch Likes</button>
+      </form>
+      <div class="copy-container" id="copyContainer">
+        <button id="copyBtn">Copy Text</button>
+        <button id="copyJsonBtn">Copy JSON</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="user-info" id="userInfo">
+      <img class="user-avatar" id="userAvatar" src="" alt="Avatar" />
+      <div class="user-details">
+        <h2 id="userDisplayName"></h2>
+        <div class="handle" id="userHandle"></div>
+        <div class="stats" id="userStats"></div>
+      </div>
+    </div>
+
+    <div id="postsContainer"></div>
+
+    <div class="load-more" id="loadMore" style="display: none;">
+      <button id="loadMoreBtn">Load More</button>
+    </div>
+  </div>
+
+  <script>
+    (async () => {
+      const form = document.getElementById('userForm');
+      const userInput = document.getElementById('userInput');
+      const postsContainer = document.getElementById('postsContainer');
+      const status = document.getElementById('status');
+      const copyContainer = document.getElementById('copyContainer');
+      const copyBtn = document.getElementById('copyBtn');
+      const copyJsonBtn = document.getElementById('copyJsonBtn');
+      const userInfo = document.getElementById('userInfo');
+      const loadMore = document.getElementById('loadMore');
+      const loadMoreBtn = document.getElementById('loadMoreBtn');
+
+      let allPosts = [];
+      let currentCursor = null;
+      let currentActor = null;
+      let totalFetched = 0;
+      const TARGET_COUNT = 200;
+      const BATCH_SIZE = 100;
+
+      function showStatus(message, isError = false) {
+        status.textContent = message;
+        status.className = 'status ' + (isError ? 'error' : 'loading');
+      }
+
+      function hideStatus() {
+        status.className = 'status';
+      }
+
+      function parseUserInput(input) {
+        input = input.trim();
+
+        // Handle profile URL: https://bsky.app/profile/username
+        if (input.includes('bsky.app/profile/')) {
+          try {
+            const url = new URL(input);
+            const parts = url.pathname.split('/').filter(Boolean);
+            if (parts[0] === 'profile' && parts[1]) {
+              return parts[1];
+            }
+          } catch (e) {
+            // Fall through
+          }
+        }
+
+        // Handle DID
+        if (input.startsWith('did:')) {
+          return input;
+        }
+
+        // Handle @username or plain username
+        if (input.startsWith('@')) {
+          input = input.slice(1);
+        }
+
+        // Add .bsky.social if no domain present
+        if (!input.includes('.')) {
+          input = input + '.bsky.social';
+        }
+
+        return input;
+      }
+
+      async function resolveActor(actor) {
+        // If it's already a DID, we can use it directly
+        if (actor.startsWith('did:')) {
+          const profileRes = await fetch(
+            `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(actor)}`
+          );
+          if (!profileRes.ok) throw new Error('Profile not found');
+          return await profileRes.json();
+        }
+
+        // Resolve handle to get profile
+        const profileRes = await fetch(
+          `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(actor)}`
+        );
+        if (!profileRes.ok) throw new Error('Profile not found');
+        return await profileRes.json();
+      }
+
+      async function fetchLikes(actor, cursor = null, limit = BATCH_SIZE) {
+        let url = `https://public.api.bsky.app/xrpc/app.bsky.feed.getActorLikes?actor=${encodeURIComponent(actor)}&limit=${limit}`;
+        if (cursor) {
+          url += `&cursor=${encodeURIComponent(cursor)}`;
+        }
+
+        const res = await fetch(url);
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`Failed to fetch likes: ${res.status} - ${errText}`);
+        }
+        return await res.json();
+      }
+
+      function displayUserInfo(profile) {
+        document.getElementById('userAvatar').src = profile.avatar || '';
+        document.getElementById('userDisplayName').textContent = profile.displayName || profile.handle;
+        document.getElementById('userHandle').textContent = '@' + profile.handle;
+        document.getElementById('userStats').textContent =
+          `${profile.followersCount?.toLocaleString() || 0} followers · ${profile.followsCount?.toLocaleString() || 0} following · ${profile.postsCount?.toLocaleString() || 0} posts`;
+        userInfo.classList.add('visible');
+      }
+
+      function createPostElement(item) {
+        const post = item.post;
+        const author = post.author;
+        const record = post.record;
+
+        const el = document.createElement('div');
+        el.className = 'post';
+
+        const postId = post.uri.split('/').pop();
+        const postUrl = `https://bsky.app/profile/${author.handle}/post/${postId}`;
+
+        let embedHtml = '';
+        if (post.embed) {
+          if (post.embed.$type === 'app.bsky.embed.images#view' && post.embed.images) {
+            embedHtml = '<div class="post-embed">' +
+              post.embed.images.map(img =>
+                `<img src="${img.thumb}" alt="${img.alt || ''}" loading="lazy" />`
+              ).join('') +
+              '</div>';
+          } else if (post.embed.$type === 'app.bsky.embed.external#view' && post.embed.external) {
+            const ext = post.embed.external;
+            embedHtml = `<div class="post-embed external">
+              <div class="embed-title">${escapeHtml(ext.title || '')}</div>
+              <div class="embed-description">${escapeHtml(ext.description || '')}</div>
+              <div class="embed-uri">${escapeHtml(ext.uri || '')}</div>
+            </div>`;
+          }
+        }
+
+        el.innerHTML = `
+          <div class="post-header">
+            <img class="post-avatar" src="${author.avatar || ''}" alt="" loading="lazy" />
+            <div class="post-author-info">
+              <div class="post-author">${escapeHtml(author.displayName || author.handle)}</div>
+              <div class="post-handle">@${escapeHtml(author.handle)}</div>
+              <div class="post-meta">
+                <span>${new Date(record.createdAt).toLocaleString()}</span>
+                <a href="${postUrl}" target="_blank" rel="noopener">View post</a>
+              </div>
+            </div>
+          </div>
+          <div class="post-text">${escapeHtml(record.text || '')}</div>
+          ${embedHtml}
+          <div class="post-stats">
+            <span>💬 ${post.replyCount || 0}</span>
+            <span>🔁 ${post.repostCount || 0}</span>
+            <span>❤️ ${post.likeCount || 0}</span>
+          </div>
+        `;
+
+        return el;
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function displayPosts(posts) {
+        posts.forEach(item => {
+          const el = createPostElement(item);
+          postsContainer.appendChild(el);
+        });
+      }
+
+      function generateTextOutput() {
+        return allPosts.map((item, i) => {
+          const post = item.post;
+          const author = post.author;
+          const text = post.record.text?.replace(/\n/g, ' ') || '';
+          return `[${i + 1}] ${author.displayName || author.handle} (@${author.handle}): ${text}`;
+        }).join('\n\n');
+      }
+
+      async function fetchAllLikes(actor) {
+        allPosts = [];
+        currentCursor = null;
+        totalFetched = 0;
+        postsContainer.innerHTML = '';
+
+        while (totalFetched < TARGET_COUNT) {
+          showStatus(`Fetching likes... (${totalFetched}/${TARGET_COUNT})`);
+
+          const data = await fetchLikes(actor, currentCursor);
+
+          if (!data.feed || data.feed.length === 0) {
+            break;
+          }
+
+          allPosts = allPosts.concat(data.feed);
+          totalFetched = allPosts.length;
+          currentCursor = data.cursor;
+
+          displayPosts(data.feed);
+
+          if (!data.cursor) {
+            break;
+          }
+        }
+
+        hideStatus();
+
+        if (allPosts.length > 0) {
+          copyContainer.style.display = 'flex';
+        }
+
+        if (currentCursor && allPosts.length >= TARGET_COUNT) {
+          loadMore.style.display = 'block';
+        } else {
+          loadMore.style.display = 'none';
+        }
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        postsContainer.innerHTML = '';
+        userInfo.classList.remove('visible');
+        copyContainer.style.display = 'none';
+        loadMore.style.display = 'none';
+        allPosts = [];
+
+        const rawInput = userInput.value.trim();
+        const actor = parseUserInput(rawInput);
+
+        // Update URL
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('user', rawInput);
+        history.replaceState(null, '', newUrl);
+
+        try {
+          showStatus('Resolving user...');
+          const profile = await resolveActor(actor);
+          currentActor = profile.did;
+
+          displayUserInfo(profile);
+
+          await fetchAllLikes(profile.did);
+
+          if (allPosts.length === 0) {
+            showStatus('No liked posts found for this user.', true);
+          }
+        } catch (err) {
+          console.error(err);
+          showStatus('Error: ' + err.message, true);
+        }
+      });
+
+      loadMoreBtn.addEventListener('click', async () => {
+        if (!currentActor || !currentCursor) return;
+
+        try {
+          showStatus('Loading more...');
+          const data = await fetchLikes(currentActor, currentCursor);
+
+          if (data.feed && data.feed.length > 0) {
+            allPosts = allPosts.concat(data.feed);
+            displayPosts(data.feed);
+            currentCursor = data.cursor;
+          }
+
+          hideStatus();
+
+          if (!data.cursor) {
+            loadMore.style.display = 'none';
+          }
+        } catch (err) {
+          showStatus('Error: ' + err.message, true);
+        }
+      });
+
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(generateTextOutput());
+          const orig = copyBtn.textContent;
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => (copyBtn.textContent = orig), 2000);
+        } catch (err) {
+          console.error('Copy failed', err);
+        }
+      });
+
+      copyJsonBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(allPosts, null, 2));
+          const orig = copyJsonBtn.textContent;
+          copyJsonBtn.textContent = 'Copied!';
+          setTimeout(() => (copyJsonBtn.textContent = orig), 2000);
+        } catch (err) {
+          console.error('Copy JSON failed', err);
+        }
+      });
+
+      // Check for ?user= query parameter on page load
+      const params = new URLSearchParams(window.location.search);
+      const userParam = params.get('user');
+      if (userParam) {
+        userInput.value = userParam;
+        form.requestSubmit();
+      }
+    })();
+  </script>
+</body>
+</html>
