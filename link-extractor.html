@@ -52,15 +52,11 @@ h1 {
   margin-top: 20px;
 }
 
-.copy-buttons {
-  display: none;
-  gap: 10px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-
-.copy-buttons.visible {
+.export-header {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 .link-count {
@@ -161,9 +157,14 @@ h1 {
 }
 
 .export-section h3 {
-  margin: 0 0 10px 0;
+  margin: 0;
   color: #333;
   font-size: 14px;
+}
+
+.export-section .copy-button {
+  padding: 6px 12px;
+  font-size: 13px;
 }
 
 .export-preview {
@@ -192,30 +193,18 @@ h1 {
 
   <button class="clear-button" id="clearButton">Clear</button>
 
-  <div class="copy-buttons" id="copyButtons">
-    <button class="copy-button" id="copyHtml">Copy as HTML</button>
-    <button class="copy-button" id="copyMarkdown">Copy as Markdown</button>
-    <button class="copy-button" id="copyPlain">Copy as Plain Text</button>
-  </div>
-
   <div class="results" id="results"></div>
 
 <script type="module">
 const pasteArea = document.getElementById('pasteArea');
 const results = document.getElementById('results');
 const clearButton = document.getElementById('clearButton');
-const copyButtons = document.getElementById('copyButtons');
-const copyHtmlBtn = document.getElementById('copyHtml');
-const copyMarkdownBtn = document.getElementById('copyMarkdown');
-const copyPlainBtn = document.getElementById('copyPlain');
 
 let extractedLinks = [];
 
 pasteArea.addEventListener('paste', handlePaste);
 clearButton.addEventListener('click', clearAll);
-copyHtmlBtn.addEventListener('click', () => copyAsFormat('html', copyHtmlBtn));
-copyMarkdownBtn.addEventListener('click', () => copyAsFormat('markdown', copyMarkdownBtn));
-copyPlainBtn.addEventListener('click', () => copyAsFormat('plain', copyPlainBtn));
+results.addEventListener('click', handleCopyClick);
 
 function handlePaste(event) {
   setTimeout(() => {
@@ -243,11 +232,9 @@ function extractLinks() {
 
   if (extractedLinks.length === 0) {
     results.innerHTML = '<div class="no-links">No links found in pasted content</div>';
-    copyButtons.classList.remove('visible');
     return;
   }
 
-  copyButtons.classList.add('visible');
   renderResults();
 }
 
@@ -257,15 +244,24 @@ function renderResults() {
   // Export previews
   html += `
     <div class="export-section">
-      <h3>HTML Preview:</h3>
+      <div class="export-header">
+        <h3>HTML</h3>
+        <button class="copy-button" data-format="html">Copy</button>
+      </div>
       <div class="export-preview">${escapeHtml(generateHtml())}</div>
     </div>
     <div class="export-section">
-      <h3>Markdown Preview:</h3>
+      <div class="export-header">
+        <h3>Markdown</h3>
+        <button class="copy-button" data-format="markdown">Copy</button>
+      </div>
       <div class="export-preview">${escapeHtml(generateMarkdown())}</div>
     </div>
     <div class="export-section">
-      <h3>Plain Text Preview:</h3>
+      <div class="export-header">
+        <h3>Plain Text</h3>
+        <button class="copy-button" data-format="plain">Copy</button>
+      </div>
       <div class="export-preview">${escapeHtml(generatePlain())}</div>
     </div>
   `;
@@ -304,6 +300,13 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function handleCopyClick(event) {
+  const button = event.target;
+  if (button.classList.contains('copy-button') && button.dataset.format) {
+    copyAsFormat(button.dataset.format, button);
+  }
 }
 
 async function copyAsFormat(format, button) {
@@ -361,7 +364,6 @@ function clearAll() {
   pasteArea.innerHTML = '';
   results.innerHTML = '';
   extractedLinks = [];
-  copyButtons.classList.remove('visible');
   pasteArea.focus();
 }
 
