@@ -1,0 +1,3 @@
+This tool extracts hyperlinks from pasted rich text content and displays them in an organized list with individual link details. Users can export the extracted links in multiple formats—HTML, Markdown, or plain text—each with a dedicated copy button for easy sharing. The application automatically detects and deduplicates links while filtering out non-HTTP URLs, providing a streamlined way to capture and repurpose links from web pages or documents.
+
+<!-- Generated from commit: daa72d910518f56743f4c97a6bfce23001d6c3c1 -->
