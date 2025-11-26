@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link Extractor</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+
+h1 {
+  color: #333;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.paste-area {
+  width: 100%;
+  min-height: 150px;
+  max-height: 250px;
+  padding: 15px;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  background-color: white;
+  font-size: 16px;
+  margin-bottom: 20px;
+  outline: none;
+  overflow-y: auto;
+}
+
+.paste-area:focus {
+  border-color: #007bff;
+}
+
+.instructions {
+  text-align: center;
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.results {
+  margin-top: 20px;
+}
+
+.export-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.link-count {
+  background-color: white;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  border: 1px solid #ddd;
+  text-align: center;
+  font-weight: bold;
+  color: #333;
+}
+
+.link-item {
+  background-color: white;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.link-title {
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 5px;
+  word-wrap: break-word;
+}
+
+.link-url {
+  color: #007bff;
+  font-size: 14px;
+  word-wrap: break-word;
+  word-break: break-all;
+}
+
+.link-url a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.link-url a:hover {
+  text-decoration: underline;
+}
+
+.copy-button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.copy-button:hover {
+  background-color: #0056b3;
+}
+
+.copy-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.copy-success {
+  background-color: #28a745 !important;
+}
+
+.clear-button {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.clear-button:hover {
+  background-color: #545b62;
+}
+
+.no-links {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  padding: 20px;
+}
+
+.export-section {
+  background-color: white;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  border: 1px solid #ddd;
+}
+
+.export-section h3 {
+  margin: 0;
+  color: #333;
+  font-size: 14px;
+}
+
+.export-section .copy-button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.export-preview {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 13px;
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+  </style>
+</head>
+<body>
+  <h1>Link Extractor</h1>
+
+  <div class="instructions">
+    Paste rich text content from web pages below to extract links
+  </div>
+
+  <div contenteditable="true" class="paste-area" id="pasteArea" placeholder="Paste your content here..."></div>
+
+  <button class="clear-button" id="clearButton">Clear</button>
+
+  <div class="results" id="results"></div>
+
+<script type="module">
+const pasteArea = document.getElementById('pasteArea');
+const results = document.getElementById('results');
+const clearButton = document.getElementById('clearButton');
+
+let extractedLinks = [];
+
+pasteArea.addEventListener('paste', handlePaste);
+clearButton.addEventListener('click', clearAll);
+results.addEventListener('click', handleCopyClick);
+
+function handlePaste(event) {
+  setTimeout(() => {
+    extractLinks();
+  }, 10);
+}
+
+function extractLinks() {
+  const links = pasteArea.querySelectorAll('a');
+
+  extractedLinks = [];
+
+  links.forEach((link) => {
+    const href = link.href;
+    const title = link.textContent.trim() || href;
+
+    if (href && href.startsWith('http')) {
+      // Avoid duplicates
+      const exists = extractedLinks.some(l => l.url === href && l.title === title);
+      if (!exists) {
+        extractedLinks.push({ title, url: href });
+      }
+    }
+  });
+
+  if (extractedLinks.length === 0) {
+    results.innerHTML = '<div class="no-links">No links found in pasted content</div>';
+    return;
+  }
+
+  renderResults();
+}
+
+function renderResults() {
+  let html = `<div class="link-count">${extractedLinks.length} link${extractedLinks.length === 1 ? '' : 's'} found</div>`;
+
+  // Export previews
+  html += `
+    <div class="export-section">
+      <div class="export-header">
+        <h3>HTML</h3>
+        <button class="copy-button" data-format="html">Copy</button>
+      </div>
+      <div class="export-preview">${escapeHtml(generateHtml())}</div>
+    </div>
+    <div class="export-section">
+      <div class="export-header">
+        <h3>Markdown</h3>
+        <button class="copy-button" data-format="markdown">Copy</button>
+      </div>
+      <div class="export-preview">${escapeHtml(generateMarkdown())}</div>
+    </div>
+    <div class="export-section">
+      <div class="export-header">
+        <h3>Plain Text</h3>
+        <button class="copy-button" data-format="plain">Copy</button>
+      </div>
+      <div class="export-preview">${escapeHtml(generatePlain())}</div>
+    </div>
+  `;
+
+  // Individual links
+  extractedLinks.forEach((link, index) => {
+    html += `
+      <div class="link-item">
+        <div class="link-title">${escapeHtml(link.title)}</div>
+        <div class="link-url"><a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.url)}</a></div>
+      </div>
+    `;
+  });
+
+  results.innerHTML = html;
+}
+
+function generateHtml() {
+  let html = '<ul>\n';
+  extractedLinks.forEach(link => {
+    html += `  <li><a href="${link.url}">${escapeHtml(link.title)}</a></li>\n`;
+  });
+  html += '</ul>';
+  return html;
+}
+
+function generateMarkdown() {
+  return extractedLinks.map(link => `- [${link.title}](${link.url})`).join('\n');
+}
+
+function generatePlain() {
+  return extractedLinks.map(link => `${link.title}\n${link.url}`).join('\n\n');
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function handleCopyClick(event) {
+  const button = event.target;
+  if (button.classList.contains('copy-button') && button.dataset.format) {
+    copyAsFormat(button.dataset.format, button);
+  }
+}
+
+async function copyAsFormat(format, button) {
+  let text;
+
+  switch (format) {
+    case 'html':
+      text = generateHtml();
+      break;
+    case 'markdown':
+      text = generateMarkdown();
+      break;
+    case 'plain':
+      text = generatePlain();
+      break;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+
+    const originalText = button.textContent;
+    button.textContent = 'Copied!';
+    button.classList.add('copy-success');
+
+    setTimeout(() => {
+      button.textContent = originalText;
+      button.classList.remove('copy-success');
+    }, 2000);
+
+  } catch (err) {
+    console.error('Failed to copy: ', err);
+
+    // Fallback
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      button.textContent = 'Copied!';
+      button.classList.add('copy-success');
+
+      setTimeout(() => {
+        button.textContent = button.dataset.original || 'Copy';
+        button.classList.remove('copy-success');
+      }, 2000);
+    } catch (fallbackErr) {
+      console.error('Fallback copy failed: ', fallbackErr);
+    }
+    document.body.removeChild(textArea);
+  }
+}
+
+function clearAll() {
+  pasteArea.innerHTML = '';
+  results.innerHTML = '';
+  extractedLinks = [];
+  pasteArea.focus();
+}
+
+// Set initial focus
+pasteArea.focus();
+</script>
+</body>
+</html>
