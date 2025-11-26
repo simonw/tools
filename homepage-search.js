@@ -505,7 +505,7 @@ ready(() => {
         throw new Error('tools.json did not return an array');
       }
       tools = data;
-      input.placeholder = 'Search tools…';
+      input.placeholder = `Search ${tools.length} tools…`;
       input.disabled = false;
       updateStatus(`${tools.length} tools available to search.`);
       if (input === document.activeElement && input.value) {
