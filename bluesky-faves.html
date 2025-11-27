@@ -297,6 +297,7 @@
       let totalFetched = 0;
       const TARGET_COUNT = 200;
       const BATCH_SIZE = 100;
+      const POSTS_BATCH_SIZE = 25; // Max posts per getPosts request
 
       function showStatus(message, isError = false) {
         status.textContent = message;
@@ -359,8 +360,9 @@
         return await profileRes.json();
       }
 
-      async function fetchLikes(actor, cursor = null, limit = BATCH_SIZE) {
-        let url = `https://public.api.bsky.app/xrpc/app.bsky.feed.getActorLikes?actor=${encodeURIComponent(actor)}&limit=${limit}`;
+      // Fetch like records using com.atproto.repo.listRecords (public, no auth required)
+      async function fetchLikeRecords(did, cursor = null, limit = BATCH_SIZE) {
+        let url = `https://bsky.social/xrpc/com.atproto.repo.listRecords?repo=${encodeURIComponent(did)}&collection=app.bsky.feed.like&limit=${limit}`;
         if (cursor) {
           url += `&cursor=${encodeURIComponent(cursor)}`;
         }
@@ -368,9 +370,64 @@
         const res = await fetch(url);
         if (!res.ok) {
           const errText = await res.text();
-          throw new Error(`Failed to fetch likes: ${res.status} - ${errText}`);
+          throw new Error(`Failed to fetch like records: ${res.status} - ${errText}`);
         }
         return await res.json();
+      }
+
+      // Fetch post details using app.bsky.feed.getPosts (public)
+      async function fetchPosts(uris) {
+        if (uris.length === 0) return [];
+
+        const params = uris.map(uri => `uris=${encodeURIComponent(uri)}`).join('&');
+        const url = `https://public.api.bsky.app/xrpc/app.bsky.feed.getPosts?${params}`;
+
+        const res = await fetch(url);
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`Failed to fetch posts: ${res.status} - ${errText}`);
+        }
+        const data = await res.json();
+        return data.posts || [];
+      }
+
+      // Fetch likes by getting like records, then fetching the actual posts
+      async function fetchLikes(did, cursor = null, limit = BATCH_SIZE) {
+        // Step 1: Get like records
+        const likeData = await fetchLikeRecords(did, cursor, limit);
+
+        if (!likeData.records || likeData.records.length === 0) {
+          return { feed: [], cursor: null };
+        }
+
+        // Step 2: Extract post URIs from like records
+        const postUris = likeData.records
+          .map(record => record.value?.subject?.uri)
+          .filter(Boolean);
+
+        // Step 3: Fetch posts in batches of 25 (API limit)
+        const posts = [];
+        for (let i = 0; i < postUris.length; i += POSTS_BATCH_SIZE) {
+          const batch = postUris.slice(i, i + POSTS_BATCH_SIZE);
+          const batchPosts = await fetchPosts(batch);
+          posts.push(...batchPosts);
+        }
+
+        // Step 4: Create feed items in the same order as likes (most recent first)
+        // Map posts by URI for quick lookup
+        const postsByUri = new Map(posts.map(p => [p.uri, p]));
+
+        const feed = postUris
+          .map(uri => {
+            const post = postsByUri.get(uri);
+            return post ? { post } : null;
+          })
+          .filter(Boolean);
+
+        return {
+          feed,
+          cursor: likeData.cursor
+        };
       }
 
       function displayUserInfo(profile) {
