@@ -1,3 +1,3 @@
-This application fetches and displays Bluesky threads in a hierarchical, color-coded format. Users input a Bluesky post URL, which the tool resolves to retrieve the full thread conversation using the Bluesky public API, then renders each post with color-coded depth indicators to visualize the reply structure. The interface includes options to copy the thread as formatted text or as raw JSON data, and supports URL parameters for direct thread sharing.
+This Bluesky Thread Viewer application fetches and displays threaded conversations from Bluesky using the public API. Users input a Bluesky post URL, which the application converts to an AT protocol URI and retrieves the full thread with up to 1000 levels of depth. The tool provides two viewing modes: a nested thread view that shows replies indented by depth with color-coded stripes, and a chronological view that displays all posts sorted by date with clickable links to parent posts.
 
-<!-- Generated from commit: d570867d1364dce77fd5b01548e995cb3db3aa1f -->
+<!-- Generated from commit: d5225effab2c959e32682e5b76bd2346d489a4df -->
