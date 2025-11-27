@@ -1,3 +1,3 @@
-This Bluesky thread viewer application fetches and displays threaded conversations from Bluesky posts using the public API. It supports two viewing modes: a nested thread view that shows the hierarchical structure of replies, and a chronological view that displays posts in reverse-chronological order with links back to parent posts. The application includes features for viewing embedded images in a modal, rendering quoted posts, external link previews, and copying thread content in both plain text and JSON formats.
+This Bluesky Thread Viewer is a web application that fetches and displays conversation threads from Bluesky posts. Users can input a Bluesky URL to retrieve the full thread, which can be viewed in nested thread format or sorted by most recent posts first. The tool supports copying thread content as plain text or JSON, handles rich text with links and facets, displays images with a modal viewer, and renders quoted posts and external link previews.
 
-<!-- Generated from commit: 165c0770238096d648ed1a8e328122f48cb29b10 -->
+<!-- Generated from commit: 0f3eb4384ab0523af13dadf0821326426a71fc0e -->
