@@ -325,6 +325,60 @@
         return posts;
       }
 
+      // Render text with facets (links, mentions, etc.)
+      function renderTextWithFacets(text, facets) {
+        if (!facets || !facets.length) {
+          return document.createTextNode(text);
+        }
+
+        // Convert string to bytes for accurate indexing
+        const encoder = new TextEncoder();
+        const decoder = new TextDecoder();
+        const bytes = encoder.encode(text);
+
+        // Sort facets by start index
+        const sorted = [...facets].sort((a, b) => a.index.byteStart - b.index.byteStart);
+
+        const container = document.createDocumentFragment();
+        let lastEnd = 0;
+
+        for (const facet of sorted) {
+          const { byteStart, byteEnd } = facet.index;
+
+          // Add text before this facet
+          if (byteStart > lastEnd) {
+            const before = decoder.decode(bytes.slice(lastEnd, byteStart));
+            container.appendChild(document.createTextNode(before));
+          }
+
+          // Get the facet text
+          const facetText = decoder.decode(bytes.slice(byteStart, byteEnd));
+
+          // Check for link feature
+          const linkFeature = facet.features.find(f => f.$type === 'app.bsky.richtext.facet#link');
+          if (linkFeature) {
+            const link = document.createElement('a');
+            link.href = linkFeature.uri;
+            link.target = '_blank';
+            link.textContent = facetText;
+            container.appendChild(link);
+          } else {
+            // For other facet types (mentions, tags), just render as text for now
+            container.appendChild(document.createTextNode(facetText));
+          }
+
+          lastEnd = byteEnd;
+        }
+
+        // Add remaining text after last facet
+        if (lastEnd < bytes.length) {
+          const after = decoder.decode(bytes.slice(lastEnd));
+          container.appendChild(document.createTextNode(after));
+        }
+
+        return container;
+      }
+
       // Image modal setup
       const imageModal = document.getElementById('imageModal');
       const modalImg = imageModal.querySelector('img');
@@ -520,7 +574,7 @@
         metaEl.appendChild(link);
         const textEl = document.createElement('div');
         textEl.className = 'text';
-        textEl.textContent = item.post.record.text;
+        textEl.appendChild(renderTextWithFacets(item.post.record.text, item.post.record.facets));
         el.append(authorEl, metaEl, textEl);
         // Render embed if present
         if (item.post.embed) {
@@ -575,7 +629,7 @@
           metaEl.appendChild(link);
           const textEl = document.createElement('div');
           textEl.className = 'text';
-          textEl.textContent = item.post.record.text;
+          textEl.appendChild(renderTextWithFacets(item.post.record.text, item.post.record.facets));
           el.append(authorEl, metaEl, textEl);
           // Render embed if present
           if (item.post.embed) {
