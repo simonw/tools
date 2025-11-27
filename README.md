@@ -77,6 +77,7 @@ The code lives in [simonw/tools](https://github.com/simonw/tools) and many tools
 - [Bluesky resolve DID](https://tools.simonwillison.net/bluesky-resolve) convert a handle like `simonwillison.net` into a DID
 - [Bluesky timeline](https://tools.simonwillison.net/bluesky-timeline) view a user’s recent posts and replies
 - [Bluesky thread export](https://tools.simonwillison.net/bluesky-thread) save a Bluesky thread to Markdown
+- [Bluesky quote finder](https://tools.simonwillison.net/bluesky-quote-finder) find all quotes of a Bluesky post
 - [Event planner](https://tools.simonwillison.net/event-planner) rough schedule planner stored in localStorage
 - [Passkeys demo](https://tools.simonwillison.net/passkeys) experiment with browser-based passkey authentication
 

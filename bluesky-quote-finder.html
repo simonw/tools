@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bluesky Quote Finder</title>
+  <style>
+    :root {
+      --depth-color-1: hsl(200, 70%, 50%);
+      --depth-color-2: hsl(30, 80%, 50%);
+      --depth-color-3: hsl(120, 60%, 40%);
+      --depth-color-4: hsl(0, 70%, 50%);
+      --depth-color-5: hsl(280, 60%, 50%);
+      --depth-color-6: hsl(20, 60%, 40%);
+      --depth-color-7: hsl(330, 60%, 50%);
+      --depth-color-8: hsl(0, 0%, 40%);
+    }
+    body {
+      font-family: sans-serif;
+      margin: 1em;
+    }
+    header {
+      max-width: 800px;
+    }
+    .controls {
+      margin-bottom: 1em;
+    }
+    form {
+      display: flex;
+      gap: 0.5em;
+    }
+    input[type="text"] {
+      flex: 1;
+      font-size: 1rem;
+      padding: 0.5em;
+    }
+    #urlForm button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .tabs {
+      display: none;
+      margin-bottom: 1em;
+      border-bottom: 2px solid #ddd;
+    }
+    .tab {
+      background: none;
+      border: none;
+      padding: 0.75em 1.5em;
+      font-size: 1rem;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      color: #666;
+    }
+    .tab:hover {
+      color: #333;
+    }
+    .tab.active {
+      color: #007bff;
+      border-bottom-color: #007bff;
+      font-weight: bold;
+    }
+    .original-post {
+      border: 2px solid #007bff;
+      padding: 0.75em;
+      border-radius: 6px;
+      margin-bottom: 1em;
+      background-color: #f8f9fa;
+    }
+    .original-post .label {
+      font-size: 0.75rem;
+      color: #666;
+      text-transform: uppercase;
+      margin-bottom: 0.5em;
+    }
+    .quote-count {
+      margin-bottom: 1em;
+      color: #666;
+      font-size: 0.9rem;
+    }
+    .post {
+      position: relative;
+      border: 1px solid #ccc;
+      padding: 0.75em 2px 0.75em 0.75em;
+      border-radius: 6px;
+      margin-top: 1em;
+    }
+    .post::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 4px;
+      background-color: var(--stripe-color, transparent);
+      border-top-left-radius: 6px;
+      border-bottom-left-radius: 6px;
+    }
+    .depth-1 { --stripe-color: var(--depth-color-1); }
+    .depth-2 { --stripe-color: var(--depth-color-2); }
+    .depth-3 { --stripe-color: var(--depth-color-3); }
+    .depth-4 { --stripe-color: var(--depth-color-4); }
+    .depth-5 { --stripe-color: var(--depth-color-5); }
+    .depth-6 { --stripe-color: var(--depth-color-6); }
+    .depth-7 { --stripe-color: var(--depth-color-7); }
+    .depth-8 { --stripe-color: var(--depth-color-8); }
+    .author {
+      font-weight: bold;
+      margin-bottom: 0.25em;
+    }
+    .meta {
+      color: #666;
+      font-size: 0.85rem;
+      margin-bottom: 0.5em;
+      display: flex;
+      gap: 0.5em;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .meta a {
+      font-size: 0.85rem;
+      color: #007bff;
+      text-decoration: none;
+    }
+    .meta a:hover {
+      text-decoration: underline;
+    }
+    .stats {
+      display: flex;
+      gap: 1em;
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.5em;
+    }
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 0.25em;
+    }
+    .stat.likes {
+      color: #e0245e;
+    }
+    .stat.reposts {
+      color: #17bf63;
+    }
+    .stat.replies {
+      color: #1da1f2;
+    }
+    .text {
+      white-space: pre-wrap;
+      font-size: 1rem;
+      line-height: 1.4;
+    }
+    .quoted-content {
+      border-left: 3px solid #ddd;
+      padding-left: 0.75em;
+      margin-top: 0.5em;
+      color: #666;
+      font-size: 0.9rem;
+    }
+    .quoted-content .quoted-author {
+      font-weight: bold;
+      color: #333;
+    }
+    .loading {
+      color: #666;
+      font-style: italic;
+    }
+    .error {
+      color: #dc3545;
+      padding: 1em;
+      background-color: #f8d7da;
+      border-radius: 6px;
+    }
+    .no-quotes {
+      color: #666;
+      font-style: italic;
+      padding: 1em;
+    }
+    @media (max-width: 600px) {
+      .post { padding-left: 1em; }
+      .tab { padding: 0.5em 0.75em; font-size: 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Bluesky Quote Finder</h1>
+    <p>Find all quotes of a Bluesky post</p>
+    <div class="controls">
+      <form id="urlForm">
+        <input type="text" id="postUrl" placeholder="Paste Bluesky post URL" required />
+        <button type="submit">Find Quotes</button>
+      </form>
+    </div>
+    <div class="tabs" id="viewTabs">
+      <button class="tab active" data-sort="likes">Most Likes</button>
+      <button class="tab" data-sort="recent">Most Recent</button>
+      <button class="tab" data-sort="oldest">Oldest First</button>
+    </div>
+  </header>
+  <div id="originalPost"></div>
+  <div id="quoteCount" class="quote-count"></div>
+  <div id="quotesContainer"></div>
+
+  <script>
+    (async () => {
+      const form = document.getElementById('urlForm');
+      const container = document.getElementById('quotesContainer');
+      const originalPostContainer = document.getElementById('originalPost');
+      const quoteCountEl = document.getElementById('quoteCount');
+      const viewTabs = document.getElementById('viewTabs');
+      const postUrl = document.getElementById('postUrl');
+
+      let allQuotes = [];
+      let originalPost = null;
+      let currentSort = 'likes';
+
+      postUrl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); form.requestSubmit(); }
+      });
+
+      // Parse Bluesky URL and extract handle + post ID
+      function parseBlueskyUrl(urlString) {
+        const url = new URL(urlString);
+        if (url.hostname !== 'bsky.app') throw new Error('URL must be from bsky.app');
+        const parts = url.pathname.split('/').filter(Boolean);
+        if (parts[0] !== 'profile' || parts[2] !== 'post') {
+          throw new Error('Use https://bsky.app/profile/{handle}/post/{postId}');
+        }
+        const rawHandle = parts[1];
+        const actor = rawHandle.includes('.') ? rawHandle : `${rawHandle}.bsky.social`;
+        const postId = parts[3];
+        return { actor, postId, rawHandle };
+      }
+
+      // Fetch user DID from handle
+      async function fetchDid(actor) {
+        const res = await fetch(
+          `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(actor)}`
+        );
+        if (!res.ok) throw new Error('Profile fetch failed: ' + res.status);
+        const json = await res.json();
+        const did = json.did || json.profile?.did;
+        if (!did) throw new Error('Could not parse DID');
+        return did;
+      }
+
+      // Fetch quotes of a post
+      async function fetchQuotes(atUri) {
+        const quotes = [];
+        let cursor = null;
+
+        do {
+          let url = `https://public.api.bsky.app/xrpc/app.bsky.feed.getQuotes?uri=${encodeURIComponent(atUri)}&limit=100`;
+          if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Quotes fetch failed: ' + res.status);
+          const json = await res.json();
+
+          if (json.posts) {
+            quotes.push(...json.posts);
+          }
+          cursor = json.cursor;
+        } while (cursor);
+
+        return quotes;
+      }
+
+      // Fetch the original post
+      async function fetchOriginalPost(atUri) {
+        const res = await fetch(
+          `https://public.api.bsky.app/xrpc/app.bsky.feed.getPosts?uris=${encodeURIComponent(atUri)}`
+        );
+        if (!res.ok) throw new Error('Original post fetch failed: ' + res.status);
+        const json = await res.json();
+        if (!json.posts || json.posts.length === 0) throw new Error('Post not found');
+        return json.posts[0];
+      }
+
+      // Get thread viewer URL for a post
+      function getThreadViewerUrl(post) {
+        const handle = post.author.handle;
+        const postId = post.uri.split('/').pop();
+        const blueskyUrl = `https://bsky.app/profile/${handle}/post/${postId}`;
+        return `bluesky-thread.html?url=${encodeURIComponent(blueskyUrl)}`;
+      }
+
+      // Display the original post
+      function displayOriginalPost(post) {
+        originalPostContainer.innerHTML = '';
+
+        const el = document.createElement('div');
+        el.className = 'original-post';
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = 'Original Post';
+
+        const authorEl = document.createElement('div');
+        authorEl.className = 'author';
+        authorEl.textContent = `${post.author.displayName || post.author.handle} (@${post.author.handle})`;
+
+        const textEl = document.createElement('div');
+        textEl.className = 'text';
+        textEl.textContent = post.record.text;
+
+        const stats = document.createElement('div');
+        stats.className = 'stats';
+        stats.innerHTML = `
+          <span class="stat likes">&#x2665; ${post.likeCount || 0}</span>
+          <span class="stat reposts">&#x21BB; ${post.repostCount || 0}</span>
+          <span class="stat replies">&#x1F4AC; ${post.replyCount || 0}</span>
+          <span class="stat">&#x275D; ${post.quoteCount || 0} quotes</span>
+        `;
+
+        el.append(label, authorEl, textEl, stats);
+        originalPostContainer.appendChild(el);
+      }
+
+      // Display a single quote post
+      function displayQuote(post, index) {
+        const el = document.createElement('div');
+        el.className = `post depth-${(index % 8) + 1}`;
+
+        const authorEl = document.createElement('div');
+        authorEl.className = 'author';
+        authorEl.textContent = `${post.author.displayName || post.author.handle} (@${post.author.handle})`;
+
+        const metaEl = document.createElement('div');
+        metaEl.className = 'meta';
+
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = new Date(post.record.createdAt).toLocaleString();
+        metaEl.appendChild(dateSpan);
+
+        const viewLink = document.createElement('a');
+        viewLink.href = `https://bsky.app/profile/${post.author.handle}/post/${post.uri.split('/').pop()}`;
+        viewLink.textContent = 'View on Bluesky';
+        viewLink.target = '_blank';
+        metaEl.appendChild(viewLink);
+
+        const threadLink = document.createElement('a');
+        threadLink.href = getThreadViewerUrl(post);
+        threadLink.textContent = 'View Thread';
+        metaEl.appendChild(threadLink);
+
+        const textEl = document.createElement('div');
+        textEl.className = 'text';
+        textEl.textContent = post.record.text;
+
+        const stats = document.createElement('div');
+        stats.className = 'stats';
+        stats.innerHTML = `
+          <span class="stat likes">&#x2665; ${post.likeCount || 0}</span>
+          <span class="stat reposts">&#x21BB; ${post.repostCount || 0}</span>
+          <span class="stat replies">&#x1F4AC; ${post.replyCount || 0}</span>
+        `;
+
+        el.append(authorEl, metaEl, textEl, stats);
+        return el;
+      }
+
+      // Sort quotes based on current sort mode
+      function sortQuotes(quotes, sortMode) {
+        const sorted = [...quotes];
+        switch (sortMode) {
+          case 'likes':
+            sorted.sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0));
+            break;
+          case 'recent':
+            sorted.sort((a, b) => new Date(b.record.createdAt) - new Date(a.record.createdAt));
+            break;
+          case 'oldest':
+            sorted.sort((a, b) => new Date(a.record.createdAt) - new Date(b.record.createdAt));
+            break;
+        }
+        return sorted;
+      }
+
+      // Render quotes
+      function renderQuotes() {
+        container.innerHTML = '';
+
+        if (allQuotes.length === 0) {
+          container.innerHTML = '<div class="no-quotes">No quotes found for this post.</div>';
+          return;
+        }
+
+        const sorted = sortQuotes(allQuotes, currentSort);
+        sorted.forEach((quote, index) => {
+          container.appendChild(displayQuote(quote, index));
+        });
+      }
+
+      // Update URL with current state
+      function updateUrl() {
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('post', postUrl.value.trim());
+        if (currentSort !== 'likes') {
+          newUrl.searchParams.set('sort', currentSort);
+        } else {
+          newUrl.searchParams.delete('sort');
+        }
+        history.replaceState(null, '', newUrl);
+      }
+
+      // Tab click handlers
+      viewTabs.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab')) {
+          const sort = e.target.dataset.sort;
+          if (sort !== currentSort) {
+            currentSort = sort;
+            viewTabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            e.target.classList.add('active');
+            updateUrl();
+            renderQuotes();
+          }
+        }
+      });
+
+      // Form submission
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        container.innerHTML = '<div class="loading">Loading quotes...</div>';
+        originalPostContainer.innerHTML = '';
+        quoteCountEl.textContent = '';
+        viewTabs.style.display = 'none';
+        allQuotes = [];
+        originalPost = null;
+
+        updateUrl();
+
+        try {
+          const { actor, postId } = parseBlueskyUrl(postUrl.value.trim());
+          const did = await fetchDid(actor);
+          const atUri = `at://${did}/app.bsky.feed.post/${postId}`;
+
+          // Fetch original post and quotes in parallel
+          const [post, quotes] = await Promise.all([
+            fetchOriginalPost(atUri),
+            fetchQuotes(atUri)
+          ]);
+
+          originalPost = post;
+          allQuotes = quotes;
+
+          displayOriginalPost(post);
+          quoteCountEl.textContent = `Found ${quotes.length} quote${quotes.length !== 1 ? 's' : ''}`;
+          viewTabs.style.display = 'block';
+          renderQuotes();
+
+        } catch (err) {
+          console.error(err);
+          container.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+        }
+      });
+
+      // Check for URL parameters on page load
+      const params = new URLSearchParams(window.location.search);
+      const postParam = params.get('post');
+      const sortParam = params.get('sort');
+
+      if (sortParam && ['likes', 'recent', 'oldest'].includes(sortParam)) {
+        currentSort = sortParam;
+        viewTabs.querySelectorAll('.tab').forEach(t => {
+          t.classList.toggle('active', t.dataset.sort === currentSort);
+        });
+      }
+
+      if (postParam) {
+        postUrl.value = postParam;
+        form.requestSubmit();
+      }
+    })();
+  </script>
+</body>
+</html>
