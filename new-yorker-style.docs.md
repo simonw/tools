@@ -1,0 +1,3 @@
+This New Yorker Style Converter transforms standard text into refined typography following The New Yorker's editorial conventions. The tool applies diaereses to words like "coöperate" and "naïve," converts straight quotes to curly quotation marks, replaces double hyphens with em dashes, and converts ellipses to proper Unicode characters. Users paste text into the input field and receive the formatted result in real-time, with a copy button for easy transfer to the clipboard.
+
+<!-- Generated from commit: 8a88b1a4b576f2229a714a0877d66d314326cbcc -->
