@@ -1,0 +1,3 @@
+This page is a Bluesky Favorites Viewer that allows users to browse and export liked posts from any Bluesky profile by entering a profile URL, DID, or username. The application fetches like records from the Bluesky API, retrieves the associated post details, and displays them in a chronological feed with author information, engagement metrics, and embedded media. Users can copy the displayed posts as formatted text or raw JSON data, with support for loading additional posts beyond the initial 200-post batch.
+
+<!-- Generated from commit: 1eef44de4d0fd263637cda4aef562e49c976ad30 -->
