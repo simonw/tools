@@ -330,6 +330,10 @@
             currentView = view;
             viewTabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             e.target.classList.add('active');
+            // Update URL with current view
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('view', view);
+            history.replaceState(null, '', newUrl);
             renderCurrentView();
           }
         }
@@ -368,14 +372,10 @@
         viewTabs.style.display = 'none';
         lastThread = null;
         allPosts = [];
-        currentView = 'thread';
-        // Reset tabs to default
-        viewTabs.querySelectorAll('.tab').forEach(t => {
-          t.classList.toggle('active', t.dataset.view === 'thread');
-        });
-        // Update URL with the submitted post URL
+        // Update URL with the submitted post URL and current view
         const newUrl = new URL(window.location);
         newUrl.searchParams.set('url', postUrl.value.trim());
+        newUrl.searchParams.set('view', currentView);
         history.replaceState(null, '', newUrl);
         try {
           const url = new URL(postUrl.value.trim());
@@ -413,9 +413,17 @@
         }
       });
 
-      // Check for ?url= query parameter on page load
+      // Check for query parameters on page load
       const params = new URLSearchParams(window.location.search);
       const urlParam = params.get('url');
+      const viewParam = params.get('view');
+      // Initialize view from URL parameter if valid
+      if (viewParam === 'thread' || viewParam === 'recent') {
+        currentView = viewParam;
+        viewTabs.querySelectorAll('.tab').forEach(t => {
+          t.classList.toggle('active', t.dataset.view === viewParam);
+        });
+      }
       if (urlParam) {
         postUrl.value = urlParam;
         form.requestSubmit();
