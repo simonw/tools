@@ -58,6 +58,45 @@
       cursor: pointer;
       margin-right: 0.5em;
     }
+    .tabs {
+      display: none;
+      margin-bottom: 1em;
+      border-bottom: 2px solid #ddd;
+    }
+    .tab {
+      background: none;
+      border: none;
+      padding: 0.75em 1.5em;
+      font-size: 1rem;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      color: #666;
+    }
+    .tab:hover {
+      color: #333;
+    }
+    .tab.active {
+      color: #007bff;
+      border-bottom-color: #007bff;
+      font-weight: bold;
+    }
+    .reply-to {
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 0.25em;
+    }
+    .reply-to a {
+      color: #007bff;
+      text-decoration: none;
+    }
+    .reply-to a:hover {
+      text-decoration: underline;
+    }
+    .post.highlighted {
+      background-color: #fffde7;
+      transition: background-color 0.3s;
+    }
     .post {
       position: relative;
       border: 1px solid #ccc;
@@ -124,6 +163,10 @@
       <button id="copyBtn">Copy</button>
       <button id="copyJsonBtn">Copy JSON</button>
     </div>
+    <div class="tabs" id="viewTabs">
+      <button class="tab active" data-view="thread">Thread View</button>
+      <button class="tab" data-view="recent">Most Recent First</button>
+    </div>
   </header>
   <div id="threadContainer"></div>
 
@@ -134,32 +177,163 @@
       const copyBtn = document.getElementById('copyBtn');
       const copyJsonBtn = document.getElementById('copyJsonBtn');
       const copyContainer = document.querySelector('.copy-container');
+      const viewTabs = document.getElementById('viewTabs');
       const postUrl = document.getElementById('postUrl');
       let lastThread = null;
+      let allPosts = []; // Flat array of all posts with metadata
+      let currentView = 'thread';
 
       postUrl.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); form.requestSubmit(); }
       });
 
+      // Extract post ID from URI for use as element ID
+      function getPostId(uri) {
+        return 'post-' + uri.split('/').pop();
+      }
+
+      // Flatten thread into array of posts with parent info
+      function flattenThread(item, parentUri = null, parentAuthor = null) {
+        const posts = [];
+        posts.push({
+          item,
+          parentUri,
+          parentAuthor,
+          uri: item.post.uri,
+          createdAt: new Date(item.post.record.createdAt)
+        });
+        if (item.replies && item.replies.length) {
+          const authorName = item.post.author.displayName || item.post.author.handle;
+          item.replies.forEach(reply => {
+            posts.push(...flattenThread(reply, item.post.uri, authorName));
+          });
+        }
+        return posts;
+      }
+
       // Fixed function to generate thread text in a readable format
       function generateThreadText(thread) {
         const lines = [];
-        
+
         function processPost(item, prefix = '1') {
           const author = item.post.author.displayName || item.post.author.handle;
           const text = item.post.record.text.replace(/\n/g, ' ');
           lines.push(`[${prefix}] ${author}: ${text}`);
-          
+
           if (item.replies && item.replies.length > 0) {
             item.replies.forEach((reply, i) => {
               processPost(reply, `${prefix}.${i+1}`);
             });
           }
         }
-        
+
         processPost(thread);
         return lines.join('\n\n');
       }
+
+      // Display post in thread view (nested)
+      function displayPostThread(item, parent, depth = 1) {
+        const el = document.createElement('div');
+        el.className = `post depth-${Math.min(depth, 8)}`;
+        el.id = getPostId(item.post.uri);
+        const authorEl = document.createElement('div');
+        authorEl.className = 'author';
+        authorEl.textContent = `${item.post.author.displayName} (@${item.post.author.handle})`;
+        const metaEl = document.createElement('div');
+        metaEl.className = 'meta';
+        metaEl.textContent = new Date(item.post.record.createdAt).toLocaleString();
+        const link = document.createElement('a');
+        link.href = `https://bsky.app/profile/${item.post.author.handle}/post/${item.post.uri.split('/').pop()}`;
+        link.textContent = 'View';
+        link.target = '_blank';
+        metaEl.appendChild(link);
+        const textEl = document.createElement('div');
+        textEl.className = 'text';
+        textEl.textContent = item.post.record.text;
+        el.append(authorEl, metaEl, textEl);
+        parent.appendChild(el);
+        if (item.replies && item.replies.length) item.replies.forEach(reply => displayPostThread(reply, el, depth+1));
+      }
+
+      // Display posts in chronological order (most recent first)
+      function displayPostsChronological() {
+        container.innerHTML = '';
+        const sorted = [...allPosts].sort((a, b) => b.createdAt - a.createdAt);
+
+        sorted.forEach(postData => {
+          const item = postData.item;
+          const el = document.createElement('div');
+          el.className = 'post depth-1';
+          el.id = getPostId(item.post.uri);
+
+          // Add "in reply to" if this is a reply
+          if (postData.parentUri) {
+            const replyToEl = document.createElement('div');
+            replyToEl.className = 'reply-to';
+            const replyLink = document.createElement('a');
+            replyLink.href = '#' + getPostId(postData.parentUri);
+            replyLink.textContent = `in reply to ${postData.parentAuthor}`;
+            replyLink.addEventListener('click', (e) => {
+              e.preventDefault();
+              const targetEl = document.getElementById(getPostId(postData.parentUri));
+              if (targetEl) {
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetEl.classList.add('highlighted');
+                setTimeout(() => targetEl.classList.remove('highlighted'), 2000);
+              }
+            });
+            replyToEl.appendChild(replyLink);
+            el.appendChild(replyToEl);
+          }
+
+          const authorEl = document.createElement('div');
+          authorEl.className = 'author';
+          authorEl.textContent = `${item.post.author.displayName} (@${item.post.author.handle})`;
+          const metaEl = document.createElement('div');
+          metaEl.className = 'meta';
+          metaEl.textContent = new Date(item.post.record.createdAt).toLocaleString();
+          const link = document.createElement('a');
+          link.href = `https://bsky.app/profile/${item.post.author.handle}/post/${item.post.uri.split('/').pop()}`;
+          link.textContent = 'View';
+          link.target = '_blank';
+          metaEl.appendChild(link);
+          const textEl = document.createElement('div');
+          textEl.className = 'text';
+          textEl.textContent = item.post.record.text;
+          el.append(authorEl, metaEl, textEl);
+          container.appendChild(el);
+        });
+      }
+
+      // Display thread view
+      function displayThreadView() {
+        container.innerHTML = '';
+        if (lastThread) {
+          displayPostThread(lastThread, container);
+        }
+      }
+
+      // Render current view
+      function renderCurrentView() {
+        if (currentView === 'thread') {
+          displayThreadView();
+        } else {
+          displayPostsChronological();
+        }
+      }
+
+      // Tab click handlers
+      viewTabs.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab')) {
+          const view = e.target.dataset.view;
+          if (view !== currentView) {
+            currentView = view;
+            viewTabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            e.target.classList.add('active');
+            renderCurrentView();
+          }
+        }
+      });
 
       copyBtn.addEventListener('click', async () => {
         if (!lastThread) return;
@@ -191,7 +365,14 @@
         e.preventDefault();
         container.innerHTML = '';
         copyContainer.style.display = 'none';
+        viewTabs.style.display = 'none';
         lastThread = null;
+        allPosts = [];
+        currentView = 'thread';
+        // Reset tabs to default
+        viewTabs.querySelectorAll('.tab').forEach(t => {
+          t.classList.toggle('active', t.dataset.view === 'thread');
+        });
         // Update URL with the submitted post URL
         const newUrl = new URL(window.location);
         newUrl.searchParams.set('url', postUrl.value.trim());
@@ -221,31 +402,11 @@
           const threadJson = await threadRes.json();
           if (threadJson.thread.$type === 'app.bsky.feed.defs#notFoundPost') throw new Error('Post not found');
 
-          function displayPost(item, parent, depth = 1) {
-            const el = document.createElement('div');
-            el.className = `post depth-${Math.min(depth, 8)}`;
-            const authorEl = document.createElement('div');
-            authorEl.className = 'author';
-            authorEl.textContent = `${item.post.author.displayName} (@${item.post.author.handle})`;
-            const metaEl = document.createElement('div');
-            metaEl.className = 'meta';
-            metaEl.textContent = new Date(item.post.record.createdAt).toLocaleString();
-            const link = document.createElement('a');
-            link.href = `https://bsky.app/profile/${item.post.author.handle}/post/${item.post.uri.split('/').pop()}`;
-            link.textContent = 'View';
-            link.target = '_blank';
-            metaEl.appendChild(link);
-            const textEl = document.createElement('div');
-            textEl.className = 'text';
-            textEl.textContent = item.post.record.text;
-            el.append(authorEl, metaEl, textEl);
-            parent.appendChild(el);
-            if (item.replies && item.replies.length) item.replies.forEach(reply => displayPost(reply, el, depth+1));
-          }
-
-          displayPost(threadJson.thread, container);
           lastThread = threadJson.thread;
+          allPosts = flattenThread(threadJson.thread);
+          renderCurrentView();
           copyContainer.style.display = 'block';
+          viewTabs.style.display = 'block';
         } catch (err) {
           console.error(err);
           container.textContent = 'Error: ' + err.message;
