@@ -145,12 +145,126 @@
       font-size: 1rem;
       line-height: 1.4;
     }
+    .images {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5em;
+      margin-top: 0.5em;
+    }
+    .images img {
+      max-height: 150px;
+      border-radius: 8px;
+      cursor: pointer;
+      object-fit: cover;
+    }
+    .images img:hover {
+      opacity: 0.9;
+    }
+    #imageModal {
+      border: none;
+      background: transparent;
+      max-width: 100vw;
+      max-height: 100vh;
+      padding: 0;
+    }
+    #imageModal::backdrop {
+      background: rgba(0, 0, 0, 0.9);
+    }
+    #imageModal img {
+      max-width: 95vw;
+      max-height: 95vh;
+      object-fit: contain;
+    }
+    #imageModal:focus {
+      outline: none;
+    }
+    .quote-tweet {
+      border: 1px solid #d0d7de;
+      border-left: 3px solid #1185fe;
+      border-radius: 8px;
+      padding: 0.75em;
+      margin-top: 0.5em;
+      background: linear-gradient(to right, #f0f7ff, #f9f9f9);
+      position: relative;
+    }
+    .quote-tweet .qt-header {
+      display: flex;
+      align-items: center;
+      gap: 0.4em;
+      margin-bottom: 0.25em;
+    }
+    .quote-tweet .qt-icon {
+      width: 16px;
+      height: 16px;
+      color: #1185fe;
+      flex-shrink: 0;
+    }
+    .quote-tweet .qt-author {
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    .quote-tweet .qt-meta {
+      font-size: 0.8rem;
+      margin-bottom: 0.25em;
+      display: flex;
+      gap: 0.5em;
+    }
+    .quote-tweet .qt-meta a {
+      color: #007bff;
+      text-decoration: none;
+    }
+    .quote-tweet .qt-meta a:hover {
+      text-decoration: underline;
+    }
+    .quote-tweet .qt-text {
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      line-height: 1.3;
+    }
+    .quote-tweet .images img {
+      max-height: 100px;
+    }
+    .external-link {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      margin-top: 0.5em;
+      overflow: hidden;
+      display: block;
+      text-decoration: none;
+      color: inherit;
+    }
+    .external-link:hover {
+      background: #f5f5f5;
+    }
+    .external-link .el-thumb {
+      width: 100%;
+      max-height: 200px;
+      object-fit: cover;
+    }
+    .external-link .el-content {
+      padding: 0.5em 0.75em;
+    }
+    .external-link .el-title {
+      font-weight: bold;
+      font-size: 0.9rem;
+      margin-bottom: 0.25em;
+    }
+    .external-link .el-desc {
+      font-size: 0.8rem;
+      color: #666;
+    }
+    .external-link .el-url {
+      font-size: 0.75rem;
+      color: #888;
+      margin-top: 0.25em;
+    }
     @media (max-width: 600px) {
       .post { padding-left: 1em; }
     }
   </style>
 </head>
 <body>
+  <dialog id="imageModal"><img src="" alt=""></dialog>
   <header>
     <h1>Bluesky Thread Viewer</h1>
     <div class="controls">
@@ -211,6 +325,163 @@
         return posts;
       }
 
+      // Image modal setup
+      const imageModal = document.getElementById('imageModal');
+      const modalImg = imageModal.querySelector('img');
+      imageModal.addEventListener('click', () => imageModal.close());
+
+      function openImageModal(src, alt) {
+        modalImg.src = src;
+        modalImg.alt = alt || '';
+        imageModal.showModal();
+      }
+
+      // Render images from an embed
+      function renderImages(images) {
+        if (!images || !images.length) return null;
+        const container = document.createElement('div');
+        container.className = 'images';
+        images.forEach(img => {
+          const imgEl = document.createElement('img');
+          imgEl.src = img.thumb;
+          imgEl.alt = img.alt || '';
+          imgEl.title = img.alt || '';
+          imgEl.addEventListener('click', () => openImageModal(img.fullsize, img.alt));
+          container.appendChild(imgEl);
+        });
+        return container;
+      }
+
+      // Render external link preview
+      function renderExternalLink(external) {
+        if (!external) return null;
+        const link = document.createElement('a');
+        link.className = 'external-link';
+        link.href = external.uri;
+        link.target = '_blank';
+        if (external.thumb) {
+          const thumb = document.createElement('img');
+          thumb.className = 'el-thumb';
+          thumb.src = external.thumb;
+          link.appendChild(thumb);
+        }
+        const content = document.createElement('div');
+        content.className = 'el-content';
+        if (external.title) {
+          const title = document.createElement('div');
+          title.className = 'el-title';
+          title.textContent = external.title;
+          content.appendChild(title);
+        }
+        if (external.description) {
+          const desc = document.createElement('div');
+          desc.className = 'el-desc';
+          desc.textContent = external.description;
+          content.appendChild(desc);
+        }
+        const url = document.createElement('div');
+        url.className = 'el-url';
+        url.textContent = new URL(external.uri).hostname;
+        content.appendChild(url);
+        link.appendChild(content);
+        return link;
+      }
+
+      // Render a quoted post
+      function renderQuoteTweet(record) {
+        if (!record || record.$type !== 'app.bsky.embed.record#viewRecord') return null;
+        const qt = document.createElement('div');
+        qt.className = 'quote-tweet';
+
+        // Header with quote icon and author
+        const header = document.createElement('div');
+        header.className = 'qt-header';
+
+        // Quote icon SVG
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('class', 'qt-icon');
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('fill', 'currentColor');
+        icon.innerHTML = '<path d="M4.583 17.321C3.553 16.227 3 15 3 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311 1.804.167 3.226 1.648 3.226 3.489a3.5 3.5 0 01-3.5 3.5c-1.073 0-2.099-.49-2.748-1.179zm10 0C13.553 16.227 13 15 13 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311 1.804.167 3.226 1.648 3.226 3.489a3.5 3.5 0 01-3.5 3.5c-1.073 0-2.099-.49-2.748-1.179z"/>';
+        header.appendChild(icon);
+
+        const author = document.createElement('div');
+        author.className = 'qt-author';
+        author.textContent = `${record.author.displayName || record.author.handle} (@${record.author.handle})`;
+        header.appendChild(author);
+        qt.appendChild(header);
+
+        // Add meta with View links
+        const postId = record.uri.split('/').pop();
+        const bskyUrl = `https://bsky.app/profile/${record.author.handle}/post/${postId}`;
+        const viewerUrl = `?url=${encodeURIComponent(bskyUrl)}&view=thread`;
+
+        const meta = document.createElement('div');
+        meta.className = 'qt-meta';
+        const viewLink = document.createElement('a');
+        viewLink.href = viewerUrl;
+        viewLink.textContent = 'View';
+        const bskyLink = document.createElement('a');
+        bskyLink.href = bskyUrl;
+        bskyLink.target = '_blank';
+        bskyLink.textContent = 'View in Bluesky';
+        meta.appendChild(viewLink);
+        meta.appendChild(bskyLink);
+        qt.appendChild(meta);
+
+        if (record.value && record.value.text) {
+          const text = document.createElement('div');
+          text.className = 'qt-text';
+          text.textContent = record.value.text;
+          qt.appendChild(text);
+        }
+
+        // Handle embeds within the quoted post
+        if (record.embeds && record.embeds.length) {
+          record.embeds.forEach(embed => {
+            const embedEl = renderEmbed(embed);
+            if (embedEl) qt.appendChild(embedEl);
+          });
+        }
+
+        return qt;
+      }
+
+      // Render any embed type
+      function renderEmbed(embed) {
+        if (!embed) return null;
+        const type = embed.$type;
+
+        if (type === 'app.bsky.embed.images#view') {
+          return renderImages(embed.images);
+        }
+
+        if (type === 'app.bsky.embed.external#view') {
+          return renderExternalLink(embed.external);
+        }
+
+        if (type === 'app.bsky.embed.record#view') {
+          return renderQuoteTweet(embed.record);
+        }
+
+        if (type === 'app.bsky.embed.recordWithMedia#view') {
+          const container = document.createElement('div');
+          // Render the media (images)
+          if (embed.media && embed.media.$type === 'app.bsky.embed.images#view') {
+            const images = renderImages(embed.media.images);
+            if (images) container.appendChild(images);
+          }
+          // Render the quoted record
+          if (embed.record && embed.record.record) {
+            const qt = renderQuoteTweet(embed.record.record);
+            if (qt) container.appendChild(qt);
+          }
+          return container;
+        }
+
+        return null;
+      }
+
       // Fixed function to generate thread text in a readable format
       function generateThreadText(thread) {
         const lines = [];
@@ -244,13 +515,18 @@
         metaEl.textContent = new Date(item.post.record.createdAt).toLocaleString();
         const link = document.createElement('a');
         link.href = `https://bsky.app/profile/${item.post.author.handle}/post/${item.post.uri.split('/').pop()}`;
-        link.textContent = 'View';
+        link.textContent = 'View in Bluesky';
         link.target = '_blank';
         metaEl.appendChild(link);
         const textEl = document.createElement('div');
         textEl.className = 'text';
         textEl.textContent = item.post.record.text;
         el.append(authorEl, metaEl, textEl);
+        // Render embed if present
+        if (item.post.embed) {
+          const embedEl = renderEmbed(item.post.embed);
+          if (embedEl) el.appendChild(embedEl);
+        }
         parent.appendChild(el);
         if (item.replies && item.replies.length) item.replies.forEach(reply => displayPostThread(reply, el, depth+1));
       }
@@ -294,13 +570,18 @@
           metaEl.textContent = new Date(item.post.record.createdAt).toLocaleString();
           const link = document.createElement('a');
           link.href = `https://bsky.app/profile/${item.post.author.handle}/post/${item.post.uri.split('/').pop()}`;
-          link.textContent = 'View';
+          link.textContent = 'View in Bluesky';
           link.target = '_blank';
           metaEl.appendChild(link);
           const textEl = document.createElement('div');
           textEl.className = 'text';
           textEl.textContent = item.post.record.text;
           el.append(authorEl, metaEl, textEl);
+          // Render embed if present
+          if (item.post.embed) {
+            const embedEl = renderEmbed(item.post.embed);
+            if (embedEl) el.appendChild(embedEl);
+          }
           container.appendChild(el);
         });
       }
