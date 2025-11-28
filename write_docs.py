@@ -43,7 +43,7 @@ def generate_documentation(html_file_path):
     """Generate documentation for an HTML file using Claude."""
     try:
         result = subprocess.run(
-            f"cat '{html_file_path}' | llm -m claude-haiku-4.5 --system \"Write a paragraph of documentation for this page as markdown. Do not include a heading. Do not use words like just or simply. Keep it to 2-3 sentences.\"",
+            f"cat '{html_file_path}' | llm -m claude-haiku-4.5 --system \"Write a paragraph of documentation for this page as markdown. Do not include any headings. Do not use words like just or simply. Keep it to 2-3 sentences.\"",
             shell=True,
             capture_output=True,
             text=True,
