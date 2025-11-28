@@ -276,6 +276,25 @@
       color: #888;
       margin-top: 0.25em;
     }
+    /* Hide other replies toggle */
+    .hide-replies-toggle {
+      display: inline-block;
+      margin-top: 0.75em;
+      padding: 0.4em 0.8em;
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: #555;
+      cursor: pointer;
+    }
+    .hide-replies-toggle:hover {
+      background: #e5e5e5;
+    }
+    /* When hiding replies, hide all non-root-author posts */
+    #threadContainer.hide-other-replies .post:not(.root-author-post) {
+      display: none;
+    }
     @media (max-width: 600px) {
       .post { padding-left: 1em; }
     }
@@ -314,6 +333,7 @@
       let lastThread = null;
       let allPosts = []; // Flat array of all posts with metadata
       let currentView = 'thread';
+      let hideOtherReplies = false;
 
       postUrl.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); form.requestSubmit(); }
@@ -595,7 +615,10 @@
         const effectiveDepth = shouldFlatten ? 1 : depth;
 
         const el = document.createElement('div');
-        el.className = `post depth-${Math.min(effectiveDepth, 8)}${shouldFlatten ? ' author-continuation' : ''}`;
+        const classes = [`post`, `depth-${Math.min(effectiveDepth, 8)}`];
+        if (shouldFlatten) classes.push('author-continuation');
+        if (isRootAuthorPost) classes.push('root-author-post');
+        el.className = classes.join(' ');
         el.id = getPostId(item.post.uri);
         const authorEl = document.createElement('div');
         authorEl.className = 'author';
@@ -697,6 +720,73 @@
         } else {
           displayPostsChronological();
         }
+        setupHideRepliesToggle();
+      }
+
+      // Setup the "Hide other replies" toggle if conditions are met
+      function setupHideRepliesToggle() {
+        // Remove any existing toggle
+        const existingToggle = container.querySelector('.hide-replies-toggle');
+        if (existingToggle) existingToggle.remove();
+
+        // Only show in thread view
+        if (currentView !== 'thread') {
+          container.classList.remove('hide-other-replies');
+          return;
+        }
+
+        const rootAuthorPosts = container.querySelectorAll('.post.root-author-post');
+        const otherPosts = container.querySelectorAll('.post:not(.root-author-post)');
+
+        // Only show toggle if there are multiple root author posts AND other replies exist
+        if (rootAuthorPosts.length < 2 || otherPosts.length === 0) {
+          container.classList.remove('hide-other-replies');
+          return;
+        }
+
+        // Apply current hide state
+        if (hideOtherReplies) {
+          container.classList.add('hide-other-replies');
+        } else {
+          container.classList.remove('hide-other-replies');
+        }
+
+        // Create toggle button
+        const toggle = document.createElement('button');
+        toggle.className = 'hide-replies-toggle';
+        updateToggleText(toggle, otherPosts.length);
+
+        toggle.addEventListener('click', () => {
+          hideOtherReplies = !hideOtherReplies;
+          container.classList.toggle('hide-other-replies', hideOtherReplies);
+          updateToggleText(toggle, otherPosts.length);
+
+          // Update URL
+          const newUrl = new URL(window.location);
+          if (hideOtherReplies) {
+            newUrl.searchParams.set('hideReplies', '1');
+          } else {
+            newUrl.searchParams.delete('hideReplies');
+          }
+          history.replaceState(null, '', newUrl);
+        });
+
+        // Insert toggle in the first root post, before any nested replies
+        const firstRootPost = rootAuthorPosts[0];
+        const firstNestedReply = firstRootPost.querySelector('.post');
+        if (firstNestedReply) {
+          firstRootPost.insertBefore(toggle, firstNestedReply);
+        } else {
+          firstRootPost.appendChild(toggle);
+        }
+      }
+
+      function updateToggleText(toggle, otherCount) {
+        if (hideOtherReplies) {
+          toggle.textContent = `Show ${otherCount} other repl${otherCount === 1 ? 'y' : 'ies'}`;
+        } else {
+          toggle.textContent = 'Hide other replies';
+        }
       }
 
       // Tab click handlers
@@ -749,6 +839,11 @@
         viewTabs.style.display = 'none';
         lastThread = null;
         allPosts = [];
+        // Reset hide state for new thread (will be restored from URL if present)
+        const currentParams = new URLSearchParams(window.location.search);
+        if (!currentParams.get('hideReplies')) {
+          hideOtherReplies = false;
+        }
         // Update URL with the submitted post URL and current view
         const newUrl = new URL(window.location);
         newUrl.searchParams.set('url', postUrl.value.trim());
@@ -801,12 +896,17 @@
       const params = new URLSearchParams(window.location.search);
       const urlParam = params.get('url');
       const viewParam = params.get('view');
+      const hideRepliesParam = params.get('hideReplies');
       // Initialize view from URL parameter if valid
       if (viewParam === 'thread' || viewParam === 'recent') {
         currentView = viewParam;
         viewTabs.querySelectorAll('.tab').forEach(t => {
           t.classList.toggle('active', t.dataset.view === viewParam);
         });
+      }
+      // Initialize hide replies state from URL
+      if (hideRepliesParam === '1') {
+        hideOtherReplies = true;
       }
       if (urlParam) {
         postUrl.value = urlParam;
