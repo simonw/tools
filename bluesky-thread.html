@@ -196,6 +196,80 @@
     #imageModal:focus {
       outline: none;
     }
+    /* Video thumbnail styling */
+    .video-container {
+      position: relative;
+      display: inline-block;
+      margin-top: 0.5em;
+      cursor: pointer;
+    }
+    .video-container img {
+      max-height: 200px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+    .video-container:hover img {
+      opacity: 0.9;
+    }
+    .video-play-icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 60px;
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .video-play-icon::after {
+      content: '';
+      width: 0;
+      height: 0;
+      border-left: 20px solid white;
+      border-top: 12px solid transparent;
+      border-bottom: 12px solid transparent;
+      margin-left: 5px;
+    }
+    /* Video modal styling */
+    #videoModal {
+      border: none;
+      background: transparent;
+      max-width: 100vw;
+      max-height: 100vh;
+      padding: 0;
+    }
+    #videoModal::backdrop {
+      background: rgba(0, 0, 0, 0.9);
+    }
+    #videoModal .video-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #videoModal video {
+      max-width: 95vw;
+      max-height: 95vh;
+      object-fit: contain;
+    }
+    #videoModal:focus {
+      outline: none;
+    }
+    #videoModal .close-btn {
+      position: absolute;
+      top: -30px;
+      right: 0;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 5px 10px;
+    }
     .quote-tweet {
       border: 1px solid #d0d7de;
       border-left: 3px solid #1185fe;
@@ -301,7 +375,14 @@
   </style>
 </head>
 <body>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
   <dialog id="imageModal"><img src="" alt=""></dialog>
+  <dialog id="videoModal">
+    <div class="video-wrapper">
+      <button class="close-btn">&times;</button>
+      <video controls playsinline></video>
+    </div>
+  </dialog>
   <header>
     <h1>Bluesky Thread Viewer</h1>
     <div class="controls">
@@ -428,6 +509,74 @@
         imageModal.showModal();
       }
 
+      // Video modal setup
+      const videoModal = document.getElementById('videoModal');
+      const modalVideo = videoModal.querySelector('video');
+      const videoCloseBtn = videoModal.querySelector('.close-btn');
+      let hlsInstance = null;
+
+      function closeVideoModal() {
+        if (hlsInstance) {
+          hlsInstance.destroy();
+          hlsInstance = null;
+        }
+        modalVideo.pause();
+        modalVideo.src = '';
+        videoModal.close();
+      }
+
+      videoCloseBtn.addEventListener('click', closeVideoModal);
+      videoModal.addEventListener('click', (e) => {
+        // Close when clicking backdrop (outside video wrapper)
+        if (e.target === videoModal) {
+          closeVideoModal();
+        }
+      });
+
+      function openVideoModal(playlistUrl) {
+        if (Hls.isSupported()) {
+          hlsInstance = new Hls();
+          hlsInstance.loadSource(playlistUrl);
+          hlsInstance.attachMedia(modalVideo);
+          hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+            modalVideo.play();
+          });
+        } else if (modalVideo.canPlayType('application/vnd.apple.mpegurl')) {
+          // Native HLS support (Safari)
+          modalVideo.src = playlistUrl;
+          modalVideo.addEventListener('loadedmetadata', () => {
+            modalVideo.play();
+          }, { once: true });
+        }
+        videoModal.showModal();
+      }
+
+      // Render video thumbnail with play button
+      function renderVideo(videoEmbed) {
+        if (!videoEmbed) return null;
+        const container = document.createElement('div');
+        container.className = 'video-container';
+
+        if (videoEmbed.thumbnail) {
+          const thumb = document.createElement('img');
+          thumb.src = videoEmbed.thumbnail;
+          thumb.alt = videoEmbed.alt || 'Video thumbnail';
+          thumb.title = videoEmbed.alt || 'Click to play video';
+          container.appendChild(thumb);
+        }
+
+        // Play icon overlay
+        const playIcon = document.createElement('div');
+        playIcon.className = 'video-play-icon';
+        container.appendChild(playIcon);
+
+        container.addEventListener('click', () => {
+          openVideoModal(videoEmbed.playlist);
+        });
+
+        return container;
+      }
+
       // Render images from an embed
       function renderImages(images) {
         if (!images || !images.length) return null;
@@ -548,6 +697,10 @@
           return renderImages(embed.images);
         }
 
+        if (type === 'app.bsky.embed.video#view') {
+          return renderVideo(embed);
+        }
+
         if (type === 'app.bsky.embed.external#view') {
           return renderExternalLink(embed.external);
         }
@@ -558,10 +711,15 @@
 
         if (type === 'app.bsky.embed.recordWithMedia#view') {
           const container = document.createElement('div');
-          // Render the media (images)
-          if (embed.media && embed.media.$type === 'app.bsky.embed.images#view') {
-            const images = renderImages(embed.media.images);
-            if (images) container.appendChild(images);
+          // Render the media (images or video)
+          if (embed.media) {
+            if (embed.media.$type === 'app.bsky.embed.images#view') {
+              const images = renderImages(embed.media.images);
+              if (images) container.appendChild(images);
+            } else if (embed.media.$type === 'app.bsky.embed.video#view') {
+              const video = renderVideo(embed.media);
+              if (video) container.appendChild(video);
+            }
           }
           // Render the quoted record
           if (embed.record && embed.record.record) {
