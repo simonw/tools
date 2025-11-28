@@ -1,0 +1,3 @@
+The Bluesky Thread Viewer is an interactive web application that fetches and displays conversation threads from Bluesky social media. Users can input a Bluesky post URL to retrieve the complete thread structure, which is rendered with color-coded depth indicators showing the nesting hierarchy of replies. The application offers multiple viewing modes including a hierarchical thread view and a chronological view sorted by most recent first, along with options to copy thread content as formatted text or JSON data.
+
+<!-- Generated from commit: 2643b8d2a6823b4334328d6f0ef6902535c346b1 -->
