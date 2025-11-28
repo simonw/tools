@@ -291,8 +291,8 @@
     .hide-replies-toggle:hover {
       background: #e5e5e5;
     }
-    /* When hiding replies, hide all non-root-author posts */
-    #threadContainer.hide-other-replies .post:not(.root-author-post) {
+    /* When hiding replies, only show depth-1 posts by the root author */
+    #threadContainer.hide-other-replies .post:not(.depth-1.root-author-post) {
       display: none;
     }
     @media (max-width: 600px) {
@@ -598,7 +598,8 @@
       // rootAuthorDid: the DID of the root post author (for flattening self-replies)
       // rootContainer: the top-level container element (for appending flattened self-replies)
       // parentAuthorDid: the DID of the parent post's author (to detect self-replies)
-      function displayPostThread(item, parent, depth = 1, rootAuthorDid = null, rootContainer = null, parentAuthorDid = null) {
+      // parentAtRootLevel: whether the parent post is at the root level (depth 1)
+      function displayPostThread(item, parent, depth = 1, rootAuthorDid = null, rootContainer = null, parentAuthorDid = null, parentAtRootLevel = true) {
         const currentAuthorDid = item.post.author.did;
         // Initialize rootAuthorDid and rootContainer on first call (root post)
         const isRootPost = rootAuthorDid === null;
@@ -607,12 +608,13 @@
           rootContainer = parent;
         }
 
-        // Flatten only when root author replies to their own post (self-reply)
+        // Flatten only when root author replies to their own root-level post
         const isRootAuthorPost = currentAuthorDid === rootAuthorDid;
-        const isSelfReply = isRootAuthorPost && parentAuthorDid === rootAuthorDid && !isRootPost;
-        const shouldFlatten = isSelfReply;
+        const isSelfReplyAtRoot = isRootAuthorPost && parentAuthorDid === rootAuthorDid && parentAtRootLevel && !isRootPost;
+        const shouldFlatten = isSelfReplyAtRoot;
         const effectiveParent = shouldFlatten ? rootContainer : parent;
         const effectiveDepth = shouldFlatten ? 1 : depth;
+        const thisPostAtRootLevel = effectiveDepth === 1;
 
         const el = document.createElement('div');
         const classes = [`post`, `depth-${Math.min(effectiveDepth, 8)}`];
@@ -645,7 +647,7 @@
           item.replies.forEach(reply => {
             // If this post was flattened to root, replies to it should be at depth 2
             const nextDepth = shouldFlatten ? 2 : depth + 1;
-            displayPostThread(reply, el, nextDepth, rootAuthorDid, rootContainer, currentAuthorDid);
+            displayPostThread(reply, el, nextDepth, rootAuthorDid, rootContainer, currentAuthorDid, thisPostAtRootLevel);
           });
         }
       }
