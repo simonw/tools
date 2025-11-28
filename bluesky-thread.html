@@ -116,6 +116,24 @@
       border-bottom-left-radius: 6px;
     }
     .depth-1 { --stripe-color: var(--depth-color-1); }
+    /* Connect consecutive root-level posts by the thread author */
+    .post.depth-1.author-continuation {
+      margin-top: 0;
+      border-top: none;
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+    }
+    .post.depth-1.author-continuation::before {
+      border-top-left-radius: 0;
+    }
+    .post.depth-1:has(+ .post.depth-1.author-continuation) {
+      border-bottom: none;
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+    .post.depth-1:has(+ .post.depth-1.author-continuation)::before {
+      border-bottom-left-radius: 0;
+    }
     .depth-2 { --stripe-color: var(--depth-color-2); }
     .depth-3 { --stripe-color: var(--depth-color-3); }
     .depth-4 { --stripe-color: var(--depth-color-4); }
@@ -557,9 +575,27 @@
       }
 
       // Display post in thread view (nested)
-      function displayPostThread(item, parent, depth = 1) {
+      // rootAuthorDid: the DID of the root post author (for flattening self-replies)
+      // rootContainer: the top-level container element (for appending flattened self-replies)
+      // parentAuthorDid: the DID of the parent post's author (to detect self-replies)
+      function displayPostThread(item, parent, depth = 1, rootAuthorDid = null, rootContainer = null, parentAuthorDid = null) {
+        const currentAuthorDid = item.post.author.did;
+        // Initialize rootAuthorDid and rootContainer on first call (root post)
+        const isRootPost = rootAuthorDid === null;
+        if (isRootPost) {
+          rootAuthorDid = currentAuthorDid;
+          rootContainer = parent;
+        }
+
+        // Flatten only when root author replies to their own post (self-reply)
+        const isRootAuthorPost = currentAuthorDid === rootAuthorDid;
+        const isSelfReply = isRootAuthorPost && parentAuthorDid === rootAuthorDid && !isRootPost;
+        const shouldFlatten = isSelfReply;
+        const effectiveParent = shouldFlatten ? rootContainer : parent;
+        const effectiveDepth = shouldFlatten ? 1 : depth;
+
         const el = document.createElement('div');
-        el.className = `post depth-${Math.min(depth, 8)}`;
+        el.className = `post depth-${Math.min(effectiveDepth, 8)}${shouldFlatten ? ' author-continuation' : ''}`;
         el.id = getPostId(item.post.uri);
         const authorEl = document.createElement('div');
         authorEl.className = 'author';
@@ -581,8 +617,14 @@
           const embedEl = renderEmbed(item.post.embed);
           if (embedEl) el.appendChild(embedEl);
         }
-        parent.appendChild(el);
-        if (item.replies && item.replies.length) item.replies.forEach(reply => displayPostThread(reply, el, depth+1));
+        effectiveParent.appendChild(el);
+        if (item.replies && item.replies.length) {
+          item.replies.forEach(reply => {
+            // If this post was flattened to root, replies to it should be at depth 2
+            const nextDepth = shouldFlatten ? 2 : depth + 1;
+            displayPostThread(reply, el, nextDepth, rootAuthorDid, rootContainer, currentAuthorDid);
+          });
+        }
       }
 
       // Display posts in chronological order (most recent first)
@@ -742,6 +784,13 @@
           renderCurrentView();
           copyContainer.style.display = 'block';
           viewTabs.style.display = 'block';
+
+          // Set document title and page heading
+          const rootAuthor = lastThread.post.author.handle;
+          const rootText = lastThread.post.record.text.replace(/\n/g, ' ');
+          const truncatedText = rootText.length > 80 ? rootText.slice(0, 80) + '…' : rootText;
+          document.title = `Thread by @${rootAuthor}: ${truncatedText}`;
+          document.querySelector('h1').textContent = `Thread by @${rootAuthor}`;
         } catch (err) {
           console.error(err);
           container.textContent = 'Error: ' + err.message;
