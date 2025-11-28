@@ -70,6 +70,23 @@ jobs:
           git commit -m "Generated docs: ${{ steps.docs.outputs.stems }}" || exit 0
           git push
 
+      - name: Inject footer.js into HTML files
+        run: |
+          # Get the git hash of the last commit that touched footer.js
+          FOOTER_HASH=$(git log -1 --format="%H" -- footer.js)
+          FOOTER_SHORT_HASH=$(echo "$FOOTER_HASH" | cut -c1-8)
+
+          # Insert footer.js script tag into all root-level .html files
+          for file in *.html; do
+            if [ -f "$file" ]; then
+              # Check if footer.js is not already included
+              if ! grep -q 'src="footer.js' "$file"; then
+                # Insert script tag before </body>
+                sed -i "s|</body>|<script src=\"footer.js?${FOOTER_SHORT_HASH}\"></script>\n</body>|" "$file"
+              fi
+            fi
+          done
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
