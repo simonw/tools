@@ -11,11 +11,16 @@
     // Detect if background is dark
     function isDarkBackground() {
         const bgColor = window.getComputedStyle(document.body).backgroundColor;
-        const match = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        const match = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
         if (match) {
             const r = parseInt(match[1]);
             const g = parseInt(match[2]);
             const b = parseInt(match[3]);
+            const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
+            // If transparent, assume light background (browser default is white)
+            if (a < 0.1) {
+                return false;
+            }
             // Calculate relative luminance
             const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
             return luminance < 0.5;
