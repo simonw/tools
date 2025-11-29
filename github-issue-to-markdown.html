@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Convert GitHub issue to markdown</title>
   <style>
   * {
     box-sizing: border-box;
   }
 
   body {
-    font-family: Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     max-width: 800px;
     margin: 0 auto;
     padding: 20px;
@@ -15,10 +18,11 @@
 
   h1 {
     margin-bottom: 24px;
+    font-size: 1.5rem;
   }
 
   .input-group {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
   }
 
   label {
@@ -28,19 +32,33 @@
 
   input {
     width: 100%;
-    padding: 8px;
+    padding: 10px 12px;
     font-size: 16px;
     border: 1px solid #ccc;
     border-radius: 4px;
+  }
+
+  .token-help {
+    font-size: 14px;
+    color: #666;
+    margin-top: 4px;
+  }
+
+  .button-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
   }
 
   button {
     background: #2ea44f;
     color: white;
     border: none;
-    padding: 8px 16px;
+    padding: 10px 16px;
     border-radius: 4px;
     cursor: pointer;
+    font-size: 16px;
   }
 
   button:hover {
@@ -61,19 +79,67 @@
     min-height: 300px;
     padding: 12px;
     font-size: 16px;
-    font-family: monospace;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     border: 1px solid #ccc;
     border-radius: 4px;
     resize: vertical;
   }
 
   .error {
+    background: #ffebe9;
+    border: 1px solid #ff8182;
     color: #cf222e;
+    padding: 10px;
+    border-radius: 4px;
     margin-top: 8px;
+    display: none;
+  }
+
+  .error.visible {
+    display: block;
   }
 
   .copy-button {
     margin-top: 12px;
+  }
+
+  .loading {
+    display: none;
+    margin: 20px 0;
+    color: #666;
+  }
+
+  .loading.visible {
+    display: block;
+  }
+
+  @media (max-width: 600px) {
+    body {
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      margin-bottom: 16px;
+    }
+
+    .button-row {
+      flex-direction: column;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px 16px;
+    }
+
+    textarea {
+      min-height: 200px;
+      font-size: 14px;
+    }
+
+    input {
+      font-size: 16px;
+    }
   }
   </style>
 </head>
@@ -81,75 +147,134 @@
   <h1>Convert GitHub issue to markdown</h1>
 
   <div class="input-group">
+    <label for="token-input">GitHub Personal Access Token (optional)</label>
+    <input
+      type="password"
+      id="token-input"
+      placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    >
+    <div class="token-help">For private repos and higher rate limits. Stored in browser.</div>
+  </div>
+
+  <div class="input-group">
     <label for="issue-url">GitHub issue URL</label>
-    <input 
-      type="text" 
+    <input
+      type="text"
       id="issue-url"
       placeholder="https://github.com/owner/repo/issues/123"
     >
   </div>
 
-  <button id="convert">Convert to markdown</button>
-  
+  <div class="button-row">
+    <button id="convert">Convert to markdown</button>
+  </div>
+
+  <div id="loading" class="loading">Loading...</div>
+  <div id="error" class="error"></div>
+
   <div class="output">
     <textarea id="markdown-output" readonly></textarea>
     <button class="copy-button" id="copy">Copy to clipboard</button>
   </div>
 
-  <p class="error" id="error"></p>
-
 <script type="module">
 const urlInput = document.getElementById('issue-url')
+const tokenInput = document.getElementById('token-input')
 const convertButton = document.getElementById('convert')
 const markdownOutput = document.getElementById('markdown-output')
 const copyButton = document.getElementById('copy')
 const errorElement = document.getElementById('error')
+const loadingElement = document.getElementById('loading')
+
+// Load token from localStorage on page load
+const savedToken = localStorage.getItem('GITHUB_TOKEN')
+if (savedToken) {
+  tokenInput.value = savedToken
+}
+
+// Save token to localStorage when it changes
+tokenInput.addEventListener('input', () => {
+  const token = tokenInput.value.trim()
+  if (token) {
+    localStorage.setItem('GITHUB_TOKEN', token)
+  } else {
+    localStorage.removeItem('GITHUB_TOKEN')
+  }
+})
 
 function parseGitHubUrl(url) {
   try {
     const urlObj = new URL(url)
     const [, owner, repo, , number] = urlObj.pathname.split('/')
+    if (!owner || !repo || !number) {
+      throw new Error('Invalid URL format')
+    }
     return { owner, repo, number }
   } catch (e) {
-    throw new Error('Invalid GitHub URL')
+    throw new Error('Invalid GitHub URL. Expected format: https://github.com/owner/repo/issues/123')
   }
+}
+
+function getRequestHeaders() {
+  const headers = {
+    'Accept': 'application/vnd.github.v3+json'
+  }
+  const token = tokenInput.value.trim()
+  if (token) {
+    headers['Authorization'] = `token ${token}`
+  }
+  return headers
+}
+
+function formatDate(dateString) {
+  return new Date(dateString)
+    .toISOString()
+    .replace('T', ' ')
+    .replace('Z', ' UTC')
 }
 
 function convertToMarkdown(issue, comments) {
   let md = `# ${issue.title}\n\n`
-  md += `*Posted by @${issue.user.login}*\n\n`
-  md += issue.body + '\n\n'
-  
+  md += `**State:** ${issue.state}\n`
+  md += `**Created by:** @${issue.user.login}\n`
+  md += `**Created at:** ${formatDate(issue.created_at)}\n\n`
+  md += (issue.body || '*No description provided.*') + '\n\n'
+
   if (comments.length > 0) {
     md += '---\n\n'
     comments.forEach(comment => {
-      md += `### Comment by @${comment.user.login}\n\n`
+      md += `### Comment by @${comment.user.login} at ${formatDate(comment.created_at)}\n\n`
       md += comment.body + '\n\n'
       md += '---\n\n'
     })
   }
-  
+
   return md
 }
 
-async function getAllPages(url) {
+async function getAllPages(url, headers) {
   let allItems = []
   let nextUrl = url
-  
+
   while (nextUrl) {
-    const response = await fetch(nextUrl)
-    
+    const response = await fetch(nextUrl, { headers })
+
     if (!response.ok) {
-      throw new Error('Failed to fetch data')
+      if (response.status === 401) {
+        throw new Error('Invalid GitHub token')
+      } else if (response.status === 403) {
+        throw new Error('Rate limit exceeded. Try adding a GitHub token.')
+      }
+      throw new Error('Failed to fetch comments')
     }
-    
+
     const items = await response.json()
     allItems = allItems.concat(items)
-    
+
     // Check for pagination in Link header
     const link = response.headers.get('Link')
     nextUrl = null
-    
+
     if (link) {
       const nextLink = link.split(',').find(s => s.includes('rel="next"'))
       if (nextLink) {
@@ -157,54 +282,91 @@ async function getAllPages(url) {
       }
     }
   }
-  
+
   return allItems
 }
 
 async function fetchIssueAndComments(owner, repo, number) {
+  const headers = getRequestHeaders()
   const issueUrl = `https://api.github.com/repos/${owner}/${repo}/issues/${number}`
   const commentsUrl = `${issueUrl}/comments`
-  
-  const [issue, comments] = await Promise.all([
-    fetch(issueUrl).then(res => {
-      if (!res.ok) throw new Error('Failed to fetch issue')
-      return res.json()
-    }),
-    getAllPages(commentsUrl)
-  ])
-  
+
+  const issueResponse = await fetch(issueUrl, { headers })
+
+  if (!issueResponse.ok) {
+    if (issueResponse.status === 401) {
+      throw new Error('Invalid GitHub token')
+    } else if (issueResponse.status === 403) {
+      throw new Error('Rate limit exceeded. Try adding a GitHub token.')
+    } else if (issueResponse.status === 404) {
+      throw new Error('Issue not found. It may be private - try adding a GitHub token.')
+    }
+    throw new Error('Failed to fetch issue')
+  }
+
+  const issue = await issueResponse.json()
+  const comments = await getAllPages(commentsUrl, headers)
+
   return { issue, comments }
 }
 
-convertButton.addEventListener('click', async () => {
+function showError(message) {
+  errorElement.textContent = message
+  errorElement.classList.add('visible')
+}
+
+function hideError() {
   errorElement.textContent = ''
+  errorElement.classList.remove('visible')
+}
+
+function showLoading() {
+  loadingElement.classList.add('visible')
+}
+
+function hideLoading() {
+  loadingElement.classList.remove('visible')
+}
+
+async function handleConvert() {
+  hideError()
   markdownOutput.value = ''
   convertButton.disabled = true
-  
+  showLoading()
+
   try {
     const { owner, repo, number } = parseGitHubUrl(urlInput.value)
     const { issue, comments } = await fetchIssueAndComments(owner, repo, number)
     const markdown = convertToMarkdown(issue, comments)
     markdownOutput.value = markdown
   } catch (error) {
-    errorElement.textContent = error.message
+    showError(error.message)
   } finally {
+    hideLoading()
     convertButton.disabled = false
+  }
+}
+
+convertButton.addEventListener('click', handleConvert)
+
+urlInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    handleConvert()
   }
 })
 
 copyButton.addEventListener('click', () => {
   markdownOutput.select()
-  document.execCommand('copy')
-  
-  const originalText = copyButton.textContent
-  copyButton.textContent = 'Copied'
-  copyButton.disabled = true
-  
-  setTimeout(() => {
-    copyButton.textContent = originalText
-    copyButton.disabled = false
-  }, 2000)
+  navigator.clipboard.writeText(markdownOutput.value).then(() => {
+    const originalText = copyButton.textContent
+    copyButton.textContent = 'Copied!'
+    copyButton.disabled = true
+
+    setTimeout(() => {
+      copyButton.textContent = originalText
+      copyButton.disabled = false
+    }, 1500)
+  })
 })
 
 </script>

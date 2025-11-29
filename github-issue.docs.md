@@ -1,3 +1,1 @@
-This application fetches GitHub issues and their comments via the GitHub API, converting them into formatted markdown that users can easily copy. Users can input a GitHub issue URL and optionally provide a personal access token to increase API rate limits and access private repositories; the token is securely stored in the browser's local storage for convenience. The tool displays the issue title, metadata, description, and all associated comments in a readable markdown format with copy-to-clipboard functionality.
-
-<!-- Generated from commit: fdfb6f124df0b26465df11414558634f3c0900ad -->
+This page implements an automatic redirect to the "/github-issue-to-markdown" location. When a user visits this page, their browser will immediately redirect them to the new location, with a fallback text link provided if the automatic redirection fails to work.
