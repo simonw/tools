@@ -1,0 +1,3 @@
+This page implements an interactive text editing tool that uses Claude's API to identify unnecessary words in user-submitted text according to Strunk & White's writing principle. The tool sends text to Claude via a streaming API connection, receives marked-up text with unnecessary words wrapped in `<del>` tags, and displays the results with visual highlighting and statistics about the reduction percentage. A debug panel provides detailed logging and performance metrics for monitoring the streaming process, including chunk counts, parse events, and data transmission rates.
+
+<!-- Generated from commit: cd0671e62d9f8b332626155d124f6a6922d8ce15 -->
