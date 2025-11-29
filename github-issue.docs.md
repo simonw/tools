@@ -1,1 +1,3 @@
-This page implements an automatic redirect to the "/github-issue-to-markdown" location. When a user visits this page, their browser will immediately redirect them to the new location, with a fallback text link provided if the automatic redirection fails to work.
+This page is a redirect that automatically forwards users to the `/github-issue-to-markdown` endpoint using an HTTP meta refresh tag. If the automatic redirect fails, users are provided with a manual link to complete the navigation to the intended destination.
+
+<!-- Generated from commit: 9375c462f66e0c43b79c2c9284fca18c2c22176a -->
