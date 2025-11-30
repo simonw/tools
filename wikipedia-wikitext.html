@@ -42,8 +42,66 @@ gap: 10px;
 margin-bottom: 20px;
 }
 
-input[type="text"] {
+.input-wrapper {
 flex: 1;
+position: relative;
+}
+
+.autocomplete-dropdown {
+position: absolute;
+top: 100%;
+left: 0;
+right: 0;
+background: white;
+border: 2px solid #0066cc;
+border-top: none;
+border-radius: 0 0 8px 8px;
+max-height: 300px;
+overflow-y: auto;
+z-index: 100;
+display: none;
+box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.autocomplete-dropdown.visible {
+display: block;
+}
+
+.autocomplete-item {
+padding: 10px 16px;
+cursor: pointer;
+border-bottom: 1px solid #eee;
+font-size: 14px;
+color: #333;
+}
+
+.autocomplete-item:last-child {
+border-bottom: none;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+background: #f0f7ff;
+}
+
+.autocomplete-item .page-ns {
+color: #666;
+font-size: 12px;
+margin-left: 8px;
+}
+
+@media (max-width: 500px) {
+  .input-group {
+    flex-direction: column;
+  }
+
+  button {
+    width: 100%;
+  }
+}
+
+input[type="text"] {
+width: 100%;
 padding: 12px 16px;
 font-size: 16px;
 font-family: Helvetica, Arial, sans-serif;
@@ -170,10 +228,13 @@ to { transform: rotate(360deg); }
 <body>
   <div class="container">
     <h1>Wikipedia wikitext fetcher</h1>
-    <p class="subtitle">Paste a Wikipedia URL to fetch its raw wikitext source</p>
+    <p class="subtitle">Search for a Wikipedia article or paste a URL to fetch its raw wikitext source</p>
 
 <div class="input-group">
-  <input type="text" id="urlInput" placeholder="https://en.wikipedia.org/wiki/Albert_Einstein">
+  <div class="input-wrapper">
+    <input type="text" id="urlInput" placeholder="Search Wikipedia or paste a URL..." autocomplete="off">
+    <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+  </div>
   <button id="fetchBtn">Fetch wikitext</button>
 </div>
 
@@ -204,6 +265,123 @@ const resultContainer = document.getElementById('resultContainer');
 const pageTitle = document.getElementById('pageTitle');
 const wikitextOutput = document.getElementById('wikitextOutput');
 const copyBtn = document.getElementById('copyBtn');
+const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+
+let debounceTimer = null;
+let selectedIndex = -1;
+let currentSuggestions = [];
+
+function isUrl(text) {
+  return text.startsWith('http://') || text.startsWith('https://') || text.includes('wikipedia.org');
+}
+
+async function fetchSuggestions(query) {
+  if (!query || query.length < 2 || isUrl(query)) {
+    hideAutocomplete();
+    return;
+  }
+
+  try {
+    const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=prefixsearch&pssearch=${encodeURIComponent(query)}&pslimit=10&format=json&origin=*`;
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+
+    if (data.query && data.query.prefixsearch) {
+      currentSuggestions = data.query.prefixsearch;
+      showSuggestions(currentSuggestions);
+    } else {
+      hideAutocomplete();
+    }
+  } catch (err) {
+    hideAutocomplete();
+  }
+}
+
+function showSuggestions(suggestions) {
+  if (suggestions.length === 0) {
+    hideAutocomplete();
+    return;
+  }
+
+  selectedIndex = -1;
+  autocompleteDropdown.innerHTML = suggestions.map((item, index) =>
+    `<div class="autocomplete-item" data-index="${index}" data-title="${item.title}">${item.title}</div>`
+  ).join('');
+  autocompleteDropdown.classList.add('visible');
+}
+
+function hideAutocomplete() {
+  autocompleteDropdown.classList.remove('visible');
+  autocompleteDropdown.innerHTML = '';
+  selectedIndex = -1;
+  currentSuggestions = [];
+}
+
+function selectSuggestion(title) {
+  const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+  urlInput.value = wikiUrl;
+  hideAutocomplete();
+  fetchWikitext();
+}
+
+function updateSelection() {
+  const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
+  items.forEach((item, index) => {
+    item.classList.toggle('selected', index === selectedIndex);
+  });
+  if (selectedIndex >= 0 && items[selectedIndex]) {
+    items[selectedIndex].scrollIntoView({ block: 'nearest' });
+  }
+}
+
+urlInput.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  const query = urlInput.value.trim();
+
+  debounceTimer = setTimeout(() => {
+    fetchSuggestions(query);
+  }, 200);
+});
+
+urlInput.addEventListener('keydown', (e) => {
+  const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
+
+  if (!autocompleteDropdown.classList.contains('visible')) {
+    return;
+  }
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+    updateSelection();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    selectedIndex = Math.max(selectedIndex - 1, -1);
+    updateSelection();
+  } else if (e.key === 'Enter' && selectedIndex >= 0) {
+    e.preventDefault();
+    const title = currentSuggestions[selectedIndex]?.title;
+    if (title) {
+      selectSuggestion(title);
+    }
+  } else if (e.key === 'Escape') {
+    hideAutocomplete();
+  }
+});
+
+autocompleteDropdown.addEventListener('click', (e) => {
+  const item = e.target.closest('.autocomplete-item');
+  if (item) {
+    const title = item.dataset.title;
+    selectSuggestion(title);
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.input-wrapper')) {
+    hideAutocomplete();
+  }
+});
 
 function extractPageName(url) {
   try {
