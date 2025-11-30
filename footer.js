@@ -8,39 +8,62 @@
         filename += '.html';
     }
 
-    // Detect if background is dark
-    function isDarkBackground() {
-        const bgColor = window.getComputedStyle(document.body).backgroundColor;
-        const match = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-        if (match) {
-            const r = parseInt(match[1]);
-            const g = parseInt(match[2]);
-            const b = parseInt(match[3]);
-            const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
-            // If transparent, assume light background (browser default is white)
-            if (a < 0.1) {
-                return false;
+    // Find the most common text color on the page
+    function getMostCommonTextColor() {
+        const colorCounts = {};
+        const elements = document.body.querySelectorAll('*');
+
+        elements.forEach(el => {
+            // Skip script, style, and hidden elements
+            if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'NOSCRIPT') {
+                return;
             }
-            // Calculate relative luminance
-            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-            return luminance < 0.5;
+
+            // Only count elements that have direct text content
+            const hasDirectText = Array.from(el.childNodes).some(
+                node => node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0
+            );
+
+            if (hasDirectText) {
+                const style = window.getComputedStyle(el);
+                const color = style.color;
+
+                // Skip fully transparent colors
+                const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+                if (match) {
+                    const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
+                    if (a < 0.1) return;
+                }
+
+                colorCounts[color] = (colorCounts[color] || 0) + 1;
+            }
+        });
+
+        // Find the most common color
+        let mostCommon = null;
+        let maxCount = 0;
+
+        for (const [color, count] of Object.entries(colorCounts)) {
+            if (count > maxCount) {
+                maxCount = count;
+                mostCommon = color;
+            }
         }
-        return false;
+
+        // Default fallback if no text color found
+        return mostCommon || 'rgb(0, 0, 0)';
     }
 
-    const isDark = isDarkBackground();
-    const linkColor = isDark ? '#ffffff' : '#0066cc';
-    const hrColor = isDark ? '#666' : '#ccc';
-    const textColor = isDark ? '#ccc' : '#666';
+    const textColor = getMostCommonTextColor();
 
     // Create the footer element
     const footer = document.createElement('footer');
     footer.innerHTML = `
-        <hr style="margin: 2rem 0 1rem 0; border: none; border-top: 1px solid ${hrColor};">
-        <nav style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; color: ${textColor}; padding-left: 0.5rem;">
-            <a href="/" style="color: ${linkColor}; text-decoration: none; margin-right: 1.5rem;">Home</a>
-            <a href="https://github.com/simonw/tools/blob/main/${filename}" style="color: ${linkColor}; text-decoration: none; margin-right: 1.5rem;">View source</a>
-            <a href="https://github.com/simonw/tools/commits/main/${filename}" style="color: ${linkColor}; text-decoration: none;">Commit history</a>
+        <hr style="margin: 2rem 0 1rem 0; border: none; border-top: 1px solid ${textColor};">
+        <nav style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; padding-left: 0.5rem;">
+            <a href="/" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">Home</a>
+            <a href="https://github.com/simonw/tools/blob/main/${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">View source</a>
+            <a href="https://github.com/simonw/tools/commits/main/${filename}" style="color: ${textColor}; text-decoration: underline;">Commit history</a>
         </nav>
     `;
 
