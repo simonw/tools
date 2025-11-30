@@ -470,7 +470,7 @@ select:focus {
   </details>
 
   <div id="custom-prompt-banner" class="custom-prompt-banner hidden">
-    <span>Running with a custom system prompt</span>
+    <span id="prompt-banner-text">Running with a custom system prompt</span>
     <button type="button" class="toggle-prompt-btn" id="toggle-prompt-btn">Use default prompt</button>
   </div>
 
@@ -527,6 +527,7 @@ const savePromptBtn = document.getElementById('save-prompt-btn');
 const resetPromptBtn = document.getElementById('reset-prompt-btn');
 const customPromptBanner = document.getElementById('custom-prompt-banner');
 const togglePromptBtn = document.getElementById('toggle-prompt-btn');
+const promptBannerText = document.getElementById('prompt-banner-text');
 
 // Default system prompt
 const DEFAULT_PROMPT = `You are an editor applying Strunk & White's principle "Omit needless words."
@@ -559,6 +560,11 @@ Output the text with <del></del> tags around omittable words and phrases:`;
 // State for custom prompt
 let useCustomPrompt = false;
 
+// Check if there's a saved custom prompt
+function hasCustomPrompt() {
+  return !!localStorage.getItem('omit-needless-words-custom-prompt');
+}
+
 // Initialize prompt textarea and check for saved custom prompt
 function initPromptEditor() {
   const savedCustomPrompt = localStorage.getItem('omit-needless-words-custom-prompt');
@@ -567,18 +573,28 @@ function initPromptEditor() {
   if (savedCustomPrompt && savedUseCustom) {
     useCustomPrompt = true;
     systemPromptTextarea.value = savedCustomPrompt;
-    showCustomPromptBanner(true);
   } else {
+    useCustomPrompt = false;
     systemPromptTextarea.value = DEFAULT_PROMPT;
-    showCustomPromptBanner(false);
   }
+  updatePromptBanner();
 }
 
-function showCustomPromptBanner(show) {
-  if (show) {
+function updatePromptBanner() {
+  const savedCustomPrompt = localStorage.getItem('omit-needless-words-custom-prompt');
+
+  if (useCustomPrompt && savedCustomPrompt) {
+    // Using custom prompt
     customPromptBanner.classList.remove('hidden');
+    promptBannerText.textContent = 'Running with a custom system prompt';
     togglePromptBtn.textContent = 'Use default prompt';
+  } else if (!useCustomPrompt && savedCustomPrompt) {
+    // Using default but have a saved custom prompt available
+    customPromptBanner.classList.remove('hidden');
+    promptBannerText.textContent = 'Using default prompt (custom prompt saved)';
+    togglePromptBtn.textContent = 'Use custom prompt';
   } else {
+    // No custom prompt saved
     customPromptBanner.classList.add('hidden');
   }
 }
@@ -596,7 +612,7 @@ savePromptBtn.addEventListener('click', () => {
     localStorage.setItem('omit-needless-words-custom-prompt', promptText);
     localStorage.setItem('omit-needless-words-use-custom', 'true');
     useCustomPrompt = true;
-    showCustomPromptBanner(true);
+    updatePromptBanner();
   }
 });
 
@@ -605,22 +621,21 @@ resetPromptBtn.addEventListener('click', () => {
 });
 
 togglePromptBtn.addEventListener('click', () => {
+  const savedCustomPrompt = localStorage.getItem('omit-needless-words-custom-prompt');
+
   if (useCustomPrompt) {
     // Switch to default
     useCustomPrompt = false;
     localStorage.setItem('omit-needless-words-use-custom', 'false');
     systemPromptTextarea.value = DEFAULT_PROMPT;
-    customPromptBanner.classList.add('hidden');
+  } else if (savedCustomPrompt) {
+    // Switch to custom
+    useCustomPrompt = true;
+    localStorage.setItem('omit-needless-words-use-custom', 'true');
+    systemPromptTextarea.value = savedCustomPrompt;
   }
+  updatePromptBanner();
 });
-
-// Re-show the custom prompt banner if user saves a custom prompt while viewing default
-function updateBannerForCustomPrompt() {
-  const savedCustomPrompt = localStorage.getItem('omit-needless-words-custom-prompt');
-  if (savedCustomPrompt && useCustomPrompt) {
-    showCustomPromptBanner(true);
-  }
-}
 
 // Initialize on load
 initPromptEditor();
