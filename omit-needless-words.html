@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Omit needless words</title>
   <style>
 * {
@@ -298,6 +298,150 @@ button:disabled {
   font-size: 14px;
   font-weight: bold;
 }
+
+.options-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-group label {
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+select {
+  padding: 10px 14px;
+  font-size: 16px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+select:focus {
+  outline: none;
+  border-color: #007aff;
+}
+
+.prompt-editor {
+  margin-bottom: 24px;
+  background: #fff;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+}
+
+.prompt-editor summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 500;
+  color: #333;
+  user-select: none;
+}
+
+.prompt-editor summary:hover {
+  background: #f9f9f9;
+}
+
+.prompt-editor[open] summary {
+  border-bottom: 1px solid #ddd;
+}
+
+.prompt-editor-content {
+  padding: 16px;
+}
+
+.prompt-textarea {
+  width: 100%;
+  height: 300px;
+  padding: 12px;
+  font-size: 16px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  resize: vertical;
+  line-height: 1.5;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.prompt-textarea:focus {
+  outline: none;
+  border-color: #007aff;
+}
+
+.prompt-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.prompt-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.prompt-btn-secondary {
+  background: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.prompt-btn-secondary:hover {
+  background: #e8e8e8;
+}
+
+.custom-prompt-banner {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.custom-prompt-banner.hidden {
+  display: none;
+}
+
+.custom-prompt-banner span {
+  font-size: 14px;
+}
+
+.toggle-prompt-btn {
+  background: #856404;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toggle-prompt-btn:hover {
+  background: #6d5303;
+}
   </style>
 </head>
 <body>
@@ -308,7 +452,34 @@ button:disabled {
     <label for="input-text">Your text</label>
     <textarea id="input-text" placeholder="Paste your text here..."></textarea>
   </div>
-  
+
+  <div class="options-row">
+    <div class="option-group">
+      <label for="model-select">Model</label>
+      <select id="model-select">
+        <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+        <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
+        <option value="claude-opus-4-5-20251101">Claude Opus 4.5</option>
+      </select>
+    </div>
+  </div>
+
+  <details class="prompt-editor" id="prompt-editor">
+    <summary>System prompt</summary>
+    <div class="prompt-editor-content">
+      <textarea id="system-prompt" class="prompt-textarea"></textarea>
+      <div class="prompt-buttons">
+        <button type="button" class="prompt-btn prompt-btn-secondary" id="save-prompt-btn">Save as custom prompt</button>
+        <button type="button" class="prompt-btn prompt-btn-secondary" id="reset-prompt-btn">Reset to default</button>
+      </div>
+    </div>
+  </details>
+
+  <div id="custom-prompt-banner" class="custom-prompt-banner hidden">
+    <span id="prompt-banner-text">Running with a custom system prompt</span>
+    <button type="button" class="toggle-prompt-btn" id="toggle-prompt-btn">Use default prompt</button>
+  </div>
+
   <button id="analyze-btn">Analyze text</button>
   
   <div id="error" class="error" style="display: none;"></div>
@@ -356,6 +527,144 @@ const resultSection = document.getElementById('result-section');
 const resultBox = document.getElementById('result-box');
 const stats = document.getElementById('stats');
 const streamingIndicator = document.getElementById('streaming-indicator');
+const modelSelect = document.getElementById('model-select');
+const systemPromptTextarea = document.getElementById('system-prompt');
+const savePromptBtn = document.getElementById('save-prompt-btn');
+const resetPromptBtn = document.getElementById('reset-prompt-btn');
+const customPromptBanner = document.getElementById('custom-prompt-banner');
+const togglePromptBtn = document.getElementById('toggle-prompt-btn');
+const promptBannerText = document.getElementById('prompt-banner-text');
+
+// Default system prompt
+const DEFAULT_PROMPT = `You are an editor applying Strunk & White's principle "Omit needless words."
+
+Your task: Return the EXACT input text, but wrap words and phrases that could be omitted in <del></del> tags.
+
+CRITICAL: Only mark words/phrases where the sentence remains grammatically correct AND means the same thing after removal. Never mark verbs, subjects, or words that carry meaning.
+
+Good targets:
+- Filler words: "very", "really", "just", "quite", "actually", "basically", "literally"
+- Unnecessary "that" (only when grammatically optional)
+- Wordy phrases where part can be cut: "in order to" (mark "in order"), "due to the fact that" (mark "the fact"), "at this point in time" (mark "point in")
+- Redundant modifiers: "past history" (mark "past"), "future plans" (mark "future"), "end result" (mark "end")
+- Filler phrases: "it is important to note that", "as a matter of fact"
+
+NEVER mark:
+- Verbs (like "using", "producing", "is", "are")
+- Subjects or objects that carry meaning
+- Words where removal changes the meaning or breaks grammar
+
+Rules:
+1. Preserve all newlines, punctuation, and spacing exactly
+2. Return ONLY the marked-up text with no explanation
+
+Input text:
+\${text}
+
+Output the text with <del></del> tags around omittable words and phrases:`;
+
+// State for custom prompt
+let useCustomPrompt = false;
+
+// Check if there's a saved custom prompt
+function hasCustomPrompt() {
+  return !!localStorage.getItem('omit-needless-words-custom-prompt');
+}
+
+// Initialize prompt textarea and check for saved custom prompt
+function initPromptEditor() {
+  const savedCustomPrompt = localStorage.getItem('omit-needless-words-custom-prompt');
+  const savedUseCustom = localStorage.getItem('omit-needless-words-use-custom') === 'true';
+
+  if (savedCustomPrompt && savedUseCustom) {
+    useCustomPrompt = true;
+    systemPromptTextarea.value = savedCustomPrompt;
+  } else {
+    useCustomPrompt = false;
+    systemPromptTextarea.value = DEFAULT_PROMPT;
+  }
+  updatePromptBanner();
+}
+
+function updatePromptBanner() {
+  const savedCustomPrompt = localStorage.getItem('omit-needless-words-custom-prompt');
+
+  if (savedCustomPrompt) {
+    customPromptBanner.classList.remove('hidden');
+    if (useCustomPrompt) {
+      // Using custom prompt
+      promptBannerText.textContent = 'Running with a custom system prompt';
+      togglePromptBtn.textContent = 'Use default prompt';
+    } else {
+      // Using default but have a saved custom prompt available
+      promptBannerText.textContent = 'Using default prompt (custom prompt saved)';
+      togglePromptBtn.textContent = 'Use custom prompt';
+    }
+  } else {
+    // No custom prompt saved
+    customPromptBanner.classList.add('hidden');
+  }
+
+  // Update save button text
+  updateSaveButtonText();
+}
+
+function updateSaveButtonText() {
+  const savedCustomPrompt = localStorage.getItem('omit-needless-words-custom-prompt');
+  if (savedCustomPrompt) {
+    savePromptBtn.textContent = 'Update custom prompt';
+  } else {
+    savePromptBtn.textContent = 'Save as custom prompt';
+  }
+}
+
+function getCurrentPrompt() {
+  if (useCustomPrompt) {
+    return localStorage.getItem('omit-needless-words-custom-prompt') || DEFAULT_PROMPT;
+  }
+  return DEFAULT_PROMPT;
+}
+
+savePromptBtn.addEventListener('click', () => {
+  const promptText = systemPromptTextarea.value.trim();
+  if (promptText) {
+    // If saving the default prompt, clear the custom prompt instead
+    if (promptText === DEFAULT_PROMPT.trim()) {
+      localStorage.removeItem('omit-needless-words-custom-prompt');
+      localStorage.setItem('omit-needless-words-use-custom', 'false');
+      useCustomPrompt = false;
+    } else {
+      localStorage.setItem('omit-needless-words-custom-prompt', promptText);
+      localStorage.setItem('omit-needless-words-use-custom', 'true');
+      useCustomPrompt = true;
+    }
+    updatePromptBanner();
+  }
+});
+
+resetPromptBtn.addEventListener('click', () => {
+  systemPromptTextarea.value = DEFAULT_PROMPT;
+});
+
+togglePromptBtn.addEventListener('click', () => {
+  const savedCustomPrompt = localStorage.getItem('omit-needless-words-custom-prompt');
+
+  if (useCustomPrompt) {
+    // Switch to default
+    useCustomPrompt = false;
+    localStorage.setItem('omit-needless-words-use-custom', 'false');
+    systemPromptTextarea.value = DEFAULT_PROMPT;
+  } else if (savedCustomPrompt) {
+    // Switch to custom
+    useCustomPrompt = true;
+    localStorage.setItem('omit-needless-words-use-custom', 'true');
+    systemPromptTextarea.value = savedCustomPrompt;
+  }
+  updatePromptBanner();
+});
+
+// Initialize on load
+initPromptEditor();
 
 // Get the API key from localStorage or prompt the user to enter it
 function getApiKey() {
@@ -491,33 +800,15 @@ analyzeBtn.addEventListener('click', async () => {
 });
 
 async function analyzeTextStream(text, apiKey) {
-  const prompt = `You are an editor applying Strunk & White's principle "Omit needless words."
+  // Get the current prompt template and substitute the text
+  const promptTemplate = getCurrentPrompt();
+  const prompt = promptTemplate.replace('${text}', text);
 
-Your task: Return the EXACT input text, but wrap words and phrases that could be omitted in <del></del> tags.
+  // Get the selected model
+  const selectedModel = modelSelect.value;
 
-CRITICAL: Only mark words/phrases where the sentence remains grammatically correct AND means the same thing after removal. Never mark verbs, subjects, or words that carry meaning.
-
-Good targets:
-- Filler words: "very", "really", "just", "quite", "actually", "basically", "literally"
-- Unnecessary "that" (only when grammatically optional)
-- Wordy phrases where part can be cut: "in order to" (mark "in order"), "due to the fact that" (mark "the fact"), "at this point in time" (mark "point in")
-- Redundant modifiers: "past history" (mark "past"), "future plans" (mark "future"), "end result" (mark "end")
-- Filler phrases: "it is important to note that", "as a matter of fact"
-
-NEVER mark:
-- Verbs (like "using", "producing", "is", "are")
-- Subjects or objects that carry meaning
-- Words where removal changes the meaning or breaks grammar
-
-Rules:
-1. Preserve all newlines, punctuation, and spacing exactly
-2. Return ONLY the marked-up text with no explanation
-
-Input text:
-${text}
-
-Output the text with <del></del> tags around omittable words and phrases:`;
-
+  log(`Using model: ${selectedModel}`, 'info');
+  log(`Using ${useCustomPrompt ? 'custom' : 'default'} prompt`, 'info');
   log('Sending API request...', 'info');
   streamStats.startTime = Date.now();
 
@@ -530,7 +821,7 @@ Output the text with <del></del> tags around omittable words and phrases:`;
       "anthropic-dangerous-direct-browser-access": "true"
     },
     body: JSON.stringify({
-      model: "claude-opus-4-5-20251101",
+      model: selectedModel,
       max_tokens: 4000,
       stream: true,
       messages: [
