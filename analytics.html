@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.5;
+            background-color: #f5f5f5;
+            color: #333;
+            padding: 1rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            margin-bottom: 1.5rem;
+            color: #1a1a1a;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: #1a1a1a;
+        }
+
+        .card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.25rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 1rem;
+        }
+
+        .two-charts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 900px) {
+            .two-charts {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #4a4a4a;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .slug {
+            font-family: monospace;
+            color: #2563eb;
+            word-break: break-all;
+        }
+
+        .count {
+            font-weight: 600;
+            color: #059669;
+        }
+
+        .timestamp {
+            color: #6b7280;
+            font-size: 0.8rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #1d4ed8;
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-danger {
+            background: #dc2626;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #6b7280;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1f2937;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 0.5rem;
+            }
+
+            .card {
+                padding: 1rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .stat-value {
+                font-size: 1.5rem;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Site Analytics</h1>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-box">
+                <div class="stat-value" id="totalVisits">0</div>
+                <div class="stat-label">Total Visits</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="uniquePages">0</div>
+                <div class="stat-label">Unique Pages</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="todayVisits">0</div>
+                <div class="stat-label">Today</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="weekVisits">0</div>
+                <div class="stat-label">This Week</div>
+            </div>
+        </div>
+
+        <div class="two-charts">
+            <div class="card">
+                <h2>Visits Over Time</h2>
+                <div class="chart-container">
+                    <canvas id="visitsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Top Pages</h2>
+                <div class="chart-container">
+                    <canvas id="pagesChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Most Visited Pages (Top 20)</h2>
+            <div id="topPagesContainer">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Page</th>
+                                <th>Visits</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topPagesTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Recent Visits (Last 100)</h2>
+            <div id="recentVisitsContainer">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Page</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentVisitsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Data Management</h2>
+            <div class="actions">
+                <button class="btn" id="copyBtn">Copy JSON to Clipboard</button>
+                <button class="btn btn-danger" id="clearBtn">Clear All Data</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const STORAGE_KEY = 'tools_analytics';
+        let visitsChart, pagesChart;
+
+        function getAnalytics() {
+            try {
+                return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString(undefined, {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        function getPageCounts(analytics) {
+            const counts = {};
+            analytics.forEach(visit => {
+                counts[visit.slug] = (counts[visit.slug] || 0) + 1;
+            });
+            return Object.entries(counts)
+                .sort((a, b) => b[1] - a[1])
+                .map(([slug, count]) => ({ slug, count }));
+        }
+
+        function getVisitsByDay(analytics) {
+            const days = {};
+            analytics.forEach(visit => {
+                const date = new Date(visit.timestamp);
+                const dayKey = date.toISOString().split('T')[0];
+                days[dayKey] = (days[dayKey] || 0) + 1;
+            });
+
+            // Get last 14 days
+            const result = [];
+            for (let i = 13; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const key = d.toISOString().split('T')[0];
+                result.push({
+                    date: key,
+                    label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                    count: days[key] || 0
+                });
+            }
+            return result;
+        }
+
+        function render() {
+            const analytics = getAnalytics();
+
+            // Stats
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const weekStart = todayStart - (6 * 24 * 60 * 60 * 1000);
+
+            const uniquePages = new Set(analytics.map(v => v.slug)).size;
+            const todayVisits = analytics.filter(v => v.timestamp >= todayStart).length;
+            const weekVisits = analytics.filter(v => v.timestamp >= weekStart).length;
+
+            document.getElementById('totalVisits').textContent = analytics.length.toLocaleString();
+            document.getElementById('uniquePages').textContent = uniquePages.toLocaleString();
+            document.getElementById('todayVisits').textContent = todayVisits.toLocaleString();
+            document.getElementById('weekVisits').textContent = weekVisits.toLocaleString();
+
+            // Top pages table
+            const pageCounts = getPageCounts(analytics);
+            const top20 = pageCounts.slice(0, 20);
+            const topPagesTable = document.getElementById('topPagesTable');
+
+            if (top20.length === 0) {
+                topPagesTable.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#6b7280;">No data yet</td></tr>';
+            } else {
+                topPagesTable.innerHTML = top20.map((p, i) => `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td class="slug">${escapeHtml(p.slug)}</td>
+                        <td class="count">${p.count.toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            }
+
+            // Recent visits table
+            const recent100 = analytics.slice(-100).reverse();
+            const recentVisitsTable = document.getElementById('recentVisitsTable');
+
+            if (recent100.length === 0) {
+                recentVisitsTable.innerHTML = '<tr><td colspan="2" style="text-align:center;color:#6b7280;">No visits recorded yet</td></tr>';
+            } else {
+                recentVisitsTable.innerHTML = recent100.map(v => `
+                    <tr>
+                        <td class="slug">${escapeHtml(v.slug)}</td>
+                        <td class="timestamp">${formatTime(v.timestamp)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            // Charts
+            renderCharts(analytics, pageCounts);
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function renderCharts(analytics, pageCounts) {
+            const visitsByDay = getVisitsByDay(analytics);
+
+            // Visits over time chart
+            const visitsCtx = document.getElementById('visitsChart').getContext('2d');
+            if (visitsChart) visitsChart.destroy();
+
+            visitsChart = new Chart(visitsCtx, {
+                type: 'line',
+                data: {
+                    labels: visitsByDay.map(d => d.label),
+                    datasets: [{
+                        label: 'Visits',
+                        data: visitsByDay.map(d => d.count),
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointBackgroundColor: '#2563eb',
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Top pages chart
+            const pagesCtx = document.getElementById('pagesChart').getContext('2d');
+            if (pagesChart) pagesChart.destroy();
+
+            const top10 = pageCounts.slice(0, 10);
+            const colors = [
+                '#2563eb', '#7c3aed', '#db2777', '#dc2626', '#ea580c',
+                '#d97706', '#65a30d', '#059669', '#0891b2', '#6366f1'
+            ];
+
+            pagesChart = new Chart(pagesCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: top10.map(p => p.slug.replace(/^\//, '') || 'home'),
+                    datasets: [{
+                        data: top10.map(p => p.count),
+                        backgroundColor: colors,
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 8,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Copy to clipboard
+        document.getElementById('copyBtn').addEventListener('click', async () => {
+            const analytics = getAnalytics();
+            try {
+                await navigator.clipboard.writeText(JSON.stringify(analytics, null, 2));
+                showToast('Analytics JSON copied to clipboard!');
+            } catch (e) {
+                showToast('Failed to copy to clipboard');
+            }
+        });
+
+        // Clear data
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear all analytics data? This cannot be undone.')) {
+                localStorage.removeItem(STORAGE_KEY);
+                render();
+                showToast('All analytics data cleared');
+            }
+        });
+
+        // Initial render
+        render();
+    </script>
+    <script src="footer.js"></script>
+</body>
+</html>
