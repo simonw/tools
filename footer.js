@@ -23,6 +23,9 @@
         filename += '.html';
     }
 
+    // Get the page name for the "About" link (from pathname, without .html)
+    const pageName = filename.replace('.html', '');
+
     // Parse an RGB/RGBA color string and return {r, g, b, a}
     function parseColor(colorStr) {
         const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
@@ -125,8 +128,9 @@
     const footer = document.createElement('footer');
     footer.innerHTML = `
         <hr style="margin: 2rem 0 1rem 0; border: none; border-top: 1px solid ${textColor};">
-        <nav style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; padding-left: 0.5rem;">
+        <nav style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; text-align: center; font-style: normal;">
             <a href="/" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">Home</a>
+            <a href="/colophon#${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">About ${pageName}</a>
             <a href="https://github.com/simonw/tools/blob/main/${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">View source</a>
             <a href="https://github.com/simonw/tools/commits/main/${filename}" style="color: ${textColor}; text-decoration: underline;">Commit history</a>
         </nav>

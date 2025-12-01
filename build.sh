@@ -36,9 +36,19 @@ for file in *.html; do
   if [ -f "$file" ] && [ "$file" != "index.html" ]; then
     # Check if footer.js is not already included
     if ! grep -q 'src="footer.js' "$file"; then
-      # Insert script tag before the LAST </body> tag only
-      # Using tac to reverse, replace first match, then reverse back
-      tac "$file" | sed '0,/<\/body>/s|</body>|<script src="footer.js?'"${FOOTER_SHORT_HASH}"'"></script>\n</body>|' | tac > "$file.tmp" && mv "$file.tmp" "$file"
+      # Insert script tag before the LAST </body> tag using awk
+      awk -v script="<script src=\"footer.js?${FOOTER_SHORT_HASH}\"></script>" '
+        { lines[NR] = $0 }
+        /<\/body>/ { last_body = NR }
+        END {
+          for (i = 1; i <= NR; i++) {
+            if (i == last_body) {
+              sub(/<\/body>/, script "\n</body>", lines[i])
+            }
+            print lines[i]
+          }
+        }
+      ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
     fi
   fi
 done
