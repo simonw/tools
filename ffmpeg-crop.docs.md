@@ -1,3 +1,3 @@
-This tool allows you to visually select a crop area for video files and generates the corresponding FFmpeg commands. Upload a video, then use the green crop box to define the region you want to keep. The tool provides both standard FFmpeg commands and iPhone-compatible commands with appropriate encoding settings for your cropped video.
+This FFmpeg video crop tool provides an interactive interface for defining crop regions on uploaded videos. Users can upload a video file and manipulate a draggable, resizable crop box overlay to select the desired area, with the interface automatically generating corresponding FFmpeg commands for both standard output and iPhone-compatible encoding. The tool supports both mouse and touch interactions, making it accessible across desktop and mobile devices while maintaining real-time updates to the crop dimensions and generated commands.
 
-<!-- Generated from commit: b7c3856df4cbb4a1ee0b46f4181d18077a251b99 -->
+<!-- Generated from commit: c86f2226030d4506d32d7d652231d0cd60f0c17b -->
