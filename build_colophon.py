@@ -4,12 +4,7 @@ import re
 from datetime import datetime
 import html
 from pathlib import Path
-
-try:
-    import markdown
-    HAS_MARKDOWN = True
-except ImportError:
-    HAS_MARKDOWN = False
+import markdown
 
 
 def format_commit_message(message):
@@ -232,11 +227,8 @@ def build_colophon():
             try:
                 with open(docs_file, "r") as f:
                     docs_content = f.read()
-                    # Render markdown to HTML if available, otherwise use plain text
-                    if HAS_MARKDOWN:
-                        docs_html = markdown.markdown(docs_content)
-                    else:
-                        docs_html = "<p>" + html.escape(docs_content) + "</p>"
+                    # Render markdown to HTML
+                    docs_html = markdown.markdown(docs_content)
                     # Add docs above commits
                     html_content += '<div class="docs">' + docs_html + "</div>"
             except Exception as e:
