@@ -23,6 +23,9 @@ python build_colophon.py
 echo "Building index page..."
 python build_index.py
 
+echo "Building by-month page..."
+python build_by_month.py
+
 echo "Injecting footer.js into HTML files..."
 # Get the git hash of the last commit that touched footer.js
 FOOTER_HASH=$(git log -1 --format="%H" -- footer.js)
