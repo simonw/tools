@@ -32,8 +32,9 @@ FOOTER_HASH=$(git log -1 --format="%H" -- footer.js)
 FOOTER_SHORT_HASH=$(echo "$FOOTER_HASH" | cut -c1-8)
 
 # Insert footer.js script tag into all root-level .html files except index.html
+# Only process files that are tracked in git
 for file in *.html; do
-  if [ -f "$file" ] && [ "$file" != "index.html" ]; then
+  if [ -f "$file" ] && [ "$file" != "index.html" ] && git ls-files --error-unmatch "$file" > /dev/null 2>&1; then
     # Check if footer.js is not already included
     if ! grep -q 'src="footer.js' "$file"; then
       # Insert script tag before the LAST </body> tag using awk
