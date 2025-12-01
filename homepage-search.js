@@ -128,6 +128,9 @@ ready(() => {
       color: inherit;
       padding: 0.75rem 0.9rem 0.8rem;
     }
+    .tool-search-option-link:hover {
+      text-decoration: none;
+    }
     .tool-search-option-title {
       font-weight: 600;
       font-size: 1rem;
