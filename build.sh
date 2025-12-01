@@ -2,7 +2,9 @@
 set -e
 
 # Make sure we have the full git history for finding commit dates:
-git fetch --unshallow
+if [ -f .git/shallow ]; then
+    git fetch --unshallow
+fi
 
 echo "=== Building tools.simonwillison.net ==="
 
