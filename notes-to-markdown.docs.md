@@ -1,0 +1,3 @@
+This tool converts content pasted from Apple Notes into Markdown and HTML formats while preserving hyperlinks and formatting. Users paste their Notes content into the textarea, and the application parses the RTF (Rich Text Format) data to extract plain text and link information, then displays the converted output in multiple formats including a live preview. The tool provides copy buttons for easy transfer of the converted content and includes a debug view of the raw RTF data for troubleshooting purposes.
+
+<!-- Generated from commit: 8dff45c03b3353aced9c4f7832d0609d8ca076aa -->
