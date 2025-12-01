@@ -1,0 +1,3 @@
+This page provides a comprehensive analytics dashboard that displays site visit statistics and trends. It retrieves stored analytics data from browser localStorage and visualizes it through multiple formats including summary statistics, line and doughnut charts, and detailed tables showing top pages and recent visits. Users can export the raw analytics data as JSON or clear all recorded data through the management section at the bottom of the page.
+
+<!-- Generated from commit: 1fde31793fc95b8e556b26b61b3e114922624eb5 -->
