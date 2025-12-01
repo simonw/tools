@@ -127,6 +127,7 @@ def _render_recent_section(recently_added: Sequence[dict], recently_updated: Seq
     <ul class="recent-list">
       {render_list(recently_added)}
     </ul>
+    <p class="browse-all"><a href="/by-month">Browse all by month</a></p>
   </div>
   <div class="recent-column">
     <h2>Recently updated</h2>
@@ -238,6 +239,12 @@ def build_index() -> None:
         }}
         .recent-date {{
             color: #6a737d;
+        }}
+        .browse-all {{
+            margin-top: 1em;
+            padding-top: 0.5em;
+            border-top: 1px solid #eaecef;
+            font-size: 0.9em;
         }}
     </style>
 </head>
