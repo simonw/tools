@@ -36,14 +36,11 @@ jobs:
         run: |
           python -m pip install markdown llm llm-anthropic>=0.20
 
-      - name: Generate links and build colophon
+      - name: Build site
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          python gather_links.py
-          python write_docs.py
-          python build_colophon.py
-          python build_index.py
+          GENERATE_LLM_DOCS: "1"
+        run: sh build.sh
 
       - name: Find modified docs stems
         id: docs
@@ -69,24 +66,6 @@ jobs:
           git add *.docs.md
           git commit -m "Generated docs: ${{ steps.docs.outputs.stems }}" || exit 0
           git push
-
-      - name: Inject footer.js into HTML files
-        run: |
-          # Get the git hash of the last commit that touched footer.js
-          FOOTER_HASH=$(git log -1 --format="%H" -- footer.js)
-          FOOTER_SHORT_HASH=$(echo "$FOOTER_HASH" | cut -c1-8)
-
-          # Insert footer.js script tag into all root-level .html files except index.html
-          for file in *.html; do
-            if [ -f "$file" ] && [ "$file" != "index.html" ]; then
-              # Check if footer.js is not already included
-              if ! grep -q 'src="footer.js' "$file"; then
-                # Insert script tag before the LAST </body> tag only
-                # Using tac to reverse, replace first match, then reverse back
-                tac "$file" | sed '0,/<\/body>/s|</body>|<script src="footer.js?'"${FOOTER_SHORT_HASH}"'"></script>\n</body>|' | tac > "$file.tmp" && mv "$file.tmp" "$file"
-              fi
-            fi
-          done
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
