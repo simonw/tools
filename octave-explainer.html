@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Octave — A Sound Relationship</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', system-ui, sans-serif;
+            background: #f5f5f5;
+            color: #2a2a2a;
+            min-height: 100vh;
+            padding: 3rem 1.5rem;
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 680px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+
+        h1 {
+            font-weight: 200;
+            font-size: 2.8rem;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+
+        .tagline {
+            color: #888;
+            font-size: 1rem;
+            font-weight: 300;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+
+        .card h2 {
+            font-weight: 400;
+            font-size: 1.15rem;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .card p {
+            color: #555;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+        }
+
+        .card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .subtle {
+            color: #999;
+            font-style: italic;
+        }
+
+        .highlight {
+            background: linear-gradient(180deg, transparent 65%, rgba(255, 200, 87, 0.35) 65%);
+        }
+
+        /* Waveform Display */
+        .wave-display {
+            background: #1a1a1a;
+            border-radius: 12px;
+            height: 140px;
+            margin: 1.5rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #waveCanvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .freq-readout {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.6);
+        }
+
+        /* Piano Keys */
+        .piano-wrapper {
+            display: flex;
+            justify-content: center;
+            padding: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .piano {
+            display: flex;
+            position: relative;
+            height: 120px;
+        }
+
+        .white-key {
+            width: 44px;
+            height: 120px;
+            background: #fff;
+            border: 1px solid #d0d0d0;
+            border-radius: 0 0 6px 6px;
+            cursor: pointer;
+            transition: all 0.08s ease;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 8px;
+            font-size: 0.7rem;
+            color: #aaa;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+
+        .white-key:hover {
+            background: #f8f8f8;
+        }
+
+        .white-key:active, .white-key.pressed {
+            background: #eee;
+            transform: translateY(2px);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .white-key.octave-note {
+            color: #e67e22;
+        }
+
+        .black-key {
+            width: 28px;
+            height: 75px;
+            background: #2a2a2a;
+            border-radius: 0 0 4px 4px;
+            position: absolute;
+            top: 0;
+            cursor: pointer;
+            z-index: 2;
+            transition: all 0.08s ease;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 6px;
+            font-size: 0.6rem;
+            color: #666;
+        }
+
+        .black-key:hover {
+            background: #3a3a3a;
+        }
+
+        .black-key:active, .black-key.pressed {
+            background: #444;
+            transform: translateY(2px);
+        }
+
+        /* Comparison Section */
+        .compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .compare-btn {
+            padding: 1.25rem;
+            border: 2px solid #e8e8e8;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-align: center;
+        }
+
+        .compare-btn:hover {
+            border-color: #ccc;
+            transform: translateY(-1px);
+        }
+
+        .compare-btn:active {
+            transform: translateY(1px);
+        }
+
+        .compare-btn .note-name {
+            font-size: 2rem;
+            font-weight: 200;
+            color: #333;
+        }
+
+        .compare-btn .freq {
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: #888;
+        }
+
+        .both-btn {
+            grid-column: span 2;
+            background: #2a2a2a;
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 400;
+            transition: background 0.15s;
+        }
+
+        .both-btn:hover {
+            background: #3a3a3a;
+        }
+
+        /* Ratio Visualization */
+        .ratio-visual {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            padding: 1.5rem;
+            background: #fafafa;
+            border-radius: 12px;
+            margin: 1.5rem 0;
+        }
+
+        .cycle-demo {
+            text-align: center;
+        }
+
+        .cycle-waves {
+            height: 50px;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .mini-wave {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #666;
+            border-radius: 50%;
+            border-bottom-color: transparent;
+            border-left-color: transparent;
+        }
+
+        .cycle-label {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        .arrow {
+            font-size: 1.5rem;
+            color: #ccc;
+        }
+
+        /* Explorer Slider */
+        .explorer {
+            margin: 1.5rem 0;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 0.75rem;
+        }
+
+        .slider-value {
+            font-family: monospace;
+            color: #333;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #e0e0e0;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #2a2a2a;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+
+        .dual-play {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .play-btn {
+            flex: 1;
+            padding: 0.85rem;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.12s;
+        }
+
+        .play-btn:hover {
+            background: #f5f5f5;
+            border-color: #ccc;
+        }
+
+        .play-btn.active {
+            background: #2a2a2a;
+            color: white;
+            border-color: #2a2a2a;
+        }
+
+        .play-btn span {
+            font-family: monospace;
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            color: #bbb;
+            font-size: 0.85rem;
+        }
+
+        footer .subtle {
+            display: block;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>The Octave</h1>
+            <p class="tagline">A <span class="subtle">sound</span> relationship between frequencies</p>
+        </header>
+
+        <div class="card">
+            <h2>What makes an octave?</h2>
+            <p>An octave occurs when one note's frequency is <span class="highlight">exactly double</span> another's. Your brain perceives these two pitches as fundamentally "the same note" — just higher or lower. <span class="subtle">It's a harmonic coincidence that really resonates with people.</span></p>
+            
+            <div class="wave-display">
+                <canvas id="waveCanvas"></canvas>
+                <div class="freq-readout" id="freqReadout">— Hz</div>
+            </div>
+            
+            <p><span class="subtle">Hertz so good when you hear it.</span></p>
+        </div>
+
+        <div class="card">
+            <h2>Press and play</h2>
+            <p>Tap any key below. Notice how both A notes <span class="subtle">(highlighted)</span> sound like the same pitch at different heights? <span class="subtle">Don't worry — we won't string you along.</span></p>
+            
+            <div class="piano-wrapper">
+                <div class="piano" id="piano"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>The perfect 2:1</h2>
+            <p>A4, the tuning standard, vibrates at 440 times per second. A5 vibrates exactly 880 times. <span class="subtle">Twice the frequency, same musical identity. It's note complicated.</span></p>
+            
+            <div class="ratio-visual">
+                <div class="cycle-demo">
+                    <div class="cycle-waves">
+                        <div class="mini-wave"></div>
+                    </div>
+                    <div class="cycle-label">1 cycle</div>
+                </div>
+                <div class="arrow">→</div>
+                <div class="cycle-demo">
+                    <div class="cycle-waves">
+                        <div class="mini-wave" style="width: 20px; height: 20px;"></div>
+                        <div class="mini-wave" style="width: 20px; height: 20px;"></div>
+                    </div>
+                    <div class="cycle-label">2 cycles</div>
+                </div>
+            </div>
+
+            <div class="compare-grid">
+                <button class="compare-btn" onclick="playFreq(440, 'A4')">
+                    <div class="note-name">A4</div>
+                    <div class="freq">440 Hz</div>
+                </button>
+                <button class="compare-btn" onclick="playFreq(880, 'A5')">
+                    <div class="note-name">A5</div>
+                    <div class="freq">880 Hz</div>
+                </button>
+                <button class="both-btn" onclick="playBothNotes()">Play Together — Hear the Blend</button>
+            </div>
+            
+            <p><span class="subtle">When you play them together, they're pitch perfect partners.</span></p>
+        </div>
+
+        <div class="card">
+            <h2>Explore the spectrum</h2>
+            <p>Pick any base frequency. Its octave is always double. <span class="subtle">The math scales beautifully — no sharp edges here.</span></p>
+            
+            <div class="explorer">
+                <div class="slider-label">
+                    <span>Base frequency</span>
+                    <span class="slider-value"><span id="baseValue">220</span> Hz</span>
+                </div>
+                <input type="range" id="freqSlider" min="110" max="440" value="220">
+            </div>
+
+            <div class="dual-play">
+                <button class="play-btn" id="playBaseBtn" onclick="playBase()">
+                    Base<br><span id="baseDisplay">220 Hz</span>
+                </button>
+                <button class="play-btn" id="playOctaveBtn" onclick="playOctaveUp()">
+                    Octave<br><span id="octaveDisplay">440 Hz</span>
+                </button>
+            </div>
+            
+            <p style="margin-top: 1rem;"><span class="subtle">Go ahead, slide around. We're on the same wavelength.</span></p>
+        </div>
+
+        <div class="card">
+            <h2>Why does this matter?</h2>
+            <p>The 2:1 ratio is nature's favorite interval. It's why we name notes in repeating cycles (A, B, C... then A again). Every musical scale, from ancient modes to modern pop, rests on this foundation.</p>
+            <p>When waves align in simple ratios, they sound consonant. The octave is the simplest ratio of all — <span class="subtle">and that's something we can all tune into.</span></p>
+            <p><span class="subtle">It's sound science, really. We're not just making this up flat.</span></p>
+        </div>
+
+        <footer>
+            Thanks for dropping by. <span class="subtle">We hope this struck a chord.</span>
+        </footer>
+    </div>
+
+    <script>
+        // Audio setup
+        let audioCtx = null;
+        let analyser = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 2048;
+                analyser.connect(audioCtx.destination);
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Note definitions for piano
+        const pianoNotes = [
+            { note: 'A', freq: 220, white: true, octave: true },
+            { note: 'A#', freq: 233.08, white: false },
+            { note: 'B', freq: 246.94, white: true },
+            { note: 'C', freq: 261.63, white: true },
+            { note: 'C#', freq: 277.18, white: false },
+            { note: 'D', freq: 293.66, white: true },
+            { note: 'D#', freq: 311.13, white: false },
+            { note: 'E', freq: 329.63, white: true },
+            { note: 'F', freq: 349.23, white: true },
+            { note: 'F#', freq: 369.99, white: false },
+            { note: 'G', freq: 392.00, white: true },
+            { note: 'G#', freq: 415.30, white: false },
+            { note: 'A', freq: 440, white: true, octave: true },
+            { note: 'A#', freq: 466.16, white: false },
+            { note: 'B', freq: 493.88, white: true },
+            { note: 'C', freq: 523.25, white: true },
+        ];
+
+        // Build piano
+        const piano = document.getElementById('piano');
+        let whiteKeyCount = 0;
+
+        pianoNotes.forEach((n, i) => {
+            if (n.white) {
+                const key = document.createElement('div');
+                key.className = 'white-key' + (n.octave ? ' octave-note' : '');
+                key.textContent = n.note;
+                key.addEventListener('mousedown', () => {
+                    playFreq(n.freq, n.note);
+                    key.classList.add('pressed');
+                });
+                key.addEventListener('mouseup', () => key.classList.remove('pressed'));
+                key.addEventListener('mouseleave', () => key.classList.remove('pressed'));
+                key.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    playFreq(n.freq, n.note);
+                    key.classList.add('pressed');
+                });
+                key.addEventListener('touchend', () => key.classList.remove('pressed'));
+                piano.appendChild(key);
+                whiteKeyCount++;
+            }
+        });
+
+        // Add black keys with proper positioning
+        const blackKeyData = [
+            { note: 'A#', freq: 233.08, offset: 30 },
+            { note: 'C#', freq: 277.18, offset: 118 },
+            { note: 'D#', freq: 311.13, offset: 162 },
+            { note: 'F#', freq: 369.99, offset: 250 },
+            { note: 'G#', freq: 415.30, offset: 294 },
+            { note: 'A#', freq: 466.16, offset: 382 },
+        ];
+
+        blackKeyData.forEach(n => {
+            const key = document.createElement('div');
+            key.className = 'black-key';
+            key.style.left = n.offset + 'px';
+            key.addEventListener('mousedown', () => {
+                playFreq(n.freq, n.note);
+                key.classList.add('pressed');
+            });
+            key.addEventListener('mouseup', () => key.classList.remove('pressed'));
+            key.addEventListener('mouseleave', () => key.classList.remove('pressed'));
+            key.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                playFreq(n.freq, n.note);
+                key.classList.add('pressed');
+            });
+            key.addEventListener('touchend', () => key.classList.remove('pressed'));
+            piano.appendChild(key);
+        });
+
+        // Play frequency
+        function playFreq(freq, noteName) {
+            initAudio();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            
+            gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+            
+            osc.connect(gain);
+            gain.connect(analyser);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 1.2);
+
+            document.getElementById('freqReadout').textContent = Math.round(freq) + ' Hz';
+        }
+
+        // Play both A4 and A5
+        function playBothNotes() {
+            initAudio();
+
+            [440, 880].forEach(freq => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                
+                gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+                
+                osc.connect(gain);
+                gain.connect(analyser);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + 1.5);
+            });
+
+            document.getElementById('freqReadout').textContent = '440 + 880 Hz';
+        }
+
+        // Slider controls
+        const slider = document.getElementById('freqSlider');
+        const baseValue = document.getElementById('baseValue');
+        const baseDisplay = document.getElementById('baseDisplay');
+        const octaveDisplay = document.getElementById('octaveDisplay');
+
+        slider.addEventListener('input', () => {
+            const val = parseInt(slider.value);
+            baseValue.textContent = val;
+            baseDisplay.textContent = val + ' Hz';
+            octaveDisplay.textContent = (val * 2) + ' Hz';
+        });
+
+        function playBase() {
+            const freq = parseInt(slider.value);
+            playFreq(freq, 'Base');
+            const btn = document.getElementById('playBaseBtn');
+            btn.classList.add('active');
+            setTimeout(() => btn.classList.remove('active'), 400);
+        }
+
+        function playOctaveUp() {
+            const freq = parseInt(slider.value) * 2;
+            playFreq(freq, 'Octave');
+            const btn = document.getElementById('playOctaveBtn');
+            btn.classList.add('active');
+            setTimeout(() => btn.classList.remove('active'), 400);
+        }
+
+        // Canvas visualization
+        const canvas = document.getElementById('waveCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawWave() {
+            requestAnimationFrame(drawWave);
+            
+            const width = canvas.width / window.devicePixelRatio;
+            const height = canvas.height / window.devicePixelRatio;
+            
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw center line
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+
+            if (!analyser) return;
+
+            const bufferLength = analyser.fftSize;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
+
+            // Check if there's actual audio
+            let hasAudio = false;
+            for (let i = 0; i < bufferLength; i++) {
+                if (Math.abs(dataArray[i] - 128) > 2) {
+                    hasAudio = true;
+                    break;
+                }
+            }
+
+            if (!hasAudio) return;
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#f39c12';
+            ctx.beginPath();
+
+            const sliceWidth = width / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * height / 2;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+
+            ctx.stroke();
+        }
+
+        drawWave();
+    </script>
+</body>
+</html>
