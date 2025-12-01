@@ -197,6 +197,64 @@
             overflow-y: auto;
         }
 
+        .privacy-notice {
+            background: #e0f2fe;
+            border: 1px solid #7dd3fc;
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            color: #0369a1;
+            font-size: 0.9rem;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .chart-header h2 {
+            margin-bottom: 0;
+        }
+
+        .toggle-group {
+            display: flex;
+            gap: 0;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #d1d5db;
+        }
+
+        .toggle-btn {
+            padding: 0.4rem 0.75rem;
+            background: white;
+            border: none;
+            font-size: 0.8rem;
+            cursor: pointer;
+            color: #4b5563;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn:not(:last-child) {
+            border-right: 1px solid #d1d5db;
+        }
+
+        .toggle-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .toggle-btn.active {
+            background: #2563eb;
+            color: white;
+        }
+
+        .toggle-btn.active:hover {
+            background: #1d4ed8;
+        }
+
         @media (max-width: 600px) {
             body {
                 padding: 0.5rem;
@@ -229,6 +287,10 @@
     <div class="container">
         <h1>Site Analytics</h1>
 
+        <div class="privacy-notice">
+            These analytics are personal to you and stored only in your browser's localStorage. They are not sent to any server and are not available to anyone else, including the site administrator.
+        </div>
+
         <div class="stats-grid" id="statsGrid">
             <div class="stat-box">
                 <div class="stat-value" id="totalVisits">0</div>
@@ -250,7 +312,13 @@
 
         <div class="two-charts">
             <div class="card">
-                <h2>Visits Over Time</h2>
+                <div class="chart-header">
+                    <h2>Visits Over Time</h2>
+                    <div class="toggle-group">
+                        <button class="toggle-btn" id="hourlyBtn">Hourly</button>
+                        <button class="toggle-btn active" id="dailyBtn">Daily</button>
+                    </div>
+                </div>
                 <div class="chart-container">
                     <canvas id="visitsChart"></canvas>
                 </div>
@@ -313,6 +381,7 @@
     <script>
         const STORAGE_KEY = 'tools_analytics';
         let visitsChart, pagesChart;
+        let chartMode = 'daily'; // 'daily' or 'hourly'
 
         function getAnalytics() {
             try {
@@ -370,6 +439,34 @@
                     date: key,
                     label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
                     count: days[key] || 0
+                });
+            }
+            return result;
+        }
+
+        function getVisitsByHour(analytics) {
+            const hours = {};
+            analytics.forEach(visit => {
+                const date = new Date(visit.timestamp);
+                // Create a key for each hour: YYYY-MM-DDTHH
+                const hourKey = date.toISOString().slice(0, 13);
+                hours[hourKey] = (hours[hourKey] || 0) + 1;
+            });
+
+            // Get last 48 hours
+            const result = [];
+            const now = new Date();
+            now.setMinutes(0, 0, 0);
+
+            for (let i = 47; i >= 0; i--) {
+                const d = new Date(now.getTime() - i * 60 * 60 * 1000);
+                const key = d.toISOString().slice(0, 13);
+                const hour = d.getHours();
+                const dayLabel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                result.push({
+                    date: key,
+                    label: `${dayLabel} ${hour}:00`,
+                    count: hours[key] || 0
                 });
             }
             return result;
@@ -435,7 +532,9 @@
         }
 
         function renderCharts(analytics, pageCounts) {
-            const visitsByDay = getVisitsByDay(analytics);
+            const visitsData = chartMode === 'hourly'
+                ? getVisitsByHour(analytics)
+                : getVisitsByDay(analytics);
 
             // Visits over time chart
             const visitsCtx = document.getElementById('visitsChart').getContext('2d');
@@ -444,17 +543,17 @@
             visitsChart = new Chart(visitsCtx, {
                 type: 'line',
                 data: {
-                    labels: visitsByDay.map(d => d.label),
+                    labels: visitsData.map(d => d.label),
                     datasets: [{
                         label: 'Visits',
-                        data: visitsByDay.map(d => d.count),
+                        data: visitsData.map(d => d.count),
                         borderColor: '#2563eb',
                         backgroundColor: 'rgba(37, 99, 235, 0.1)',
                         fill: true,
                         tension: 0.3,
                         pointBackgroundColor: '#2563eb',
-                        pointRadius: 4,
-                        pointHoverRadius: 6
+                        pointRadius: chartMode === 'hourly' ? 2 : 4,
+                        pointHoverRadius: chartMode === 'hourly' ? 4 : 6
                     }]
                 },
                 options: {
@@ -466,6 +565,13 @@
                         }
                     },
                     scales: {
+                        x: {
+                            ticks: {
+                                maxRotation: chartMode === 'hourly' ? 45 : 0,
+                                autoSkip: true,
+                                maxTicksLimit: chartMode === 'hourly' ? 12 : 14
+                            }
+                        },
                         y: {
                             beginAtZero: true,
                             ticks: {
@@ -533,6 +639,25 @@
                 localStorage.removeItem(STORAGE_KEY);
                 render();
                 showToast('All analytics data cleared');
+            }
+        });
+
+        // Chart mode toggle
+        document.getElementById('hourlyBtn').addEventListener('click', () => {
+            if (chartMode !== 'hourly') {
+                chartMode = 'hourly';
+                document.getElementById('hourlyBtn').classList.add('active');
+                document.getElementById('dailyBtn').classList.remove('active');
+                render();
+            }
+        });
+
+        document.getElementById('dailyBtn').addEventListener('click', () => {
+            if (chartMode !== 'daily') {
+                chartMode = 'daily';
+                document.getElementById('dailyBtn').classList.add('active');
+                document.getElementById('hourlyBtn').classList.remove('active');
+                render();
             }
         });
 
