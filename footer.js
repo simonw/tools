@@ -1,4 +1,19 @@
 (function() {
+    // Record analytics visit
+    (function recordAnalytics() {
+        const STORAGE_KEY = 'tools_analytics';
+        const slug = window.location.pathname; // path only, no fragment or query string
+        const timestamp = Date.now();
+
+        try {
+            const analytics = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            analytics.push({ slug, timestamp });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(analytics));
+        } catch (e) {
+            // Silently fail if localStorage is unavailable
+        }
+    })();
+
     // Get the current filename from the URL
     let pathname = window.location.pathname;
     let filename = pathname.split('/').pop() || 'index.html';
