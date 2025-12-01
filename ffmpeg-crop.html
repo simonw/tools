@@ -90,6 +90,22 @@ video {
 .crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
 .crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
 
+/* Improve touch experience */
+.crop-box {
+  touch-action: none;
+}
+
+@media (pointer: coarse) {
+  .crop-handle {
+    width: 24px;
+    height: 24px;
+  }
+  .crop-handle.nw { top: -12px; left: -12px; }
+  .crop-handle.ne { top: -12px; right: -12px; }
+  .crop-handle.sw { bottom: -12px; left: -12px; }
+  .crop-handle.se { bottom: -12px; right: -12px; }
+}
+
 .crop-dimensions {
   position: absolute;
   top: 50%;
@@ -280,6 +296,19 @@ cropBox.addEventListener('mousedown', (e) => {
   }
 });
 
+// Touch events for dragging crop box
+cropBox.addEventListener('touchstart', (e) => {
+  if (e.target === cropBox || e.target.classList.contains('crop-dimensions')) {
+    isDragging = true;
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    startLeft = cropBox.offsetLeft;
+    startTop = cropBox.offsetTop;
+    e.preventDefault();
+  }
+}, { passive: false });
+
 // Mouse events for resizing handles
 document.querySelectorAll('.crop-handle').forEach(handle => {
   handle.addEventListener('mousedown', (e) => {
@@ -287,18 +316,38 @@ document.querySelectorAll('.crop-handle').forEach(handle => {
     currentHandle = handle;
     startX = e.clientX;
     startY = e.clientY;
-    
+
     const rect = cropBox.getBoundingClientRect();
     const overlayRect = cropOverlay.getBoundingClientRect();
-    
+
     startLeft = rect.left - overlayRect.left;
     startTop = rect.top - overlayRect.top;
     startWidth = rect.width;
     startHeight = rect.height;
-    
+
     e.preventDefault();
     e.stopPropagation();
   });
+
+  // Touch events for resizing handles
+  handle.addEventListener('touchstart', (e) => {
+    isResizing = true;
+    currentHandle = handle;
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+
+    const rect = cropBox.getBoundingClientRect();
+    const overlayRect = cropOverlay.getBoundingClientRect();
+
+    startLeft = rect.left - overlayRect.left;
+    startTop = rect.top - overlayRect.top;
+    startWidth = rect.width;
+    startHeight = rect.height;
+
+    e.preventDefault();
+    e.stopPropagation();
+  }, { passive: false });
 });
 
 // Mouse move handler
@@ -370,6 +419,86 @@ document.addEventListener('mousemove', (e) => {
 
 // Mouse up handler
 document.addEventListener('mouseup', () => {
+  isDragging = false;
+  isResizing = false;
+  currentHandle = null;
+});
+
+// Touch move handler
+document.addEventListener('touchmove', (e) => {
+  if (!isDragging && !isResizing) return;
+
+  const touch = e.touches[0];
+
+  if (isDragging) {
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+
+    let newLeft = startLeft + deltaX;
+    let newTop = startTop + deltaY;
+
+    // Constrain to video bounds
+    const maxLeft = cropOverlay.offsetWidth - cropBox.offsetWidth;
+    const maxTop = cropOverlay.offsetHeight - cropBox.offsetHeight;
+
+    newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+    newTop = Math.max(0, Math.min(newTop, maxTop));
+
+    cropBox.style.left = `${newLeft}px`;
+    cropBox.style.top = `${newTop}px`;
+
+    updateCommand();
+    e.preventDefault();
+  }
+
+  if (isResizing && currentHandle) {
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+
+    let newLeft = startLeft;
+    let newTop = startTop;
+    let newWidth = startWidth;
+    let newHeight = startHeight;
+
+    if (currentHandle.classList.contains('nw')) {
+      newLeft = startLeft + deltaX;
+      newTop = startTop + deltaY;
+      newWidth = startWidth - deltaX;
+      newHeight = startHeight - deltaY;
+    } else if (currentHandle.classList.contains('ne')) {
+      newTop = startTop + deltaY;
+      newWidth = startWidth + deltaX;
+      newHeight = startHeight - deltaY;
+    } else if (currentHandle.classList.contains('sw')) {
+      newLeft = startLeft + deltaX;
+      newWidth = startWidth - deltaX;
+      newHeight = startHeight + deltaY;
+    } else if (currentHandle.classList.contains('se')) {
+      newWidth = startWidth + deltaX;
+      newHeight = startHeight + deltaY;
+    }
+
+    // Minimum size constraints
+    if (newWidth >= 50 && newHeight >= 50) {
+      // Constrain to video bounds
+      if (
+        newLeft >= 0 && newTop >= 0 &&
+        newLeft + newWidth <= cropOverlay.offsetWidth &&
+        newTop + newHeight <= cropOverlay.offsetHeight
+      ) {
+        cropBox.style.left = `${newLeft}px`;
+        cropBox.style.top = `${newTop}px`;
+        cropBox.style.width = `${newWidth}px`;
+        cropBox.style.height = `${newHeight}px`;
+        updateCommand();
+      }
+    }
+    e.preventDefault();
+  }
+}, { passive: false });
+
+// Touch end handler
+document.addEventListener('touchend', () => {
   isDragging = false;
   isResizing = false;
   currentHandle = null;
