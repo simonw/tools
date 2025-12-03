@@ -250,6 +250,25 @@ ready(() => {
   let currentMatches = [];
   let activeIndex = -1;
 
+  const getVisitCounts = () => {
+    const STORAGE_KEY = 'tools_analytics';
+    try {
+      const analytics = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const counts = {};
+      analytics.forEach((visit) => {
+        // Convert pathname slug (e.g., "/json-to-yaml.html") to tool slug (e.g., "json-to-yaml")
+        let slug = visit.slug || '';
+        slug = slug.replace(/^\//, '').replace(/\.html$/, '');
+        if (slug) {
+          counts[slug] = (counts[slug] || 0) + 1;
+        }
+      });
+      return counts;
+    } catch (e) {
+      return {};
+    }
+  };
+
   const updateStatus = (message) => {
     status.textContent = message || '';
   };
@@ -381,6 +400,7 @@ ready(() => {
 
     const lowered = query.toLowerCase();
     const terms = lowered.split(/\s+/).filter(Boolean);
+    const visitCounts = getVisitCounts();
 
     const ranked = tools
       .map((tool) => {
@@ -408,14 +428,21 @@ ready(() => {
         }
 
         const updated = tool.updated ? Date.parse(tool.updated) || 0 : 0;
+        const visits = visitCounts[tool.slug] || 0;
 
-        return { tool, score, updated };
+        return { tool, score, updated, visits };
       })
       .filter(Boolean)
       .sort((a, b) => {
+        // Sort by visits first (descending - more visits is better)
+        if (a.visits !== b.visits) {
+          return b.visits - a.visits;
+        }
+        // Then by score (ascending - lower is better)
         if (a.score !== b.score) {
           return a.score - b.score;
         }
+        // Then by updated date (descending - newer is better)
         return b.updated - a.updated;
       })
       .slice(0, 12);
