@@ -1,3 +1,3 @@
-Jina Reader provides a web interface to view and process online content using the Jina Reader API. Enter a URL to fetch its content in various formats (Markdown, HTML, Text, or LLM Markdown), and the result will be displayed in both raw and rendered forms. You can also run Claude AI analysis on the fetched content using customizable prompts to generate summaries or other text transformations.
+This page provides an interface for extracting and processing web content using the Jina Reader API, with optional AI-powered analysis via Claude. Users can input a URL and select from multiple output formats (Markdown, HTML, Text, or LLM Markdown) to view the extracted content in both raw and rendered forms. The interface includes an optional Claude integration that allows users to run custom prompts on the fetched content, with results displayed as formatted markdown and stored API keys in browser local storage for convenience.
 
-<!-- Generated from commit: 7d7e2ce5508732ddbffd3eb285fee56d8ac5e4a6 -->
+<!-- Generated from commit: 0e83c1a01b476b112d05f3d57972c31907b21bdc -->
