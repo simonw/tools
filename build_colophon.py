@@ -16,6 +16,14 @@ def format_commit_message(message):
     url_pattern = r"(https?://[^\s]+)"
     linkified = re.sub(url_pattern, r'<a href="\1">\1</a>', escaped)
 
+    # Linkify #123 style issue references
+    issue_pattern = r"#(\d+)"
+    linkified = re.sub(
+        issue_pattern,
+        r'<a href="https://github.com/simonw/tools/issues/\1">#\1</a>',
+        linkified,
+    )
+
     # Then convert newlines to <br>
     return linkified.replace("\n", "<br>")
 
