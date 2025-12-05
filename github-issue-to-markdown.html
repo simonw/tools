@@ -252,6 +252,157 @@ function convertToMarkdown(issue, comments) {
   return md
 }
 
+// Parse GitHub blob URLs with line numbers
+// e.g., https://github.com/owner/repo/blob/commit/path/to/file.py#L10-L20
+function parseGitHubBlobUrl(url) {
+  const match = url.match(
+    /^https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/blob\/([^\/]+)\/(.+?)#L(\d+)(?:-L(\d+))?$/
+  )
+  if (!match) return null
+
+  const [, owner, repo, ref, path, startLine, endLine] = match
+  return {
+    owner,
+    repo,
+    ref,
+    path,
+    startLine: parseInt(startLine, 10),
+    endLine: endLine ? parseInt(endLine, 10) : parseInt(startLine, 10)
+  }
+}
+
+// Get language tag from file extension
+function getLanguageFromPath(path) {
+  const ext = path.split('.').pop().toLowerCase()
+  const langMap = {
+    'py': 'python',
+    'js': 'javascript',
+    'ts': 'typescript',
+    'tsx': 'typescript',
+    'jsx': 'javascript',
+    'rb': 'ruby',
+    'rs': 'rust',
+    'go': 'go',
+    'java': 'java',
+    'c': 'c',
+    'cpp': 'cpp',
+    'cc': 'cpp',
+    'cxx': 'cpp',
+    'h': 'c',
+    'hpp': 'cpp',
+    'cs': 'csharp',
+    'php': 'php',
+    'swift': 'swift',
+    'kt': 'kotlin',
+    'scala': 'scala',
+    'sh': 'bash',
+    'bash': 'bash',
+    'zsh': 'bash',
+    'fish': 'fish',
+    'ps1': 'powershell',
+    'sql': 'sql',
+    'html': 'html',
+    'htm': 'html',
+    'css': 'css',
+    'scss': 'scss',
+    'sass': 'sass',
+    'less': 'less',
+    'json': 'json',
+    'xml': 'xml',
+    'yaml': 'yaml',
+    'yml': 'yaml',
+    'toml': 'toml',
+    'ini': 'ini',
+    'md': 'markdown',
+    'markdown': 'markdown',
+    'r': 'r',
+    'R': 'r',
+    'lua': 'lua',
+    'pl': 'perl',
+    'pm': 'perl',
+    'ex': 'elixir',
+    'exs': 'elixir',
+    'erl': 'erlang',
+    'hs': 'haskell',
+    'ml': 'ocaml',
+    'fs': 'fsharp',
+    'clj': 'clojure',
+    'lisp': 'lisp',
+    'scm': 'scheme',
+    'vim': 'vim',
+    'dockerfile': 'dockerfile',
+    'makefile': 'makefile',
+    'cmake': 'cmake',
+    'tf': 'terraform',
+    'hcl': 'hcl',
+    'proto': 'protobuf',
+    'graphql': 'graphql',
+    'gql': 'graphql'
+  }
+  return langMap[ext] || ''
+}
+
+// Fetch code snippet from raw.githubusercontent.com
+async function fetchCodeSnippet(parsed, headers) {
+  const rawUrl = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${parsed.ref}/${parsed.path}`
+
+  try {
+    const response = await fetch(rawUrl, { headers })
+    if (!response.ok) {
+      return null
+    }
+
+    const content = await response.text()
+    const lines = content.split('\n')
+
+    // Line numbers are 1-indexed, array is 0-indexed
+    const startIdx = parsed.startLine - 1
+    const endIdx = parsed.endLine
+    const selectedLines = lines.slice(startIdx, endIdx)
+
+    return selectedLines.join('\n')
+  } catch (e) {
+    return null
+  }
+}
+
+// Find all GitHub blob URLs in markdown and expand them with code snippets
+async function expandCodeUrls(markdown, headers) {
+  // Match GitHub blob URLs with line numbers that are on their own line or in markdown links
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)]+#L\d+(?:-L\d+)?/g
+  const urls = [...new Set(markdown.match(urlPattern) || [])]
+
+  if (urls.length === 0) {
+    return markdown
+  }
+
+  // Fetch all snippets in parallel
+  const snippetPromises = urls.map(async (url) => {
+    const parsed = parseGitHubBlobUrl(url)
+    if (!parsed) return { url, snippet: null }
+
+    const snippet = await fetchCodeSnippet(parsed, headers)
+    const lang = getLanguageFromPath(parsed.path)
+    return { url, snippet, lang }
+  })
+
+  const results = await Promise.all(snippetPromises)
+
+  // Replace each URL with URL + code block
+  let expandedMarkdown = markdown
+  for (const { url, snippet, lang } of results) {
+    if (snippet !== null) {
+      const codeBlock = `\n\n\`\`\`${lang}\n${snippet}\n\`\`\``
+      // Replace URL followed by optional whitespace/newline, but only if not already followed by a code block
+      const urlEscaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const pattern = new RegExp(`(${urlEscaped})(?!\\s*\n*\`\`\`)`, 'g')
+      expandedMarkdown = expandedMarkdown.replace(pattern, `$1${codeBlock}`)
+    }
+  }
+
+  return expandedMarkdown
+}
+
 async function getAllPages(url, headers) {
   let allItems = []
   let nextUrl = url
@@ -337,7 +488,12 @@ async function handleConvert() {
   try {
     const { owner, repo, number } = parseGitHubUrl(urlInput.value)
     const { issue, comments } = await fetchIssueAndComments(owner, repo, number)
-    const markdown = convertToMarkdown(issue, comments)
+    let markdown = convertToMarkdown(issue, comments)
+
+    // Expand GitHub code URLs with their content
+    const headers = getRequestHeaders()
+    markdown = await expandCodeUrls(markdown, headers)
+
     markdownOutput.value = markdown
   } catch (error) {
     showError(error.message)
