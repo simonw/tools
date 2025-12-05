@@ -20,6 +20,9 @@ fi
 echo "Building colophon page..."
 python build_colophon.py
 
+echo "Building dates.json..."
+python build_dates.py
+
 echo "Building index page..."
 python build_index.py
 

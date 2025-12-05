@@ -132,9 +132,25 @@
             <a href="/" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">Home</a>
             <a href="/colophon#${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">About ${pageName}</a>
             <a href="https://github.com/simonw/tools/blob/main/${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">View source</a>
-            <a href="https://github.com/simonw/tools/commits/main/${filename}" style="color: ${textColor}; text-decoration: underline;">Changes</a>
+            <a href="https://github.com/simonw/tools/commits/main/${filename}" style="color: ${textColor}; text-decoration: underline;" id="footer-changes-link">Changes</a>
         </nav>
     `;
 
     document.body.appendChild(footer);
+
+    // Fetch dates.json and update the Changes link with the last updated date
+    fetch('/dates.json')
+        .then(response => response.json())
+        .then(dates => {
+            const date = dates[filename];
+            if (date) {
+                const link = document.getElementById('footer-changes-link');
+                if (link) {
+                    link.textContent = `Updated ${date}`;
+                }
+            }
+        })
+        .catch(() => {
+            // Silently fail - keep "Changes" as fallback
+        });
 })();
