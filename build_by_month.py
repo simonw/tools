@@ -45,16 +45,24 @@ def _extract_summary(docs_path: Path, word_limit: int = 30) -> str:
     if "<!--" in content:
         content = content.split("<!--", 1)[0]
 
-    # Get first paragraph (skip headings)
+    # Strip any markdown heading lines first
+    content_lines = [
+        line for line in content.splitlines()
+        if not line.lstrip().startswith("# ")
+        and not line.lstrip().startswith("## ")
+        and not line.lstrip().startswith("### ")
+        and not line.lstrip().startswith("#### ")
+        and not line.lstrip().startswith("##### ")
+        and not line.lstrip().startswith("###### ")
+    ]
+
+    # Get first paragraph
     lines = []
-    for line in content.splitlines():
+    for line in content_lines:
         stripped = line.strip()
         if not stripped:
             if lines:
                 break
-            continue
-        # Skip markdown headings
-        if stripped.startswith("#"):
             continue
         lines.append(stripped)
 

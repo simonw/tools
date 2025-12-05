@@ -235,6 +235,17 @@ def build_colophon():
             try:
                 with open(docs_file, "r") as f:
                     docs_content = f.read()
+                    # Strip any markdown heading lines first
+                    docs_lines = [
+                        line for line in docs_content.splitlines()
+                        if not line.lstrip().startswith("# ")
+                        and not line.lstrip().startswith("## ")
+                        and not line.lstrip().startswith("### ")
+                        and not line.lstrip().startswith("#### ")
+                        and not line.lstrip().startswith("##### ")
+                        and not line.lstrip().startswith("###### ")
+                    ]
+                    docs_content = "\n".join(docs_lines)
                     # Render markdown to HTML
                     docs_html = markdown.markdown(docs_content)
                     # Add docs above commits
