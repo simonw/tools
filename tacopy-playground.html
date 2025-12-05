@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tacopy Playground - Tail-Call Optimization for Python</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+
+        h1 {
+            text-align: center;
+            color: #00d9ff;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .editor-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .editor-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: #16213e;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            background: #0f3460;
+            padding: 12px 16px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-header .status {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #333;
+        }
+
+        .status.loading {
+            background: #f39c12;
+            color: #000;
+        }
+
+        .status.ready {
+            background: #27ae60;
+            color: #fff;
+        }
+
+        .status.error {
+            background: #e74c3c;
+            color: #fff;
+        }
+
+        textarea {
+            width: 100%;
+            height: 400px;
+            background: #1a1a2e;
+            color: #eee;
+            border: none;
+            padding: 16px;
+            font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            outline: none;
+        }
+
+        textarea:focus {
+            background: #1e1e3a;
+        }
+
+        .output-area {
+            width: 100%;
+            min-height: 400px;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 16px;
+            font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            overflow: auto;
+        }
+
+        .error-message {
+            color: #e74c3c;
+            background: rgba(231, 76, 60, 0.1);
+            padding: 16px;
+            border-left: 3px solid #e74c3c;
+        }
+
+        .success-output {
+            color: #2ecc71;
+        }
+
+        .examples {
+            margin-top: 30px;
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .examples h3 {
+            margin-top: 0;
+            color: #00d9ff;
+        }
+
+        .example-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #0f3460;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #1a4a7a;
+        }
+
+        button:disabled {
+            background: #333;
+            cursor: not-allowed;
+        }
+
+        .info {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(0, 217, 255, 0.1);
+            border-left: 3px solid #00d9ff;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .info a {
+            color: #00d9ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tacopy Playground</h1>
+        <p class="subtitle">Tail-Call Optimization for Python - See how your recursive functions get transformed</p>
+
+        <div class="editor-container">
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Input Code</span>
+                    <span id="pyodide-status" class="status loading">Loading Pyodide...</span>
+                </div>
+                <textarea id="input" placeholder="Enter your tail-recursive Python function here...">def factorial(n: int, acc: int = 1) -> int:
+    """Calculate factorial using tail recursion."""
+    if n == 0:
+        return acc
+    return factorial(n - 1, acc * n)</textarea>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Transformed Code</span>
+                </div>
+                <div id="output" class="output-area">Waiting for Pyodide to load...</div>
+            </div>
+        </div>
+
+        <div class="examples">
+            <h3>Examples</h3>
+            <div class="example-buttons">
+                <button onclick="loadExample('factorial')">Factorial</button>
+                <button onclick="loadExample('fibonacci')">Fibonacci</button>
+                <button onclick="loadExample('gcd')">GCD</button>
+                <button onclick="loadExample('sum')">Sum to N</button>
+                <button onclick="loadExample('invalid')">Invalid (Non-Tail)</button>
+            </div>
+        </div>
+
+        <div class="info">
+            <strong>How it works:</strong> Tacopy transforms tail-recursive functions into iterative loops,
+            eliminating stack overflow risks and improving performance.
+            <a href="https://github.com/raaidrt/tacopy" target="_blank">Learn more on GitHub</a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script>
+        const examples = {
+            factorial: `def factorial(n: int, acc: int = 1) -> int:
+    """Calculate factorial using tail recursion."""
+    if n == 0:
+        return acc
+    return factorial(n - 1, acc * n)`,
+
+            fibonacci: `def fibonacci(n: int, a: int = 0, b: int = 1) -> int:
+    """Calculate the nth Fibonacci number using tail recursion."""
+    if n == 0:
+        return a
+    if n == 1:
+        return b
+    return fibonacci(n - 1, b, a + b)`,
+
+            gcd: `def gcd(a: int, b: int) -> int:
+    """Calculate GCD using Euclidean algorithm (tail recursive)."""
+    if b == 0:
+        return a
+    return gcd(b, a % b)`,
+
+            sum: `def sum_to_n(n: int, acc: int = 0) -> int:
+    """Calculate sum from 1 to n using tail recursion."""
+    if n == 0:
+        return acc
+    return sum_to_n(n - 1, acc + n)`,
+
+            invalid: `def bad_factorial(n: int) -> int:
+    """This is NOT tail recursive - multiplication after recursive call."""
+    if n == 0:
+        return 1
+    return n * bad_factorial(n - 1)  # Not in tail position!`
+        };
+
+        let pyodide = null;
+        let debounceTimer = null;
+
+        const inputEl = document.getElementById('input');
+        const outputEl = document.getElementById('output');
+        const statusEl = document.getElementById('pyodide-status');
+
+        async function initPyodide() {
+            try {
+                statusEl.textContent = 'Loading Pyodide...';
+                statusEl.className = 'status loading';
+
+                pyodide = await loadPyodide();
+
+                statusEl.textContent = 'Installing tacopy...';
+                await pyodide.loadPackage('micropip');
+                await pyodide.runPythonAsync(`
+import micropip
+await micropip.install('tacopy-optimization')
+`);
+
+                // Set up our transformation helper that works with source strings
+                await pyodide.runPythonAsync(`
+import ast
+from tacopy.transformer import transform_function
+from tacopy.unparser import unparse
+from tacopy.validator import TailRecursionValidator, TailRecursionError
+
+def transform_source(source: str) -> str:
+    """Transform source code containing a tail-recursive function."""
+    # Parse the source
+    tree = ast.parse(source)
+
+    # Find function definitions
+    func_defs = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+
+    if not func_defs:
+        raise ValueError("No function definition found in the input code")
+
+    # Get the first function (or the top-level one)
+    func_def = None
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            func_def = node
+            break
+
+    if func_def is None:
+        raise ValueError("No top-level function definition found")
+
+    func_name = func_def.name
+
+    # Check for async functions
+    if isinstance(func_def, ast.AsyncFunctionDef):
+        raise TailRecursionError(
+            f"Async function '{func_name}' cannot use tail recursion optimization. "
+            "Async functions are not supported."
+        )
+
+    # Validate tail recursion using the AST
+    validator = TailRecursionValidator(func_name)
+    validator.visit(tree)
+
+    if validator.errors:
+        error_msg = f"Function '{func_name}' is not properly tail-recursive:\\n"
+        error_msg += "\\n".join(f"  - {err}" for err in validator.errors)
+        raise TailRecursionError(error_msg)
+
+    # Transform the function
+    transformed_tree = transform_function(tree, func_name)
+
+    # Convert back to source
+    return unparse(transformed_tree)
+`);
+
+                statusEl.textContent = 'Ready';
+                statusEl.className = 'status ready';
+
+                // Transform initial input
+                transformCode();
+
+            } catch (error) {
+                statusEl.textContent = 'Error loading';
+                statusEl.className = 'status error';
+                outputEl.innerHTML = `<div class="error-message">Failed to initialize Pyodide: ${error.message}</div>`;
+            }
+        }
+
+        async function transformCode() {
+            if (!pyodide) return;
+
+            const source = inputEl.value.trim();
+
+            if (!source) {
+                outputEl.innerHTML = '<span style="color: #888;">Enter some Python code to transform...</span>';
+                return;
+            }
+
+            try {
+                // Escape the source for Python
+                const escapedSource = source
+                    .replace(/\\/g, '\\\\')
+                    .replace(/"""/g, '\\"\\"\\"')
+                    .replace(/\n/g, '\\n');
+
+                const result = await pyodide.runPythonAsync(`
+source = """${escapedSource}"""
+transform_source(source)
+`);
+                outputEl.innerHTML = `<span class="success-output">${escapeHtml(result)}</span>`;
+
+            } catch (error) {
+                let errorMessage = error.message;
+
+                // Extract Python error message if present
+                if (errorMessage.includes('TailRecursionError')) {
+                    const match = errorMessage.match(/TailRecursionError[:\s]*([\s\S]*?)(?:\n\s*at |$)/);
+                    if (match) {
+                        errorMessage = match[1].trim();
+                    }
+                } else if (errorMessage.includes('SyntaxError')) {
+                    errorMessage = 'Syntax Error: ' + errorMessage.split('SyntaxError:').pop().trim();
+                } else if (errorMessage.includes('ValueError')) {
+                    const match = errorMessage.match(/ValueError[:\s]*([\s\S]*?)(?:\n\s*at |$)/);
+                    if (match) {
+                        errorMessage = match[1].trim();
+                    }
+                }
+
+                outputEl.innerHTML = `<div class="error-message">${escapeHtml(errorMessage)}</div>`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function loadExample(name) {
+            if (examples[name]) {
+                inputEl.value = examples[name];
+                transformCode();
+            }
+        }
+
+        // Debounced input handler
+        inputEl.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(transformCode, 300);
+        });
+
+        // Initialize on load
+        initPyodide();
+    </script>
+</body>
+</html>
