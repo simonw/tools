@@ -58,14 +58,14 @@ p code {
   border-radius: 3px;
   word-break: break-all;
 }
-#fileList, #fileContent {
+#fileList {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 0;
   margin-top: 1rem;
   overflow: hidden;
 }
-#fileList h3, #fileContent h3 {
+#fileList h3 {
   font-size: 0.875rem;
   font-weight: 600;
   margin: 0;
@@ -81,9 +81,6 @@ p code {
   word-break: break-all;
   transition: background 0.1s;
 }
-.file-item:last-child {
-  border-bottom: none;
-}
 .file-item:hover {
   background: #f5f5f5;
 }
@@ -92,6 +89,13 @@ p code {
 }
 .file-item.selected {
   background: #e7f1ff;
+  border-bottom: none;
+}
+.file-content {
+  border-bottom: 1px solid #eee;
+}
+.file-content pre {
+  border-top: 1px solid #e0e0e0;
 }
 pre {
   white-space: pre-wrap;
@@ -126,24 +130,34 @@ pre {
 <h1>Package File Browser</h1>
 <input type="text" id="urlInput" placeholder="Package name (e.g. requests) or URL to .whl/.zip file" onkeydown="if(event.key==='Enter')fetchAndUnpackFile()">
 <button onclick="fetchAndUnpackFile()">Unpack File</button>
-<p>Enter a PyPI package name like <code>requests</code> or <code>llm-mistral</code> (<a href="#" onclick="document.getElementById('urlInput').value='llm-mistral'; fetchAndUnpackFile(); return false">try it</a>), or paste a direct URL to a .whl or .zip file.</p>
+<p>Enter a PyPI package name like <code>requests</code> or <code>llm-mistral</code> (<a href="?package=llm-mistral">try it</a>), or paste a direct URL to a .whl or .zip file.</p>
 <div id="fileList" style="display: none"></div>
-<div id="fileContent" style="display: none"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
+function updateUrl(input) {
+    const params = new URLSearchParams();
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+        params.set('url', input);
+    } else {
+        params.set('package', input);
+    }
+    history.replaceState(null, '', '?' + params.toString());
+}
+
 async function fetchAndUnpackFile() {
     let input = document.getElementById('urlInput').value.trim();
     const fileListEl = document.getElementById('fileList');
-    const fileContentEl = document.getElementById('fileContent');
+
+    if (!input) return;
 
     fileListEl.style.display = 'block';
-    fileContentEl.style.display = 'none';
-    fileContentEl.innerHTML = '';
 
     // Check if input is a URL or a package name
     let url = input;
-    if (!input.startsWith('http://') && !input.startsWith('https://')) {
+    const isUrl = input.startsWith('http://') || input.startsWith('https://');
+
+    if (!isUrl) {
         // Treat as PyPI package name
         fileListEl.innerHTML = `<div class="status">Looking up "${escapeHtml(input)}" on PyPI...</div>`;
         try {
@@ -159,12 +173,14 @@ async function fetchAndUnpackFile() {
                 return;
             }
             url = wheelUrl.url;
-            document.getElementById('urlInput').value = url;
         } catch (error) {
             fileListEl.innerHTML = `<div class="status">Error looking up package: ${escapeHtml(error.message)}</div>`;
             return;
         }
     }
+
+    // Update URL bar
+    updateUrl(input);
 
     fileListEl.innerHTML = '<div class="status">Downloading file...</div>';
 
@@ -178,10 +194,24 @@ async function fetchAndUnpackFile() {
             fileEl.className = 'file-item';
             fileEl.textContent = file.name;
             fileEl.onclick = () => {
+                const wasSelected = fileEl.classList.contains('selected');
+
+                // Remove any existing content and selection
+                document.querySelectorAll('.file-content').forEach(el => el.remove());
                 document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
+
+                // Toggle off if clicking the same file
+                if (wasSelected) {
+                    return;
+                }
+
                 fileEl.classList.add('selected');
-                fileContentEl.style.display = 'block';
-                fileContentEl.innerHTML = `<h3>${escapeHtml(file.name)}</h3><pre>${escapeHtml(file.content)}</pre>`;
+
+                // Insert content right after the clicked file
+                const contentEl = document.createElement('div');
+                contentEl.className = 'file-content';
+                contentEl.innerHTML = `<pre>${escapeHtml(file.content)}</pre>`;
+                fileEl.after(contentEl);
             };
             fileListEl.appendChild(fileEl);
         });
@@ -205,6 +235,15 @@ async function extractFiles(arrayBuffer, url) {
         files.push({ name, content });
     }
     return files;
+}
+
+// Check for query params on page load
+const params = new URLSearchParams(window.location.search);
+const packageParam = params.get('package');
+const urlParam = params.get('url');
+if (packageParam || urlParam) {
+    document.getElementById('urlInput').value = packageParam || urlParam;
+    fetchAndUnpackFile();
 }
 </script>
 </body>
