@@ -1,3 +1,3 @@
-This tool allows you to explore the contents of package files directly in your browser. Enter a URL to a zip, tar.gz, or wheel file, and the browser will download and extract the contents, displaying a list of files that you can click to view. The tool supports Python wheel packages from PyPI and other package formats without requiring any installation.
+This tool enables users to explore the contents of Python packages and archive files by providing either a PyPI package name or a direct URL to a .whl or .zip file. Upon submission, the application automatically locates the corresponding wheel file from PyPI (if a package name is provided), downloads it, and displays an interactive file listing with the ability to preview individual file contents. Query parameters allow users to share pre-populated searches, such as `?package=llm-mistral`, for convenient access to specific packages.
 
-<!-- Generated from commit: 6025f629f56b9f36f03faa1cb38286f12148963e -->
+<!-- Generated from commit: 5a26f717c6b652e030ef248d754eb776b2fffb06 -->
