@@ -124,22 +124,49 @@ pre {
 </head>
 <body>
 <h1>Package File Browser</h1>
-<input type="text" id="urlInput" placeholder="Paste URL to .zip, .tar.gz, or .whl file" onkeydown="if(event.key==='Enter')fetchAndUnpackFile()">
+<input type="text" id="urlInput" placeholder="Package name (e.g. requests) or URL to .whl/.zip file" onkeydown="if(event.key==='Enter')fetchAndUnpackFile()">
 <button onclick="fetchAndUnpackFile()">Unpack File</button>
-<p>Try a wheel from PyPI like: <code>https://files.pythonhosted.org/packages/ae/8f/e0661dd3077b7343419ddb5ff840f6bcf571e8d11d8acb031e1b167de79c/llm_mistral-0.8-py3-none-any.whl</code> (<a href="#" onclick="document.getElementById('urlInput').value='https://files.pythonhosted.org/packages/ae/8f/e0661dd3077b7343419ddb5ff840f6bcf571e8d11d8acb031e1b167de79c/llm_mistral-0.8-py3-none-any.whl'; fetchAndUnpackFile(); return false">try it</a>)</p>
+<p>Enter a PyPI package name like <code>requests</code> or <code>llm-mistral</code> (<a href="#" onclick="document.getElementById('urlInput').value='llm-mistral'; fetchAndUnpackFile(); return false">try it</a>), or paste a direct URL to a .whl or .zip file.</p>
 <div id="fileList" style="display: none"></div>
 <div id="fileContent" style="display: none"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 async function fetchAndUnpackFile() {
-    const url = document.getElementById('urlInput').value;
+    let input = document.getElementById('urlInput').value.trim();
     const fileListEl = document.getElementById('fileList');
     const fileContentEl = document.getElementById('fileContent');
-    
+
     fileListEl.style.display = 'block';
-    fileListEl.innerHTML = '<div class="status">Downloading file...</div>';
+    fileContentEl.style.display = 'none';
     fileContentEl.innerHTML = '';
+
+    // Check if input is a URL or a package name
+    let url = input;
+    if (!input.startsWith('http://') && !input.startsWith('https://')) {
+        // Treat as PyPI package name
+        fileListEl.innerHTML = `<div class="status">Looking up "${escapeHtml(input)}" on PyPI...</div>`;
+        try {
+            const pypiResponse = await fetch(`https://pypi.org/pypi/${encodeURIComponent(input)}/json`);
+            if (!pypiResponse.ok) {
+                fileListEl.innerHTML = `<div class="status">Package "${escapeHtml(input)}" not found on PyPI</div>`;
+                return;
+            }
+            const pypiData = await pypiResponse.json();
+            const wheelUrl = pypiData.urls?.find(u => u.url?.endsWith('.whl'));
+            if (!wheelUrl) {
+                fileListEl.innerHTML = `<div class="status">No wheel (.whl) found for "${escapeHtml(input)}"</div>`;
+                return;
+            }
+            url = wheelUrl.url;
+            document.getElementById('urlInput').value = url;
+        } catch (error) {
+            fileListEl.innerHTML = `<div class="status">Error looking up package: ${escapeHtml(error.message)}</div>`;
+            return;
+        }
+    }
+
+    fileListEl.innerHTML = '<div class="status">Downloading file...</div>';
 
     try {
         const response = await fetch(url);
