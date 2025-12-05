@@ -4,38 +4,127 @@
 <title>Package File Browser</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <style>
-body {
-  font-family: Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  margin: 2rem;
-  max-width: 800px;
-  margin: 0 auto;
-}
-input, textarea {
-  font-size: 16px;
-  width: 100%;
-  margin-bottom: 1rem;
-  padding: 0.5rem;
+* {
   box-sizing: border-box;
 }
-#fileList, #fileContent {
-  border: 1px solid #ddd;
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  max-width: 800px;
+  margin: 0 auto;
   padding: 1rem;
+  color: #333;
+}
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+input[type="text"] {
+  font-size: 16px;
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+input[type="text"]:focus {
+  outline: none;
+  border-color: #007aff;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+button {
+  font-size: 16px;
+  padding: 0.75rem 1.25rem;
+  background: #007aff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+}
+button:active {
+  background: #005ecb;
+}
+p {
+  font-size: 0.875rem;
+  color: #666;
+  margin-top: 0.75rem;
+}
+p code {
+  font-size: 0.75rem;
+  background: #f0f0f0;
+  padding: 0.15rem 0.3rem;
+  border-radius: 3px;
+  word-break: break-all;
+}
+#fileList, #fileContent {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0;
   margin-top: 1rem;
+  overflow: hidden;
+}
+#fileList h3, #fileContent h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: #f8f8f8;
+  border-bottom: 1px solid #e0e0e0;
+}
+.file-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  font-size: 0.875rem;
+  word-break: break-all;
+  transition: background 0.1s;
+}
+.file-item:last-child {
+  border-bottom: none;
+}
+.file-item:hover {
+  background: #f5f5f5;
+}
+.file-item:active {
+  background: #e8e8e8;
+}
+.file-item.selected {
+  background: #e7f1ff;
 }
 pre {
   white-space: pre-wrap;
   word-wrap: break-word;
-  background-color: #f4f4f4;
+  background-color: #fafafa;
   padding: 1rem;
-  max-height: 400px;
+  margin: 0;
+  max-height: 60vh;
   overflow-y: auto;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.status {
+  padding: 1rem;
+  color: #666;
+  font-size: 0.875rem;
+}
+@media (min-width: 500px) {
+  body {
+    padding: 2rem;
+  }
+  h1 {
+    font-size: 1.75rem;
+  }
+  button {
+    width: auto;
+  }
 }
 </style>
 </head>
 <body>
 <h1>Package File Browser</h1>
-<input type="text" id="urlInput" placeholder="Paste URL to .zip, .tar.gz, or .whl file">
+<input type="text" id="urlInput" placeholder="Paste URL to .zip, .tar.gz, or .whl file" onkeydown="if(event.key==='Enter')fetchAndUnpackFile()">
 <button onclick="fetchAndUnpackFile()">Unpack File</button>
 <p>Try a wheel from PyPI like: <code>https://files.pythonhosted.org/packages/ae/8f/e0661dd3077b7343419ddb5ff840f6bcf571e8d11d8acb031e1b167de79c/llm_mistral-0.8-py3-none-any.whl</code> (<a href="#" onclick="document.getElementById('urlInput').value='https://files.pythonhosted.org/packages/ae/8f/e0661dd3077b7343419ddb5ff840f6bcf571e8d11d8acb031e1b167de79c/llm_mistral-0.8-py3-none-any.whl'; fetchAndUnpackFile(); return false">try it</a>)</p>
 <div id="fileList" style="display: none"></div>
@@ -48,29 +137,37 @@ async function fetchAndUnpackFile() {
     const fileListEl = document.getElementById('fileList');
     const fileContentEl = document.getElementById('fileContent');
     
-    fileListEl.innerHTML = 'Downloading file...';
+    fileListEl.style.display = 'block';
+    fileListEl.innerHTML = '<div class="status">Downloading file...</div>';
     fileContentEl.innerHTML = '';
 
     try {
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();
         const files = await extractFiles(arrayBuffer, url);
-        fileListEl.style.display = 'block';
-        fileListEl.innerHTML = '<h3>Files in package:</h3>';
+        fileListEl.innerHTML = '<h3>Files in package</h3>';
         files.forEach((file, index) => {
             const fileEl = document.createElement('div');
+            fileEl.className = 'file-item';
             fileEl.textContent = file.name;
-            fileEl.style.cursor = 'pointer';
             fileEl.onclick = () => {
+                document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
+                fileEl.classList.add('selected');
                 fileContentEl.style.display = 'block';
-                fileContentEl.innerHTML = `<h3>${file.name}</h3><pre>${file.content}</pre>`;
+                fileContentEl.innerHTML = `<h3>${escapeHtml(file.name)}</h3><pre>${escapeHtml(file.content)}</pre>`;
             };
             fileListEl.appendChild(fileEl);
         });
     } catch (error) {
-        fileListEl.innerHTML = `Error: ${error.message}`;
+        fileListEl.innerHTML = `<div class="status">Error: ${escapeHtml(error.message)}</div>`;
         console.error(error);
     }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 async function extractFiles(arrayBuffer, url) {
