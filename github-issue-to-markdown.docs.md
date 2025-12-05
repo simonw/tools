@@ -1,3 +1,3 @@
-This tool converts GitHub issues to markdown format by fetching the issue data and all associated comments from the GitHub API. Users can optionally provide a personal access token to access private repositories and increase rate limits, with the token being securely stored in browser local storage. The converted markdown output can be easily copied to the clipboard for use in documentation, backups, or other purposes.
+This tool converts GitHub issues into markdown format by fetching the issue details and all associated comments from the GitHub API. It supports optional authentication via personal access tokens for accessing private repositories and increasing rate limits, storing the token securely in browser local storage. The converter automatically expands inline GitHub code links with syntax-highlighted code snippets extracted from the repository.
 
-<!-- Generated from commit: 9375c462f66e0c43b79c2c9284fca18c2c22176a -->
+<!-- Generated from commit: 18c5ab37ea974320c793e07e1876d6375f9451fc -->
