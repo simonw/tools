@@ -266,6 +266,32 @@
       background-color: #f8d7da;
       border-radius: 6px;
     }
+    .error-details {
+      margin-top: 1em;
+      padding: 1em;
+      background-color: #2d2d2d;
+      color: #f8f8f2;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .error-copy-btn {
+      margin-top: 0.75em;
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .error-copy-btn:hover {
+      background-color: #545b62;
+    }
     .no-results {
       color: #666;
       font-style: italic;
@@ -438,7 +464,22 @@
         }
 
         const res = await fetch(url);
-        if (!res.ok) throw new Error('Search failed: ' + res.status);
+        if (!res.ok) {
+          let responseBody = '';
+          try {
+            responseBody = await res.text();
+          } catch (e) {
+            responseBody = '(Could not read response body)';
+          }
+          const error = new Error('Search failed');
+          error.details = {
+            url: url.toString(),
+            status: res.status,
+            statusText: res.statusText,
+            responseBody: responseBody
+          };
+          throw error;
+        }
         return res.json();
       }
 
@@ -674,6 +715,51 @@
         }
       });
 
+      // Display detailed error with copy button
+      function displayError(err) {
+        let errorText = `Error: ${err.message}`;
+        let detailsText = '';
+
+        if (err.details) {
+          detailsText = `URL: ${err.details.url}\n\nStatus: ${err.details.status} ${err.details.statusText}\n\nResponse Body:\n${err.details.responseBody}`;
+        } else if (err.stack) {
+          detailsText = `Stack Trace:\n${err.stack}`;
+        }
+
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error';
+
+        const errorMsg = document.createElement('div');
+        errorMsg.textContent = errorText;
+        errorDiv.appendChild(errorMsg);
+
+        if (detailsText) {
+          const detailsDiv = document.createElement('div');
+          detailsDiv.className = 'error-details';
+          detailsDiv.textContent = detailsText;
+          errorDiv.appendChild(detailsDiv);
+
+          const copyErrorBtn = document.createElement('button');
+          copyErrorBtn.className = 'error-copy-btn';
+          copyErrorBtn.textContent = 'Copy Error Details';
+          copyErrorBtn.addEventListener('click', async () => {
+            try {
+              const fullError = `${errorText}\n\n${detailsText}`;
+              await navigator.clipboard.writeText(fullError);
+              const orig = copyErrorBtn.textContent;
+              copyErrorBtn.textContent = 'Copied!';
+              setTimeout(() => (copyErrorBtn.textContent = orig), 2000);
+            } catch (e) {
+              console.error('Copy failed', e);
+            }
+          });
+          errorDiv.appendChild(copyErrorBtn);
+        }
+
+        container.innerHTML = '';
+        container.appendChild(errorDiv);
+      }
+
       // Update URL with current state
       function updateUrl() {
         const newUrl = new URL(window.location);
@@ -785,6 +871,7 @@
           loadMoreContainer.style.display = currentCursor ? 'block' : 'none';
         } catch (err) {
           console.error(err);
+          displayError(err);
         } finally {
           isLoading = false;
           loadMoreBtn.disabled = false;
@@ -834,7 +921,7 @@
 
         } catch (err) {
           console.error(err);
-          container.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+          displayError(err);
         }
       }
 
