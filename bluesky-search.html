@@ -463,7 +463,20 @@
           });
         }
 
-        const res = await fetch(url);
+        let res;
+        try {
+          res = await fetch(url);
+        } catch (fetchError) {
+          const error = new Error(fetchError.message || 'Network request failed');
+          error.details = {
+            url: url.toString(),
+            status: 'N/A (fetch failed)',
+            statusText: fetchError.name || 'FetchError',
+            responseBody: fetchError.stack || String(fetchError)
+          };
+          throw error;
+        }
+
         const responseText = await res.text();
         let json;
 
@@ -746,8 +759,9 @@
 
         if (err.details) {
           detailsText = `URL: ${err.details.url}\n\nStatus: ${err.details.status} ${err.details.statusText}\n\nResponse Body:\n${err.details.responseBody}`;
-        } else if (err.stack) {
-          detailsText = `Stack Trace:\n${err.stack}`;
+        } else {
+          // Always include stack trace for debugging
+          detailsText = `Error Type: ${err.name || 'Error'}\nMessage: ${err.message}\n\nStack Trace:\n${err.stack || '(no stack trace available)'}`;
         }
 
         const errorDiv = document.createElement('div');
@@ -757,28 +771,26 @@
         errorMsg.textContent = errorText;
         errorDiv.appendChild(errorMsg);
 
-        if (detailsText) {
-          const detailsDiv = document.createElement('div');
-          detailsDiv.className = 'error-details';
-          detailsDiv.textContent = detailsText;
-          errorDiv.appendChild(detailsDiv);
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = 'error-details';
+        detailsDiv.textContent = detailsText;
+        errorDiv.appendChild(detailsDiv);
 
-          const copyErrorBtn = document.createElement('button');
-          copyErrorBtn.className = 'error-copy-btn';
-          copyErrorBtn.textContent = 'Copy Error Details';
-          copyErrorBtn.addEventListener('click', async () => {
-            try {
-              const fullError = `${errorText}\n\n${detailsText}`;
-              await navigator.clipboard.writeText(fullError);
-              const orig = copyErrorBtn.textContent;
-              copyErrorBtn.textContent = 'Copied!';
-              setTimeout(() => (copyErrorBtn.textContent = orig), 2000);
-            } catch (e) {
-              console.error('Copy failed', e);
-            }
-          });
-          errorDiv.appendChild(copyErrorBtn);
-        }
+        const copyErrorBtn = document.createElement('button');
+        copyErrorBtn.className = 'error-copy-btn';
+        copyErrorBtn.textContent = 'Copy Error Details';
+        copyErrorBtn.addEventListener('click', async () => {
+          try {
+            const fullError = `${errorText}\n\n${detailsText}`;
+            await navigator.clipboard.writeText(fullError);
+            const orig = copyErrorBtn.textContent;
+            copyErrorBtn.textContent = 'Copied!';
+            setTimeout(() => (copyErrorBtn.textContent = orig), 2000);
+          } catch (e) {
+            console.error('Copy failed', e);
+          }
+        });
+        errorDiv.appendChild(copyErrorBtn);
 
         container.innerHTML = '';
         container.appendChild(errorDiv);
