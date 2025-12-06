@@ -1,3 +1,3 @@
-This tool converts Markdown to HTML using GitHub's API. Enter your Markdown text in the input area, click "Render" to see it transformed into HTML with proper formatting. You can customize the output by choosing between standard Markdown or GitHub Flavored Markdown, and optionally clean up the HTML to remove hidden elements. The rendered HTML can be copied to the clipboard.
+This tool renders Markdown to HTML using GitHub's public API, providing both a live preview and formatted HTML output. Users can paste Markdown into the textarea and click "Render" to see the processed result, with options to strip HTML artifacts and use GitHub Flavored Markdown syntax. The HTML output can be copied to the clipboard, and the tool automatically saves input to browser storage for convenience.
 
-<!-- Generated from commit: 236b41c074f58637f95aca73b8134dca28de1cee -->
+<!-- Generated from commit: 00341b7891cc56d0962576560f1e7d87308af548 -->
