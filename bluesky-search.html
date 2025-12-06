@@ -464,23 +464,47 @@
         }
 
         const res = await fetch(url);
-        if (!res.ok) {
-          let responseBody = '';
-          try {
-            responseBody = await res.text();
-          } catch (e) {
-            responseBody = '(Could not read response body)';
-          }
-          const error = new Error('Search failed');
+        const responseText = await res.text();
+        let json;
+
+        try {
+          json = JSON.parse(responseText);
+        } catch (e) {
+          const error = new Error('Failed to parse response as JSON');
           error.details = {
             url: url.toString(),
             status: res.status,
             statusText: res.statusText,
-            responseBody: responseBody
+            responseBody: responseText
           };
           throw error;
         }
-        return res.json();
+
+        // Check for HTTP errors
+        if (!res.ok) {
+          const error = new Error(json.message || json.error || 'Search failed');
+          error.details = {
+            url: url.toString(),
+            status: res.status,
+            statusText: res.statusText,
+            responseBody: responseText
+          };
+          throw error;
+        }
+
+        // Check for error in JSON response (API returns 200 but with error)
+        if (json.error) {
+          const error = new Error(json.message || json.error);
+          error.details = {
+            url: url.toString(),
+            status: res.status,
+            statusText: res.statusText,
+            responseBody: responseText
+          };
+          throw error;
+        }
+
+        return json;
       }
 
       // Get current search options from form
