@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bluesky Search</title>
+  <style>
+    :root {
+      --depth-color-1: hsl(200, 70%, 50%);
+      --depth-color-2: hsl(30, 80%, 50%);
+      --depth-color-3: hsl(120, 60%, 40%);
+      --depth-color-4: hsl(0, 70%, 50%);
+      --depth-color-5: hsl(280, 60%, 50%);
+      --depth-color-6: hsl(20, 60%, 40%);
+      --depth-color-7: hsl(330, 60%, 50%);
+      --depth-color-8: hsl(0, 0%, 40%);
+    }
+    body {
+      font-family: sans-serif;
+      margin: 1em;
+    }
+    header {
+      max-width: 800px;
+    }
+    .controls {
+      margin-bottom: 1em;
+    }
+    .auth-section {
+      background-color: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 1em;
+      margin-bottom: 1em;
+    }
+    .auth-section summary {
+      cursor: pointer;
+      font-weight: bold;
+      color: #333;
+      user-select: none;
+    }
+    .auth-section summary:hover {
+      color: #007bff;
+    }
+    .auth-section[open] summary {
+      margin-bottom: 0.75em;
+    }
+    .auth-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 0.5em;
+      align-items: end;
+    }
+    .auth-fields label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25em;
+      font-size: 0.85rem;
+      color: #666;
+    }
+    .auth-fields input {
+      font-size: 0.9rem;
+      padding: 0.5em;
+    }
+    .auth-fields button {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      height: fit-content;
+    }
+    .auth-fields button:hover {
+      background-color: #218838;
+    }
+    .auth-status {
+      margin-top: 0.5em;
+      font-size: 0.85rem;
+      color: #666;
+    }
+    .auth-status.logged-in {
+      color: #28a745;
+    }
+    .auth-status.error {
+      color: #dc3545;
+    }
+    .logout-btn {
+      background-color: #dc3545 !important;
+      margin-left: 0.5em;
+    }
+    .logout-btn:hover {
+      background-color: #c82333 !important;
+    }
+    @media (max-width: 600px) {
+      .auth-fields {
+        grid-template-columns: 1fr;
+      }
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75em;
+    }
+    .search-row {
+      display: flex;
+      gap: 0.5em;
+    }
+    input[type="text"], input[type="date"] {
+      font-size: 1rem;
+      padding: 0.5em;
+    }
+    input[type="text"] {
+      flex: 1;
+    }
+    .date-filters {
+      display: flex;
+      gap: 1em;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .date-filters label {
+      display: flex;
+      gap: 0.5em;
+      align-items: center;
+      font-size: 0.9rem;
+      color: #666;
+    }
+    .advanced-search {
+      margin-top: 0.5em;
+    }
+    .advanced-search summary {
+      cursor: pointer;
+      color: #007bff;
+      font-size: 0.9rem;
+      user-select: none;
+    }
+    .advanced-search summary:hover {
+      text-decoration: underline;
+    }
+    .advanced-search[open] summary {
+      margin-bottom: 0.75em;
+    }
+    .advanced-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75em;
+    }
+    .advanced-fields label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25em;
+      font-size: 0.85rem;
+      color: #666;
+    }
+    .advanced-fields input {
+      font-size: 0.9rem;
+      padding: 0.4em;
+    }
+    .advanced-fields .field-hint {
+      font-size: 0.75rem;
+      color: #999;
+    }
+    #searchForm button[type="submit"] {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    #searchForm button[type="submit"]:hover {
+      background-color: #0056b3;
+    }
+    .tabs {
+      display: none;
+      margin-bottom: 1em;
+      border-bottom: 2px solid #ddd;
+    }
+    .tab {
+      background: none;
+      border: none;
+      padding: 0.75em 1.5em;
+      font-size: 1rem;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      color: #666;
+    }
+    .tab:hover {
+      color: #333;
+    }
+    .tab.active {
+      color: #007bff;
+      border-bottom-color: #007bff;
+      font-weight: bold;
+    }
+    .result-count {
+      margin-bottom: 1em;
+      color: #666;
+      font-size: 0.9rem;
+    }
+    .copy-container {
+      display: none;
+      margin-bottom: 1em;
+      gap: 0.5em;
+    }
+    .copy-container button {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .copy-container button:hover {
+      background-color: #218838;
+    }
+    .post {
+      position: relative;
+      border: 1px solid #ccc;
+      padding: 0.75em 2px 0.75em 0.75em;
+      border-radius: 6px;
+      margin-top: 1em;
+    }
+    .post::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 4px;
+      background-color: var(--stripe-color, transparent);
+      border-top-left-radius: 6px;
+      border-bottom-left-radius: 6px;
+    }
+    .depth-1 { --stripe-color: var(--depth-color-1); }
+    .depth-2 { --stripe-color: var(--depth-color-2); }
+    .depth-3 { --stripe-color: var(--depth-color-3); }
+    .depth-4 { --stripe-color: var(--depth-color-4); }
+    .depth-5 { --stripe-color: var(--depth-color-5); }
+    .depth-6 { --stripe-color: var(--depth-color-6); }
+    .depth-7 { --stripe-color: var(--depth-color-7); }
+    .depth-8 { --stripe-color: var(--depth-color-8); }
+    .author {
+      font-weight: bold;
+      margin-bottom: 0.25em;
+    }
+    .author a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .author a:hover {
+      text-decoration: underline;
+    }
+    .meta {
+      color: #666;
+      font-size: 0.85rem;
+      margin-bottom: 0.5em;
+      display: flex;
+      gap: 0.5em;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .meta a {
+      font-size: 0.85rem;
+      color: #007bff;
+      text-decoration: none;
+    }
+    .meta a:hover {
+      text-decoration: underline;
+    }
+    .stats {
+      display: flex;
+      gap: 1em;
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.5em;
+    }
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 0.25em;
+    }
+    .stat.likes {
+      color: #e0245e;
+    }
+    .stat.reposts {
+      color: #17bf63;
+    }
+    .stat.replies {
+      color: #1da1f2;
+    }
+    .text {
+      white-space: pre-wrap;
+      font-size: 1rem;
+      line-height: 1.4;
+    }
+    .text a {
+      color: #007bff;
+      text-decoration: none;
+    }
+    .text a:hover {
+      text-decoration: underline;
+    }
+    .embed-card {
+      margin-top: 0.5em;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 0.5em;
+      background-color: #f9f9f9;
+    }
+    .embed-card a {
+      color: #007bff;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .embed-card a:hover {
+      text-decoration: underline;
+    }
+    .embed-card .embed-title {
+      font-weight: bold;
+    }
+    .embed-card .embed-description {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.25em;
+    }
+    .loading {
+      color: #666;
+      font-style: italic;
+    }
+    .error {
+      color: #dc3545;
+      padding: 1em;
+      background-color: #f8d7da;
+      border-radius: 6px;
+    }
+    .error-details {
+      margin-top: 1em;
+      padding: 1em;
+      background-color: #2d2d2d;
+      color: #f8f8f2;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .error-copy-btn {
+      margin-top: 0.75em;
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .error-copy-btn:hover {
+      background-color: #545b62;
+    }
+    .no-results {
+      color: #666;
+      font-style: italic;
+      padding: 1em;
+    }
+    .load-more-container {
+      margin-top: 1em;
+      text-align: center;
+    }
+    .load-more-container button {
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      padding: 0.75em 1.5em;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .load-more-container button:hover {
+      background-color: #545b62;
+    }
+    .load-more-container button:disabled {
+      background-color: #adb5bd;
+      cursor: not-allowed;
+    }
+    @media (max-width: 600px) {
+      .post { padding-left: 1em; }
+      .tab { padding: 0.5em 0.75em; font-size: 0.9rem; }
+      .search-row { flex-direction: column; }
+      .date-filters { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Bluesky Search</h1>
+    <p>Search posts on Bluesky (requires authentication)</p>
+    <details class="auth-section" id="authSection" open>
+      <summary>Bluesky Login</summary>
+      <div class="auth-fields">
+        <label>
+          Handle or Email
+          <input type="text" id="authIdentifier" placeholder="you.bsky.social" />
+        </label>
+        <label>
+          App Password
+          <input type="password" id="authPassword" placeholder="xxxx-xxxx-xxxx-xxxx" />
+        </label>
+        <button type="button" id="loginBtn">Login</button>
+      </div>
+      <div class="auth-status" id="authStatus">Not logged in. <a href="https://bsky.app/settings/app-passwords" target="_blank">Create an app password</a></div>
+    </details>
+    <div class="controls">
+      <form id="searchForm">
+        <div class="search-row">
+          <input type="text" id="searchQuery" placeholder="Enter search query..." required />
+          <button type="submit">Search</button>
+        </div>
+        <div class="date-filters">
+          <label>
+            Since:
+            <input type="date" id="sinceDate" />
+          </label>
+          <label>
+            Until:
+            <input type="date" id="untilDate" />
+          </label>
+        </div>
+        <details class="advanced-search">
+          <summary>Advanced Search Options</summary>
+          <div class="advanced-fields">
+            <label>
+              Author
+              <input type="text" id="authorFilter" placeholder="handle or DID" />
+              <span class="field-hint">Filter to posts by this account</span>
+            </label>
+            <label>
+              Mentions
+              <input type="text" id="mentionsFilter" placeholder="handle or DID" />
+              <span class="field-hint">Filter to posts mentioning this account</span>
+            </label>
+            <label>
+              Language
+              <input type="text" id="langFilter" placeholder="e.g. en, ja, pt" />
+              <span class="field-hint">Filter by post language</span>
+            </label>
+            <label>
+              Domain
+              <input type="text" id="domainFilter" placeholder="e.g. example.com" />
+              <span class="field-hint">Filter to posts linking to this domain</span>
+            </label>
+            <label>
+              URL
+              <input type="text" id="urlFilter" placeholder="Full URL" />
+              <span class="field-hint">Filter to posts linking to this URL</span>
+            </label>
+            <label>
+              Tags
+              <input type="text" id="tagFilter" placeholder="tag1, tag2" />
+              <span class="field-hint">Hashtags without # (comma-separated, AND match)</span>
+            </label>
+          </div>
+        </details>
+      </form>
+    </div>
+    <div class="tabs" id="viewTabs">
+      <button class="tab active" data-sort="latest">Latest</button>
+      <button class="tab" data-sort="top">Top</button>
+    </div>
+  </header>
+  <div class="copy-container" id="copyContainer">
+    <button id="copyBtn">Copy as Markdown</button>
+  </div>
+  <div id="resultCount" class="result-count"></div>
+  <div id="resultsContainer"></div>
+  <div class="load-more-container" id="loadMoreContainer" style="display: none;">
+    <button id="loadMoreBtn">Load More</button>
+  </div>
+
+  <script>
+    (async () => {
+      const form = document.getElementById('searchForm');
+      const container = document.getElementById('resultsContainer');
+      const resultCountEl = document.getElementById('resultCount');
+      const viewTabs = document.getElementById('viewTabs');
+      const searchQuery = document.getElementById('searchQuery');
+      const sinceDate = document.getElementById('sinceDate');
+      const untilDate = document.getElementById('untilDate');
+      const copyContainer = document.getElementById('copyContainer');
+      const copyBtn = document.getElementById('copyBtn');
+      const loadMoreContainer = document.getElementById('loadMoreContainer');
+      const loadMoreBtn = document.getElementById('loadMoreBtn');
+      const authorFilter = document.getElementById('authorFilter');
+      const mentionsFilter = document.getElementById('mentionsFilter');
+      const langFilter = document.getElementById('langFilter');
+      const domainFilter = document.getElementById('domainFilter');
+      const urlFilter = document.getElementById('urlFilter');
+      const tagFilter = document.getElementById('tagFilter');
+
+      // Auth elements
+      const authSection = document.getElementById('authSection');
+      const authIdentifier = document.getElementById('authIdentifier');
+      const authPassword = document.getElementById('authPassword');
+      const loginBtn = document.getElementById('loginBtn');
+      const authStatus = document.getElementById('authStatus');
+
+      let allPosts = [];
+      let currentSort = 'latest';
+      let currentCursor = null;
+      let currentQuery = '';
+      let isLoading = false;
+
+      // Auth state
+      let accessJwt = null;
+
+      // Load saved credentials
+      const savedIdentifier = localStorage.getItem('bluesky_search_identifier');
+      const savedPassword = localStorage.getItem('bluesky_search_password');
+      if (savedIdentifier) authIdentifier.value = savedIdentifier;
+      if (savedPassword) authPassword.value = savedPassword;
+
+      // Auto-login if credentials are saved
+      if (savedIdentifier && savedPassword) {
+        login();
+      }
+
+      // Login function
+      async function login() {
+        const identifier = authIdentifier.value.trim();
+        const password = authPassword.value.trim();
+
+        if (!identifier || !password) {
+          authStatus.textContent = 'Please enter your handle and app password.';
+          authStatus.className = 'auth-status error';
+          return;
+        }
+
+        authStatus.textContent = 'Logging in...';
+        authStatus.className = 'auth-status';
+        loginBtn.disabled = true;
+
+        try {
+          const res = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, password })
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            throw new Error(data.message || data.error || 'Login failed');
+          }
+
+          accessJwt = data.accessJwt;
+
+          // Save credentials
+          localStorage.setItem('bluesky_search_identifier', identifier);
+          localStorage.setItem('bluesky_search_password', password);
+
+          // Update UI
+          authStatus.innerHTML = `Logged in as <strong>@${data.handle}</strong> <button class="logout-btn" id="logoutBtn">Logout</button>`;
+          authStatus.className = 'auth-status logged-in';
+          authSection.open = false;
+
+          // Add logout handler
+          document.getElementById('logoutBtn').addEventListener('click', logout);
+
+        } catch (err) {
+          authStatus.textContent = `Login failed: ${err.message}`;
+          authStatus.className = 'auth-status error';
+          accessJwt = null;
+        } finally {
+          loginBtn.disabled = false;
+        }
+      }
+
+      // Logout function
+      function logout() {
+        accessJwt = null;
+        localStorage.removeItem('bluesky_search_identifier');
+        localStorage.removeItem('bluesky_search_password');
+        authIdentifier.value = '';
+        authPassword.value = '';
+        authStatus.innerHTML = 'Not logged in. <a href="https://bsky.app/settings/app-passwords" target="_blank">Create an app password</a>';
+        authStatus.className = 'auth-status';
+        authSection.open = true;
+      }
+
+      // Login button handler
+      loginBtn.addEventListener('click', login);
+
+      // Allow Enter key to login
+      authPassword.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); login(); }
+      });
+
+      searchQuery.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); form.requestSubmit(); }
+      });
+
+      // Search posts using the Bluesky API
+      async function searchPosts(query, sort, cursor = null, options = {}) {
+        if (!accessJwt) {
+          const error = new Error('Not logged in. Please login with your Bluesky credentials first.');
+          error.details = {
+            url: 'N/A',
+            status: 'N/A',
+            statusText: 'Authentication Required',
+            responseBody: 'You must login before searching. Click "Bluesky Login" above and enter your handle and app password.'
+          };
+          throw error;
+        }
+
+        const url = new URL('https://bsky.social/xrpc/app.bsky.feed.searchPosts');
+        url.searchParams.set('q', query);
+        url.searchParams.set('sort', sort);
+        url.searchParams.set('limit', '100');
+
+        if (cursor) {
+          url.searchParams.set('cursor', cursor);
+        }
+        if (options.since) {
+          url.searchParams.set('since', options.since + 'T00:00:00Z');
+        }
+        if (options.until) {
+          url.searchParams.set('until', options.until + 'T23:59:59Z');
+        }
+        if (options.author) {
+          url.searchParams.set('author', options.author);
+        }
+        if (options.mentions) {
+          url.searchParams.set('mentions', options.mentions);
+        }
+        if (options.lang) {
+          url.searchParams.set('lang', options.lang);
+        }
+        if (options.domain) {
+          url.searchParams.set('domain', options.domain);
+        }
+        if (options.url) {
+          url.searchParams.set('url', options.url);
+        }
+        if (options.tags && options.tags.length > 0) {
+          options.tags.forEach(tag => {
+            url.searchParams.append('tag', tag.trim());
+          });
+        }
+
+        let res;
+        try {
+          res = await fetch(url, {
+            headers: {
+              'Authorization': `Bearer ${accessJwt}`
+            }
+          });
+        } catch (fetchError) {
+          const error = new Error(fetchError.message || 'Network request failed');
+          error.details = {
+            url: url.toString(),
+            status: 'N/A (fetch failed)',
+            statusText: fetchError.name || 'FetchError',
+            responseBody: fetchError.stack || String(fetchError)
+          };
+          throw error;
+        }
+
+        const responseText = await res.text();
+        let json;
+
+        try {
+          json = JSON.parse(responseText);
+        } catch (e) {
+          const error = new Error('Failed to parse response as JSON');
+          error.details = {
+            url: url.toString(),
+            status: res.status,
+            statusText: res.statusText,
+            responseBody: responseText
+          };
+          throw error;
+        }
+
+        // Check for HTTP errors
+        if (!res.ok) {
+          const error = new Error(json.message || json.error || 'Search failed');
+          error.details = {
+            url: url.toString(),
+            status: res.status,
+            statusText: res.statusText,
+            responseBody: responseText
+          };
+          throw error;
+        }
+
+        // Check for error in JSON response (API returns 200 but with error)
+        if (json.error) {
+          const error = new Error(json.message || json.error);
+          error.details = {
+            url: url.toString(),
+            status: res.status,
+            statusText: res.statusText,
+            responseBody: responseText
+          };
+          throw error;
+        }
+
+        return json;
+      }
+
+      // Get current search options from form
+      function getSearchOptions() {
+        const tags = tagFilter.value.trim()
+          ? tagFilter.value.split(',').map(t => t.trim().replace(/^#/, '')).filter(t => t)
+          : [];
+
+        return {
+          since: sinceDate.value || null,
+          until: untilDate.value || null,
+          author: authorFilter.value.trim() || null,
+          mentions: mentionsFilter.value.trim() || null,
+          lang: langFilter.value.trim() || null,
+          domain: domainFilter.value.trim() || null,
+          url: urlFilter.value.trim() || null,
+          tags: tags.length > 0 ? tags : null
+        };
+      }
+
+      // Get Bluesky URL for a post
+      function getPostUrl(post) {
+        const handle = post.author.handle;
+        const postId = post.uri.split('/').pop();
+        return `https://bsky.app/profile/${handle}/post/${postId}`;
+      }
+
+      // Format date for display
+      function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleString();
+      }
+
+      // Format date for markdown (ISO format)
+      function formatDateISO(dateStr) {
+        const date = new Date(dateStr);
+        return date.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+      }
+
+      // Process text with facets (links, mentions, hashtags)
+      function processText(record) {
+        const text = record.text || '';
+        const facets = record.facets || [];
+
+        if (facets.length === 0) {
+          return escapeHtml(text);
+        }
+
+        // Sort facets by byte start position
+        const sortedFacets = [...facets].sort((a, b) => a.index.byteStart - b.index.byteStart);
+
+        // Convert string to bytes for proper slicing
+        const encoder = new TextEncoder();
+        const decoder = new TextDecoder();
+        const bytes = encoder.encode(text);
+
+        let result = '';
+        let lastEnd = 0;
+
+        for (const facet of sortedFacets) {
+          const start = facet.index.byteStart;
+          const end = facet.index.byteEnd;
+
+          // Add text before this facet
+          if (start > lastEnd) {
+            result += escapeHtml(decoder.decode(bytes.slice(lastEnd, start)));
+          }
+
+          const facetText = decoder.decode(bytes.slice(start, end));
+          const feature = facet.features[0];
+
+          if (feature.$type === 'app.bsky.richtext.facet#link') {
+            result += `<a href="${escapeHtml(feature.uri)}" target="_blank">${escapeHtml(facetText)}</a>`;
+          } else if (feature.$type === 'app.bsky.richtext.facet#mention') {
+            result += `<a href="https://bsky.app/profile/${escapeHtml(feature.did)}" target="_blank">${escapeHtml(facetText)}</a>`;
+          } else if (feature.$type === 'app.bsky.richtext.facet#tag') {
+            result += `<a href="https://bsky.app/hashtag/${escapeHtml(feature.tag)}" target="_blank">${escapeHtml(facetText)}</a>`;
+          } else {
+            result += escapeHtml(facetText);
+          }
+
+          lastEnd = end;
+        }
+
+        // Add remaining text
+        if (lastEnd < bytes.length) {
+          result += escapeHtml(decoder.decode(bytes.slice(lastEnd)));
+        }
+
+        return result;
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Display a single post
+      function displayPost(post, index) {
+        const el = document.createElement('div');
+        el.className = `post depth-${(index % 8) + 1}`;
+
+        const authorEl = document.createElement('div');
+        authorEl.className = 'author';
+        const authorLink = document.createElement('a');
+        authorLink.href = `https://bsky.app/profile/${post.author.handle}`;
+        authorLink.target = '_blank';
+        authorLink.textContent = `${post.author.displayName || post.author.handle} (@${post.author.handle})`;
+        authorEl.appendChild(authorLink);
+
+        const metaEl = document.createElement('div');
+        metaEl.className = 'meta';
+
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = formatDate(post.record.createdAt);
+        metaEl.appendChild(dateSpan);
+
+        const viewLink = document.createElement('a');
+        viewLink.href = getPostUrl(post);
+        viewLink.textContent = 'View on Bluesky';
+        viewLink.target = '_blank';
+        metaEl.appendChild(viewLink);
+
+        const textEl = document.createElement('div');
+        textEl.className = 'text';
+        textEl.innerHTML = processText(post.record);
+
+        const stats = document.createElement('div');
+        stats.className = 'stats';
+        stats.innerHTML = `
+          <span class="stat likes">&#x2665; ${post.likeCount || 0}</span>
+          <span class="stat reposts">&#x21BB; ${post.repostCount || 0}</span>
+          <span class="stat replies">&#x1F4AC; ${post.replyCount || 0}</span>
+        `;
+
+        el.append(authorEl, metaEl, textEl, stats);
+
+        // Add embed card if present
+        if (post.embed && post.embed.$type === 'app.bsky.embed.external#view') {
+          const embedCard = document.createElement('div');
+          embedCard.className = 'embed-card';
+          const embedLink = document.createElement('a');
+          embedLink.href = post.embed.external.uri;
+          embedLink.target = '_blank';
+          embedLink.className = 'embed-title';
+          embedLink.textContent = post.embed.external.title || post.embed.external.uri;
+          embedCard.appendChild(embedLink);
+
+          if (post.embed.external.description) {
+            const descEl = document.createElement('div');
+            descEl.className = 'embed-description';
+            descEl.textContent = post.embed.external.description;
+            embedCard.appendChild(descEl);
+          }
+          el.appendChild(embedCard);
+        }
+
+        return el;
+      }
+
+      // Render all posts
+      function renderPosts(append = false) {
+        if (!append) {
+          container.innerHTML = '';
+        }
+
+        if (allPosts.length === 0) {
+          container.innerHTML = '<div class="no-results">No posts found for this search.</div>';
+          return;
+        }
+
+        const startIndex = append ? container.querySelectorAll('.post').length : 0;
+        const postsToRender = append ? allPosts.slice(startIndex) : allPosts;
+
+        postsToRender.forEach((post, index) => {
+          container.appendChild(displayPost(post, startIndex + index));
+        });
+      }
+
+      // Generate markdown output for clipboard
+      function generateMarkdown() {
+        const query = searchQuery.value.trim();
+        const options = getSearchOptions();
+
+        let md = `# Bluesky Search Results\n\n`;
+        md += `**Query:** ${query}\n`;
+        md += `**Sort:** ${currentSort === 'latest' ? 'Latest' : 'Top'}\n`;
+        if (options.since) md += `**Since:** ${options.since}\n`;
+        if (options.until) md += `**Until:** ${options.until}\n`;
+        if (options.author) md += `**Author:** ${options.author}\n`;
+        if (options.mentions) md += `**Mentions:** ${options.mentions}\n`;
+        if (options.lang) md += `**Language:** ${options.lang}\n`;
+        if (options.domain) md += `**Domain:** ${options.domain}\n`;
+        if (options.url) md += `**URL:** ${options.url}\n`;
+        if (options.tags) md += `**Tags:** ${options.tags.join(', ')}\n`;
+        md += `**Results:** ${allPosts.length} posts\n`;
+        md += `**Generated:** ${new Date().toISOString()}\n\n`;
+        md += `---\n\n`;
+
+        allPosts.forEach((post, index) => {
+          const displayName = post.author.displayName || post.author.handle;
+          const handle = post.author.handle;
+          const timestamp = formatDateISO(post.record.createdAt);
+          const postUrl = getPostUrl(post);
+          const text = post.record.text || '';
+          const likes = post.likeCount || 0;
+          const reposts = post.repostCount || 0;
+          const replies = post.replyCount || 0;
+
+          md += `### ${index + 1}. ${displayName} (@${handle})\n\n`;
+          md += `**Posted:** ${timestamp}\n`;
+          md += `**Link:** ${postUrl}\n\n`;
+          md += `${text}\n\n`;
+          md += `*Likes: ${likes} | Reposts: ${reposts} | Replies: ${replies}*\n\n`;
+          md += `---\n\n`;
+        });
+
+        return md;
+      }
+
+      // Copy to clipboard handler
+      copyBtn.addEventListener('click', async () => {
+        try {
+          const markdown = generateMarkdown();
+          await navigator.clipboard.writeText(markdown);
+          const orig = copyBtn.textContent;
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => (copyBtn.textContent = orig), 2000);
+        } catch (err) {
+          console.error('Copy failed', err);
+        }
+      });
+
+      // Display detailed error with copy button
+      function displayError(err) {
+        let errorText = `Error: ${err.message}`;
+        let detailsText = '';
+
+        if (err.details) {
+          detailsText = `URL: ${err.details.url}\n\nStatus: ${err.details.status} ${err.details.statusText}\n\nResponse Body:\n${err.details.responseBody}`;
+        } else {
+          // Always include stack trace for debugging
+          detailsText = `Error Type: ${err.name || 'Error'}\nMessage: ${err.message}\n\nStack Trace:\n${err.stack || '(no stack trace available)'}`;
+        }
+
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error';
+
+        const errorMsg = document.createElement('div');
+        errorMsg.textContent = errorText;
+        errorDiv.appendChild(errorMsg);
+
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = 'error-details';
+        detailsDiv.textContent = detailsText;
+        errorDiv.appendChild(detailsDiv);
+
+        const copyErrorBtn = document.createElement('button');
+        copyErrorBtn.className = 'error-copy-btn';
+        copyErrorBtn.textContent = 'Copy Error Details';
+        copyErrorBtn.addEventListener('click', async () => {
+          try {
+            const fullError = `${errorText}\n\n${detailsText}`;
+            await navigator.clipboard.writeText(fullError);
+            const orig = copyErrorBtn.textContent;
+            copyErrorBtn.textContent = 'Copied!';
+            setTimeout(() => (copyErrorBtn.textContent = orig), 2000);
+          } catch (e) {
+            console.error('Copy failed', e);
+          }
+        });
+        errorDiv.appendChild(copyErrorBtn);
+
+        container.innerHTML = '';
+        container.appendChild(errorDiv);
+      }
+
+      // Update URL with current state
+      function updateUrl() {
+        const newUrl = new URL(window.location);
+        const query = searchQuery.value.trim();
+        const options = getSearchOptions();
+
+        if (query) {
+          newUrl.searchParams.set('q', query);
+        } else {
+          newUrl.searchParams.delete('q');
+        }
+
+        if (currentSort !== 'latest') {
+          newUrl.searchParams.set('sort', currentSort);
+        } else {
+          newUrl.searchParams.delete('sort');
+        }
+
+        // Date filters
+        if (options.since) {
+          newUrl.searchParams.set('since', options.since);
+        } else {
+          newUrl.searchParams.delete('since');
+        }
+
+        if (options.until) {
+          newUrl.searchParams.set('until', options.until);
+        } else {
+          newUrl.searchParams.delete('until');
+        }
+
+        // Advanced filters
+        if (options.author) {
+          newUrl.searchParams.set('author', options.author);
+        } else {
+          newUrl.searchParams.delete('author');
+        }
+
+        if (options.mentions) {
+          newUrl.searchParams.set('mentions', options.mentions);
+        } else {
+          newUrl.searchParams.delete('mentions');
+        }
+
+        if (options.lang) {
+          newUrl.searchParams.set('lang', options.lang);
+        } else {
+          newUrl.searchParams.delete('lang');
+        }
+
+        if (options.domain) {
+          newUrl.searchParams.set('domain', options.domain);
+        } else {
+          newUrl.searchParams.delete('domain');
+        }
+
+        if (options.url) {
+          newUrl.searchParams.set('url', options.url);
+        } else {
+          newUrl.searchParams.delete('url');
+        }
+
+        if (options.tags && options.tags.length > 0) {
+          newUrl.searchParams.set('tags', options.tags.join(','));
+        } else {
+          newUrl.searchParams.delete('tags');
+        }
+
+        history.replaceState(null, '', newUrl);
+      }
+
+      // Tab click handlers
+      viewTabs.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab')) {
+          const sort = e.target.dataset.sort;
+          if (sort !== currentSort) {
+            currentSort = sort;
+            viewTabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            e.target.classList.add('active');
+            updateUrl();
+
+            // Re-run search with new sort
+            if (currentQuery) {
+              performSearch(false);
+            }
+          }
+        }
+      });
+
+      // Load more button handler
+      loadMoreBtn.addEventListener('click', async () => {
+        if (isLoading || !currentCursor) return;
+
+        isLoading = true;
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.textContent = 'Loading...';
+
+        try {
+          const options = getSearchOptions();
+          const result = await searchPosts(currentQuery, currentSort, currentCursor, options);
+
+          if (result.posts && result.posts.length > 0) {
+            allPosts.push(...result.posts);
+            renderPosts(true);
+            resultCountEl.textContent = `Found ${allPosts.length} posts`;
+          }
+
+          currentCursor = result.cursor || null;
+          loadMoreContainer.style.display = currentCursor ? 'block' : 'none';
+        } catch (err) {
+          console.error(err);
+          displayError(err);
+        } finally {
+          isLoading = false;
+          loadMoreBtn.disabled = false;
+          loadMoreBtn.textContent = 'Load More';
+        }
+      });
+
+      // Perform search
+      async function performSearch(resetState = true) {
+        const query = searchQuery.value.trim();
+        if (!query) return;
+
+        if (resetState) {
+          container.innerHTML = '<div class="loading">Searching...</div>';
+          allPosts = [];
+          currentCursor = null;
+        }
+
+        currentQuery = query;
+        resultCountEl.textContent = '';
+        viewTabs.style.display = 'none';
+        copyContainer.style.display = 'none';
+        loadMoreContainer.style.display = 'none';
+
+        updateUrl();
+
+        try {
+          const options = getSearchOptions();
+          const result = await searchPosts(query, currentSort, null, options);
+
+          allPosts = result.posts || [];
+          currentCursor = result.cursor || null;
+
+          resultCountEl.textContent = `Found ${allPosts.length}${currentCursor ? '+' : ''} posts`;
+          viewTabs.style.display = 'block';
+
+          if (allPosts.length > 0) {
+            copyContainer.style.display = 'flex';
+          }
+
+          renderPosts();
+
+          loadMoreContainer.style.display = currentCursor ? 'block' : 'none';
+
+          // Update document title
+          document.title = `Bluesky Search: "${query}"`;
+
+        } catch (err) {
+          console.error(err);
+          displayError(err);
+        }
+      }
+
+      // Form submission
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await performSearch();
+      });
+
+      // Check for URL parameters on page load
+      const params = new URLSearchParams(window.location.search);
+      const queryParam = params.get('q');
+      const sortParam = params.get('sort');
+      const sinceParam = params.get('since');
+      const untilParam = params.get('until');
+      const authorParam = params.get('author');
+      const mentionsParam = params.get('mentions');
+      const langParam = params.get('lang');
+      const domainParam = params.get('domain');
+      const urlParam = params.get('url');
+      const tagsParam = params.get('tags');
+
+      if (sortParam && ['latest', 'top'].includes(sortParam)) {
+        currentSort = sortParam;
+        viewTabs.querySelectorAll('.tab').forEach(t => {
+          t.classList.toggle('active', t.dataset.sort === currentSort);
+        });
+      }
+
+      if (sinceParam) {
+        sinceDate.value = sinceParam;
+      }
+
+      if (untilParam) {
+        untilDate.value = untilParam;
+      }
+
+      // Restore advanced filters
+      if (authorParam) {
+        authorFilter.value = authorParam;
+      }
+
+      if (mentionsParam) {
+        mentionsFilter.value = mentionsParam;
+      }
+
+      if (langParam) {
+        langFilter.value = langParam;
+      }
+
+      if (domainParam) {
+        domainFilter.value = domainParam;
+      }
+
+      if (urlParam) {
+        urlFilter.value = urlParam;
+      }
+
+      if (tagsParam) {
+        tagFilter.value = tagsParam;
+      }
+
+      // Open advanced search if any advanced filters are set
+      const hasAdvancedFilters = authorParam || mentionsParam || langParam || domainParam || urlParam || tagsParam;
+      if (hasAdvancedFilters) {
+        document.querySelector('.advanced-search').open = true;
+      }
+
+      if (queryParam) {
+        searchQuery.value = queryParam;
+        performSearch();
+      }
+    })();
+  </script>
+</body>
+</html>
