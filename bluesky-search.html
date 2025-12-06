@@ -25,6 +25,78 @@
     .controls {
       margin-bottom: 1em;
     }
+    .auth-section {
+      background-color: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 1em;
+      margin-bottom: 1em;
+    }
+    .auth-section summary {
+      cursor: pointer;
+      font-weight: bold;
+      color: #333;
+      user-select: none;
+    }
+    .auth-section summary:hover {
+      color: #007bff;
+    }
+    .auth-section[open] summary {
+      margin-bottom: 0.75em;
+    }
+    .auth-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 0.5em;
+      align-items: end;
+    }
+    .auth-fields label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25em;
+      font-size: 0.85rem;
+      color: #666;
+    }
+    .auth-fields input {
+      font-size: 0.9rem;
+      padding: 0.5em;
+    }
+    .auth-fields button {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      height: fit-content;
+    }
+    .auth-fields button:hover {
+      background-color: #218838;
+    }
+    .auth-status {
+      margin-top: 0.5em;
+      font-size: 0.85rem;
+      color: #666;
+    }
+    .auth-status.logged-in {
+      color: #28a745;
+    }
+    .auth-status.error {
+      color: #dc3545;
+    }
+    .logout-btn {
+      background-color: #dc3545 !important;
+      margin-left: 0.5em;
+    }
+    .logout-btn:hover {
+      background-color: #c82333 !important;
+    }
+    @media (max-width: 600px) {
+      .auth-fields {
+        grid-template-columns: 1fr;
+      }
+    }
     form {
       display: flex;
       flex-direction: column;
@@ -328,7 +400,22 @@
 <body>
   <header>
     <h1>Bluesky Search</h1>
-    <p>Search posts on Bluesky</p>
+    <p>Search posts on Bluesky (requires authentication)</p>
+    <details class="auth-section" id="authSection" open>
+      <summary>Bluesky Login</summary>
+      <div class="auth-fields">
+        <label>
+          Handle or Email
+          <input type="text" id="authIdentifier" placeholder="you.bsky.social" />
+        </label>
+        <label>
+          App Password
+          <input type="password" id="authPassword" placeholder="xxxx-xxxx-xxxx-xxxx" />
+        </label>
+        <button type="button" id="loginBtn">Login</button>
+      </div>
+      <div class="auth-status" id="authStatus">Not logged in. <a href="https://bsky.app/settings/app-passwords" target="_blank">Create an app password</a></div>
+    </details>
     <div class="controls">
       <form id="searchForm">
         <div class="search-row">
@@ -416,11 +503,103 @@
       const urlFilter = document.getElementById('urlFilter');
       const tagFilter = document.getElementById('tagFilter');
 
+      // Auth elements
+      const authSection = document.getElementById('authSection');
+      const authIdentifier = document.getElementById('authIdentifier');
+      const authPassword = document.getElementById('authPassword');
+      const loginBtn = document.getElementById('loginBtn');
+      const authStatus = document.getElementById('authStatus');
+
       let allPosts = [];
       let currentSort = 'latest';
       let currentCursor = null;
       let currentQuery = '';
       let isLoading = false;
+
+      // Auth state
+      let accessJwt = null;
+
+      // Load saved credentials
+      const savedIdentifier = localStorage.getItem('bluesky_search_identifier');
+      const savedPassword = localStorage.getItem('bluesky_search_password');
+      if (savedIdentifier) authIdentifier.value = savedIdentifier;
+      if (savedPassword) authPassword.value = savedPassword;
+
+      // Auto-login if credentials are saved
+      if (savedIdentifier && savedPassword) {
+        login();
+      }
+
+      // Login function
+      async function login() {
+        const identifier = authIdentifier.value.trim();
+        const password = authPassword.value.trim();
+
+        if (!identifier || !password) {
+          authStatus.textContent = 'Please enter your handle and app password.';
+          authStatus.className = 'auth-status error';
+          return;
+        }
+
+        authStatus.textContent = 'Logging in...';
+        authStatus.className = 'auth-status';
+        loginBtn.disabled = true;
+
+        try {
+          const res = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, password })
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            throw new Error(data.message || data.error || 'Login failed');
+          }
+
+          accessJwt = data.accessJwt;
+
+          // Save credentials
+          localStorage.setItem('bluesky_search_identifier', identifier);
+          localStorage.setItem('bluesky_search_password', password);
+
+          // Update UI
+          authStatus.innerHTML = `Logged in as <strong>@${data.handle}</strong> <button class="logout-btn" id="logoutBtn">Logout</button>`;
+          authStatus.className = 'auth-status logged-in';
+          authSection.open = false;
+
+          // Add logout handler
+          document.getElementById('logoutBtn').addEventListener('click', logout);
+
+        } catch (err) {
+          authStatus.textContent = `Login failed: ${err.message}`;
+          authStatus.className = 'auth-status error';
+          accessJwt = null;
+        } finally {
+          loginBtn.disabled = false;
+        }
+      }
+
+      // Logout function
+      function logout() {
+        accessJwt = null;
+        localStorage.removeItem('bluesky_search_identifier');
+        localStorage.removeItem('bluesky_search_password');
+        authIdentifier.value = '';
+        authPassword.value = '';
+        authStatus.innerHTML = 'Not logged in. <a href="https://bsky.app/settings/app-passwords" target="_blank">Create an app password</a>';
+        authStatus.className = 'auth-status';
+        authSection.open = true;
+      }
+
+      // Login button handler
+      loginBtn.addEventListener('click', login);
+
+      // Allow Enter key to login
+      authPassword.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); login(); }
+      });
 
       searchQuery.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); form.requestSubmit(); }
@@ -428,7 +607,18 @@
 
       // Search posts using the Bluesky API
       async function searchPosts(query, sort, cursor = null, options = {}) {
-        const url = new URL('https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts');
+        if (!accessJwt) {
+          const error = new Error('Not logged in. Please login with your Bluesky credentials first.');
+          error.details = {
+            url: 'N/A',
+            status: 'N/A',
+            statusText: 'Authentication Required',
+            responseBody: 'You must login before searching. Click "Bluesky Login" above and enter your handle and app password.'
+          };
+          throw error;
+        }
+
+        const url = new URL('https://bsky.social/xrpc/app.bsky.feed.searchPosts');
         url.searchParams.set('q', query);
         url.searchParams.set('sort', sort);
         url.searchParams.set('limit', '100');
@@ -465,7 +655,11 @@
 
         let res;
         try {
-          res = await fetch(url);
+          res = await fetch(url, {
+            headers: {
+              'Authorization': `Bearer ${accessJwt}`
+            }
+          });
         } catch (fetchError) {
           const error = new Error(fetchError.message || 'Network request failed');
           error.details = {
