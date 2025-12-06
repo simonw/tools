@@ -526,34 +526,58 @@ async function render(markdown) {
 
 // Add copy to clipboard functionality
 const copyButton = document.getElementById('copy-button');
-copyButton.addEventListener('click', async () => {
+
+function showCopySuccess() {
+  const textSpan = copyButton.querySelector('.copy-text');
+  const originalText = textSpan.textContent;
+  textSpan.textContent = '✓ Copied!';
+  copyButton.style.backgroundColor = '#22863a';
+  setTimeout(() => {
+    textSpan.textContent = originalText;
+    copyButton.style.backgroundColor = '';
+  }, 2000);
+}
+
+function copyWithExecCommand() {
+  // Focus the textarea and select all content
+  output.focus();
+  output.select();
+  output.setSelectionRange(0, output.value.length);
+
   try {
-    await navigator.clipboard.writeText(output.value);
-    
-    // Create and show "Copied!" message
-    const messageEl = document.createElement('span');
-    messageEl.className = 'copied-message';
-    messageEl.textContent = 'Copied!';
-    copyButton.appendChild(messageEl);
-    
-    // Animate the message
-    setTimeout(() => messageEl.classList.add('show-message'), 10);
-    setTimeout(() => {
-      messageEl.classList.remove('show-message');
-      setTimeout(() => messageEl.remove(), 300);
-    }, 2000);
-    
-    // Change button text temporarily
-    const textSpan = copyButton.querySelector('.copy-text');
-    const originalText = textSpan.textContent;
-    textSpan.textContent = '✓';
-    setTimeout(() => {
-      textSpan.textContent = originalText;
-    }, 2000);
-    
+    const successful = document.execCommand('copy');
+    if (successful) {
+      showCopySuccess();
+      return true;
+    }
   } catch (err) {
-    console.error('Failed to copy text: ', err);
-    alert('Failed to copy. Please try selecting and copying manually.');
+    console.error('execCommand copy failed:', err);
+  }
+  return false;
+}
+
+copyButton.addEventListener('click', async () => {
+  if (!output.value) {
+    return;
+  }
+
+  // Try modern clipboard API first
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(output.value);
+      showCopySuccess();
+      return;
+    } catch (err) {
+      console.warn('navigator.clipboard.writeText failed, trying fallback:', err);
+    }
+  }
+
+  // Fallback to execCommand
+  if (!copyWithExecCommand()) {
+    // Last resort: prompt user to copy manually
+    output.focus();
+    output.select();
+    alert('Press Ctrl+C (Cmd+C on Mac) to copy the selected text.');
   }
 });
 
