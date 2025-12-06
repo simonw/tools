@@ -1,5 +1,5 @@
-# Bluesky Search Documentation
+# Documentation
 
-This application provides a web interface for searching posts on Bluesky, the decentralized social network. Users must authenticate with their Bluesky handle and app password to access the search functionality, which integrates with the official Bluesky API to retrieve posts based on various criteria. The application supports basic keyword searches as well as advanced filtering options including date ranges, specific authors, mentions, language, linked domains, and hashtags, with results displayable in chronological or popularity order.
+This page provides a web-based interface for searching posts on Bluesky, the decentralized social network. Users must first authenticate with their Bluesky credentials by providing their handle and an app password, which can be created through the Bluesky settings. Once logged in, users can search for posts using basic or advanced filters including date ranges, specific authors, mentions, languages, domains, URLs, and hashtags, with results displayed sorted by either latest or top engagement.
 
-<!-- Generated from commit: 8d914991517dea44aa1c6bbdc089542f69c93cba -->
+<!-- Generated from commit: 86aaf4865dc096a40771889e2b6a8abf3fe97c0d -->
