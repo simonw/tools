@@ -8,6 +8,9 @@ fi
 
 echo "=== Building tools.simonwillison.net ==="
 
+echo "Building redirects from _redirects.json..."
+python build_redirects.py
+
 echo "Gathering links and metadata..."
 python gather_links.py
 
