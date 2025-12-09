@@ -1,0 +1,3 @@
+This page implements an automatic redirect to the `/ocr` endpoint using the HTML `meta` refresh tag with a zero-second delay. For users whose browsers do not automatically follow the redirect, a manual fallback link is provided to ensure they can still navigate to the intended destination. This pattern is commonly used during site migrations or when consolidating multiple URLs to a single canonical location.
+
+<!-- Generated from commit: 1f1afee14e6414c75bd6af6f4b6a677c9ab890a0 -->
