@@ -1,3 +1,0 @@
-This HTML page implements an automatic redirect to the website www.llm-prices.com. The page uses a meta refresh tag with a zero-second delay to immediately redirect the visitor upon loading. For visitors whose browsers don't support automatic redirects or have them disabled, a fallback text message with a clickable link is provided.
-
-<!-- Generated from commit: 2a42439302be82e65b92f3525a8dd0d48f83c3f4 -->
