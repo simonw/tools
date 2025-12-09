@@ -8,9 +8,6 @@ fi
 
 echo "=== Building tools.simonwillison.net ==="
 
-echo "Building redirects from _redirects.json..."
-python build_redirects.py
-
 echo "Gathering links and metadata..."
 python gather_links.py
 
@@ -59,5 +56,9 @@ for file in *.html; do
     fi
   fi
 done
+
+# Build redirects last so they don't get indexed in tools.json
+echo "Building redirects from _redirects.json..."
+python build_redirects.py
 
 echo "=== Build complete! ==="
