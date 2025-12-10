@@ -1,3 +1,3 @@
-This tool fetches GitHub issues and their comments, converting them into formatted markdown documents that can be easily saved or shared. It supports optional GitHub personal access tokens (stored locally in your browser) for accessing private repositories and higher API rate limits, and automatically expands any GitHub code snippet links within the issue with their actual source code. Simply paste a GitHub issue URL, click convert, and copy the resulting markdown to your clipboard.
+This tool converts GitHub issues to markdown format by fetching the issue data and all associated comments from the GitHub API. Users can optionally provide a personal access token to access private repositories and increase API rate limits, which is stored locally in the browser for convenience. The tool also automatically expands any GitHub code blob URLs found in the issue or comments with their actual code snippets, formatted as syntax-highlighted code blocks.
 
-<!-- Generated from commit: c021b9ae4639a886424176160b7cebc99d0e4ec4 -->
+<!-- Generated from commit: 2c5098686d911322de52778fe1c0811861ada77f -->
