@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>PyPI Package Changelog</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
+<style>
+* {
+  box-sizing: border-box;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+  color: #333;
+}
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+input[type="text"] {
+  font-size: 16px;
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+input[type="text"]:focus {
+  outline: none;
+  border-color: #007aff;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+button {
+  font-size: 16px;
+  padding: 0.75rem 1.25rem;
+  background: #007aff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:hover {
+  background: #0066dd;
+}
+button:active {
+  background: #005ecb;
+}
+button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+p {
+  font-size: 0.875rem;
+  color: #666;
+  margin-top: 0.75rem;
+}
+p code {
+  font-size: 0.75rem;
+  background: #f0f0f0;
+  padding: 0.15rem 0.3rem;
+  border-radius: 3px;
+}
+#versionList {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-top: 1rem;
+  overflow: hidden;
+}
+#versionList h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: #f8f8f8;
+  border-bottom: 1px solid #e0e0e0;
+}
+.version-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #eee;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.version-item:last-child {
+  border-bottom: none;
+}
+.version-number {
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+.version-date {
+  color: #666;
+  font-size: 0.75rem;
+}
+.show-changes-btn {
+  font-size: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  background: #28a745;
+  margin: 0.5rem 1rem;
+  display: block;
+}
+.show-changes-btn:hover {
+  background: #218838;
+}
+.diff-container {
+  margin: 0;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+  overflow: hidden;
+}
+.diff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: #f0f0f0;
+  border-bottom: 1px solid #e0e0e0;
+}
+.diff-header h4 {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.copy-btn {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  background: #6c757d;
+}
+.copy-btn:hover {
+  background: #5a6268;
+}
+.copy-btn.copied {
+  background: #28a745;
+}
+.diff-content {
+  max-height: 600px;
+  overflow: auto;
+  position: relative;
+}
+.status {
+  padding: 1rem;
+  color: #666;
+  font-size: 0.875rem;
+}
+.loading {
+  color: #007aff;
+}
+.error {
+  color: #dc3545;
+}
+/* diff2html overrides */
+.d2h-wrapper {
+  margin: 0;
+}
+.d2h-file-wrapper {
+  border: none;
+  margin-bottom: 0;
+}
+.d2h-file-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.d2h-code-wrapper {
+  position: relative;
+}
+.d2h-code-line-ctn {
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+@media (min-width: 500px) {
+  body {
+    padding: 2rem;
+  }
+  h1 {
+    font-size: 1.75rem;
+  }
+}
+</style>
+</head>
+<body>
+<h1>PyPI Package Changelog</h1>
+<input type="text" id="packageInput" placeholder="Package name (e.g. requests, flask, llm)" onkeydown="if(event.key==='Enter')lookupPackage()">
+<button onclick="lookupPackage()">Look Up Package</button>
+<p>Enter a PyPI package name to see all versions and compare changes between them.</p>
+<div id="versionList" style="display: none"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
+<script>
+let packageData = null;
+let versionWheels = {};
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function updateUrl(packageName, compare = null) {
+    const params = new URLSearchParams();
+    params.set('package', packageName);
+    if (compare) {
+        params.set('compare', compare);
+    }
+    history.replaceState(null, '', '?' + params.toString());
+}
+
+async function lookupPackage() {
+    const packageName = document.getElementById('packageInput').value.trim();
+    const versionListEl = document.getElementById('versionList');
+
+    if (!packageName) return;
+
+    versionListEl.style.display = 'block';
+    versionListEl.innerHTML = `<div class="status loading">Looking up "${escapeHtml(packageName)}" on PyPI...</div>`;
+    updateUrl(packageName);
+
+    try {
+        const response = await fetch(`https://pypi.org/pypi/${encodeURIComponent(packageName)}/json`);
+        if (!response.ok) {
+            versionListEl.innerHTML = `<div class="status error">Package "${escapeHtml(packageName)}" not found on PyPI</div>`;
+            return;
+        }
+
+        packageData = await response.json();
+        versionWheels = {};
+
+        // Get all versions with wheel URLs
+        const releases = packageData.releases;
+        const versions = Object.keys(releases)
+            .filter(v => {
+                const files = releases[v];
+                return files.some(f => f.filename.endsWith('.whl'));
+            })
+            .sort(compareVersions)
+            .reverse();
+
+        if (versions.length === 0) {
+            versionListEl.innerHTML = `<div class="status error">No wheel files found for "${escapeHtml(packageName)}"</div>`;
+            return;
+        }
+
+        // Store wheel URLs for each version
+        versions.forEach(v => {
+            const wheel = releases[v].find(f => f.filename.endsWith('.whl'));
+            if (wheel) {
+                versionWheels[v] = {
+                    url: wheel.url,
+                    filename: wheel.filename,
+                    uploadTime: wheel.upload_time_iso_8601
+                };
+            }
+        });
+
+        renderVersionList(versions);
+
+    } catch (error) {
+        versionListEl.innerHTML = `<div class="status error">Error: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+function compareVersions(a, b) {
+    const normalize = v => v.split(/[.\-]/).map(x => {
+        const n = parseInt(x, 10);
+        return isNaN(n) ? x : n;
+    });
+    const aParts = normalize(a);
+    const bParts = normalize(b);
+
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+        const aVal = aParts[i] ?? 0;
+        const bVal = bParts[i] ?? 0;
+
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+            if (aVal < bVal) return -1;
+            if (aVal > bVal) return 1;
+        } else {
+            const cmp = String(aVal).localeCompare(String(bVal));
+            if (cmp !== 0) return cmp;
+        }
+    }
+    return 0;
+}
+
+function renderVersionList(versions) {
+    const versionListEl = document.getElementById('versionList');
+    versionListEl.innerHTML = `<h3>${escapeHtml(packageData.info.name)} - ${versions.length} versions with wheels</h3>`;
+
+    versions.forEach((version, index) => {
+        const info = versionWheels[version];
+        const date = info.uploadTime ? new Date(info.uploadTime).toLocaleDateString() : '';
+
+        const versionEl = document.createElement('div');
+        versionEl.className = 'version-item';
+        versionEl.innerHTML = `
+            <span class="version-number">${escapeHtml(version)}</span>
+            <span class="version-date">${escapeHtml(date)}</span>
+        `;
+        versionListEl.appendChild(versionEl);
+
+        // Add "Show changes" button between versions
+        if (index < versions.length - 1) {
+            const nextVersion = versions[index + 1];
+            const btnContainer = document.createElement('div');
+            btnContainer.style.textAlign = 'center';
+
+            const btn = document.createElement('button');
+            btn.className = 'show-changes-btn';
+            btn.textContent = `Show changes: ${nextVersion} → ${version}`;
+            btn.onclick = () => showDiff(nextVersion, version, btn);
+            btnContainer.appendChild(btn);
+
+            versionListEl.appendChild(btnContainer);
+        }
+    });
+}
+
+function getDistInfoSuffix(filename) {
+    // Extract the part after the .dist-info/ prefix
+    // e.g., "llm-0.25a0.dist-info/METADATA" -> "METADATA"
+    const match = filename.match(/\.dist-info\/(.+)$/);
+    return match ? match[1] : null;
+}
+
+function isDistInfoFile(filename) {
+    return /\.dist-info\//.test(filename);
+}
+
+async function fetchWheelContents(version) {
+    const info = versionWheels[version];
+    if (!info) throw new Error(`No wheel found for version ${version}`);
+
+    const response = await fetch(info.url);
+    const arrayBuffer = await response.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+
+    const files = {};
+    for (const [name, file] of Object.entries(zip.files)) {
+        if (!file.dir) {
+            try {
+                files[name] = await file.async('text');
+            } catch (e) {
+                files[name] = '[Binary file]';
+            }
+        }
+    }
+    return files;
+}
+
+function matchFiles(oldFiles, newFiles) {
+    // Returns array of {oldName, newName, oldContent, newContent}
+    // Handles renames for .dist-info files
+    const results = [];
+    const matchedOld = new Set();
+    const matchedNew = new Set();
+
+    // First, match .dist-info files by their suffix
+    const oldDistInfo = {};
+    const newDistInfo = {};
+
+    for (const name of Object.keys(oldFiles)) {
+        const suffix = getDistInfoSuffix(name);
+        if (suffix) oldDistInfo[suffix] = name;
+    }
+    for (const name of Object.keys(newFiles)) {
+        const suffix = getDistInfoSuffix(name);
+        if (suffix) newDistInfo[suffix] = name;
+    }
+
+    // Match dist-info files by suffix
+    for (const suffix of new Set([...Object.keys(oldDistInfo), ...Object.keys(newDistInfo)])) {
+        const oldName = oldDistInfo[suffix];
+        const newName = newDistInfo[suffix];
+
+        results.push({
+            oldName: oldName || null,
+            newName: newName || null,
+            oldContent: oldName ? oldFiles[oldName] : '',
+            newContent: newName ? newFiles[newName] : '',
+            isRename: oldName && newName && oldName !== newName
+        });
+
+        if (oldName) matchedOld.add(oldName);
+        if (newName) matchedNew.add(newName);
+    }
+
+    // Match remaining files directly by name
+    const remainingOld = Object.keys(oldFiles).filter(n => !matchedOld.has(n));
+    const remainingNew = Object.keys(newFiles).filter(n => !matchedNew.has(n));
+    const allRemaining = new Set([...remainingOld, ...remainingNew]);
+
+    for (const name of allRemaining) {
+        const inOld = !matchedOld.has(name) && name in oldFiles;
+        const inNew = !matchedNew.has(name) && name in newFiles;
+
+        results.push({
+            oldName: inOld ? name : null,
+            newName: inNew ? name : null,
+            oldContent: inOld ? oldFiles[name] : '',
+            newContent: inNew ? newFiles[name] : '',
+            isRename: false
+        });
+    }
+
+    return results;
+}
+
+async function showDiff(oldVersion, newVersion, btn) {
+    // Check if diff is already shown
+    const existingDiff = btn.parentElement.nextElementSibling;
+    if (existingDiff && existingDiff.classList.contains('diff-container')) {
+        existingDiff.remove();
+        btn.textContent = `Show changes: ${oldVersion} → ${newVersion}`;
+        // Clear compare from URL
+        const packageName = document.getElementById('packageInput').value.trim();
+        updateUrl(packageName);
+        return;
+    }
+
+    const originalText = btn.textContent;
+    btn.textContent = 'Loading...';
+    btn.disabled = true;
+
+    try {
+        // Fetch both wheel contents in parallel
+        const [oldFiles, newFiles] = await Promise.all([
+            fetchWheelContents(oldVersion),
+            fetchWheelContents(newVersion)
+        ]);
+
+        // Match files, handling renames for .dist-info
+        const fileMatches = matchFiles(oldFiles, newFiles);
+        let fullDiff = '';
+
+        // Sort by the display name (prefer newName, fall back to oldName)
+        fileMatches.sort((a, b) => {
+            const aName = a.newName || a.oldName;
+            const bName = b.newName || b.oldName;
+            return aName.localeCompare(bName);
+        });
+
+        for (const match of fileMatches) {
+            const { oldName, newName, oldContent, newContent, isRename } = match;
+
+            if (oldContent === newContent && !isRename) continue;
+
+            // Skip binary files
+            if (oldContent === '[Binary file]' || newContent === '[Binary file]') {
+                const displayName = newName || oldName;
+                fullDiff += `diff --git a/${displayName} b/${displayName}\n`;
+                fullDiff += `Binary files differ\n`;
+                continue;
+            }
+
+            // For renames with no content change, just show rename
+            if (isRename && oldContent === newContent) {
+                fullDiff += `diff --git a/${oldName} b/${newName}\n`;
+                fullDiff += `similarity index 100%\n`;
+                fullDiff += `rename from ${oldName}\n`;
+                fullDiff += `rename to ${newName}\n\n`;
+                continue;
+            }
+
+            // Generate the diff - use a normalized name for comparison display
+            const displayName = newName || oldName;
+
+            const filePatch = Diff.createTwoFilesPatch(
+                `a/${displayName}`,
+                `b/${displayName}`,
+                oldContent,
+                newContent,
+                oldVersion,
+                newVersion,
+                { context: 3 }
+            );
+
+            // Only include if there are actual changes
+            if (filePatch.includes('@@')) {
+                // Add git-style header for diff2html to recognize file boundaries
+                fullDiff += `diff --git a/${displayName} b/${displayName}\n`;
+                // Skip the first line of filePatch if it starts with ===
+                const lines = filePatch.split('\n');
+                const startIndex = lines[0].startsWith('===') ? 1 : 0;
+                fullDiff += lines.slice(startIndex).join('\n') + '\n';
+            }
+        }
+
+        if (!fullDiff.trim()) {
+            fullDiff = 'No differences found (files are identical)';
+        }
+
+        // Create diff container
+        const diffContainer = document.createElement('div');
+        diffContainer.className = 'diff-container';
+
+        const diffHeader = document.createElement('div');
+        diffHeader.className = 'diff-header';
+        diffHeader.innerHTML = `
+            <h4>Changes: ${escapeHtml(oldVersion)} → ${escapeHtml(newVersion)}</h4>
+            <button class="copy-btn" onclick="copyDiff(this)">Copy Diff</button>
+        `;
+
+        const diffContent = document.createElement('div');
+        diffContent.className = 'diff-content';
+
+        // Store raw diff for copying
+        diffContainer.dataset.rawDiff = fullDiff;
+
+        // Render pretty diff with diff2html
+        if (fullDiff.includes('@@') || fullDiff.includes('Binary files')) {
+            const diffHtml = Diff2Html.html(fullDiff, {
+                drawFileList: false,
+                matching: 'lines',
+                outputFormat: 'line-by-line'
+            });
+            diffContent.innerHTML = diffHtml;
+        } else {
+            diffContent.innerHTML = `<div class="status">${escapeHtml(fullDiff)}</div>`;
+        }
+
+        diffContainer.appendChild(diffHeader);
+        diffContainer.appendChild(diffContent);
+
+        // Insert after button container
+        btn.parentElement.after(diffContainer);
+        btn.textContent = `Hide changes: ${oldVersion} → ${newVersion}`;
+
+        // Update URL to reflect current comparison
+        const packageName = document.getElementById('packageInput').value.trim();
+        updateUrl(packageName, `${oldVersion}...${newVersion}`);
+
+    } catch (error) {
+        console.error(error);
+        alert(`Error loading diff: ${error.message}`);
+        btn.textContent = originalText;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function copyDiff(copyBtn) {
+    const diffContainer = copyBtn.closest('.diff-container');
+    const rawDiff = diffContainer.dataset.rawDiff;
+
+    navigator.clipboard.writeText(rawDiff).then(() => {
+        copyBtn.textContent = 'Copied!';
+        copyBtn.classList.add('copied');
+        setTimeout(() => {
+            copyBtn.textContent = 'Copy Diff';
+            copyBtn.classList.remove('copied');
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        alert('Failed to copy to clipboard');
+    });
+}
+
+async function showArbitraryDiff(oldVersion, newVersion) {
+    // Show diff for any two versions, even non-adjacent ones
+    const versionListEl = document.getElementById('versionList');
+
+    // Check both versions exist
+    if (!versionWheels[oldVersion]) {
+        versionListEl.innerHTML += `<div class="status error">Version "${escapeHtml(oldVersion)}" not found</div>`;
+        return;
+    }
+    if (!versionWheels[newVersion]) {
+        versionListEl.innerHTML += `<div class="status error">Version "${escapeHtml(newVersion)}" not found</div>`;
+        return;
+    }
+
+    // Create a container for this arbitrary diff at the top
+    const diffHeader = document.createElement('div');
+    diffHeader.className = 'arbitrary-diff-header';
+    diffHeader.style.cssText = 'padding: 0.75rem 1rem; background: #fff3cd; border-bottom: 1px solid #e0e0e0; font-size: 0.875rem;';
+    diffHeader.innerHTML = `Comparing: <strong>${escapeHtml(oldVersion)}</strong> → <strong>${escapeHtml(newVersion)}</strong> (custom range)`;
+
+    // Insert after the h3
+    const h3 = versionListEl.querySelector('h3');
+    h3.after(diffHeader);
+
+    // Create diff directly instead of using fake button
+    const packageName = document.getElementById('packageInput').value.trim();
+
+    // Show loading state
+    const loadingEl = document.createElement('div');
+    loadingEl.className = 'status loading';
+    loadingEl.textContent = 'Loading diff...';
+    diffHeader.after(loadingEl);
+
+    try {
+        // Fetch both wheel contents in parallel
+        const [oldFiles, newFiles] = await Promise.all([
+            fetchWheelContents(oldVersion),
+            fetchWheelContents(newVersion)
+        ]);
+
+        // Match files, handling renames for .dist-info
+        const fileMatches = matchFiles(oldFiles, newFiles);
+        let fullDiff = '';
+
+        // Sort by the display name (prefer newName, fall back to oldName)
+        fileMatches.sort((a, b) => {
+            const aName = a.newName || a.oldName;
+            const bName = b.newName || b.oldName;
+            return aName.localeCompare(bName);
+        });
+
+        for (const match of fileMatches) {
+            const { oldName, newName, oldContent, newContent, isRename } = match;
+
+            if (oldContent === newContent && !isRename) continue;
+
+            // Skip binary files
+            if (oldContent === '[Binary file]' || newContent === '[Binary file]') {
+                const displayName = newName || oldName;
+                fullDiff += `diff --git a/${displayName} b/${displayName}\n`;
+                fullDiff += `Binary files differ\n`;
+                continue;
+            }
+
+            // For renames with no content change, just show rename
+            if (isRename && oldContent === newContent) {
+                fullDiff += `diff --git a/${oldName} b/${newName}\n`;
+                fullDiff += `similarity index 100%\n`;
+                fullDiff += `rename from ${oldName}\n`;
+                fullDiff += `rename to ${newName}\n\n`;
+                continue;
+            }
+
+            // Generate the diff - use a normalized name for comparison display
+            const displayName = newName || oldName;
+
+            const filePatch = Diff.createTwoFilesPatch(
+                `a/${displayName}`,
+                `b/${displayName}`,
+                oldContent,
+                newContent,
+                oldVersion,
+                newVersion,
+                { context: 3 }
+            );
+
+            if (filePatch.includes('@@')) {
+                // Add git-style header for diff2html to recognize file boundaries
+                fullDiff += `diff --git a/${displayName} b/${displayName}\n`;
+                // Skip the first line of filePatch if it starts with ===
+                const lines = filePatch.split('\n');
+                const startIndex = lines[0].startsWith('===') ? 1 : 0;
+                fullDiff += lines.slice(startIndex).join('\n') + '\n';
+            }
+        }
+
+        if (!fullDiff.trim()) {
+            fullDiff = 'No differences found (files are identical)';
+        }
+
+        // Remove loading indicator
+        loadingEl.remove();
+
+        // Create diff container
+        const diffContainer = document.createElement('div');
+        diffContainer.className = 'diff-container';
+
+        const diffHeaderBar = document.createElement('div');
+        diffHeaderBar.className = 'diff-header';
+        diffHeaderBar.innerHTML = `
+            <h4>Changes: ${escapeHtml(oldVersion)} → ${escapeHtml(newVersion)}</h4>
+            <button class="copy-btn" onclick="copyDiff(this)">Copy Diff</button>
+        `;
+
+        const diffContent = document.createElement('div');
+        diffContent.className = 'diff-content';
+
+        diffContainer.dataset.rawDiff = fullDiff;
+
+        if (fullDiff.includes('@@') || fullDiff.includes('Binary files')) {
+            const diffHtml = Diff2Html.html(fullDiff, {
+                drawFileList: false,
+                matching: 'lines',
+                outputFormat: 'line-by-line'
+            });
+            diffContent.innerHTML = diffHtml;
+        } else {
+            diffContent.innerHTML = `<div class="status">${escapeHtml(fullDiff)}</div>`;
+        }
+
+        diffContainer.appendChild(diffHeaderBar);
+        diffContainer.appendChild(diffContent);
+
+        // Insert right after the header
+        diffHeader.after(diffContainer);
+
+        // Update URL
+        updateUrl(packageName, `${oldVersion}...${newVersion}`);
+
+    } catch (error) {
+        loadingEl.remove();
+        const errorEl = document.createElement('div');
+        errorEl.className = 'status error';
+        errorEl.textContent = `Error loading diff: ${error.message}`;
+        diffHeader.after(errorEl);
+    }
+}
+
+// Check for query params on page load
+const params = new URLSearchParams(window.location.search);
+const packageParam = params.get('package');
+const compareParam = params.get('compare');
+
+if (packageParam) {
+    document.getElementById('packageInput').value = packageParam;
+    lookupPackage().then(() => {
+        // After package loads, check if we need to show a comparison
+        if (compareParam && compareParam.includes('...')) {
+            const [oldVersion, newVersion] = compareParam.split('...');
+            showArbitraryDiff(oldVersion, newVersion);
+        }
+    });
+}
+</script>
+</body>
+</html>
