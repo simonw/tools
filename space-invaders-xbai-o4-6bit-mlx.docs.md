@@ -1,3 +1,0 @@
-This Space Invaders game lets you control a player ship at the bottom of the screen and shoot at rows of enemy invaders above. Move your ship left and right with the arrow keys or A/D keys, and press the spacebar to fire bullets at the enemies. The game ends when you destroy all enemies (you win) or when the enemies reach the bottom of the screen (you lose).
-
-<!-- Generated from commit: c7ecb981396039cdb79ef366d29913bb70cfa71a -->
