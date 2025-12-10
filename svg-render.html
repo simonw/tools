@@ -78,7 +78,7 @@
 <body>
     <h1>SVG to JPEG/PNG</h1>
     <input type="file" id="fileInput" accept=".svg">
-    <a href="https://gist.githubusercontent.com/simonw/aedecb93564af13ac1596810d40cac3c/raw/83e7f3be5b65bba61124684700fa7925d37c36c3/tiger.svg" id="loadExampleLink">Load example image</a>
+    <a href="?url=https://gist.githubusercontent.com/simonw/aedecb93564af13ac1596810d40cac3c/raw/83e7f3be5b65bba61124684700fa7925d37c36c3/tiger.svg" id="loadExampleLink">Load example image</a>
     <div id="dropZone">
         <textarea id="svgInput" placeholder="Paste your SVG code here or drag & drop an SVG file"></textarea>
     </div>
@@ -121,7 +121,6 @@
         const fileInput = document.getElementById('fileInput');
         const widthInput = document.getElementById('widthInput');
         const paddingInput = document.getElementById('paddingInput');
-        const loadExampleLink = document.getElementById('loadExampleLink');
         const bgColor = document.getElementById('bgColor');
         const transparentBg = document.getElementById('transparentBg');
         const fileSizeSpan = document.getElementById('fileSize');
@@ -188,21 +187,30 @@
             };
         }
 
-        // Load example image functionality
-        loadExampleLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            const exampleSvgUrl = loadExampleLink.href;
-            fetch(exampleSvgUrl)
-                .then(response => response.text())
-                .then(data => {
-                    svgInput.value = data;
-                    convertSvgToImage(); // Update preview with the loaded example
-                })
-                .catch(error => {
-                    console.error('Error loading example SVG:', error);
-                    alert('Failed to load example SVG. Please try again later.');
-                });
-        });
+        // Load SVG from ?url= parameter if present
+        function loadFromUrlParamIfPresent() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const svgUrl = urlParams.get('url');
+            if (svgUrl) {
+                fetch(svgUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        return response.text();
+                    })
+                    .then(data => {
+                        svgInput.value = data;
+                        convertSvgToImage();
+                    })
+                    .catch(error => {
+                        console.error('Error loading SVG from URL:', error);
+                        alert('Failed to load SVG from URL: ' + error.message);
+                    });
+                return true;
+            }
+            return false;
+        }
 
         // Color and transparency handling
         bgColor.addEventListener('input', () => {
@@ -364,7 +372,11 @@
                 outputDiv.style.display = 'block';
 
                 // ✅ Update URL hash with current textarea contents AFTER a successful render
-                setHashFromText(svgInput.value);
+                // (but not when loading from ?url= parameter - the URL already references the source)
+                const urlParams = new URLSearchParams(window.location.search);
+                if (!urlParams.get('url')) {
+                    setHashFromText(svgInput.value);
+                }
             };
             img.src = svgUrl;
         }
@@ -389,8 +401,12 @@
             }, 2000);
         }
 
-        // On first load, if a hash fragment exists, use it to populate and render
-        window.addEventListener('DOMContentLoaded', loadFromHashIfPresent);
+        // On first load, check for ?url= parameter first, then fall back to hash
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!loadFromUrlParamIfPresent()) {
+                loadFromHashIfPresent();
+            }
+        });
     </script>
 </body>
 </html>
