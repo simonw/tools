@@ -987,10 +987,13 @@ curl -X POST 'https://api.example.com/data' \
       // Set URL
       urlInput.value = parsed.url;
 
-      // Set headers
-      headerPairs = parsed.headers.length > 0
-        ? parsed.headers
-        : [{ key: "", value: "" }];
+      // Set headers - clear and push to keep same array reference
+      headerPairs.length = 0;
+      if (parsed.headers.length > 0) {
+        parsed.headers.forEach(h => headerPairs.push(h));
+      } else {
+        headerPairs.push({ key: "", value: "" });
+      }
       renderHeaderPairs();
       updateHeadersCount();
 
@@ -1012,7 +1015,7 @@ curl -X POST 'https://api.example.com/data' \
           if (parsed.body.includes("=") && !parsed.body.includes("{")) {
             setBodyType("form");
             const params = new URLSearchParams(parsed.body);
-            kvPairs = [];
+            kvPairs.length = 0;
             for (const [key, value] of params) {
               kvPairs.push({ key, value });
             }
@@ -1347,20 +1350,23 @@ curl -X POST 'https://api.example.com/data' \
         setBodyType(state.bodyType);
         jsonBodyTextarea.value = state.jsonBody;
 
+        // Clear and push to keep same array references
+        kvPairs.length = 0;
         if (state.formPairs && state.formPairs.length > 0) {
-          kvPairs = state.formPairs;
+          state.formPairs.forEach(p => kvPairs.push(p));
         } else {
-          kvPairs = [{ key: "", value: "" }];
+          kvPairs.push({ key: "", value: "" });
         }
         renderKvPairs();
 
+        headerPairs.length = 0;
         if (state.headers && state.headers.length > 0) {
-          headerPairs = state.headers;
+          state.headers.forEach(h => headerPairs.push(h));
           // Expand headers section if there are headers
           headersToggle.classList.remove("collapsed");
           headersEditorContainer.classList.remove("collapsed");
         } else {
-          headerPairs = [{ key: "", value: "" }];
+          headerPairs.push({ key: "", value: "" });
         }
         renderHeaderPairs();
         updateHeadersCount();
