@@ -1,3 +1,5 @@
-This page provides an interactive tool for testing CORS-enabled fetch requests directly in the browser. Users can enter a URL and send a GET request to inspect the response status, headers (limited to those exposed by CORS), and response body in a formatted interface. The tool automatically normalizes URLs by adding `https://` if no scheme is provided, validates the input, and displays detailed error messages when requests fail due to CORS restrictions or network issues, making it useful for debugging API connectivity and CORS configuration problems.
+# Documentation
 
-<!-- Generated from commit: bbe460d486dabdf6f5181bfd9af728a0958353a0 -->
+This page provides an interactive tool for testing HTTP requests and inspecting CORS (Cross-Origin Resource Sharing) behavior in the browser. Users can construct requests with custom methods, headers, and body content, then send them to any URL to see which headers and response data the browser permits access to based on CORS policies. The tool includes a curl command importer for quickly converting existing curl requests, stores request state in the URL fragment for easy sharing, and displays detailed information about response status, headers, and body content while clearly indicating when the browser blocks access due to CORS restrictions.
+
+<!-- Generated from commit: f009d6730db1ebe83ba0995055b6ea1fe35fd1d0 -->
