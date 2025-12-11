@@ -851,44 +851,81 @@ curl -X POST 'https://api.example.com/data' \
         tokens.push(current);
       }
 
+      // Helper to parse a header string
+      function parseHeader(headerStr) {
+        const colonIdx = headerStr.indexOf(":");
+        if (colonIdx > 0) {
+          const key = headerStr.substring(0, colonIdx).trim();
+          const value = headerStr.substring(colonIdx + 1).trim();
+          result.headers.push({ key, value });
+        }
+      }
+
       // Parse tokens
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
 
         if (token === "curl") continue;
 
-        // Method
+        // Method: -X POST or --request POST
         if (token === "-X" || token === "--request") {
           if (i + 1 < tokens.length) {
             result.method = tokens[++i].toUpperCase();
           }
           continue;
         }
-
-        // Header
-        if (token === "-H" || token === "--header") {
-          if (i + 1 < tokens.length) {
-            const headerStr = tokens[++i];
-            const colonIdx = headerStr.indexOf(":");
-            if (colonIdx > 0) {
-              const key = headerStr.substring(0, colonIdx).trim();
-              const value = headerStr.substring(colonIdx + 1).trim();
-              result.headers.push({ key, value });
-            }
-          }
+        // Method: -XPOST (attached)
+        if (token.startsWith("-X") && token.length > 2) {
+          result.method = token.substring(2).toUpperCase();
           continue;
         }
 
-        // Data
+        // Header: -H "..." or --header "..."
+        if (token === "-H" || token === "--header") {
+          if (i + 1 < tokens.length) {
+            parseHeader(tokens[++i]);
+          }
+          continue;
+        }
+        // Header: -H"..." (attached)
+        if (token.startsWith("-H") && token.length > 2) {
+          parseHeader(token.substring(2));
+          continue;
+        }
+        // Header: --header=...
+        if (token.startsWith("--header=")) {
+          parseHeader(token.substring(9));
+          continue;
+        }
+
+        // Data: -d "..." or --data "..."
         if (token === "-d" || token === "--data" || token === "--data-raw" || token === "--data-binary") {
           if (i + 1 < tokens.length) {
             result.body = tokens[++i];
           }
           continue;
         }
+        // Data: -d"..." or -d'...' (attached, quotes already stripped)
+        if (token.startsWith("-d") && token.length > 2 && !token.startsWith("-d@")) {
+          result.body = token.substring(2);
+          continue;
+        }
+        // Data: --data=... or --data-raw=...
+        if (token.startsWith("--data=")) {
+          result.body = token.substring(7);
+          continue;
+        }
+        if (token.startsWith("--data-raw=")) {
+          result.body = token.substring(11);
+          continue;
+        }
+        if (token.startsWith("--data-binary=")) {
+          result.body = token.substring(14);
+          continue;
+        }
 
-        // Data with @file - we can't handle files, so skip
-        if (token.startsWith("-d@") || token.startsWith("--data=")) {
+        // Skip @file references
+        if (token.startsWith("-d@") || token.startsWith("--data=@")) {
           continue;
         }
 
