@@ -136,6 +136,34 @@
         </nav>
     `;
 
+    // Handle flex-centered body layouts (e.g., california-clock-change.html)
+    // When body uses flex centering, the footer becomes a flex item positioned incorrectly
+    const bodyStyle = window.getComputedStyle(document.body);
+    if (bodyStyle.display === 'flex' &&
+        (bodyStyle.justifyContent === 'center' || bodyStyle.alignItems === 'center')) {
+
+        // Wrap all existing body children in a container that preserves the centering
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = `
+            display: flex;
+            align-items: ${bodyStyle.alignItems};
+            justify-content: ${bodyStyle.justifyContent};
+            flex-grow: 1;
+            width: 100%;
+        `;
+
+        // Move all existing children into wrapper
+        while (document.body.firstChild) {
+            wrapper.appendChild(document.body.firstChild);
+        }
+
+        // Change body to column flex so footer appears at bottom
+        document.body.style.flexDirection = 'column';
+        document.body.style.alignItems = 'stretch';
+        document.body.style.justifyContent = 'flex-start';
+        document.body.appendChild(wrapper);
+    }
+
     document.body.appendChild(footer);
 
     // Fetch dates.json and update the Changes link with the last updated date
