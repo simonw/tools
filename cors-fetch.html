@@ -150,6 +150,15 @@
       background: #fecaca;
     }
 
+    button.accent {
+      background: #7c3aed;
+      color: #fff;
+    }
+
+    button.accent:hover:not(:disabled) {
+      background: #6d28d9;
+    }
+
     button span.spinner {
       width: 14px;
       height: 14px;
@@ -306,17 +315,23 @@
     }
 
     #json-body-container,
-    #form-body-container {
+    #form-body-container,
+    #headers-editor-container {
       margin-top: 10px;
     }
 
-    #json-body {
+    #json-body,
+    #curl-input {
       width: 100%;
       min-height: 100px;
       padding: 10px 12px;
       resize: vertical;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
         monospace;
+    }
+
+    #curl-input {
+      min-height: 80px;
     }
 
     /* Key/value pair editor */
@@ -357,6 +372,66 @@
       display: none !important;
     }
 
+    /* Curl import section */
+    .curl-import-section {
+      background: #faf5ff;
+      border: 1px solid #e9d5ff;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    .curl-import-section label {
+      color: #6b21a8;
+    }
+
+    .curl-import-section .hint {
+      color: #7c3aed;
+    }
+
+    .curl-btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Collapsible section */
+    .collapsible-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .collapsible-header .toggle-icon {
+      font-size: 0.8rem;
+      transition: transform 0.2s;
+    }
+
+    .collapsible-header.collapsed .toggle-icon {
+      transform: rotate(-90deg);
+    }
+
+    .collapsible-content {
+      overflow: hidden;
+      transition: max-height 0.2s ease-out;
+    }
+
+    .collapsible-content.collapsed {
+      max-height: 0 !important;
+    }
+
+    .header-count {
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
     @media (max-width: 640px) {
       .card {
         padding: 14px 14px 16px;
@@ -376,6 +451,10 @@
 
       button {
         width: 100%;
+      }
+
+      .curl-btn-row button {
+        flex: 1;
       }
 
       .kv-row {
@@ -406,6 +485,24 @@
 
     <!-- Request card -->
     <div class="card">
+      <!-- Curl Import Section -->
+      <div class="curl-import-section">
+        <label for="curl-input">Import from curl</label>
+        <textarea
+          id="curl-input"
+          placeholder="Paste a curl command here, e.g.:
+curl -X POST 'https://api.example.com/data' \
+  -H 'Content-Type: application/json' \
+  -d '{&quot;key&quot;: &quot;value&quot;}'"
+        ></textarea>
+        <div class="curl-btn-row">
+          <button type="button" class="accent" id="parse-curl-btn">Import curl</button>
+          <button type="button" class="secondary" id="clear-curl-btn">Clear</button>
+        </div>
+        <div class="hint">Paste a curl command to auto-fill the form below.</div>
+        <div id="curl-error" class="error" style="display:none;"></div>
+      </div>
+
       <div class="section-title">Request</div>
 
       <label for="url-input">URL</label>
@@ -427,7 +524,20 @@
         />
       </div>
 
-      <label>Request Body</label>
+      <!-- Headers Section -->
+      <div class="section-title collapsible-header" id="headers-toggle">
+        <span class="toggle-icon">▼</span>
+        Request Headers
+        <span class="header-count" id="headers-count">0</span>
+      </div>
+      <div class="collapsible-content" id="headers-editor-container">
+        <div id="headers-pairs" class="kv-pairs">
+          <!-- Header key/value rows inserted here -->
+        </div>
+        <button type="button" class="secondary add-pair-btn" id="add-header-btn">+ Add header</button>
+      </div>
+
+      <label style="margin-top: 14px;">Request Body</label>
       <div class="body-type-row">
         <label>
           <input type="radio" name="body-type" value="none" checked />
@@ -515,6 +625,19 @@
     const kvPairsContainer = document.getElementById("kv-pairs");
     const addPairBtn = document.getElementById("add-pair-btn");
 
+    // Headers editor
+    const headersPairsContainer = document.getElementById("headers-pairs");
+    const addHeaderBtn = document.getElementById("add-header-btn");
+    const headersToggle = document.getElementById("headers-toggle");
+    const headersEditorContainer = document.getElementById("headers-editor-container");
+    const headersCountEl = document.getElementById("headers-count");
+
+    // Curl import
+    const curlInput = document.getElementById("curl-input");
+    const parseCurlBtn = document.getElementById("parse-curl-btn");
+    const clearCurlBtn = document.getElementById("clear-curl-btn");
+    const curlErrorEl = document.getElementById("curl-error");
+
     const requestErrorEl = document.getElementById("request-error");
     const responseErrorEl = document.getElementById("response-error");
     const statusPill = document.getElementById("status-pill");
@@ -523,8 +646,20 @@
     const headersContainer = document.getElementById("headers-container");
     const bodyOutput = document.getElementById("body-output");
 
-    // Key/value pairs state
+    // State
     let kvPairs = [];
+    let headerPairs = [];
+
+    // Headers collapsible
+    headersToggle.addEventListener("click", () => {
+      headersToggle.classList.toggle("collapsed");
+      headersEditorContainer.classList.toggle("collapsed");
+    });
+
+    function updateHeadersCount() {
+      const count = headerPairs.filter(h => h.key.trim()).length;
+      headersCountEl.textContent = count;
+    }
 
     function getBodyType() {
       const checked = document.querySelector('input[name="body-type"]:checked');
@@ -552,50 +687,78 @@
       });
     });
 
-    // Key/value pair editor
-    function renderKvPairs() {
-      kvPairsContainer.innerHTML = "";
-      kvPairs.forEach((pair, index) => {
-        const row = document.createElement("div");
-        row.className = "kv-row";
-        row.innerHTML = `
-          <input type="text" class="kv-key" placeholder="Key" value="${escapeHtml(pair.key)}" data-index="${index}" />
-          <input type="text" class="kv-value" placeholder="Value" value="${escapeHtml(pair.value)}" data-index="${index}" />
-          <button type="button" class="danger remove-pair-btn" data-index="${index}">&times;</button>
-        `;
-        kvPairsContainer.appendChild(row);
-      });
-
-      // Add event listeners
-      kvPairsContainer.querySelectorAll(".kv-key").forEach(input => {
-        input.addEventListener("input", (e) => {
-          const idx = parseInt(e.target.dataset.index, 10);
-          kvPairs[idx].key = e.target.value;
-          updateFragmentFromState();
+    // Generic key/value pair renderer
+    function createKvPairRenderer(container, pairsArray, keyPlaceholder, valuePlaceholder, onUpdate) {
+      return function renderPairs() {
+        container.innerHTML = "";
+        pairsArray.forEach((pair, index) => {
+          const row = document.createElement("div");
+          row.className = "kv-row";
+          row.innerHTML = `
+            <input type="text" class="kv-key" placeholder="${keyPlaceholder}" value="${escapeHtml(pair.key)}" data-index="${index}" />
+            <input type="text" class="kv-value" placeholder="${valuePlaceholder}" value="${escapeHtml(pair.value)}" data-index="${index}" />
+            <button type="button" class="danger remove-pair-btn" data-index="${index}">&times;</button>
+          `;
+          container.appendChild(row);
         });
-      });
 
-      kvPairsContainer.querySelectorAll(".kv-value").forEach(input => {
-        input.addEventListener("input", (e) => {
-          const idx = parseInt(e.target.dataset.index, 10);
-          kvPairs[idx].value = e.target.value;
-          updateFragmentFromState();
+        container.querySelectorAll(".kv-key").forEach(input => {
+          input.addEventListener("input", (e) => {
+            const idx = parseInt(e.target.dataset.index, 10);
+            pairsArray[idx].key = e.target.value;
+            onUpdate();
+          });
         });
-      });
 
-      kvPairsContainer.querySelectorAll(".remove-pair-btn").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-          const idx = parseInt(e.target.dataset.index, 10);
-          kvPairs.splice(idx, 1);
-          renderKvPairs();
-          updateFragmentFromState();
+        container.querySelectorAll(".kv-value").forEach(input => {
+          input.addEventListener("input", (e) => {
+            const idx = parseInt(e.target.dataset.index, 10);
+            pairsArray[idx].value = e.target.value;
+            onUpdate();
+          });
         });
-      });
+
+        container.querySelectorAll(".remove-pair-btn").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+            const idx = parseInt(e.target.dataset.index, 10);
+            pairsArray.splice(idx, 1);
+            renderPairs();
+            onUpdate();
+          });
+        });
+      };
     }
+
+    // Form body pairs
+    const renderKvPairs = createKvPairRenderer(
+      kvPairsContainer,
+      kvPairs,
+      "Key",
+      "Value",
+      () => updateFragmentFromState()
+    );
+
+    // Header pairs
+    const renderHeaderPairs = createKvPairRenderer(
+      headersPairsContainer,
+      headerPairs,
+      "Header name",
+      "Header value",
+      () => {
+        updateHeadersCount();
+        updateFragmentFromState();
+      }
+    );
 
     function addKvPair(key = "", value = "") {
       kvPairs.push({ key, value });
       renderKvPairs();
+    }
+
+    function addHeaderPair(key = "", value = "") {
+      headerPairs.push({ key, value });
+      renderHeaderPairs();
+      updateHeadersCount();
     }
 
     addPairBtn.addEventListener("click", () => {
@@ -603,13 +766,268 @@
       updateFragmentFromState();
     });
 
-    // Initialize with one empty pair
+    addHeaderBtn.addEventListener("click", () => {
+      addHeaderPair();
+      updateFragmentFromState();
+    });
+
     function initKvPairs() {
       if (kvPairs.length === 0) {
         kvPairs.push({ key: "", value: "" });
       }
       renderKvPairs();
     }
+
+    function initHeaderPairs() {
+      if (headerPairs.length === 0) {
+        headerPairs.push({ key: "", value: "" });
+      }
+      renderHeaderPairs();
+      updateHeadersCount();
+    }
+
+    // Curl parser
+    function parseCurl(curlCommand) {
+      // Normalize the command - join backslash-continued lines
+      let normalized = curlCommand
+        .replace(/\\\r?\n/g, " ")
+        .replace(/\r?\n/g, " ")
+        .trim();
+
+      // Check if it starts with curl
+      if (!normalized.match(/^curl\s/i)) {
+        throw new Error("Command must start with 'curl'");
+      }
+
+      const result = {
+        method: "GET",
+        url: "",
+        headers: [],
+        body: null
+      };
+
+      // Tokenize respecting quotes
+      const tokens = [];
+      let current = "";
+      let inSingleQuote = false;
+      let inDoubleQuote = false;
+      let escaped = false;
+
+      for (let i = 0; i < normalized.length; i++) {
+        const char = normalized[i];
+
+        if (escaped) {
+          current += char;
+          escaped = false;
+          continue;
+        }
+
+        if (char === "\\") {
+          escaped = true;
+          continue;
+        }
+
+        if (char === "'" && !inDoubleQuote) {
+          inSingleQuote = !inSingleQuote;
+          continue;
+        }
+
+        if (char === '"' && !inSingleQuote) {
+          inDoubleQuote = !inDoubleQuote;
+          continue;
+        }
+
+        if (char === " " && !inSingleQuote && !inDoubleQuote) {
+          if (current) {
+            tokens.push(current);
+            current = "";
+          }
+          continue;
+        }
+
+        current += char;
+      }
+      if (current) {
+        tokens.push(current);
+      }
+
+      // Parse tokens
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+
+        if (token === "curl") continue;
+
+        // Method
+        if (token === "-X" || token === "--request") {
+          if (i + 1 < tokens.length) {
+            result.method = tokens[++i].toUpperCase();
+          }
+          continue;
+        }
+
+        // Header
+        if (token === "-H" || token === "--header") {
+          if (i + 1 < tokens.length) {
+            const headerStr = tokens[++i];
+            const colonIdx = headerStr.indexOf(":");
+            if (colonIdx > 0) {
+              const key = headerStr.substring(0, colonIdx).trim();
+              const value = headerStr.substring(colonIdx + 1).trim();
+              result.headers.push({ key, value });
+            }
+          }
+          continue;
+        }
+
+        // Data
+        if (token === "-d" || token === "--data" || token === "--data-raw" || token === "--data-binary") {
+          if (i + 1 < tokens.length) {
+            result.body = tokens[++i];
+          }
+          continue;
+        }
+
+        // Data with @file - we can't handle files, so skip
+        if (token.startsWith("-d@") || token.startsWith("--data=")) {
+          continue;
+        }
+
+        // Skip common flags we don't use
+        if (token.match(/^-[kvsSLfIi]$/) ||
+            token === "--compressed" ||
+            token === "--location" ||
+            token === "--insecure" ||
+            token === "--silent" ||
+            token === "--show-error" ||
+            token === "--fail") {
+          continue;
+        }
+
+        // Skip flags with values
+        if (token === "-o" || token === "--output" ||
+            token === "-u" || token === "--user" ||
+            token === "-A" || token === "--user-agent" ||
+            token === "--connect-timeout" ||
+            token === "--max-time" ||
+            token === "-m") {
+          i++; // Skip the next token (the value)
+          continue;
+        }
+
+        // URL - anything that looks like a URL or doesn't start with -
+        if (!token.startsWith("-") && (token.includes("://") || token.includes(".") || token.startsWith("/"))) {
+          result.url = token;
+          continue;
+        }
+      }
+
+      // If method is POST/PUT/PATCH and we have a body, that's good
+      // If we have a body but method is GET, change to POST
+      if (result.body && result.method === "GET") {
+        result.method = "POST";
+      }
+
+      if (!result.url) {
+        throw new Error("No URL found in curl command");
+      }
+
+      return result;
+    }
+
+    function applyCurlResult(parsed) {
+      // Set method
+      methodSelect.value = parsed.method;
+
+      // Set URL
+      urlInput.value = parsed.url;
+
+      // Set headers
+      headerPairs = parsed.headers.length > 0
+        ? parsed.headers
+        : [{ key: "", value: "" }];
+      renderHeaderPairs();
+      updateHeadersCount();
+
+      // Expand headers if there are any
+      if (parsed.headers.length > 0) {
+        headersToggle.classList.remove("collapsed");
+        headersEditorContainer.classList.remove("collapsed");
+      }
+
+      // Set body
+      if (parsed.body) {
+        // Check if it looks like JSON
+        try {
+          JSON.parse(parsed.body);
+          setBodyType("json");
+          jsonBodyTextarea.value = parsed.body;
+        } catch {
+          // Check if it looks like form data (key=value&key2=value2)
+          if (parsed.body.includes("=") && !parsed.body.includes("{")) {
+            setBodyType("form");
+            const params = new URLSearchParams(parsed.body);
+            kvPairs = [];
+            for (const [key, value] of params) {
+              kvPairs.push({ key, value });
+            }
+            if (kvPairs.length === 0) {
+              kvPairs.push({ key: "", value: "" });
+            }
+            renderKvPairs();
+          } else {
+            // Treat as JSON anyway
+            setBodyType("json");
+            jsonBodyTextarea.value = parsed.body;
+          }
+        }
+      } else {
+        setBodyType("none");
+      }
+
+      updateFragmentFromState();
+    }
+
+    parseCurlBtn.addEventListener("click", () => {
+      curlErrorEl.style.display = "none";
+      const curlCmd = curlInput.value.trim();
+      if (!curlCmd) {
+        curlErrorEl.textContent = "Please paste a curl command first.";
+        curlErrorEl.style.display = "block";
+        return;
+      }
+
+      try {
+        const parsed = parseCurl(curlCmd);
+        applyCurlResult(parsed);
+        curlInput.value = ""; // Clear after successful import
+      } catch (e) {
+        curlErrorEl.textContent = "Failed to parse curl: " + e.message;
+        curlErrorEl.style.display = "block";
+      }
+    });
+
+    clearCurlBtn.addEventListener("click", () => {
+      curlInput.value = "";
+      curlErrorEl.style.display = "none";
+    });
+
+    // Auto-parse on paste
+    curlInput.addEventListener("paste", (e) => {
+      // Use setTimeout to let the paste complete first
+      setTimeout(() => {
+        const curlCmd = curlInput.value.trim();
+        if (curlCmd && curlCmd.match(/^curl\s/i)) {
+          try {
+            const parsed = parseCurl(curlCmd);
+            applyCurlResult(parsed);
+            curlInput.value = "";
+            curlErrorEl.style.display = "none";
+          } catch (e) {
+            // Don't show error on auto-parse, let user click the button
+          }
+        }
+      }, 0);
+    });
 
     function setLoading(isLoading) {
       fetchBtn.disabled = isLoading;
@@ -642,7 +1060,7 @@
       responseErrorEl.textContent = "";
     }
 
-    function renderHeaders(headers) {
+    function renderResponseHeaders(headers) {
       const entries = [];
       headers.forEach((value, key) => {
         entries.push({ key, value });
@@ -687,6 +1105,16 @@
       return trimmed;
     }
 
+    function buildRequestHeaders() {
+      const headers = {};
+      for (const pair of headerPairs) {
+        if (pair.key.trim()) {
+          headers[pair.key.trim()] = pair.value;
+        }
+      }
+      return headers;
+    }
+
     function buildRequestBody() {
       const bodyType = getBodyType();
 
@@ -699,7 +1127,6 @@
         if (!jsonText) {
           return { body: null, contentType: null };
         }
-        // Validate JSON
         try {
           JSON.parse(jsonText);
         } catch (e) {
@@ -763,7 +1190,6 @@
       headersContainer.innerHTML = '<div class="hint">Awaiting response…</div>';
       bodyOutput.textContent = "";
 
-      // Update URL fragment
       updateFragmentFromState();
 
       try {
@@ -772,14 +1198,19 @@
           mode: "cors",
         };
 
-        // Only add body for methods that support it
+        // Build headers
+        const reqHeaders = buildRequestHeaders();
+
+        // Add content-type if we have a body and it's not already set
         if (reqBody && !["GET", "HEAD"].includes(method)) {
           fetchOptions.body = reqBody;
-          if (contentType) {
-            fetchOptions.headers = {
-              "Content-Type": contentType
-            };
+          if (contentType && !Object.keys(reqHeaders).some(k => k.toLowerCase() === "content-type")) {
+            reqHeaders["Content-Type"] = contentType;
           }
+        }
+
+        if (Object.keys(reqHeaders).length > 0) {
+          fetchOptions.headers = reqHeaders;
         }
 
         const response = await fetch(url, fetchOptions);
@@ -789,9 +1220,8 @@
 
         effectiveUrlEl.textContent = "Effective URL: " + response.url;
 
-        renderHeaders(response.headers);
+        renderResponseHeaders(response.headers);
 
-        // HEAD requests don't have a body
         if (method === "HEAD") {
           bodyOutput.textContent = "// HEAD requests do not return a body.";
         } else {
@@ -832,7 +1262,8 @@
         url: urlInput.value,
         bodyType: getBodyType(),
         jsonBody: jsonBodyTextarea.value,
-        formPairs: kvPairs.filter(p => p.key.trim() || p.value.trim())
+        formPairs: kvPairs.filter(p => p.key.trim() || p.value.trim()),
+        headers: headerPairs.filter(h => h.key.trim() || h.value.trim())
       };
     }
 
@@ -851,8 +1282,10 @@
         params.set("json", state.jsonBody);
       }
       if (state.bodyType === "form" && state.formPairs && state.formPairs.length > 0) {
-        // Encode form pairs as JSON
         params.set("form", JSON.stringify(state.formPairs));
+      }
+      if (state.headers && state.headers.length > 0) {
+        params.set("headers", JSON.stringify(state.headers));
       }
       return params.toString();
     }
@@ -864,7 +1297,8 @@
         url: params.get("url") || "",
         bodyType: params.get("bodyType") || "none",
         jsonBody: params.get("json") || "",
-        formPairs: params.has("form") ? JSON.parse(params.get("form")) : []
+        formPairs: params.has("form") ? JSON.parse(params.get("form")) : [],
+        headers: params.has("headers") ? JSON.parse(params.get("headers")) : []
       };
     }
 
@@ -885,7 +1319,6 @@
       try {
         const state = decodeStateFromFragment(hash);
 
-        // Apply state to form
         methodSelect.value = state.method;
         urlInput.value = state.url;
         setBodyType(state.bodyType);
@@ -898,6 +1331,17 @@
         }
         renderKvPairs();
 
+        if (state.headers && state.headers.length > 0) {
+          headerPairs = state.headers;
+          // Expand headers section if there are headers
+          headersToggle.classList.remove("collapsed");
+          headersEditorContainer.classList.remove("collapsed");
+        } else {
+          headerPairs = [{ key: "", value: "" }];
+        }
+        renderHeaderPairs();
+        updateHeadersCount();
+
         return true;
       } catch (e) {
         console.warn("Failed to parse URL fragment state:", e);
@@ -905,7 +1349,6 @@
       }
     }
 
-    // Also support legacy ?url= query parameter
     function loadStateFromQueryParam() {
       const params = new URLSearchParams(window.location.search);
       const urlParam = params.get("url");
@@ -931,6 +1374,7 @@
 
     // Initialize
     initKvPairs();
+    initHeaderPairs();
 
     // Load state from URL on page load (but don't auto-execute)
     const loadedFromFragment = loadStateFromFragment();
