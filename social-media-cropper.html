@@ -322,39 +322,40 @@
             updatePreview();
         });
         
-        // Handle zoom buttons
-        zoomInBtn.addEventListener('click', () => {
+        // Handle zoom buttons with continuous zoom when held down
+        let zoomInterval = null;
+        const zoomDelay = 100; // ms between zoom steps when holding
+
+        function doZoomIn() {
             if (cropper) {
-                // Smaller increment for zooming in
                 zoomValue = Math.min(zoomValue + 0.02, 3);
                 updateZoomDisplay();
                 cropper.zoomTo(zoomValue);
             }
-        });
-        
-        zoomOutBtn.addEventListener('click', () => {
+        }
+
+        function doZoomOut() {
             if (cropper) {
                 // Extra small decrement for zooming out, with smaller steps at lower zoom levels
                 let zoomDecrement = 0.02;
-                
+
                 // Use even smaller decrements for small zoom values
                 if (zoomValue < 0.2) {
                     zoomDecrement = 0.005;
                 } else if (zoomValue < 0.5) {
                     zoomDecrement = 0.01;
                 }
-                
+
                 zoomValue = Math.max(zoomValue - zoomDecrement, 0.01);
                 updateZoomDisplay();
                 cropper.zoomTo(zoomValue);
-                
+
                 // Force update canvas size to allow zooming out beyond image boundaries
                 const canvasData = cropper.getCanvasData();
                 if (zoomValue < 0.3) {
                     // Apply more aggressive canvas scaling for very small zoom levels
-                    // Smaller scale factor for smoother transitions
                     const scaleFactor = zoomValue < 0.1 ? 0.98 : 0.99;
-                    
+
                     cropper.setCanvasData({
                         width: canvasData.width * scaleFactor,
                         height: canvasData.height * scaleFactor,
@@ -363,7 +364,53 @@
                     });
                 }
             }
+        }
+
+        function stopZoom() {
+            if (zoomInterval) {
+                clearInterval(zoomInterval);
+                zoomInterval = null;
+            }
+        }
+
+        // Zoom in button - continuous zoom on hold
+        zoomInBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            doZoomIn();
+            zoomInterval = setInterval(doZoomIn, zoomDelay);
         });
+
+        zoomInBtn.addEventListener('mouseup', stopZoom);
+        zoomInBtn.addEventListener('mouseleave', stopZoom);
+
+        // Zoom out button - continuous zoom on hold
+        zoomOutBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            doZoomOut();
+            zoomInterval = setInterval(doZoomOut, zoomDelay);
+        });
+
+        zoomOutBtn.addEventListener('mouseup', stopZoom);
+        zoomOutBtn.addEventListener('mouseleave', stopZoom);
+
+        // Touch support for mobile devices
+        zoomInBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            doZoomIn();
+            zoomInterval = setInterval(doZoomIn, zoomDelay);
+        });
+
+        zoomInBtn.addEventListener('touchend', stopZoom);
+        zoomInBtn.addEventListener('touchcancel', stopZoom);
+
+        zoomOutBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            doZoomOut();
+            zoomInterval = setInterval(doZoomOut, zoomDelay);
+        });
+
+        zoomOutBtn.addEventListener('touchend', stopZoom);
+        zoomOutBtn.addEventListener('touchcancel', stopZoom);
         
         function updateZoomDisplay() {
             // Show zoom percentage with 1 decimal place for smaller values
