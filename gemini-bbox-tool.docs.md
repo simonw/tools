@@ -1,3 +1,0 @@
-This page serves as a redirect mechanism that automatically forwards users to the `/gemini-bbox` endpoint using an HTTP meta refresh tag. If the automatic redirection fails, users are presented with a fallback hyperlink to manually navigate to the destination. This approach ensures compatibility with browsers or scenarios where JavaScript-based redirection might not be available.
-
-<!-- Generated from commit: 1f1afee14e6414c75bd6af6f4b6a677c9ab890a0 -->

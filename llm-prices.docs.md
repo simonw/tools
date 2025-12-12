@@ -1,3 +1,0 @@
-This page implements an automatic redirect to https://www.llm-prices.com/ using the HTTP refresh meta tag, which will trigger immediately upon page load. The fallback link in the body ensures that users with browsers that do not support automatic redirects or have them disabled can still navigate to the destination URL manually.
-
-<!-- Generated from commit: 1f1afee14e6414c75bd6af6f4b6a677c9ab890a0 -->

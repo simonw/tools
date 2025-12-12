@@ -1,3 +1,0 @@
-This page serves as a redirect to the GitHub Issue to Markdown conversion tool. It automatically forwards users to the `/github-issue-to-markdown` endpoint using an HTTP refresh meta tag, with a fallback link provided for browsers that do not support automatic redirection. This redirect pattern is commonly used to maintain backward compatibility or to simplify URL structures while preserving access to resources.
-
-<!-- Generated from commit: 1f1afee14e6414c75bd6af6f4b6a677c9ab890a0 -->
