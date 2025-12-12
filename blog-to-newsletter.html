@@ -251,6 +251,53 @@
     .hidden {
       display: none;
     }
+    .long-urls-warning {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .long-urls-warning h4 {
+      margin: 0 0 10px 0;
+      color: #856404;
+    }
+    .long-urls-warning ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .long-urls-warning li {
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #fffef5;
+      border: 1px solid #ffe69c;
+      border-radius: 4px;
+    }
+    .long-urls-warning .url-text {
+      font-family: monospace;
+      font-size: 12px;
+      word-break: break-all;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    .long-urls-warning .url-length {
+      font-size: 11px;
+      color: #856404;
+      margin-bottom: 8px;
+    }
+    .long-urls-warning .edit-url-btn {
+      padding: 6px 12px;
+      font-size: 13px;
+      background: #ffc107;
+      color: #000;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .long-urls-warning .edit-url-btn:hover {
+      background: #e0a800;
+    }
   </style>
 </head>
 <body>
@@ -297,6 +344,11 @@
 
   <div class="html-length" id="htmlLength"></div>
 
+  <div class="long-urls-warning hidden" id="longUrlsWarning">
+    <h4>Warning: Long URLs detected (>200 characters)</h4>
+    <ul id="longUrlsList"></ul>
+  </div>
+
   <div class="story-order" id="storyOrderSection">
     <h3>Set order of the stories:</h3>
     <ul id="storyOrderList"></ul>
@@ -341,6 +393,11 @@
       const linksSearch = document.getElementById('linksSearch');
       const linksTable = document.getElementById('linksTable');
       const daysSinceEl = document.getElementById('daysSince');
+      const longUrlsWarning = document.getElementById('longUrlsWarning');
+      const longUrlsList = document.getElementById('longUrlsList');
+
+      // URL replacements map (old URL -> new URL)
+      let urlReplacements = new Map();
 
       // SQL query
       const sql = `
@@ -881,9 +938,67 @@ order by
 
         html += sortedContent.map(c => c.html + '<hr>').join('\n');
 
+        // Apply URL replacements
+        for (const [oldUrl, newUrl] of urlReplacements) {
+          html = html.split(oldUrl).join(newUrl);
+        }
+
         newsletterHTML = html;
         htmlLengthEl.textContent = `Length of HTML: ${newsletterHTML.length.toLocaleString()} characters`;
         previewEl.innerHTML = html;
+
+        // Check for long URLs and display warnings
+        checkLongUrls(html);
+      }
+
+      // Check for URLs longer than 200 characters
+      function checkLongUrls(html) {
+        const urlRegex = /href="(https?:\/\/[^"]+)"/g;
+        const longUrls = new Set();
+        let match;
+
+        while ((match = urlRegex.exec(html)) !== null) {
+          const url = match[1];
+          if (url.length > 200) {
+            longUrls.add(url);
+          }
+        }
+
+        if (longUrls.size === 0) {
+          longUrlsWarning.classList.add('hidden');
+          return;
+        }
+
+        longUrlsWarning.classList.remove('hidden');
+        longUrlsList.innerHTML = '';
+
+        for (const url of longUrls) {
+          const li = document.createElement('li');
+
+          const urlText = document.createElement('div');
+          urlText.className = 'url-text';
+          urlText.textContent = url;
+          li.appendChild(urlText);
+
+          const urlLength = document.createElement('div');
+          urlLength.className = 'url-length';
+          urlLength.textContent = `${url.length} characters`;
+          li.appendChild(urlLength);
+
+          const editBtn = document.createElement('button');
+          editBtn.className = 'edit-url-btn';
+          editBtn.textContent = 'Edit URL';
+          editBtn.addEventListener('click', () => {
+            const newUrl = prompt('Edit this URL:', url);
+            if (newUrl !== null && newUrl !== url) {
+              urlReplacements.set(url, newUrl);
+              generateNewsletter();
+            }
+          });
+          li.appendChild(editBtn);
+
+          longUrlsList.appendChild(li);
+        }
       }
 
       // Copy rich text to clipboard
