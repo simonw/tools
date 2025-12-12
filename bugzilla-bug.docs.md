@@ -1,0 +1,3 @@
+This Bugzilla Bug Viewer is a web application that fetches and displays detailed information about Mozilla bugs from the Bugzilla API. Users can input a bug ID or Bugzilla URL to retrieve comprehensive bug details including metadata, comments, and change history, which are presented in a clean, chronological timeline with visual indicators for important changes and dependencies. The tool automatically handles related bug lookups to display meaningful context about dependencies, duplicates, and regressions within the viewer interface.
+
+<!-- Generated from commit: 96d20a53f6df95e709fc2702450febf6619c99b2 -->
