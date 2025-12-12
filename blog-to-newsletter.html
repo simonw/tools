@@ -140,29 +140,54 @@
       background: #fff;
       border: 1px solid #ddd;
       border-radius: 6px;
+      user-select: none;
+      -webkit-user-select: none;
     }
     .story-order li {
-      padding: 10px 15px;
+      padding: 12px 15px;
+      padding-left: 40px;
       border-bottom: 1px solid #eee;
-      cursor: move;
+      cursor: grab;
       background: white;
-      transition: background-color 0.2s;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+      position: relative;
+      touch-action: none;
+    }
+    .story-order li::before {
+      content: '⋮⋮';
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #aaa;
+      font-size: 14px;
+      letter-spacing: 2px;
     }
     .story-order li:last-child {
       border-bottom: none;
     }
     .story-order li:hover {
-      background: #f5f5f5;
+      background: #f8f8f8;
+    }
+    .story-order li:active {
+      cursor: grabbing;
     }
     .story-order li.dragging {
-      opacity: 0.5;
-      background: #e0e0e0;
+      background: #e8f4ff;
+      box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+      transform: scale(1.02);
+      z-index: 100;
+      border-radius: 4px;
     }
-    .story-order li.drag-over-top {
-      border-top: 3px solid #0066cc;
+    .story-order li.drag-over {
+      background: #f0f7ff;
     }
-    .story-order li.drag-over-bottom {
-      border-bottom: 3px solid #0066cc;
+    .story-order .drop-indicator {
+      height: 3px;
+      background: #0066cc;
+      border-radius: 2px;
+      margin: -1.5px 0;
+      pointer-events: none;
     }
     .newsletter-preview {
       background: white;
@@ -613,7 +638,7 @@ order by
         generateNewsletter();
       }
 
-      // Render story order drag-and-drop list
+      // Render story order drag-and-drop list with touch support
       function renderStoryOrder() {
         if (entries.length <= 1) {
           storyOrderSection.classList.add('hidden');
@@ -622,65 +647,187 @@ order by
         storyOrderSection.classList.remove('hidden');
 
         storyOrderList.innerHTML = '';
-        storyOrder.forEach(item => {
+
+        let draggedItem = null;
+        let dropIndicator = null;
+        let touchStartY = 0;
+        let initialIndex = 0;
+
+        // Create drop indicator element
+        function createDropIndicator() {
+          const indicator = document.createElement('div');
+          indicator.className = 'drop-indicator';
+          return indicator;
+        }
+
+        // Remove any existing drop indicator
+        function removeDropIndicator() {
+          if (dropIndicator && dropIndicator.parentNode) {
+            dropIndicator.parentNode.removeChild(dropIndicator);
+          }
+          dropIndicator = null;
+        }
+
+        // Get insertion point based on Y position
+        function getInsertionPoint(y) {
+          const items = Array.from(storyOrderList.querySelectorAll('li:not(.dragging)'));
+
+          for (const item of items) {
+            const rect = item.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+
+            if (y < midY) {
+              return { element: item, position: 'before' };
+            }
+          }
+
+          // If we're past all items, insert after the last one
+          if (items.length > 0) {
+            return { element: items[items.length - 1], position: 'after' };
+          }
+
+          return null;
+        }
+
+        // Update drop indicator position
+        function updateDropIndicator(y) {
+          const insertion = getInsertionPoint(y);
+
+          if (!insertion) {
+            removeDropIndicator();
+            return;
+          }
+
+          if (!dropIndicator) {
+            dropIndicator = createDropIndicator();
+          }
+
+          if (insertion.position === 'before') {
+            insertion.element.parentNode.insertBefore(dropIndicator, insertion.element);
+          } else {
+            insertion.element.parentNode.insertBefore(dropIndicator, insertion.element.nextSibling);
+          }
+        }
+
+        // Finalize the drop
+        function finalizeDrop(y) {
+          if (!draggedItem) return;
+
+          const insertion = getInsertionPoint(y);
+
+          if (insertion) {
+            if (insertion.position === 'before') {
+              storyOrderList.insertBefore(draggedItem, insertion.element);
+            } else {
+              storyOrderList.insertBefore(draggedItem, insertion.element.nextSibling);
+            }
+          }
+
+          draggedItem.classList.remove('dragging');
+          removeDropIndicator();
+
+          // Update storyOrder array
+          storyOrder = Array.from(storyOrderList.querySelectorAll('li')).map(el => el.textContent);
+          generateNewsletter();
+
+          draggedItem = null;
+        }
+
+        // Create list items
+        storyOrder.forEach((item, index) => {
           const li = document.createElement('li');
           li.textContent = item;
           li.draggable = true;
 
+          // Mouse drag events
           li.addEventListener('dragstart', (e) => {
+            draggedItem = li;
+            initialIndex = index;
             li.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', '');
+
+            // Delay to allow the drag image to be captured
+            requestAnimationFrame(() => {
+              li.style.opacity = '0.5';
+            });
           });
 
-          li.addEventListener('dragend', () => {
-            li.classList.remove('dragging');
-            document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
-              el.classList.remove('drag-over-top', 'drag-over-bottom');
-            });
+          li.addEventListener('dragend', (e) => {
+            li.style.opacity = '';
+            finalizeDrop(e.clientY);
           });
 
           li.addEventListener('dragover', (e) => {
             e.preventDefault();
-            const dragging = document.querySelector('.dragging');
-            if (dragging === li) return;
-
-            const rect = li.getBoundingClientRect();
-            const midY = rect.top + rect.height / 2;
-
-            li.classList.remove('drag-over-top', 'drag-over-bottom');
-            if (e.clientY < midY) {
-              li.classList.add('drag-over-top');
-            } else {
-              li.classList.add('drag-over-bottom');
-            }
-          });
-
-          li.addEventListener('dragleave', () => {
-            li.classList.remove('drag-over-top', 'drag-over-bottom');
+            e.dataTransfer.dropEffect = 'move';
+            updateDropIndicator(e.clientY);
           });
 
           li.addEventListener('drop', (e) => {
             e.preventDefault();
-            const dragging = document.querySelector('.dragging');
-            if (!dragging || dragging === li) return;
+          });
 
-            const rect = li.getBoundingClientRect();
-            const midY = rect.top + rect.height / 2;
+          // Touch events for mobile support
+          li.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) return;
 
-            if (e.clientY < midY) {
-              storyOrderList.insertBefore(dragging, li);
-            } else {
-              storyOrderList.insertBefore(dragging, li.nextSibling);
+            draggedItem = li;
+            initialIndex = index;
+            touchStartY = e.touches[0].clientY;
+
+            // Small delay to distinguish from scroll
+            setTimeout(() => {
+              if (draggedItem === li) {
+                li.classList.add('dragging');
+              }
+            }, 100);
+          }, { passive: true });
+
+          li.addEventListener('touchmove', (e) => {
+            if (!draggedItem || draggedItem !== li) return;
+
+            e.preventDefault();
+
+            const touch = e.touches[0];
+            const y = touch.clientY;
+
+            if (!li.classList.contains('dragging')) {
+              li.classList.add('dragging');
             }
 
-            li.classList.remove('drag-over-top', 'drag-over-bottom');
+            updateDropIndicator(y);
+          }, { passive: false });
 
-            // Update storyOrder array
-            storyOrder = Array.from(storyOrderList.children).map(el => el.textContent);
-            generateNewsletter();
+          li.addEventListener('touchend', (e) => {
+            if (!draggedItem || draggedItem !== li) return;
+
+            const touch = e.changedTouches[0];
+            finalizeDrop(touch.clientY);
+          });
+
+          li.addEventListener('touchcancel', () => {
+            if (draggedItem) {
+              draggedItem.classList.remove('dragging');
+              removeDropIndicator();
+              draggedItem = null;
+            }
           });
 
           storyOrderList.appendChild(li);
+        });
+
+        // Handle dragover on the list itself for edge cases
+        storyOrderList.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          updateDropIndicator(e.clientY);
+        });
+
+        storyOrderList.addEventListener('dragleave', (e) => {
+          // Only remove if leaving the list entirely
+          if (!storyOrderList.contains(e.relatedTarget)) {
+            removeDropIndicator();
+          }
         });
       }
 
