@@ -205,7 +205,7 @@ def build_colophon():
     html_content += f"""
     <p>The tools on <a href="https://tools.simonwillison.net/">tools.simonwillison.net</a> were mostly built using <a href="https://simonwillison.net/tags/ai-assisted-programming/">AI-assisted programming</a>. This page lists {tool_count} tools and their development history.</p>
     <p>This page lists the commit messages for each tool, many of which link to the LLM transcript used to produce the code.</p>
-    <p>Here's <a href="https://simonwillison.net/2025/Mar/11/using-llms-for-code/#a-detailed-example">how I built this colophon page</a>. The descriptions for each of the tools were <a href="https://simonwillison.net/2025/Mar/13/tools-colophon/">generated using Claude 3.7 Sonnet</a>.</p>
+    <p>Here's <a href="https://simonwillison.net/2025/Mar/11/using-llms-for-code/#a-detailed-example">how I built this colophon page</a>. The descriptions for each of the tools were <a href="https://simonwillison.net/2025/Mar/13/tools-colophon/">generated using Claude Haiku 4.5</a>.</p>
 """
 
     # Modified tool heading HTML
