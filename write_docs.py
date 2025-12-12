@@ -8,8 +8,8 @@ Do not include any headings
 Do not use words like just or simply.
 Keep it to 2-3 sentences.
 
-Instead of starting with something like "This Bugzilla Bug Viewer is a web application..."
-start with "Web application for ..." or similar
+Instead of starting with something like "This Bugzilla Bug Viewer is a web application for..."
+start with "View Mozilla Bugzilla bug reports..." or similar
 """.strip()
 
 import os
