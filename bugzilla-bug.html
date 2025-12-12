@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bugzilla Bug Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.5;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 16px;
+            background: #fafafa;
+            color: #333;
+        }
+        h1 {
+            font-size: 1.25rem;
+            margin: 0 0 16px 0;
+            color: #666;
+        }
+        .input-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #0060df;
+        }
+        button {
+            padding: 10px 20px;
+            background: #0060df;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        button:hover {
+            background: #0045a0;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c00;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        .bug-header {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .bug-id {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .bug-id a {
+            color: #0060df;
+            text-decoration: none;
+        }
+        .bug-id a:hover {
+            text-decoration: underline;
+        }
+        .bug-summary {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #111;
+        }
+        .bug-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 16px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+        .status-new { background: #e0f0ff; color: #0060df; }
+        .status-assigned { background: #fff4e0; color: #a06000; }
+        .status-resolved, .status-fixed { background: #e0ffe0; color: #006000; }
+        .status-closed { background: #eee; color: #666; }
+        .keywords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+        }
+        .keyword {
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #555;
+        }
+        .timeline {
+            position: relative;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 12px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #ddd;
+        }
+        .timeline-item {
+            position: relative;
+            padding-left: 36px;
+            padding-bottom: 16px;
+        }
+        .timeline-item:last-child {
+            padding-bottom: 0;
+        }
+        .timeline-dot {
+            position: absolute;
+            left: 6px;
+            top: 4px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ddd;
+            border: 2px solid #fafafa;
+        }
+        .timeline-item.comment .timeline-dot {
+            background: #0060df;
+        }
+        .timeline-item.important .timeline-dot {
+            background: #d04040;
+        }
+        .timeline-item.dependency .timeline-dot {
+            background: #40a040;
+        }
+        .timeline-time {
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        .timeline-author {
+            font-weight: 500;
+            color: #333;
+        }
+        .timeline-content {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 4px;
+        }
+        .timeline-item.minor .timeline-content {
+            background: #fafafa;
+            border-color: #eee;
+        }
+        .comment-text {
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 0.9rem;
+        }
+        .comment-text a {
+            color: #0060df;
+            word-break: break-all;
+        }
+        .change-list {
+            font-size: 0.85rem;
+        }
+        .change-item {
+            margin-bottom: 4px;
+        }
+        .change-item:last-child {
+            margin-bottom: 0;
+        }
+        .field-name {
+            color: #666;
+        }
+        .added {
+            color: #006000;
+        }
+        .removed {
+            color: #900;
+            text-decoration: line-through;
+        }
+        .deps-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+        }
+        .deps-title {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .dep-link {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 6px;
+            background: #f0f0f0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #0060df;
+            text-decoration: none;
+            margin-bottom: 4px;
+        }
+        .dep-link:hover {
+            background: #e0e0e0;
+        }
+        .dep-link.dep-removed {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+        .dep-link .dep-id {
+            font-weight: 600;
+        }
+        .dep-link .dep-summary {
+            color: #333;
+        }
+        .dep-link .dep-status {
+            font-size: 0.65rem;
+            padding: 1px 4px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+        .dep-link .dep-status.status-new { background: #e0f0ff; color: #0060df; }
+        .dep-link .dep-status.status-assigned { background: #fff4e0; color: #a06000; }
+        .dep-link .dep-status.status-resolved { background: #e0ffe0; color: #006000; }
+        .dep-link .dep-status.status-closed { background: #ddd; color: #666; }
+        .deps-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            align-items: flex-start;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .see-also {
+            margin-top: 8px;
+            font-size: 0.8rem;
+        }
+        .see-also a {
+            color: #0060df;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        .see-also a:hover {
+            text-decoration: underline;
+        }
+        .votes {
+            font-weight: 500;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 12px;
+            }
+            .input-row {
+                flex-direction: column;
+            }
+            .bug-meta {
+                flex-direction: column;
+                gap: 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Bugzilla Bug Viewer</h1>
+    <div class="input-row">
+        <input type="text" id="bugInput" placeholder="Bug ID or URL (e.g., 1860854 or https://bugzilla.mozilla.org/show_bug.cgi?id=1860854)">
+        <button id="loadBtn" onclick="loadBug()">Load</button>
+    </div>
+    <div id="content"></div>
+
+    <script>
+        const bugInput = document.getElementById('bugInput');
+        const loadBtn = document.getElementById('loadBtn');
+        const content = document.getElementById('content');
+
+        // Parse bug ID from URL or direct input
+        function parseBugId(input) {
+            input = input.trim();
+            if (!input) return null;
+
+            // Direct number
+            if (/^\d+$/.test(input)) {
+                return input;
+            }
+
+            // URL with id parameter
+            const urlMatch = input.match(/[?&]id=(\d+)/);
+            if (urlMatch) {
+                return urlMatch[1];
+            }
+
+            // URL with bug number in path
+            const pathMatch = input.match(/\/bug\/(\d+)/);
+            if (pathMatch) {
+                return pathMatch[1];
+            }
+
+            return null;
+        }
+
+        // Hide email addresses, show name/nick
+        function formatAuthor(email, details = null) {
+            if (details) {
+                if (details.nick) return details.nick;
+                if (details.real_name) return details.real_name.split(' ')[0];
+            }
+            // Extract name part from email
+            const name = email.split('@')[0];
+            // Clean up common patterns
+            return name.replace(/[._+-]/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+
+        // Format timestamp
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now - date;
+
+            // Within last 24 hours
+            if (diff < 86400000) {
+                const hours = Math.floor(diff / 3600000);
+                if (hours < 1) {
+                    const mins = Math.floor(diff / 60000);
+                    return mins <= 1 ? 'just now' : `${mins}m ago`;
+                }
+                return `${hours}h ago`;
+            }
+
+            // Within last week
+            if (diff < 604800000) {
+                const days = Math.floor(diff / 86400000);
+                return `${days}d ago`;
+            }
+
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+
+        // Linkify URLs in text
+        function linkify(text, newTab = true) {
+            const urlRegex = /(https?:\/\/[^\s<]+)/g;
+            const target = newTab ? ' target="_blank" rel="noopener"' : '';
+            return text.replace(urlRegex, `<a href="$1"${target}>$1</a>`);
+        }
+
+        // Determine importance of a change
+        function isImportantChange(change) {
+            const importantFields = ['status', 'resolution', 'priority', 'severity', 'assigned_to'];
+            return importantFields.includes(change.field_name);
+        }
+
+        function isDependencyChange(change) {
+            return ['depends_on', 'blocks'].includes(change.field_name);
+        }
+
+        // Get status class
+        function getStatusClass(status) {
+            const s = status.toLowerCase();
+            if (s === 'new' || s === 'unconfirmed') return 'status-new';
+            if (s === 'assigned') return 'status-assigned';
+            if (s === 'resolved' || s === 'fixed') return 'status-resolved';
+            if (s === 'closed' || s === 'verified') return 'status-closed';
+            return '';
+        }
+
+        // Format field name for display
+        function formatFieldName(name) {
+            return name.replace(/_/g, ' ').replace(/^cf /, '');
+        }
+
+        // Format change value (truncate long lists)
+        function formatChangeValue(value, fieldName) {
+            if (!value) return '';
+            if (value.length > 100 && !['depends_on', 'blocks'].includes(fieldName)) {
+                return value.substring(0, 100) + '...';
+            }
+            // Hide emails in cc changes
+            if (fieldName === 'cc') {
+                return value.split('@')[0];
+            }
+            return value;
+        }
+
+        // Collect all referenced bug IDs from a bug and its history
+        function collectRelatedBugIds(bug, history = []) {
+            const ids = new Set();
+            const bugFields = ['depends_on', 'blocks', 'duplicates', 'regressed_by', 'regressions', 'dupe_of'];
+
+            // From bug fields
+            bugFields.forEach(field => {
+                if (Array.isArray(bug[field])) {
+                    bug[field].forEach(id => ids.add(id));
+                } else if (bug[field]) {
+                    ids.add(bug[field]);
+                }
+            });
+
+            // From history changes
+            history.forEach(event => {
+                event.changes.forEach(change => {
+                    if (bugFields.includes(change.field_name)) {
+                        // Extract bug IDs from added/removed values
+                        [change.added, change.removed].forEach(val => {
+                            if (val) {
+                                val.split(',').forEach(id => {
+                                    id = id.trim();
+                                    if (/^\d+$/.test(id)) {
+                                        ids.add(parseInt(id));
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            });
+
+            return [...ids];
+        }
+
+        // Fetch related bug details in bulk
+        async function fetchRelatedBugs(ids) {
+            if (!ids.length) return {};
+
+            // Batch into groups of 100 to avoid URL length limits
+            const batches = [];
+            for (let i = 0; i < ids.length; i += 100) {
+                batches.push(ids.slice(i, i + 100));
+            }
+
+            const results = {};
+            for (const batch of batches) {
+                const url = `https://bugzilla.mozilla.org/rest/bug?id=${batch.join(',')}&include_fields=id,summary,status,resolution`;
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) {
+                        const data = await res.json();
+                        data.bugs.forEach(bug => {
+                            results[bug.id] = bug;
+                        });
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch related bugs:', e);
+                }
+            }
+            return results;
+        }
+
+        async function loadBug() {
+            const bugId = parseBugId(bugInput.value);
+            if (!bugId) {
+                content.innerHTML = '<div class="error">Please enter a valid bug ID or URL</div>';
+                return;
+            }
+
+            // Update URL
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('bug', bugId);
+            history.pushState({}, '', newUrl);
+
+            loadBtn.disabled = true;
+            loadBtn.textContent = 'Loading...';
+            content.innerHTML = '<div class="loading">Loading bug data...</div>';
+
+            try {
+                const baseUrl = 'https://bugzilla.mozilla.org/rest/bug/' + bugId;
+
+                const [bugRes, commentsRes, historyRes] = await Promise.all([
+                    fetch(baseUrl),
+                    fetch(baseUrl + '/comment'),
+                    fetch(baseUrl + '/history')
+                ]);
+
+                if (!bugRes.ok) {
+                    throw new Error('Bug not found or API error');
+                }
+
+                const bugData = await bugRes.json();
+                const commentsData = await commentsRes.json();
+                const historyData = await historyRes.json();
+
+                const bug = bugData.bugs[0];
+                const comments = commentsData.bugs[bugId]?.comments || [];
+                const history = historyData.bugs[0]?.history || [];
+
+                // Render initial view
+                renderBug(bug, comments, history, {});
+
+                // Fetch related bugs in background and update (includes history references)
+                const relatedIds = collectRelatedBugIds(bug, history);
+                if (relatedIds.length > 0) {
+                    const relatedBugs = await fetchRelatedBugs(relatedIds);
+                    renderBug(bug, comments, history, relatedBugs);
+                }
+            } catch (err) {
+                content.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+            } finally {
+                loadBtn.disabled = false;
+                loadBtn.textContent = 'Load';
+            }
+        }
+
+        function renderBug(bug, comments, history, relatedBugs = {}) {
+            // Update page title
+            document.title = `Bug ${bug.id} - ${bug.summary}`;
+
+            // Helper to render a bug link with optional details
+            function renderBugLink(id, isRemoved = false) {
+                const related = relatedBugs[id];
+                const removedClass = isRemoved ? ' dep-removed' : '';
+                if (related) {
+                    const statusClass = getStatusClass(related.status);
+                    const statusText = related.resolution ? `${related.status} ${related.resolution}` : related.status;
+                    return `<a class="dep-link${removedClass}" href="?bug=${id}">
+                        <span class="dep-id">${id}</span>
+                        <span class="dep-status ${statusClass}">${statusText}</span>
+                        <span class="dep-summary">${escapeHtml(related.summary)}</span>
+                    </a>`;
+                }
+                return `<a class="dep-link${removedClass}" href="?bug=${id}"><span class="dep-id">${id}</span></a>`;
+            }
+
+            // Build timeline
+            const timeline = [];
+
+            // Add comments
+            comments.forEach(comment => {
+                timeline.push({
+                    type: 'comment',
+                    time: comment.creation_time,
+                    author: comment.author,
+                    data: comment
+                });
+            });
+
+            // Add history events (group by timestamp)
+            history.forEach(event => {
+                // Skip minor cc additions
+                const hasImportantChanges = event.changes.some(c =>
+                    !['cc', 'see_also'].includes(c.field_name) ||
+                    isImportantChange(c) ||
+                    isDependencyChange(c)
+                );
+
+                timeline.push({
+                    type: 'history',
+                    time: event.when,
+                    author: event.who,
+                    data: event,
+                    isMinor: !hasImportantChanges
+                });
+            });
+
+            // Sort by time
+            timeline.sort((a, b) => new Date(a.time) - new Date(b.time));
+
+            // Render header
+            let html = `
+                <div class="bug-header">
+                    <div class="bug-id">
+                        <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=${bug.id}" target="_blank">Bug ${bug.id}</a>
+                        ${bug.alias ? ` (${bug.alias})` : ''}
+                    </div>
+                    <div class="bug-summary">${escapeHtml(bug.summary)}</div>
+                    <div class="bug-meta">
+                        <span class="status-badge ${getStatusClass(bug.status)}">${bug.status}${bug.resolution ? ' ' + bug.resolution : ''}</span>
+                        <span>${bug.product} :: ${bug.component}</span>
+                        <span>Created ${formatTime(bug.creation_time)}</span>
+                        ${bug.votes > 0 ? `<span class="votes">${bug.votes} votes</span>` : ''}
+                    </div>
+                    ${bug.keywords?.length ? `
+                        <div class="keywords">
+                            ${bug.keywords.map(k => `<span class="keyword">${escapeHtml(k)}</span>`).join('')}
+                        </div>
+                    ` : ''}
+                    ${(bug.depends_on?.length || bug.blocks?.length || bug.dupe_of || bug.duplicates?.length || bug.regressed_by?.length || bug.regressions?.length) ? `
+                        <div class="deps-section">
+                            ${bug.depends_on?.length ? `
+                                <div class="deps-title">Depends on (${bug.depends_on.length})</div>
+                                <div class="deps-list">
+                                    ${bug.depends_on.map(id => renderBugLink(id)).join('')}
+                                </div>
+                            ` : ''}
+                            ${bug.blocks?.length ? `
+                                <div class="deps-title" style="margin-top: 8px">Blocks (${bug.blocks.length})</div>
+                                <div class="deps-list">
+                                    ${bug.blocks.map(id => renderBugLink(id)).join('')}
+                                </div>
+                            ` : ''}
+                            ${bug.dupe_of ? `
+                                <div class="deps-title" style="margin-top: 8px">Duplicate of</div>
+                                <div class="deps-list">${renderBugLink(bug.dupe_of)}</div>
+                            ` : ''}
+                            ${bug.duplicates?.length ? `
+                                <div class="deps-title" style="margin-top: 8px">Duplicates (${bug.duplicates.length})</div>
+                                <div class="deps-list">
+                                    ${bug.duplicates.map(id => renderBugLink(id)).join('')}
+                                </div>
+                            ` : ''}
+                            ${bug.regressed_by?.length ? `
+                                <div class="deps-title" style="margin-top: 8px">Regressed by (${bug.regressed_by.length})</div>
+                                <div class="deps-list">
+                                    ${bug.regressed_by.map(id => renderBugLink(id)).join('')}
+                                </div>
+                            ` : ''}
+                            ${bug.regressions?.length ? `
+                                <div class="deps-title" style="margin-top: 8px">Regressions (${bug.regressions.length})</div>
+                                <div class="deps-list">
+                                    ${bug.regressions.map(id => renderBugLink(id)).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : ''}
+                    ${bug.see_also?.length ? `
+                        <div class="see-also">
+                            <strong>See also:</strong>
+                            ${bug.see_also.map(url => `<a href="${url}" target="_blank">${shortenUrl(url)}</a>`).join(', ')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            // Render timeline
+            html += '<div class="timeline">';
+
+            timeline.forEach(item => {
+                if (item.type === 'comment') {
+                    const comment = item.data;
+                    html += `
+                        <div class="timeline-item comment">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-time">
+                                <span class="timeline-author">${escapeHtml(formatAuthor(comment.author))}</span>
+                                commented ${formatTime(comment.creation_time)}
+                            </div>
+                            <div class="timeline-content">
+                                <div class="comment-text">${linkify(escapeHtml(comment.text))}</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const event = item.data;
+                    const hasImportant = event.changes.some(isImportantChange);
+                    const hasDeps = event.changes.some(isDependencyChange);
+
+                    // Skip pure cc-only changes for cleaner timeline
+                    const nonCcChanges = event.changes.filter(c => c.field_name !== 'cc');
+                    if (nonCcChanges.length === 0) return;
+
+                    let itemClass = 'timeline-item';
+                    if (hasImportant) itemClass += ' important';
+                    else if (hasDeps) itemClass += ' dependency';
+                    else if (item.isMinor) itemClass += ' minor';
+
+                    html += `
+                        <div class="${itemClass}">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-time">
+                                <span class="timeline-author">${escapeHtml(formatAuthor(event.who))}</span>
+                                made changes ${formatTime(event.when)}
+                            </div>
+                            <div class="timeline-content">
+                                <div class="change-list">
+                                    ${nonCcChanges.map(change => {
+                                        const isBugField = ['depends_on', 'blocks', 'duplicates', 'regressed_by', 'regressions', 'dupe_of'].includes(change.field_name);
+                                        const formatValue = (val, isRemoved) => {
+                                            if (!val) return '';
+                                            if (isBugField) {
+                                                // Split by comma and render each bug ID
+                                                return val.split(',').map(id => {
+                                                    id = id.trim();
+                                                    if (/^\d+$/.test(id)) {
+                                                        return renderBugLink(parseInt(id), isRemoved);
+                                                    }
+                                                    return escapeHtml(id);
+                                                }).join(' ');
+                                            }
+                                            return linkify(escapeHtml(formatChangeValue(val, change.field_name)), false);
+                                        };
+                                        return `
+                                        <div class="change-item">
+                                            <span class="field-name">${formatFieldName(change.field_name)}:</span>
+                                            ${change.removed ? `<span class="removed">${formatValue(change.removed, true)}</span>` : ''}
+                                            ${change.removed && change.added ? ' → ' : ''}
+                                            ${change.added ? `<span class="added">${formatValue(change.added, false)}</span>` : ''}
+                                        </div>
+                                    `}).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            html += '</div>';
+            content.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function shortenUrl(url) {
+            try {
+                const u = new URL(url);
+                let path = u.pathname + u.hash;
+                if (path.length > 40) {
+                    path = path.substring(0, 37) + '...';
+                }
+                return u.hostname + path;
+            } catch {
+                return url.length > 50 ? url.substring(0, 47) + '...' : url;
+            }
+        }
+
+        // Handle Enter key
+        bugInput.addEventListener('keypress', e => {
+            if (e.key === 'Enter') loadBug();
+        });
+
+        // Load bug from URL on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const bugId = params.get('bug');
+            if (bugId) {
+                bugInput.value = bugId;
+                loadBug();
+            }
+        });
+
+        // Handle browser back/forward
+        window.addEventListener('popstate', () => {
+            const params = new URLSearchParams(window.location.search);
+            const bugId = params.get('bug');
+            if (bugId) {
+                bugInput.value = bugId;
+                loadBug();
+            }
+        });
+    </script>
+</body>
+</html>
