@@ -1,3 +1,3 @@
-This tool performs Optical Character Recognition (OCR) on PDFs and images directly in your web browser. It uses Tesseract.js for text recognition and PDF.js to convert PDFs into images for processing. The application runs entirely client-side with no server uploads, supporting multiple languages and allowing you to drag and drop files or load an example PDF.
+Web application for performing optical character recognition (OCR) on PDF documents and image files entirely within the browser without uploading data to any server. It leverages Tesseract.js for OCR processing and PDF.js to convert PDF pages into images, supporting multiple languages and allowing users to drag-and-drop files or paste images directly. The tool displays extracted text in editable textareas for each page and combines results into a full-document view for multi-page files.
 
 <!-- Generated from commit: c335adf1faeb762d474771d17a2d0c8e41204fb0 -->

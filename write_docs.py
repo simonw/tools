@@ -2,7 +2,18 @@
 # requires-python = ">=3.12"
 # ///
 
+PROMPT = """
+Write a paragraph of documentation for this page as markdown.
+Do not include any headings
+Do not use words like just or simply.
+Keep it to 2-3 sentences.
+
+Instead of starting with something like "This Bugzilla Bug Viewer is a web application..."
+start with "Web application for ..." or similar
+""".strip()
+
 import os
+import shlex
 import subprocess
 import glob
 import re
@@ -43,7 +54,7 @@ def generate_documentation(html_file_path):
     """Generate documentation for an HTML file using Claude."""
     try:
         result = subprocess.run(
-            f"cat '{html_file_path}' | llm -m claude-haiku-4.5 --system \"Write a paragraph of documentation for this page as markdown. Do not include any headings. Do not use words like just or simply. Keep it to 2-3 sentences.\"",
+            f"cat '{html_file_path}' | llm -m claude-haiku-4.5 --system {shlex.quote(PROMPT)}",
             shell=True,
             capture_output=True,
             text=True,
