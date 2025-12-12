@@ -1,3 +1,5 @@
-Convert GitHub issue URLs to formatted markdown documents with full issue details and comments. The tool automatically expands code snippet references within issues to display inline code blocks with syntax highlighting. Optional GitHub authentication provides access to private repositories and higher API rate limits, with credentials stored securely in your browser.
+# Documentation
 
-<!-- Generated from commit: 2c5098686d911322de52778fe1c0811861ada77f -->
+Convert GitHub issues and pull requests to markdown format by providing their URL and an optional personal access token for private repositories. The tool automatically fetches the issue details, all comments, and expands any inline code references with their actual content from the repository. Your GitHub token is securely stored in your browser's local storage for convenient access on subsequent visits.
+
+<!-- Generated from commit: 2a0a0c26db427db87f0aa937c96a7da01b8f8994 -->
