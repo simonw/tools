@@ -1,0 +1,3 @@
+Web application for testing HTTP requests and inspecting browser CORS policies by sending requests and viewing the server response headers and body that the browser permits. Users can manually construct requests with custom methods, headers, and request bodies, or import requests directly from curl commands. The tool displays the response status, accessible headers (limited by CORS), and response body, helping developers understand which data their browser can access from cross-origin requests.
+
+<!-- Generated from commit: f009d6730db1ebe83ba0995055b6ea1fe35fd1d0 -->
