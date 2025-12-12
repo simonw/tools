@@ -1,3 +1,3 @@
-This page provides a demonstration environment for testing and understanding passkeys. Users can register new passkeys, authenticate with existing ones, and manage their stored credentials. The demo operates entirely in the browser using localStorage for credential storage, with a debugging section that shows technical details of credential creation and authentication responses.
+Experiment with passkey registration and authentication using the WebAuthn API in your browser. This demo allows you to create passkey credentials, authenticate with them, and inspect the underlying protocol responses and data. Stored credentials are maintained locally in your browser's storage, making this a fully client-side implementation for learning how modern passwordless authentication works.
 
 <!-- Generated from commit: 6b0d8cdc263599b8460c5d2c77b78ab57f15d11e -->

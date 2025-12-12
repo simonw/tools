@@ -1,3 +1,3 @@
-This tool converts rich text into a clean HTML subset by letting you paste formatted content from any source. Paste text into the editable area to generate sanitized HTML code that only includes supported elements like paragraphs, headings, links, and lists. The tool provides both a code view of the resulting HTML and a live preview window to verify the output appearance.
+Convert rich text content from clipboard into clean, filtered HTML containing only semantic elements like paragraphs, headings, lists, links, and text formatting. Paste formatted content into the editable area to automatically extract and sanitize the HTML, removing unsupported tags and attributes while preserving the document structure and links. The cleaned HTML is displayed in a code editor and rendered in a live preview, with options to copy the code or clear all content.
 
 <!-- Generated from commit: 6f910f4c39655775c56d02ce6e4a4693d2cfdc42 -->

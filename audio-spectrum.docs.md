@@ -1,3 +1,3 @@
-This Audio Spectrum Visualizer uses the Web Audio API to capture microphone input and display real-time frequency data. The application processes audio through an analyzer node and renders the spectrum as a series of colored bars on an HTML canvas, with the height and color of each bar representing different frequency amplitudes. Upon loading, the page requests microphone access and begins continuously updating the visualization.
+Visualize real-time audio frequency data from your microphone as an animated spectrum display. This application uses the Web Audio API to capture microphone input, analyze frequencies using FFT (Fast Fourier Transform), and render dynamic bars that respond to sound levels across the frequency spectrum. Grant microphone permissions when prompted to begin the visualization.
 
 <!-- Generated from commit: 1390c401fa2e7a1797dba733a059390752a8a62a -->

@@ -1,3 +1,3 @@
-This page is a Bluesky Quote Finder tool that allows users to discover all quote posts of a given Bluesky post. Users input a post URL, and the application fetches the original post details along with all quotes, displaying them with color-coded depth indicators and sortable views (by likes, recency, or oldest first). The tool integrates with Bluesky's public API to retrieve post data and supports URL parameter sharing for easy navigation.
+Search for quote posts on Bluesky by entering a post URL to discover all responses that quote the original post. The tool fetches and displays these quotes with options to sort by likes, recency, or oldest first, and provides direct links to view each quote on Bluesky or explore its thread context. A color-coded depth indicator helps visualize the conversation hierarchy.
 
 <!-- Generated from commit: d61f13e06cb664aee69fbe12c21a472f2c1a0daf -->

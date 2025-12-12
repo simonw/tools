@@ -1,3 +1,3 @@
-This tool helps visualize image segmentation masks using the Gemini API. Upload an image and provide a prompt to generate JSON containing bounding boxes and segmentation masks for objects in the image. The application displays the original image with overlaid masks, coordinate grids, and side-by-side comparisons of each detected region and its corresponding mask.
+Use the Gemini API to analyze images and generate segmentation masks with visual overlays. Upload an image and provide a prompt describing what you want to segment, then the application displays bounding boxes and mask visualizations directly on the image canvas. Token usage metrics are provided for each API call, and you can choose from various Gemini model versions including thinking and non-thinking variants.
 
 <!-- Generated from commit: 6432b3799baafcfbc4d8d9762d8b9b0bfe28c6f5 -->

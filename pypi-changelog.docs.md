@@ -1,3 +1,3 @@
-This page provides a tool for exploring PyPI package version histories and comparing changes between releases. Users can enter a package name to view all available versions with wheel distributions and generate detailed diffs between any two versions by downloading and comparing the wheel contents. The application supports sharing specific comparisons via URL parameters and displays differences in a formatted, easy-to-read side-by-side view.
+Track changes across PyPI package versions by entering a package name and viewing detailed diffs between releases. This tool downloads and compares wheel files from PyPI, displaying file-by-file changes with syntax highlighting and support for custom version ranges. Share comparisons easily by copying diffs to clipboard or sharing the generated URL with version parameters.
 
 <!-- Generated from commit: 47212f07c76f74ef8b75ec0a01d29e11cf275664 -->

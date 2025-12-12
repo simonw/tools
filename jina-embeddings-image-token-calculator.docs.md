@@ -1,3 +1,3 @@
-The Image Token Calculator allows you to estimate the token cost for processing images with AI models. Upload an image by dragging and dropping it onto the designated area or by clicking to browse your files. After uploading, the calculator will display the image dimensions, number of tiles required to process the image, and the total token cost based on a calculation of 1000 tokens per tile.
+Calculate the token cost for images used in API requests by uploading or dragging an image file into the tool. The calculator analyzes the image dimensions and divides them into 224-pixel tiles, multiplying the total tile count by 1,000 to determine the token expense. This helps estimate costs when working with vision-based APIs that charge per image token.
 
 <!-- Generated from commit: 8ad34e5e2ac8f07b4e59a06c9f5dc9e874930268 -->

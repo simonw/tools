@@ -1,3 +1,5 @@
-The Filter Badge Component allows users to create and manage data filtering criteria through an interactive interface. Users can add filters by clicking the "Add filter" button, then select a column, operator, and value to define each filter. Each part of the filter is keyboard accessible, with support for tab navigation, Enter/Space key actions, and direct value editing through a popover interface.
+# Filter Badge Component Documentation
+
+Display and manage multiple filter conditions using an interactive badge interface with keyboard navigation support. Each filter badge displays a column name, operator, and value that can be edited individually, with options to add or remove filters as needed. The component provides full accessibility through keyboard shortcuts, focus management, and ARIA labels for screen reader users.
 
 <!-- Generated from commit: 57dfbefb904856ce2ddeb5739093202b24790839 -->

@@ -1,3 +1,3 @@
-This tool allows you to retrieve GitHub account information by entering a username. It displays the account's numeric ID, creation date, and avatar by making a request to the GitHub REST API. The interface provides clear feedback about rate limits when they occur and automatically demonstrates functionality by looking up "octocat" on initial page load.
+Look up GitHub user account information by entering a username to retrieve the numeric Account ID and account creation date through the public GitHub API. The tool displays the user's profile link, avatar, and formatted timestamps, along with request latency information. Unauthenticated requests are subject to GitHub's rate limits, which may block further lookups after a certain number of queries.
 
 <!-- Generated from commit: cf9c6f88fd22a59d10e53be4b0f60b96d0691750 -->

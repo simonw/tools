@@ -1,3 +1,3 @@
-This PDF comparison tool enables side-by-side visual comparison of two PDF documents. Upload two PDFs by dragging them into the drop zone or clicking to select files. The tool renders each page of both documents and generates a third visualization that highlights differences between corresponding pages in red, making it easy to identify discrepancies between versions.
+Compare two PDF documents side-by-side to identify differences between them. Upload or drag and drop two PDF files to view their pages rendered as images, with a third panel highlighting any pixel-level differences in red. This tool is useful for detecting changes between document versions, comparing drafts, or verifying document modifications.
 
 <!-- Generated from commit: b3fcfe7df42e5fd896347c212f2b76283e047a78 -->

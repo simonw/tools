@@ -1,3 +1,5 @@
-This page allows you to visualize deep research sessions by loading transcripts in JSON format. You can load an example, retrieve data from a GitHub Gist, or paste your own JSON directly. The viewer provides statistics about the research session and displays a detailed timeline of thinking steps, web searches, page visits, and code executions, with the final result shown at the bottom.
+# Deep Research Session Viewer Documentation
+
+Analyze and visualize AI deep research transcripts with this interactive viewer that displays the complete research workflow including reasoning steps, web searches, visited pages, and code executions. Load transcripts from GitHub Gists, paste JSON directly, or view example data to explore how the AI model conducted research and arrived at its final conclusions. The viewer provides statistical summaries and a chronological timeline showing the model's thinking process, search queries, page visits, and computational steps in an easy-to-read format.
 
 <!-- Generated from commit: a8bb00cc9d4d3c07e6d700283d7296593053e9a8 -->

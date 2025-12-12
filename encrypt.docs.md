@@ -1,3 +1,3 @@
-This tool enables secure message encryption with a passphrase. Enter your message and a passphrase to generate an encrypted link that you can share with others. Recipients can decrypt the message by visiting the link and entering the correct passphrase. All encryption and decryption occurs in the browser using the Web Crypto API for enhanced security.
+Encrypt and decrypt messages using a passphrase with this web application that leverages modern browser cryptography APIs. The tool generates a secure shareable link containing an encrypted message that can only be decrypted with the correct passphrase, making it useful for sending sensitive information. All encryption and decryption operations occur entirely in the browser, ensuring your data never leaves your device.
 
 <!-- Generated from commit: b4e3e15127ef2e1f451ff5e3db42a85c277ae8ca -->

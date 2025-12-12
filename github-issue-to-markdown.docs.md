@@ -1,3 +1,3 @@
-This tool converts GitHub issues to markdown format by fetching the issue data and all associated comments from the GitHub API. Users can optionally provide a personal access token to access private repositories and increase API rate limits, which is stored locally in the browser for convenience. The tool also automatically expands any GitHub code blob URLs found in the issue or comments with their actual code snippets, formatted as syntax-highlighted code blocks.
+Convert GitHub issue URLs to formatted markdown documents with full issue details and comments. The tool automatically expands code snippet references within issues to display inline code blocks with syntax highlighting. Optional GitHub authentication provides access to private repositories and higher API rate limits, with credentials stored securely in your browser.
 
 <!-- Generated from commit: 2c5098686d911322de52778fe1c0811861ada77f -->

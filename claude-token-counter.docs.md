@@ -1,3 +1,3 @@
-This page provides a tool for counting tokens used by Claude models, which is useful for understanding API costs and optimizing prompts. Users can enter system prompts and user messages, optionally attach images or PDF documents, and receive a detailed token count breakdown from Anthropic's API. The tool stores the API key locally in the browser for convenience and supports drag-and-drop file uploads for efficient workflows.
+Count tokens in your Claude API requests using this web-based token counter tool. Enter a system prompt and user message, optionally attach images or PDF documents, and receive detailed token usage information for billing and optimization purposes. The tool securely stores your API key locally and communicates directly with the Anthropic API to provide accurate token counts for your exact message content.
 
 <!-- Generated from commit: fbd47dc3816f32a8c3d8614ee2457f18d77536fd -->

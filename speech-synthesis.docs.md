@@ -1,3 +1,3 @@
-This speech synthesis tester allows you to convert text to spoken audio using the Web Speech API. Enter your text, select a voice, and adjust the rate, pitch, and volume settings to customize the speech output. The interface provides controls to start and stop speech playback, with visual feedback indicating the current status.
+Test the Web Speech API's speech synthesis capabilities by entering text and configuring voice parameters such as rate, pitch, and volume. The application provides a selection of available system voices and displays real-time status updates as text is being spoken. Users can adjust synthesis settings and stop playback at any time using the intuitive control interface.
 
 <!-- Generated from commit: 811408d27e9e94e432ac8048192fd3b834b36224 -->

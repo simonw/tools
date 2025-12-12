@@ -1,3 +1,3 @@
-This tool renders JSON responses from Claude API that contain citations. Paste a JSON response into the text area and click "Render message" to display the message with proper formatting and citation blockquotes. The renderer uses a sandboxed iframe for security, ensuring the content is displayed safely while maintaining proper styling and organization of the text and cited passages.
+Render Claude API responses with proper citation formatting by pasting JSON output into this tool. The tool parses the response structure and displays text content alongside blockquote-formatted citations, making it easy to review how Claude has sourced and attributed information. An embedded iframe renderer safely displays the formatted output with styling that highlights cited passages.
 
 <!-- Generated from commit: d97ff4e32f32e064c3fa0c26f1efba6d32655355 -->

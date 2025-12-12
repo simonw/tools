@@ -1,3 +1,3 @@
-This web application allows you to view your Bluesky social media timeline by logging in with your username and app password. After authentication, it fetches your timeline and displays posts with avatars and content in a readable format. The timeline automatically refreshes every 10 seconds to show new content, and you can stop the auto-refresh at any time.
+View Bluesky social media timelines by authenticating with your account credentials and retrieving live feed data. The application automatically refreshes your timeline at regular intervals while displaying posts with author information, timestamps, and full JSON response data for advanced inspection. Credentials are securely stored locally in your browser for convenient access during future sessions.
 
 <!-- Generated from commit: 7eff228bf303ad29a3ca006831ae7d5dae6201c1 -->

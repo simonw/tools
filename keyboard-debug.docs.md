@@ -1,3 +1,3 @@
-This keyboard debugger tool displays keypress events in real-time. When you press keys on your keyboard, they appear visually on screen with animated glass-like cards. The tool shows the key name, key code, and keyCode values for each pressed key, supporting multiple simultaneous keypresses and special key representations like arrows and modifiers.
+Monitor keyboard input in real-time with this interactive keyboard debugger that displays pressed keys and their corresponding key codes. Press any keys on your keyboard to see them appear with visual feedback, including support for simultaneous multi-key presses and special key representations. This tool is useful for testing keyboard functionality, debugging input handling, and understanding key event properties like key name, code, and keyCode values.
 
 <!-- Generated from commit: 696c234c2dd33f99e11e6172d4b7460ddc145401 -->

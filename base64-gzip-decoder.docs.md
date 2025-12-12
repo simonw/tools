@@ -1,3 +1,3 @@
-This tool decodes base64 encoded gzip data. Paste your base64 encoded string into the input field and click the "Decode" button to convert it to plain text. The tool uses the pako JavaScript library to handle the gzip decompression after performing base64 decoding.
+Decode base64-encoded gzip data to retrieve the original decompressed content. Paste your base64 string into the input field and click the Decode button to process the data. The decoder handles the conversion from base64 format and gzip decompression in sequence, displaying the result or providing detailed error messages if the input is invalid.
 
 <!-- Generated from commit: 2ef8cb4d03cd338b88ee72f8d811d839f311c525 -->

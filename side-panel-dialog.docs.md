@@ -1,3 +1,3 @@
-This page demonstrates a product catalog with an animated side panel modal using the HTML `<dialog>` element. Users can click on product cards to view detailed information in a non-modal or modal dialog panel that slides in from the right, with the ability to toggle between the two modes using a switch. The side panel includes a feedback form that allows visitors to submit comments about each product.
+Explore a product catalog with interactive item details displayed in a smooth side panel modal. Click any product card to view comprehensive information including category, price, and description, with the option to toggle between modal and non-modal dialog behavior. The interface includes a feedback form within the side panel, allowing users to submit comments about products with a seamless animated experience.
 
 <!-- Generated from commit: be33e66f67892ada5d365182c4d2d7e5bf48fffc -->

@@ -1,3 +1,5 @@
-This tool helps you explore U.S. Census data through the Census Reporter API. Search for geographical areas like cities or counties, then select data tables related to demographics, income, or other census topics. Once you've selected both a geography and at least one data table, you can retrieve and view the census data with estimates and margins of error displayed in organized tables.
+# Documentation
+
+Explore demographic and economic data from the US Census American Community Survey using the Census Reporter API. This tool allows you to search for specific geographic locations and data tables, then retrieve detailed census statistics including estimates and margins of error. Simply select a geography and one or more data tables to view comprehensive statistical breakdowns organized by column with their corresponding uncertainty measurements.
 
 <!-- Generated from commit: d98b017f9a1c071f0d55e4f24d34313e36a7240c -->

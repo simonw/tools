@@ -1,3 +1,3 @@
-This tool processes HTML content by adding unique ID attributes to all header elements (h1-h6) that don't already have them. After processing, it generates a list of anchor links pointing to each header, using the page URL you provide combined with the header IDs as fragment identifiers. The processed HTML and a formatted list of header links are displayed in separate output fields.
+Process HTML content to automatically generate unique IDs for all header elements and create a table of contents with anchor links. This tool is useful for adding navigation functionality to static HTML pages or preparing content for documentation systems that require header identification. Simply paste your HTML and provide the page URL, then the processor will output the modified HTML and a formatted list of clickable header links.
 
 <!-- Generated from commit: 2dbdc12b1eecf73a8a8b51c3b221774e149a2048 -->

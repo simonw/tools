@@ -1,3 +1,3 @@
-This Timezone Meeting Planner allows you to compare time differences between two timezones. Select locations from the dropdown menus to generate a 48-hour comparison table showing the corresponding times in both locations. The tool updates the URL with your selections so you can share specific timezone comparisons with others.
+Plan meetings across multiple time zones by selecting two locations and viewing their local times side-by-side. The comparison table displays 48 consecutive hours of UTC times with corresponding local times for each timezone, making it easy to identify overlapping working hours. Your timezone selections are automatically saved in the URL for convenient sharing and bookmarking.
 
 <!-- Generated from commit: a1420370ae38120819da3ddbb6fcefe1d9844f77 -->

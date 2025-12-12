@@ -1,3 +1,5 @@
-This page demonstrates an interactive footnote system that enhances content by providing additional information without disrupting reading flow. When users hover over or click a footnote marker, a popup appears with the footnote text, eliminating the need to scroll to the bottom of the page. The system includes accessibility features with proper ARIA roles and supports both desktop and mobile interactions through hover and click events.
+# Documentation
+
+Explore an interactive footnote system that enhances document reading by displaying footnote content in contextual popups when you hover over or click footnote references. The implementation uses semantic HTML with proper ARIA roles for accessibility, combined with CSS styling and JavaScript to position popups dynamically based on viewport constraints. This approach maintains traditional navigation between footnotes and their references while providing a modern, user-friendly experience that works across both desktop and mobile devices.
 
 <!-- Generated from commit: 77c9ac04dc387a80b8af1b68b9633484f09e1e4b -->

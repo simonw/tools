@@ -1,3 +1,3 @@
-The Bluesky WebSocket Feed Monitor connects to the Bluesky social network's WebSocket API and displays real-time feed data in a log. Users can establish a connection, send custom JSON messages to filter the feed by specific collections or user DIDs, and view incoming messages in the output area. The interface provides controls to connect, disconnect, send messages, and clear the log history.
+Monitor real-time Bluesky feed data by connecting to the Bluesky Jetstream WebSocket service and viewing incoming posts and events. Send custom JSON messages to filter the feed by collection type, specific user DIDs, or other parameters, with all activity logged in the output panel for debugging and inspection. Use the provided keyboard shortcut (Ctrl/Cmd + Enter) to quickly send configuration updates to the WebSocket connection.
 
 <!-- Generated from commit: 7c6af8eeabc7682b5f9ec2621e34bc771c5471d8 -->

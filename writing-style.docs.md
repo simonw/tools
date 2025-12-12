@@ -1,3 +1,3 @@
-The Writing Style Analyzer helps improve your writing by identifying problems that weaken your prose. The tool automatically detects weasel words (vague terms that lack precision), passive voice constructions, and accidentally duplicated words. Paste your text into the input area to receive immediate feedback with highlighted issues and their surrounding context.
+Analyze your writing for common style issues by pasting text into this tool, which detects weasel words (such as "very" and "quite"), passive voice constructions, and duplicate consecutive words. The analyzer provides contextual snippets for each issue found, helping you identify areas where your writing could be more direct and concise. This tool is adapted from shell scripts by Matt Might and updates results in real-time as you type.
 
 <!-- Generated from commit: 0fbf511ab06b62a9fe8061198b90904aab111e93 -->

@@ -1,3 +1,3 @@
-The Lightning Timer is a customizable countdown application designed for time-sensitive presentations or tasks. Set your preferred duration and optional warning time through the settings gear icon. Click the timer to start, pause, or reset it. The screen changes color as time runs low, providing a visual cue when your allotted time is nearly exhausted.
+Track time with Lightning Timer, a full-screen countdown application that displays elapsed seconds in large, easy-to-read format. Click the timer display to start, pause, or reset the countdown, and access the settings icon to configure the total duration and optional warning threshold that triggers a visual color change. The timer supports URL-based configuration for quick setup and displays the remaining time in both the page and browser title bar.
 
 <!-- Generated from commit: 7b5e57d73ca0a21fcb7f80cb6ce4bd1301fe06d8 -->

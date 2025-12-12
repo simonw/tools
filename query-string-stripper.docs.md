@@ -1,3 +1,3 @@
-This utility removes the query string portion from URLs (everything after the question mark). Enter a URL into the input field and the tool instantly displays the cleaned version without query parameters. You can copy the stripped URL to your clipboard with the dedicated button for easy use elsewhere.
+Remove query parameters and tracking data from URLs with this Query String Stripper tool. Paste any URL to instantly extract the base address by stripping away everything after the question mark, then copy the cleaned result to your clipboard with a single click. This utility is helpful for sharing clean URLs, removing analytics parameters, or simplifying web addresses for documentation purposes.
 
 <!-- Generated from commit: f7010753d1508f56a225c6cddf84e9cc78936ff4 -->

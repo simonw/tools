@@ -1,3 +1,3 @@
-This utility extracts and displays strings from JSON data that are either longer than 20 characters or contain newlines. Paste your JSON in the input area or load it from a GitHub Gist, and the tool will automatically extract matching strings, showing their path in the JSON structure. Each string can be copied to the clipboard with a single click.
+Extract all strings from JSON data that exceed 20 characters in length or contain line breaks. This tool is useful for identifying longer text content within complex JSON structures for review, localization, or documentation purposes. Simply paste JSON into the textarea to automatically display matching strings along with their object paths, and use the copy button to quickly transfer any string to your clipboard.
 
 <!-- Generated from commit: 6fbfc694190f24e8c08abfd816cdf64edf42f3a1 -->

@@ -1,3 +1,3 @@
-This tool extracts and formats Python dependencies from a Pipfile.lock file. Paste your Pipfile.lock JSON content into the text area and click "Parse Dependencies" to convert it into both Pipfile format and requirements.txt format. You can copy either format to your clipboard using the designated buttons.
+Parse Pipfile.lock files to extract Python package dependencies and convert them into multiple formats for easy management and sharing. The tool automatically extracts package names and versions from the lock file and displays them in both Pipfile and requirements.txt formats, with one-click copying functionality for each output format.
 
 <!-- Generated from commit: 0a11eb24ddca33a9315f879b170e8dad3399c719 -->

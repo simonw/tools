@@ -1,3 +1,3 @@
-This page displays an interactive CSS grid layout with a symmetrical animation effect. The grid contains four colored blocks of different sizes, with one block (colored green) that can be clicked to expand and cover the entire grid area. When expanded, clicking again triggers a smooth animation that returns the block to its original position and size.
+Explore an interactive CSS grid layout that demonstrates dynamic element expansion with smooth animations. Click the green cell labeled "1x2" to trigger a symmetric animation that expands the element to fill the entire grid container, then click again to animate it back to its original position. The layout combines CSS Grid positioning with JavaScript event handling to create a polished visual effect that smoothly transitions between states.
 
 <!-- Generated from commit: 1faccef4c2390ded2dc2db0d0ff59bf3248d4c50 -->

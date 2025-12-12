@@ -1,3 +1,3 @@
-This page provides an interface for recording audio, which can then be submitted to OpenAI's GPT-4o audio model along with a text prompt. The application allows users to record speech through their microphone, review the recording, and submit it to the API for processing. After submission, the page displays both the formatted response and detailed information about token usage and associated costs.
+Record audio through your microphone and send it to OpenAI's GPT-4o audio model along with a text prompt to receive AI-generated responses. The tool converts your recorded audio to WAV format, calculates token usage and associated costs for both text and audio inputs, and displays the API response in both formatted and raw JSON views. Your API key is securely stored locally in your browser, and you can download the recorded audio file for later use.
 
 <!-- Generated from commit: 1c63c27fa658f88da2c2928449f28ddb1c3c16c0 -->

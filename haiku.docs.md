@@ -1,3 +1,5 @@
-This web application uses your device's camera to capture images and generate haikus inspired by what it sees. After capturing an image with the camera button, the app sends it to Claude AI which creates a unique haiku based on the visual content. Users can switch between front and rear cameras if their device has multiple cameras available.
+# Documentation
+
+Capture images from your device's camera and generate haiku poetry inspired by what you photograph using Claude's vision capabilities. Press the camera button to take a photo, and the AI will compose an original haiku based on the image content. The app stores your Anthropic API key locally for convenience and supports switching between front and rear-facing cameras on devices with multiple camera options.
 
 <!-- Generated from commit: 481983f6237a5ca690c49f6c4762306c15d762b5 -->

@@ -1,3 +1,3 @@
-The Image Optimizer allows you to compress and optimize your images by adjusting JPEG quality settings. Upload an image by clicking the dropzone or using drag-and-drop, then adjust the quality slider to reduce file size while maintaining appropriate visual quality. Toggle between original and optimized versions to compare quality, and download or copy the data URI of your optimized image when satisfied with the results.
+Compress and optimize image files by uploading them to this web-based tool that applies adjustable JPEG quality settings to reduce file size. The interface allows users to compare the original and optimized versions side-by-side by toggling between views or pressing and holding the image, while providing real-time compression statistics and the ability to download the optimized file or copy its data URI for embedding in code.
 
 <!-- Generated from commit: c080cb104f486599f020d49da5136331279f38fa -->

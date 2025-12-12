@@ -1,3 +1,3 @@
-This page displays a graph showing the 6-survey rolling average of AI adoption rates across different company sizes. It loads Python in the browser using Pyodide to fetch Excel data, process it with pandas, and generate a visualization with matplotlib. Users can view the resulting chart and download it in PNG or SVG formats.
+View AI adoption trends across different firm sizes by analyzing survey data on artificial intelligence usage in the workplace. This page runs a Python analysis using Pyodide to fetch employment survey data, calculate six-survey rolling averages, and generate an interactive visualization showing adoption rates by company size from November 2023 through August 2025. Download the resulting chart as PNG or SVG for further use or presentation.
 
 <!-- Generated from commit: ecc4d0ed023901a9d26d99aea2b3bd34258e5241 -->

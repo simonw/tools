@@ -1,3 +1,3 @@
-This tool enables you to create a subset of your Swagger API documentation by selecting specific endpoints. Paste your Swagger JSON, choose the desired paths and methods, and generate a new Swagger document containing only those selected endpoints. The tool automatically includes all referenced schema definitions to ensure your subset documentation remains valid and complete.
+Extract a subset of Swagger/OpenAPI definitions by selecting specific API endpoints and their dependencies. This tool parses a Swagger JSON document, displays all available paths and methods in an interactive checklist, and generates a filtered JSON output containing only the selected endpoints along with any referenced schema definitions they require. The generated subset can be copied to the clipboard for use in other applications or documentation.
 
 <!-- Generated from commit: 49277989809c8b6ca92e82ff82765d634b8400b2 -->

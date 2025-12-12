@@ -1,3 +1,3 @@
-This page displays a filtered view of Hacker News top stories. Users can specify comma-separated terms they want to exclude from the results. The page fetches up to 200 top stories from the Hacker News API, filters out any stories containing the excluded terms, and displays the remaining stories with their titles, scores, authors, and comment counts.
+Browse the latest Hacker News stories with customizable content filtering to exclude topics of your choice. Enter comma-separated terms to filter out posts matching those keywords across titles, URLs, and descriptions, and refresh the feed to load the newest stories. Your filter preferences are automatically saved in your browser for future visits.
 
 <!-- Generated from commit: be1fcc15eca432e646ba2f9750e7a6c6faf7e113 -->

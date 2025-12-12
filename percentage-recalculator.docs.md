@@ -1,3 +1,3 @@
-The Percentage Recalculator allows you to redistribute percentages to sum up to 100%. Enter up to four percentage values and use the "Ignore this" checkbox to exclude specific values from recalculation. The tool automatically displays the original values alongside recalculated percentages that maintain their relative proportions while summing to 100%.
+Calculate and rescale percentage values in real time with this interactive tool. Enter up to four percentages and optionally mark any as ignored to exclude them from the recalculation, which automatically normalizes the remaining active percentages to sum to 100%. The interface displays both the original values and their recalculated equivalents, making it useful for adjusting weighted distributions or normalizing survey responses.
 
 <!-- Generated from commit: 119146a6484b7876c008d78e400b3c49ff3b48c0 -->

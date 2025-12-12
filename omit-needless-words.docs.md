@@ -1,3 +1,5 @@
-This page implements a text editing tool that uses Claude's API to identify unnecessary words in written content based on Strunk & White's editing principles. Users paste text into a textarea, select a language model, and click analyze to receive the original text with omittable words highlighted in strikethrough tags. The tool includes features for customizing the system prompt, viewing detailed stream statistics and debugging information, and automatically calculating what percentage of words could be removed.
+# Documentation
+
+Analyze written text to identify words and phrases that can be removed without changing meaning or grammatical correctness. This tool uses Claude to apply the editing principle "Omit needless words" from Strunk & White's classic style guide, marking removable content like filler words, redundant modifiers, and wordy phrases. Choose from multiple Claude models and customize the system prompt to refine the editing criteria for your specific needs.
 
 <!-- Generated from commit: 47b07010e3459adb23e154dde653c4a7991f7e12 -->

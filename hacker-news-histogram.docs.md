@@ -1,3 +1,3 @@
-This tool generates histograms comparing multiple search terms on Hacker News across time. Enter up to 5 search terms, select a starting year, and view monthly post counts in a chart, table, and exportable JSON format. The visualization shows relative popularity of different technologies or topics over time, with interactive bars that link directly to the corresponding HN search results.
+Analyze Hacker News stories by searching for multiple terms across a custom time range and visualize the results as an interactive histogram. The tool fetches monthly hit counts from the Hacker News API for each search term, displaying data in a color-coded bar chart, sortable table, and exportable JSON format. Click any bar to view the actual stories matching that term within that month's date range.
 
 <!-- Generated from commit: 124ab7411ce7728c12385b09cd75bdbefc88c172 -->

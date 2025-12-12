@@ -1,3 +1,3 @@
-This tool allows you to visualize the progressive rendering of SVG files. Paste your SVG code into the top text area, set a duration, and click "Render" to see the SVG build gradually character by character. You can also use the live editor to make real-time changes and see them reflected immediately in the preview area below.
+View SVG content being progressively rendered character by character over a specified duration. Paste an SVG file into the input field, set the animation duration in seconds, and click Render to watch the image draw itself incrementally while the live editor displays the growing SVG code. The tool automatically completes partial SVG markup to ensure valid rendering at each animation step.
 
 <!-- Generated from commit: ba6a1be46cd42730f6e967e38dd26fe69d470f0c -->

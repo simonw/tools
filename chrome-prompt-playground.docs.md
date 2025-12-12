@@ -1,3 +1,3 @@
-The Chrome LanguageModel Playground allows you to interact with Chrome's built-in AI model directly in your browser. This interface checks for model availability, handles the download process if needed, and provides a simple prompt interface where you can enter text and receive AI-generated responses. Your interaction history is saved locally for future reference, and you can manage these saved conversations through the history panel.
+Interact with Chrome's built-in language model API through this web-based playground interface. The application allows users to check model availability, download the model if needed, and execute text prompts to generate responses directly in the browser. A persistent history feature maintains records of previous prompts and responses for easy reference.
 
 <!-- Generated from commit: 1ba6752f5d7d8a2e4146993231bfef4a92945f0c -->

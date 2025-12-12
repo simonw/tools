@@ -1,3 +1,3 @@
-This page allows users to download a conference schedule in ICS format for import into calendar applications. The page displays a preview of the ICS file containing 25 events from the San Francisco conference on May 22, 2025, including keynotes, workshops, panels, and other sessions. Users can download the complete schedule by clicking the download button at the top of the page.
+Download and view the complete conference schedule for May 22, 2025, in iCalendar format. This page provides access to all 25 events from the San Francisco conference, including keynotes, technical sessions, workshops, and office hours, which can be imported directly into your calendar application. A live preview of the ICS file contents is displayed below the download button for reference.
 
 <!-- Generated from commit: 3b89dfb64d139d4ee5bdd2dbca7756e542ef6f21 -->

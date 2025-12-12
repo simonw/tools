@@ -1,3 +1,3 @@
-This bounding box tool allows you to draw selection boxes on images to get coordinates. Upload an image by pasting, dragging, or selecting a file, then draw and adjust your bounding box. The tool generates coordinates as percentages of the image dimensions, making them useful for responsive applications or when working with images of different sizes.
+Draw bounding boxes on images using an interactive cropping tool powered by CropperJS. Load an image by pasting, dragging and dropping, or selecting a file, then click and drag to create a box around your region of interest. The tool automatically outputs normalized coordinates as percentages of the image dimensions in a format ready for command-line use.
 
 <!-- Generated from commit: d117432950c0c71f304ef9c89da6c91a83883df4 -->

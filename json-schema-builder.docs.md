@@ -1,3 +1,3 @@
-The JSON Schema Builder allows you to create JSON schemas with a visual interface. Add properties by specifying their name, type, and whether they're required, then build nested objects and arrays. Your schema is displayed in real-time and can be copied to the clipboard with a single click. The tool also automatically saves your work in the URL, enabling you to share your schema with others.
+Create JSON schemas interactively with this builder tool that allows you to define properties, set data types, and configure nested objects through an intuitive form interface. The generated schema is displayed in real-time and can be copied to your clipboard for use in your applications. Your schema is automatically saved in the URL, making it easy to share or revisit your work later.
 
 <!-- Generated from commit: 0a186e5a3a939fc9e9679ecc31068494c1368b99 -->

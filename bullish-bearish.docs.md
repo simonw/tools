@@ -1,3 +1,3 @@
-This educational page provides a visual comparison between bullish and bearish market sentiments using animal imagery as a memory aid. The left side shows a bull with upward movements to represent optimistic market conditions, while the right side displays a bear with downward movements to represent pessimistic outlooks. Users can test their understanding with a quiz feature that randomly generates questions about these market terms.
+Learn the difference between bullish and bearish market sentiment through an interactive visual guide featuring animated bull and bear characters. The page uses intuitive animal metaphors—bulls thrust their horns upward to represent rising markets and optimism, while bears swipe downward to represent falling markets and pessimism. A built-in quiz feature helps reinforce these concepts with randomized questions about market terminology.
 
 <!-- Generated from commit: c80aaf0926ca27bc82be9ff782ad95323da04f3e -->

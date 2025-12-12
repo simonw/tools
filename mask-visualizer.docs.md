@@ -1,3 +1,3 @@
-The Mask Visualizer is a tool for rendering JSON data containing image masks with bounding boxes in a configurable coordinate system. Users can paste JSON that includes box coordinates and base64-encoded mask images, then select one of four coordinate system origins (Top Left, Top Right, Bottom Left, or Bottom Right). The visualization displays the masks with colored bounding boxes and provides detailed coordinate information for both original and transformed coordinates.
+Visualize bounding boxes and PNG masks from JSON data with support for multiple coordinate system origins. This tool accepts JSON input containing box coordinates and base64-encoded mask images, then displays them overlaid on an interactive canvas with real-time coordinate transformation. The visualization includes detailed information about each item's original and transformed coordinates based on the selected origin point.
 
 <!-- Generated from commit: e0cc858feb348a0430c056612c7c9aa5171e54ae -->

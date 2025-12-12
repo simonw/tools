@@ -1,3 +1,3 @@
-This QR Code Decoder allows you to extract text and links from QR code images. Upload an image file, drag and drop it onto the designated area, or paste an image from your clipboard. The tool automatically processes the image and displays the decoded content, converting URLs into clickable links for easy access.
+Decode QR codes from image files by uploading, dragging and dropping, or pasting them directly into the application. The decoder processes the image data using the jsQR library to extract and display the encoded content, automatically converting URLs into clickable links for convenient access.
 
 <!-- Generated from commit: 345bdc992ffa314a78473541afb6815d215eec0b -->

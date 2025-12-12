@@ -1,3 +1,3 @@
-This code implements a Gemini model class for the LLM library, enabling interactions with Google's Gemini AI models. It handles configuration settings like API keys, model selection, and temperature, while providing methods to generate text completions and embeddings through the Google Generative AI API. The implementation includes proper error handling and parameter validation.
+View Mozilla Bugzilla bug reports directly from your terminal using this LLM plugin for Google's Gemini API. The plugin enables seamless integration between your command-line workflow and Bugzilla's bug tracking system, allowing you to query and retrieve bug information without leaving your terminal environment. This tool is particularly useful for developers who want to incorporate bug data into their LLM-powered workflows and automation scripts.
 
 <!-- Generated from commit: 457c6dec714c6f5da1713945c99e43ceb612f9e8 -->

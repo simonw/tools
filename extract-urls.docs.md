@@ -1,3 +1,3 @@
-This tool extracts URLs from copied web page content. Paste HTML content into the editable area, and the tool automatically parses out all hyperlinks and displays them in a clean list format. The extracted URLs can be copied to your clipboard with a single click for use in other applications.
+Extract URLs from copied web page content by pasting HTML into the input area, which automatically identifies and displays all hyperlinks found in the pasted material. The tool filters for valid HTTP links and provides a consolidated list in the output textarea, making it easy to copy all extracted URLs to your clipboard with a single button click.
 
 <!-- Generated from commit: 0f7fb49fd53d83ca1648b4db931c69acf9605529 -->

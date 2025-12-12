@@ -1,3 +1,3 @@
-This tool allows users to authenticate with GitHub and monitor their API rate limits across different resource types. The application securely stores a GitHub token in local storage, retrieves rate limit data from the GitHub API, and displays it in an interactive dashboard with visual progress bars indicating usage levels. Rate limit information includes remaining calls, reset times, and warnings when usage approaches critical thresholds.
+Monitor your GitHub API usage with this rate limit checker tool. Authenticate with your GitHub account to view detailed information about your remaining API calls across different resource types, including visual progress indicators and reset times. The tool displays usage statistics and alerts you when your rate limits are running low.
 
 <!-- Generated from commit: c2ba78da8f9b27d0a361015904ad6fe0af9770b7 -->

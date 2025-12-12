@@ -1,3 +1,3 @@
-This tool converts JPG or PNG images to SVG format using the imagetracerjs library. You can upload an image by dragging and dropping it onto the designated area or by clicking to browse your files. After conversion, the SVG appears on screen and its code is displayed in a text field below, which can be copied to the clipboard with a single click.
+Convert raster images to scalable vector graphics using automated tracing technology. Upload a JPG or PNG image by dragging it onto the drop zone or clicking to browse, and the application will generate an SVG representation that can be viewed and copied. The conversion process uses imagetracerjs to intelligently trace image edges and create vector paths suitable for scaling to any size without quality loss.
 
 <!-- Generated from commit: 4ff37f2dfd5d0b5d63e9214fe44c820c471d5a56 -->

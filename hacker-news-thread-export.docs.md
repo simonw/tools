@@ -1,3 +1,3 @@
-This tool converts Hacker News threads into a structured text format. Enter a Hacker News post ID or URL in the input field, then click "Fetch and format" to retrieve the thread. The tool organizes comments in a hierarchical format with path numbers (like [1.2.3]) indicating the reply structure, making it easy to track conversation flow and export threads for reference elsewhere.
+Export Hacker News discussion threads in a formatted, hierarchical structure by providing a post ID or direct link to the thread. The tool fetches all comments from the specified post and organizes them with numbered paths that show the conversation structure, making it easy to read and copy the entire discussion for archival or sharing purposes.
 
 <!-- Generated from commit: aa30eeebb9583ba36d2c3d9ac2794e70199385c5 -->

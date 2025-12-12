@@ -1,3 +1,3 @@
-The EXIF Data Viewer allows you to extract and view metadata from your digital photos. Upload any image to display embedded EXIF information including GPS coordinates (latitude and longitude) if available. The tool presents both specific location data and a complete breakdown of all metadata tags contained within the image file.
+Extract and view EXIF metadata from image files, including GPS coordinates and other embedded image data. This tool allows you to upload an image and instantly retrieve detailed information such as geolocation data, camera settings, and timestamps stored within the file. The viewer displays GPS coordinates in decimal format when available and presents all extracted metadata in a structured, readable format.
 
 <!-- Generated from commit: 687d45089606f654ee7e84f20b87d3348b301eb7 -->

@@ -1,3 +1,3 @@
-The Pomodoro Timer is a productivity tool that helps you manage work sessions using timed intervals. Enter your goal, select a duration (5-60 minutes), and track your progress with detailed session logs. The application records your session history including start/end times, durations, and any pauses, storing this data locally for future reference.
+Track productivity sessions with this Pomodoro timer application that manages timed work intervals with customizable durations. Set a goal for each session, choose from preset time intervals ranging from 5 to 60 minutes, and pause or resume as needed while the timer counts down. All session data including start times, end times, and pause history is automatically saved and displayed in a detailed log table, with the ability to export the data as JSON for further analysis or record-keeping.
 
 <!-- Generated from commit: ddaf7da00e9e76d7a0d986d5cb3b5d8fe0ea7e7c -->

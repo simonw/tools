@@ -1,3 +1,3 @@
-This tool converts rich text to Markdown. Paste formatted text into the input area, and the app automatically transforms it to Markdown in the output field, preserving formatting like bold text, italics, links, lists, and paragraph structure. The conversion happens instantly as you paste or type, and you can copy the resulting Markdown with a single click.
+Convert formatted text from rich text editors or web pages directly into clean Markdown syntax. This tool accepts pasted content with bold, italic, links, lists, and paragraph breaks, then automatically converts the underlying HTML to properly formatted Markdown that can be copied with a single click. It works offline in your browser without requiring any external dependencies or frameworks.
 
 <!-- Generated from commit: 385ad14624d67c915fc144f5abd5baf9f6149b43 -->

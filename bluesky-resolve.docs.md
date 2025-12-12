@@ -1,3 +1,3 @@
-This tool resolves a Bluesky handle to its corresponding DID (Decentralized Identifier). Enter any Bluesky handle in the input field and click "Resolve" to retrieve the associated DID. The tool communicates with the Bluesky API and displays the result or an error message if the handle cannot be found.
+View and resolve Bluesky handles to their corresponding Decentralized Identifiers (DIDs) using the AT Protocol API. Enter a Bluesky handle in the format `username.bsky.social` to retrieve the associated DID, which serves as a unique identifier for accounts on the Bluesky network. This tool provides a simple interface for looking up handle-to-DID mappings through Bluesky's public resolver endpoint.
 
 <!-- Generated from commit: 1472c5df0a4a8e97ee67543600403e642d504f0b -->

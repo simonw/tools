@@ -1,3 +1,3 @@
-The Transfer Time Calculator helps you estimate how long it will take to upload or download files. Enter your file size (in GB, MB, or TB) and the transfer speed (in MB/s, Mbps, or KB/s), and the calculator will display the estimated time in days, hours, minutes, and seconds. The result includes a detailed breakdown of the calculation so you can understand exactly how the time was determined.
+Calculate file transfer duration by entering the file size and transfer speed with their respective units. The calculator automatically converts between different measurement units (GB, MB, TB for file size; Mbps, MB/s, KB/s for speed) and displays the estimated transfer time in an easily readable format. Results include a detailed breakdown showing days, hours, minutes, and seconds alongside the calculation parameters.
 
 <!-- Generated from commit: f03108dda0d57ce10ffde79f1e148619eaa0e28e -->

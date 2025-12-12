@@ -1,3 +1,3 @@
-The Multi-Tab Chat application demonstrates real-time message synchronization across multiple browser tabs without requiring a backend server. Open the same page in several tabs to see messages instantly appear across all instances. The application utilizes the Broadcast Channel API to enable communication between tabs, with each tab receiving a unique identifier. Type messages in any tab and watch them propagate to all other open instances of the application.
+Send chat messages that synchronize instantly across multiple browser tabs using the Broadcast Channel API. Each tab displays messages sent from other tabs with a sync indicator, allowing real-time communication without requiring a backend server. Open multiple tabs of this page to see messages propagate automatically across all instances.
 
 <!-- Generated from commit: 569bb9004a556ab797b3f6ba7ebe14f21b7514f6 -->
