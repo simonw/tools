@@ -550,6 +550,340 @@ urlInput.addEventListener('input', () => {
   updateUrlParam(issueUrl)
 })
 
+// ============================================
+// AUTOMATED TESTS
+// ============================================
+
+const testResults = []
+
+function test(name, fn) {
+  try {
+    fn()
+    testResults.push({ name, passed: true })
+  } catch (e) {
+    testResults.push({ name, passed: false, error: e.message })
+  }
+}
+
+function assertEqual(actual, expected, message = '') {
+  if (actual !== expected) {
+    throw new Error(`${message ? message + ': ' : ''}Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`)
+  }
+}
+
+function assertDeepEqual(actual, expected, message = '') {
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`${message ? message + ': ' : ''}Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`)
+  }
+}
+
+function assertNull(actual, message = '') {
+  if (actual !== null) {
+    throw new Error(`${message ? message + ': ' : ''}Expected null, got ${JSON.stringify(actual)}`)
+  }
+}
+
+function assertThrows(fn, message = '') {
+  let threw = false
+  try {
+    fn()
+  } catch (e) {
+    threw = true
+  }
+  if (!threw) {
+    throw new Error(`${message ? message + ': ' : ''}Expected function to throw`)
+  }
+}
+
+// Tests for parseGitHubUrl
+test('parseGitHubUrl: valid issue URL', () => {
+  const result = parseGitHubUrl('https://github.com/owner/repo/issues/123')
+  assertDeepEqual(result, { owner: 'owner', repo: 'repo', number: '123' })
+})
+
+test('parseGitHubUrl: valid PR URL', () => {
+  const result = parseGitHubUrl('https://github.com/simonw/sqlite-utils/pull/456')
+  assertDeepEqual(result, { owner: 'simonw', repo: 'sqlite-utils', number: '456' })
+})
+
+test('parseGitHubUrl: URL with trailing slash', () => {
+  const result = parseGitHubUrl('https://github.com/owner/repo/issues/789/')
+  assertEqual(result.owner, 'owner')
+  assertEqual(result.repo, 'repo')
+})
+
+test('parseGitHubUrl: invalid URL throws', () => {
+  assertThrows(() => parseGitHubUrl('not-a-url'))
+})
+
+test('parseGitHubUrl: incomplete URL throws', () => {
+  assertThrows(() => parseGitHubUrl('https://github.com/owner'))
+})
+
+// Tests for formatDate
+test('formatDate: formats ISO date correctly', () => {
+  const result = formatDate('2025-05-09T05:27:33Z')
+  assertEqual(result, '2025-05-09 05:27:33.000 UTC')
+})
+
+test('formatDate: handles different date', () => {
+  const result = formatDate('2024-01-15T12:30:00Z')
+  assertEqual(result, '2024-01-15 12:30:00.000 UTC')
+})
+
+// Tests for parseGitHubBlobUrl
+test('parseGitHubBlobUrl: basic blob URL with single line', () => {
+  const url = 'https://github.com/owner/repo/blob/main/file.py#L10'
+  const result = parseGitHubBlobUrl(url)
+  assertDeepEqual(result, {
+    owner: 'owner',
+    repo: 'repo',
+    ref: 'main',
+    path: 'file.py',
+    startLine: 10,
+    endLine: 10
+  })
+})
+
+test('parseGitHubBlobUrl: blob URL with line range', () => {
+  const url = 'https://github.com/owner/repo/blob/main/file.py#L10-L20'
+  const result = parseGitHubBlobUrl(url)
+  assertEqual(result.startLine, 10)
+  assertEqual(result.endLine, 20)
+})
+
+test('parseGitHubBlobUrl: blob URL with commit SHA', () => {
+  const url = 'https://github.com/simonw/sqlite-utils/blob/d892d2ae49cd29b9639e73cd13017cfeef507ac7/sqlite_utils/db.py#L544-L556'
+  const result = parseGitHubBlobUrl(url)
+  assertDeepEqual(result, {
+    owner: 'simonw',
+    repo: 'sqlite-utils',
+    ref: 'd892d2ae49cd29b9639e73cd13017cfeef507ac7',
+    path: 'sqlite_utils/db.py',
+    startLine: 544,
+    endLine: 556
+  })
+})
+
+test('parseGitHubBlobUrl: nested path', () => {
+  const url = 'https://github.com/owner/repo/blob/main/src/components/Button.tsx#L5-L15'
+  const result = parseGitHubBlobUrl(url)
+  assertEqual(result.path, 'src/components/Button.tsx')
+})
+
+test('parseGitHubBlobUrl: URL without line numbers returns null', () => {
+  const url = 'https://github.com/owner/repo/blob/main/file.py'
+  const result = parseGitHubBlobUrl(url)
+  assertNull(result)
+})
+
+test('parseGitHubBlobUrl: non-blob URL returns null', () => {
+  const url = 'https://github.com/owner/repo/issues/123'
+  const result = parseGitHubBlobUrl(url)
+  assertNull(result)
+})
+
+// Tests for getLanguageFromPath
+test('getLanguageFromPath: Python file', () => {
+  assertEqual(getLanguageFromPath('file.py'), 'python')
+})
+
+test('getLanguageFromPath: JavaScript file', () => {
+  assertEqual(getLanguageFromPath('app.js'), 'javascript')
+})
+
+test('getLanguageFromPath: TypeScript file', () => {
+  assertEqual(getLanguageFromPath('component.ts'), 'typescript')
+})
+
+test('getLanguageFromPath: TSX file', () => {
+  assertEqual(getLanguageFromPath('Component.tsx'), 'typescript')
+})
+
+test('getLanguageFromPath: nested path', () => {
+  assertEqual(getLanguageFromPath('src/utils/helper.rb'), 'ruby')
+})
+
+test('getLanguageFromPath: unknown extension returns empty string', () => {
+  assertEqual(getLanguageFromPath('file.xyz'), '')
+})
+
+test('getLanguageFromPath: Rust file', () => {
+  assertEqual(getLanguageFromPath('main.rs'), 'rust')
+})
+
+test('getLanguageFromPath: Go file', () => {
+  assertEqual(getLanguageFromPath('server.go'), 'go')
+})
+
+// Tests for URL detection regex
+test('URL detection regex: matches basic blob URL', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = 'See https://github.com/owner/repo/blob/main/file.py#L10'
+  const matches = text.match(urlPattern)
+  assertEqual(matches?.length, 1)
+  assertEqual(matches?.[0], 'https://github.com/owner/repo/blob/main/file.py#L10')
+})
+
+test('URL detection regex: matches URL with line range', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = 'Code: https://github.com/owner/repo/blob/main/file.py#L10-L20 here'
+  const matches = text.match(urlPattern)
+  assertEqual(matches?.[0], 'https://github.com/owner/repo/blob/main/file.py#L10-L20')
+})
+
+test('URL detection regex: matches the problematic URL from issue', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = 'Relevant code: https://github.com/simonw/sqlite-utils/blob/d892d2ae49cd29b9639e73cd13017cfeef507ac7/sqlite_utils/db.py#L544-L556'
+  const matches = text.match(urlPattern)
+  assertEqual(matches?.length, 1)
+  assertEqual(matches?.[0], 'https://github.com/simonw/sqlite-utils/blob/d892d2ae49cd29b9639e73cd13017cfeef507ac7/sqlite_utils/db.py#L544-L556')
+})
+
+test('URL detection regex: matches URL in markdown link', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = '[code](https://github.com/owner/repo/blob/main/file.py#L10-L20)'
+  const matches = text.match(urlPattern)
+  assertEqual(matches?.length, 1)
+})
+
+test('URL detection regex: finds multiple URLs', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = 'First: https://github.com/a/b/blob/main/x.py#L1 and https://github.com/c/d/blob/main/y.js#L2-L3'
+  const matches = text.match(urlPattern)
+  assertEqual(matches?.length, 2)
+})
+
+test('URL detection regex: does not match URL without line numbers', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = 'See https://github.com/owner/repo/blob/main/file.py'
+  const matches = text.match(urlPattern)
+  assertNull(matches)
+})
+
+test('URL detection regex: URL at end of line', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = 'See https://github.com/owner/repo/blob/main/file.py#L10-L20'
+  const matches = text.match(urlPattern)
+  assertEqual(matches?.length, 1)
+})
+
+test('URL detection regex: URL on its own line', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = 'Relevant code:\nhttps://github.com/owner/repo/blob/main/file.py#L10-L20\nMore text'
+  const matches = text.match(urlPattern)
+  assertEqual(matches?.length, 1)
+})
+
+test('URL detection regex: URL followed by newline', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = 'https://github.com/simonw/sqlite-utils/blob/d892d2ae49cd29b9639e73cd13017cfeef507ac7/sqlite_utils/db.py#L544-L556\n'
+  const matches = text.match(urlPattern)
+  assertEqual(matches?.length, 1)
+  assertEqual(matches?.[0], 'https://github.com/simonw/sqlite-utils/blob/d892d2ae49cd29b9639e73cd13017cfeef507ac7/sqlite_utils/db.py#L544-L556')
+})
+
+test('URL detection regex: URL with underscores in path', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = 'https://github.com/owner/repo/blob/main/my_module/sub_dir/file_name.py#L1-L5'
+  const matches = text.match(urlPattern)
+  assertEqual(matches?.length, 1)
+})
+
+test('URL detection regex: URL with hyphenated repo name', () => {
+  const urlPattern = /https:\/\/github\.com\/[^\/]+\/[^\/]+\/blob\/[^\s\)#]+#L\d+(?:-L\d+)?/g
+  const text = 'https://github.com/simonw/sqlite-utils/blob/main/sqlite_utils/db.py#L544-L556'
+  const matches = text.match(urlPattern)
+  assertEqual(matches?.length, 1)
+})
+
+// Test expandCodeUrls with mocked content
+test('expandCodeUrls: returns unchanged markdown when no URLs', async () => {
+  const markdown = 'Just some text\nNo URLs here'
+  const result = await expandCodeUrls(markdown, {})
+  assertEqual(result, markdown)
+})
+
+// Tests for convertToMarkdown
+test('convertToMarkdown: basic issue without comments', () => {
+  const issue = {
+    title: 'Test Issue',
+    state: 'open',
+    user: { login: 'testuser' },
+    created_at: '2025-01-01T00:00:00Z',
+    body: 'Issue body'
+  }
+  const result = convertToMarkdown(issue, [])
+  assertEqual(result.includes('# Test Issue'), true)
+  assertEqual(result.includes('**State:** open'), true)
+  assertEqual(result.includes('@testuser'), true)
+  assertEqual(result.includes('Issue body'), true)
+})
+
+test('convertToMarkdown: issue with comments', () => {
+  const issue = {
+    title: 'Test',
+    state: 'closed',
+    user: { login: 'user1' },
+    created_at: '2025-01-01T00:00:00Z',
+    body: 'Body'
+  }
+  const comments = [{
+    user: { login: 'user2' },
+    created_at: '2025-01-02T00:00:00Z',
+    body: 'Comment text'
+  }]
+  const result = convertToMarkdown(issue, comments)
+  assertEqual(result.includes('### Comment by @user2'), true)
+  assertEqual(result.includes('Comment text'), true)
+  assertEqual(result.includes('---'), true)
+})
+
+test('convertToMarkdown: issue with null body', () => {
+  const issue = {
+    title: 'No Body',
+    state: 'open',
+    user: { login: 'user' },
+    created_at: '2025-01-01T00:00:00Z',
+    body: null
+  }
+  const result = convertToMarkdown(issue, [])
+  assertEqual(result.includes('*No description provided.*'), true)
+})
+
+// Display test results
+function displayTestResults() {
+  const container = document.createElement('div')
+  container.id = 'test-results'
+  container.style.cssText = 'margin-top: 40px; padding: 16px; border: 1px solid #ccc; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 14px;'
+
+  const passed = testResults.filter(t => t.passed).length
+  const failed = testResults.filter(t => !t.passed).length
+  const total = testResults.length
+
+  const summary = document.createElement('div')
+  summary.style.cssText = `margin-bottom: 12px; padding: 8px; border-radius: 4px; font-weight: bold; background: ${failed > 0 ? '#ffebe9' : '#d4edda'}; color: ${failed > 0 ? '#cf222e' : '#155724'};`
+  summary.textContent = `Tests: ${passed}/${total} passed` + (failed > 0 ? `, ${failed} failed` : '')
+  container.appendChild(summary)
+
+  const list = document.createElement('div')
+  testResults.forEach(result => {
+    const item = document.createElement('div')
+    item.style.cssText = `padding: 4px 0; border-bottom: 1px solid #eee; color: ${result.passed ? '#155724' : '#cf222e'};`
+    if (result.passed) {
+      item.textContent = `✓ ${result.name}`
+    } else {
+      item.innerHTML = `✗ ${result.name}<br><span style="color: #666; font-size: 12px; margin-left: 16px;">${result.error}</span>`
+    }
+    list.appendChild(item)
+  })
+  container.appendChild(list)
+
+  document.body.appendChild(container)
+}
+
+displayTestResults()
+
 </script>
 </body>
 </html>
