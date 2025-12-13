@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clipboard Backup</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        h1 {
+            margin: 0 0 8px 0;
+            font-size: clamp(24px, 4vw, 32px);
+            color: #333;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .paste-zone {
+            border: 3px dashed #ccc;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 24px;
+        }
+        .paste-zone:hover, .paste-zone:focus {
+            border-color: #0066ff;
+            background: #f0f7ff;
+        }
+        .paste-zone.active {
+            border-color: #0066ff;
+            background: #e8f4ff;
+            border-style: solid;
+        }
+        .paste-zone p {
+            margin: 0;
+            color: #666;
+            font-size: 16px;
+        }
+        .paste-zone .hint {
+            font-size: 13px;
+            color: #999;
+            margin-top: 8px;
+        }
+        .backups-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .backups-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .clear-all-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .clear-all-btn:hover {
+            background: #c82333;
+        }
+        .clear-all-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .backups-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .backup-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .backup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #fafafa;
+            border-bottom: 1px solid #e0e0e0;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .backup-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+            flex: 1;
+        }
+        .backup-time {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+        .backup-formats {
+            font-size: 12px;
+            color: #666;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .format-badge {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .backup-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .copy-btn {
+            background: #0066ff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .copy-btn:hover {
+            background: #0052cc;
+        }
+        .copy-btn.copied {
+            background: #28a745;
+        }
+        .delete-btn {
+            background: white;
+            color: #dc3545;
+            border: 1px solid #dc3545;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .delete-btn:hover {
+            background: #dc3545;
+            color: white;
+        }
+        .backup-preview {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 12px 16px;
+        }
+        .preview-text {
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: monospace;
+            font-size: 13px;
+            color: #333;
+            margin: 0;
+        }
+        .preview-html {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .preview-image {
+            max-width: 100%;
+            max-height: 180px;
+            display: block;
+        }
+        .preview-tabs {
+            display: flex;
+            gap: 4px;
+            padding: 8px 16px 0;
+            border-bottom: 1px solid #e0e0e0;
+            background: #fafafa;
+        }
+        .preview-tab {
+            padding: 8px 12px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 12px;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+        .preview-tab:hover {
+            color: #333;
+        }
+        .preview-tab.active {
+            color: #0066ff;
+            border-bottom-color: #0066ff;
+            background: white;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        .empty-state p {
+            margin: 0;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 12px;
+            }
+            .paste-zone {
+                padding: 30px 16px;
+            }
+            .backup-header {
+                padding: 10px 12px;
+            }
+            .backup-preview {
+                padding: 10px 12px;
+            }
+            .backup-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Clipboard Backup</h1>
+    <p class="subtitle">Preserve your clipboard content across all formats and restore it later</p>
+
+    <div class="paste-zone" tabindex="0" id="pasteZone">
+        <p>Click here and paste (Ctrl/Cmd+V)</p>
+        <p class="hint">Preserves text, HTML, RTF, images, and other clipboard formats</p>
+    </div>
+
+    <div class="backups-header">
+        <h2>Saved Backups</h2>
+        <button class="clear-all-btn" id="clearAllBtn" disabled>Clear All</button>
+    </div>
+
+    <div class="backups-list" id="backupsList">
+        <div class="empty-state">
+            <p>No backups yet. Paste something to get started.</p>
+        </div>
+    </div>
+
+    <script>
+        const DB_NAME = 'ClipboardBackupDB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'backups';
+
+        let db = null;
+
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve(db);
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const database = event.target.result;
+                    if (!database.objectStoreNames.contains(STORE_NAME)) {
+                        const store = database.createObjectStore(STORE_NAME, {
+                            keyPath: 'id',
+                            autoIncrement: true
+                        });
+                        store.createIndex('timestamp', 'timestamp', { unique: false });
+                    }
+                };
+            });
+        }
+
+        async function saveBackup(backup) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.add(backup);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function getAllBackups() {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function deleteBackup(id) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.delete(id);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function clearAllBackups() {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.clear();
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            let relative;
+            if (diffMins < 1) {
+                relative = 'Just now';
+            } else if (diffMins < 60) {
+                relative = `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+            } else if (diffHours < 24) {
+                relative = `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+            } else if (diffDays < 7) {
+                relative = `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+            } else {
+                relative = date.toLocaleDateString();
+            }
+
+            const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const dateStr = date.toLocaleDateString();
+
+            return `${relative} (${dateStr} ${timeStr})`;
+        }
+
+        function getDisplayName(mimeType) {
+            const names = {
+                'text/plain': 'Plain Text',
+                'text/html': 'HTML',
+                'text/rtf': 'RTF',
+                'text/uri-list': 'URLs',
+                'image/png': 'Image (PNG)',
+                'image/jpeg': 'Image (JPEG)',
+                'image/gif': 'Image (GIF)',
+                'image/webp': 'Image (WebP)',
+                'application/rtf': 'RTF',
+            };
+            return names[mimeType] || mimeType;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function createPreviewContent(backup, activeFormat) {
+            const data = backup.formats[activeFormat];
+            const container = document.createElement('div');
+            container.className = 'backup-preview';
+
+            if (activeFormat.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.className = 'preview-image';
+                img.src = data;
+                container.appendChild(img);
+            } else if (activeFormat === 'text/html') {
+                const div = document.createElement('div');
+                div.className = 'preview-html';
+                // Sanitize by using textContent for display, but show formatted
+                div.innerHTML = data;
+                container.appendChild(div);
+            } else {
+                const pre = document.createElement('pre');
+                pre.className = 'preview-text';
+                pre.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+                container.appendChild(pre);
+            }
+
+            return container;
+        }
+
+        function renderBackupItem(backup) {
+            const item = document.createElement('div');
+            item.className = 'backup-item';
+            item.dataset.id = backup.id;
+
+            const formats = Object.keys(backup.formats);
+            const defaultFormat = formats.includes('text/plain') ? 'text/plain' :
+                                  formats.includes('text/html') ? 'text/html' :
+                                  formats[0];
+
+            // Header
+            const header = document.createElement('div');
+            header.className = 'backup-header';
+
+            const meta = document.createElement('div');
+            meta.className = 'backup-meta';
+
+            const time = document.createElement('div');
+            time.className = 'backup-time';
+            time.textContent = formatTimestamp(backup.timestamp);
+            meta.appendChild(time);
+
+            const formatsDiv = document.createElement('div');
+            formatsDiv.className = 'backup-formats';
+            formats.forEach(format => {
+                const badge = document.createElement('span');
+                badge.className = 'format-badge';
+                badge.textContent = getDisplayName(format);
+                formatsDiv.appendChild(badge);
+            });
+            meta.appendChild(formatsDiv);
+            header.appendChild(meta);
+
+            const actions = document.createElement('div');
+            actions.className = 'backup-actions';
+
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-btn';
+            copyBtn.innerHTML = '<span>📋</span> Copy';
+            copyBtn.onclick = () => copyBackup(backup, copyBtn);
+            actions.appendChild(copyBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.onclick = async () => {
+                await deleteBackup(backup.id);
+                item.remove();
+                updateClearAllButton();
+                checkEmptyState();
+            };
+            actions.appendChild(deleteBtn);
+
+            header.appendChild(actions);
+            item.appendChild(header);
+
+            // Preview tabs (if multiple formats)
+            if (formats.length > 1) {
+                const tabs = document.createElement('div');
+                tabs.className = 'preview-tabs';
+
+                formats.forEach(format => {
+                    const tab = document.createElement('button');
+                    tab.className = 'preview-tab' + (format === defaultFormat ? ' active' : '');
+                    tab.textContent = getDisplayName(format);
+                    tab.onclick = () => {
+                        tabs.querySelectorAll('.preview-tab').forEach(t => t.classList.remove('active'));
+                        tab.classList.add('active');
+                        const oldPreview = item.querySelector('.backup-preview');
+                        const newPreview = createPreviewContent(backup, format);
+                        oldPreview.replaceWith(newPreview);
+                    };
+                    tabs.appendChild(tab);
+                });
+
+                item.appendChild(tabs);
+            }
+
+            // Preview content
+            item.appendChild(createPreviewContent(backup, defaultFormat));
+
+            return item;
+        }
+
+        async function copyBackup(backup, button) {
+            try {
+                const clipboardItems = [];
+                const blobParts = {};
+
+                for (const [mimeType, data] of Object.entries(backup.formats)) {
+                    if (mimeType.startsWith('image/')) {
+                        // Convert data URL to blob
+                        const response = await fetch(data);
+                        blobParts[mimeType] = await response.blob();
+                    } else {
+                        blobParts[mimeType] = new Blob([data], { type: mimeType });
+                    }
+                }
+
+                const clipboardItem = new ClipboardItem(blobParts);
+                await navigator.clipboard.write([clipboardItem]);
+
+                const originalText = button.innerHTML;
+                button.innerHTML = '<span>✓</span> Copied!';
+                button.classList.add('copied');
+
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                // Fallback: try to copy plain text
+                if (backup.formats['text/plain']) {
+                    try {
+                        await navigator.clipboard.writeText(backup.formats['text/plain']);
+                        button.innerHTML = '<span>✓</span> Copied (text only)';
+                        button.classList.add('copied');
+                        setTimeout(() => {
+                            button.innerHTML = '<span>📋</span> Copy';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    } catch (e) {
+                        alert('Failed to copy to clipboard. Please try again.');
+                    }
+                } else {
+                    alert('Failed to copy to clipboard. Please try again.');
+                }
+            }
+        }
+
+        function updateClearAllButton() {
+            const list = document.getElementById('backupsList');
+            const clearBtn = document.getElementById('clearAllBtn');
+            const hasItems = list.querySelectorAll('.backup-item').length > 0;
+            clearBtn.disabled = !hasItems;
+        }
+
+        function checkEmptyState() {
+            const list = document.getElementById('backupsList');
+            const items = list.querySelectorAll('.backup-item');
+
+            if (items.length === 0) {
+                list.innerHTML = '<div class="empty-state"><p>No backups yet. Paste something to get started.</p></div>';
+            }
+        }
+
+        async function handlePaste(event) {
+            event.preventDefault();
+
+            const clipboardData = event.clipboardData;
+            if (!clipboardData) return;
+
+            const formats = {};
+
+            // Get all available types
+            for (const type of clipboardData.types) {
+                if (type.startsWith('image/')) {
+                    // Handle images
+                    const file = clipboardData.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        const dataUrl = await new Promise((resolve) => {
+                            reader.onload = () => resolve(reader.result);
+                            reader.readAsDataURL(file);
+                        });
+                        formats[type] = dataUrl;
+                    }
+                } else {
+                    // Handle text-based formats
+                    const data = clipboardData.getData(type);
+                    if (data) {
+                        formats[type] = data;
+                    }
+                }
+            }
+
+            // Also check for files that might be images
+            if (Object.keys(formats).length === 0 && clipboardData.files.length > 0) {
+                for (const file of clipboardData.files) {
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        const dataUrl = await new Promise((resolve) => {
+                            reader.onload = () => resolve(reader.result);
+                            reader.readAsDataURL(file);
+                        });
+                        formats[file.type] = dataUrl;
+                    }
+                }
+            }
+
+            if (Object.keys(formats).length === 0) {
+                return;
+            }
+
+            const backup = {
+                timestamp: Date.now(),
+                formats: formats
+            };
+
+            const id = await saveBackup(backup);
+            backup.id = id;
+
+            const list = document.getElementById('backupsList');
+            const emptyState = list.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const item = renderBackupItem(backup);
+            list.insertBefore(item, list.firstChild);
+
+            updateClearAllButton();
+
+            // Visual feedback
+            const pasteZone = document.getElementById('pasteZone');
+            pasteZone.classList.add('active');
+            setTimeout(() => pasteZone.classList.remove('active'), 300);
+        }
+
+        async function loadBackups() {
+            const backups = await getAllBackups();
+            const list = document.getElementById('backupsList');
+
+            if (backups.length === 0) {
+                return;
+            }
+
+            list.innerHTML = '';
+
+            // Sort by timestamp descending (newest first)
+            backups.sort((a, b) => b.timestamp - a.timestamp);
+
+            backups.forEach(backup => {
+                list.appendChild(renderBackupItem(backup));
+            });
+
+            updateClearAllButton();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initDB();
+            await loadBackups();
+
+            const pasteZone = document.getElementById('pasteZone');
+
+            pasteZone.addEventListener('paste', handlePaste);
+            pasteZone.addEventListener('click', () => pasteZone.focus());
+
+            // Also allow paste anywhere on the page
+            document.addEventListener('paste', (e) => {
+                if (e.target !== pasteZone) {
+                    handlePaste(e);
+                }
+            });
+
+            // Clear all button
+            document.getElementById('clearAllBtn').addEventListener('click', async () => {
+                if (confirm('Are you sure you want to delete all backups?')) {
+                    await clearAllBackups();
+                    document.getElementById('backupsList').innerHTML =
+                        '<div class="empty-state"><p>No backups yet. Paste something to get started.</p></div>';
+                    updateClearAllButton();
+                }
+            });
+        });
+    </script>
+    <script src="footer.js"></script>
+</body>
+</html>
