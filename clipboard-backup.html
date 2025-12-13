@@ -537,36 +537,55 @@
         }
 
         async function copyBackup(backup, button) {
+            // Clipboard API only supports: text/plain, text/html, image/png
+            const SUPPORTED_TYPES = ['text/plain', 'text/html', 'image/png'];
+
+            async function doCopy(blobParts) {
+                const clipboardItem = new ClipboardItem(blobParts);
+                await navigator.clipboard.write([clipboardItem]);
+                button.innerHTML = '<span>✓</span> Copied!';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.innerHTML = '<span>📋</span> Copy';
+                    button.classList.remove('copied');
+                }, 2000);
+            }
+
             try {
                 const blobParts = {};
-                let hasImage = false;
 
-                for (const [mimeType, data] of Object.entries(backup.formats)) {
-                    if (mimeType.startsWith('image/')) {
-                        // Convert all images to PNG (only format supported by clipboard API)
-                        if (!hasImage) {
-                            blobParts['image/png'] = await convertImageToPngBlob(data);
-                            hasImage = true;
-                        }
-                    } else {
-                        blobParts[mimeType] = new Blob([data], { type: mimeType });
+                // Handle image formats - convert to PNG
+                const imageFormat = Object.keys(backup.formats).find(k => k.startsWith('image/'));
+                if (imageFormat) {
+                    const pngBlob = await convertImageToPngBlob(backup.formats[imageFormat]);
+                    blobParts['image/png'] = pngBlob;
+                }
+
+                // Handle text formats - only include supported ones
+                if (backup.formats['text/plain']) {
+                    blobParts['text/plain'] = new Blob([backup.formats['text/plain']], { type: 'text/plain' });
+                }
+                if (backup.formats['text/html']) {
+                    blobParts['text/html'] = new Blob([backup.formats['text/html']], { type: 'text/html' });
+                }
+
+                await doCopy(blobParts);
+            } catch (err) {
+                console.error('Failed to copy with all formats:', err);
+
+                // Fallback: try image only
+                const imageFormat = Object.keys(backup.formats).find(k => k.startsWith('image/'));
+                if (imageFormat) {
+                    try {
+                        const pngBlob = await convertImageToPngBlob(backup.formats[imageFormat]);
+                        await doCopy({ 'image/png': pngBlob });
+                        return;
+                    } catch (e) {
+                        console.error('Failed to copy image:', e);
                     }
                 }
 
-                const clipboardItem = new ClipboardItem(blobParts);
-                await navigator.clipboard.write([clipboardItem]);
-
-                const originalText = button.innerHTML;
-                button.innerHTML = '<span>✓</span> Copied!';
-                button.classList.add('copied');
-
-                setTimeout(() => {
-                    button.innerHTML = originalText;
-                    button.classList.remove('copied');
-                }, 2000);
-            } catch (err) {
-                console.error('Failed to copy:', err);
-                // Fallback: try to copy plain text
+                // Fallback: try plain text only
                 if (backup.formats['text/plain']) {
                     try {
                         await navigator.clipboard.writeText(backup.formats['text/plain']);
@@ -576,30 +595,13 @@
                             button.innerHTML = '<span>📋</span> Copy';
                             button.classList.remove('copied');
                         }, 2000);
+                        return;
                     } catch (e) {
-                        alert('Failed to copy to clipboard. Please try again.');
-                    }
-                } else {
-                    // Fallback for images: try copying just the image as PNG
-                    const imageFormats = Object.entries(backup.formats).filter(([k]) => k.startsWith('image/'));
-                    if (imageFormats.length > 0) {
-                        try {
-                            const pngBlob = await convertImageToPngBlob(imageFormats[0][1]);
-                            const clipboardItem = new ClipboardItem({ 'image/png': pngBlob });
-                            await navigator.clipboard.write([clipboardItem]);
-                            button.innerHTML = '<span>✓</span> Copied!';
-                            button.classList.add('copied');
-                            setTimeout(() => {
-                                button.innerHTML = '<span>📋</span> Copy';
-                                button.classList.remove('copied');
-                            }, 2000);
-                        } catch (e) {
-                            alert('Failed to copy to clipboard. Please try again.');
-                        }
-                    } else {
-                        alert('Failed to copy to clipboard. Please try again.');
+                        console.error('Failed to copy text:', e);
                     }
                 }
+
+                alert('Failed to copy to clipboard. Please try again.');
             }
         }
 
