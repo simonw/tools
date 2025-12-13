@@ -28,33 +28,42 @@
             font-size: 14px;
         }
         .paste-zone {
-            border: 3px dashed #ccc;
             border-radius: 12px;
-            padding: 40px 20px;
+            padding: 16px;
             text-align: center;
             background: white;
-            cursor: pointer;
             transition: all 0.2s ease;
             margin-bottom: 24px;
-        }
-        .paste-zone:hover, .paste-zone:focus {
-            border-color: #0066ff;
-            background: #f0f7ff;
+            border: 1px solid #e0e0e0;
         }
         .paste-zone.active {
             border-color: #0066ff;
             background: #e8f4ff;
-            border-style: solid;
         }
-        .paste-zone p {
-            margin: 0;
-            color: #666;
+        .paste-zone textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 16px;
+            border: 3px dashed #ccc;
+            border-radius: 8px;
             font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            background: #fafafa;
+            transition: all 0.2s ease;
+        }
+        .paste-zone textarea:focus {
+            outline: none;
+            border-color: #0066ff;
+            background: white;
+        }
+        .paste-zone textarea::placeholder {
+            color: #999;
         }
         .paste-zone .hint {
             font-size: 13px;
             color: #999;
-            margin-top: 8px;
+            margin: 8px 0 0 0;
         }
         .backups-header {
             display: flex;
@@ -251,8 +260,8 @@
     <h1>Clipboard Backup</h1>
     <p class="subtitle">Preserve your clipboard content across all formats and restore it later</p>
 
-    <div class="paste-zone" tabindex="0" id="pasteZone">
-        <p>Click here and paste (Ctrl/Cmd+V)</p>
+    <div class="paste-zone" id="pasteZone">
+        <textarea id="pasteArea" placeholder="Tap here and paste"></textarea>
         <p class="hint">Preserves text, HTML, RTF, images, and other clipboard formats. Images are copied back as PNG.</p>
     </div>
 
@@ -709,13 +718,17 @@
             await loadBackups();
 
             const pasteZone = document.getElementById('pasteZone');
+            const pasteArea = document.getElementById('pasteArea');
 
-            pasteZone.addEventListener('paste', handlePaste);
-            pasteZone.addEventListener('click', () => pasteZone.focus());
+            pasteArea.addEventListener('paste', async (e) => {
+                await handlePaste(e);
+                // Clear the textarea after successful paste
+                setTimeout(() => { pasteArea.value = ''; }, 0);
+            });
 
             // Also allow paste anywhere on the page
             document.addEventListener('paste', (e) => {
-                if (e.target !== pasteZone) {
+                if (e.target !== pasteArea) {
                     handlePaste(e);
                 }
             });
