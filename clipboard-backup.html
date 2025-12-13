@@ -203,6 +203,37 @@
             color: #666;
             font-style: italic;
         }
+        .unsupported-note {
+            margin: 0;
+            padding: 8px 16px;
+            font-size: 12px;
+            color: #856404;
+            background: #fff3cd;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .download-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px 16px;
+            background: #fafafa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .download-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .download-btn:hover {
+            background: #5a6268;
+        }
         .preview-tabs {
             display: flex;
             gap: 4px;
@@ -388,6 +419,60 @@
             return names[mimeType] || mimeType;
         }
 
+        function getFileExtension(mimeType) {
+            const extensions = {
+                'text/plain': 'txt',
+                'text/html': 'html',
+                'text/rtf': 'rtf',
+                'text/uri-list': 'txt',
+                'image/png': 'png',
+                'image/jpeg': 'jpg',
+                'image/gif': 'gif',
+                'image/webp': 'webp',
+                'application/rtf': 'rtf',
+            };
+            return extensions[mimeType] || 'bin';
+        }
+
+        function downloadFormat(data, mimeType, timestamp) {
+            const ext = getFileExtension(mimeType);
+            const date = new Date(timestamp);
+            const dateStr = date.toISOString().slice(0, 10);
+            const filename = `clipboard-${dateStr}.${ext}`;
+
+            let blob;
+            if (mimeType.startsWith('image/')) {
+                // Data URL to blob
+                const byteString = atob(data.split(',')[1]);
+                const arrayBuffer = new ArrayBuffer(byteString.length);
+                const uint8Array = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < byteString.length; i++) {
+                    uint8Array[i] = byteString.charCodeAt(i);
+                }
+                blob = new Blob([uint8Array], { type: mimeType });
+            } else {
+                blob = new Blob([data], { type: mimeType });
+            }
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Clipboard API only supports these types
+        const SUPPORTED_CLIPBOARD_TYPES = ['text/plain', 'text/html', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
+        function hasUnsupportedFormats(formats) {
+            return Object.keys(formats).some(type =>
+                !SUPPORTED_CLIPBOARD_TYPES.includes(type) && !type.startsWith('image/')
+            );
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -484,6 +569,35 @@
 
             header.appendChild(actions);
             item.appendChild(header);
+
+            // Note about unsupported formats
+            if (hasUnsupportedFormats(backup.formats)) {
+                const note = document.createElement('p');
+                note.className = 'unsupported-note';
+                const unsupported = Object.keys(backup.formats)
+                    .filter(type => !SUPPORTED_CLIPBOARD_TYPES.includes(type) && !type.startsWith('image/'))
+                    .map(getDisplayName);
+                note.textContent = `${unsupported.join(', ')} cannot be copied to clipboard. Use download instead.`;
+                item.appendChild(note);
+            }
+
+            // Download buttons
+            const downloadSection = document.createElement('div');
+            downloadSection.className = 'download-buttons';
+            const downloadLabel = document.createElement('span');
+            downloadLabel.textContent = 'Download: ';
+            downloadLabel.style.fontSize = '11px';
+            downloadLabel.style.color = '#666';
+            downloadSection.appendChild(downloadLabel);
+
+            formats.forEach(format => {
+                const btn = document.createElement('button');
+                btn.className = 'download-btn';
+                btn.innerHTML = `⬇ ${getDisplayName(format)}`;
+                btn.onclick = () => downloadFormat(backup.formats[format], format, backup.timestamp);
+                downloadSection.appendChild(btn);
+            });
+            item.appendChild(downloadSection);
 
             // Preview tabs (if multiple formats)
             if (formats.length > 1) {
