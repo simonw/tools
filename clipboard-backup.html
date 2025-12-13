@@ -488,16 +488,41 @@
             return item;
         }
 
+        // Convert any image data URL to PNG blob (required for clipboard API)
+        async function convertImageToPngBlob(dataUrl) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            resolve(blob);
+                        } else {
+                            reject(new Error('Failed to convert image to PNG'));
+                        }
+                    }, 'image/png');
+                };
+                img.onerror = () => reject(new Error('Failed to load image'));
+                img.src = dataUrl;
+            });
+        }
+
         async function copyBackup(backup, button) {
             try {
-                const clipboardItems = [];
                 const blobParts = {};
+                let hasImage = false;
 
                 for (const [mimeType, data] of Object.entries(backup.formats)) {
                     if (mimeType.startsWith('image/')) {
-                        // Convert data URL to blob
-                        const response = await fetch(data);
-                        blobParts[mimeType] = await response.blob();
+                        // Convert all images to PNG (only format supported by clipboard API)
+                        if (!hasImage) {
+                            blobParts['image/png'] = await convertImageToPngBlob(data);
+                            hasImage = true;
+                        }
                     } else {
                         blobParts[mimeType] = new Blob([data], { type: mimeType });
                     }
@@ -530,7 +555,25 @@
                         alert('Failed to copy to clipboard. Please try again.');
                     }
                 } else {
-                    alert('Failed to copy to clipboard. Please try again.');
+                    // Fallback for images: try copying just the image as PNG
+                    const imageFormats = Object.entries(backup.formats).filter(([k]) => k.startsWith('image/'));
+                    if (imageFormats.length > 0) {
+                        try {
+                            const pngBlob = await convertImageToPngBlob(imageFormats[0][1]);
+                            const clipboardItem = new ClipboardItem({ 'image/png': pngBlob });
+                            await navigator.clipboard.write([clipboardItem]);
+                            button.innerHTML = '<span>✓</span> Copied!';
+                            button.classList.add('copied');
+                            setTimeout(() => {
+                                button.innerHTML = '<span>📋</span> Copy';
+                                button.classList.remove('copied');
+                            }, 2000);
+                        } catch (e) {
+                            alert('Failed to copy to clipboard. Please try again.');
+                        }
+                    } else {
+                        alert('Failed to copy to clipboard. Please try again.');
+                    }
                 }
             }
         }
