@@ -1,0 +1,3 @@
+Parse and analyze HTML documents using JustHTML, a pure Python HTML5 parser that runs directly in your browser via Pyodide. This playground provides multiple modes for working with HTML: query elements using CSS selectors, pretty-print formatted output, visualize the document tree structure, and stream parsing events as they occur. Load HTML by pasting directly or fetching from CORS-enabled URLs, then explore the parsed document with real-time results.
+
+<!-- Generated from commit: 92e4884d2cbe3a81dd52dbe5c49f56599a8bd38e -->
