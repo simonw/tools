@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Make Colors Transparent in PNG</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1 {
+            font-size: clamp(22px, 3.2vw, 34px);
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .description {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .dropzone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        .dropzone:hover, .dropzone.drag-over {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+        .dropzone p {
+            margin: 0;
+            color: #666;
+        }
+        .dropzone .hint {
+            font-size: 14px;
+            color: #999;
+            margin-top: 10px;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .workspace {
+            display: none;
+            gap: 20px;
+        }
+        .workspace.visible {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+        @media (min-width: 900px) {
+            .workspace.visible {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        .panel {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .panel h2 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .source-container {
+            position: relative;
+            overflow: auto;
+            max-height: 500px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        #sourceCanvas {
+            display: block;
+            cursor: crosshair;
+            max-width: 100%;
+        }
+        .controls {
+            margin-top: 15px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+        .tolerance-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .tolerance-container input[type="range"] {
+            flex: 1;
+        }
+        .tolerance-value {
+            min-width: 40px;
+            text-align: right;
+            font-family: monospace;
+        }
+        .color-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 40px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .color-chip {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+        .color-chip .swatch {
+            width: 16px;
+            height: 16px;
+            border-radius: 2px;
+            border: 1px solid #ccc;
+        }
+        .color-chip .remove {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #999;
+            padding: 0 2px;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .color-chip .remove:hover {
+            color: #e74c3c;
+        }
+        .empty-message {
+            color: #999;
+            font-style: italic;
+            font-size: 14px;
+        }
+        .preview-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .preview-box {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .preview-box.checkerboard {
+            background-image:
+                linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+        .preview-box img {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+        .preview-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .background-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .bg-option {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .bg-option:hover {
+            border-color: #667eea;
+        }
+        .bg-option.active {
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+        }
+        .bg-option.checkerboard {
+            background-image:
+                linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 8px 8px;
+            background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+        }
+        .bg-option.custom {
+            position: relative;
+            overflow: hidden;
+        }
+        .bg-option.custom input {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .bg-option.custom::after {
+            content: '+';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #666;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        .button:hover {
+            background: #5a67d8;
+        }
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .button.secondary {
+            background: #6c757d;
+        }
+        .button.secondary:hover {
+            background: #5a6268;
+        }
+        .button.success {
+            background: #10b981;
+        }
+        .info-text {
+            font-size: 13px;
+            color: #666;
+            margin-top: 10px;
+        }
+        .cursor-preview {
+            position: fixed;
+            pointer-events: none;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 2px solid #333;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transform: translate(-50%, -50%);
+        }
+        .cursor-preview.visible {
+            display: block;
+        }
+        .cursor-preview .color-half {
+            width: 50%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+        }
+        .cursor-preview .left {
+            left: 0;
+            border-radius: 30px 0 0 30px;
+        }
+        .cursor-preview .right {
+            right: 0;
+            border-radius: 0 30px 30px 0;
+            background-image:
+                linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 8px 8px;
+            background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .dropzone {
+                padding: 30px 15px;
+            }
+            .panel {
+                padding: 15px;
+            }
+            .actions {
+                flex-direction: column;
+            }
+            .button {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Make Colors Transparent in PNG</h1>
+    <p class="description">Open an image, click on colors to make them transparent, then download the result.</p>
+
+    <div class="dropzone" id="dropzone">
+        <p>Drop an image here, click to select, or paste from clipboard</p>
+        <p class="hint">Supports PNG, JPEG, GIF, WebP, and other image formats</p>
+        <input type="file" id="fileInput" accept="image/*">
+    </div>
+
+    <div class="workspace" id="workspace">
+        <div class="panel">
+            <h2>Source Image</h2>
+            <p class="info-text">Click on colors in the image to make them transparent</p>
+            <div class="source-container">
+                <canvas id="sourceCanvas"></canvas>
+            </div>
+            <div class="controls">
+                <div class="control-group">
+                    <label>Tolerance: <span class="tolerance-value" id="toleranceValue">32</span></label>
+                    <div class="tolerance-container">
+                        <span>0</span>
+                        <input type="range" id="tolerance" min="0" max="255" value="32">
+                        <span>255</span>
+                    </div>
+                    <p class="info-text">Higher tolerance removes more similar colors</p>
+                </div>
+                <div class="control-group">
+                    <label>Colors to make transparent:</label>
+                    <div class="color-list" id="colorList">
+                        <span class="empty-message">Click on the image to select colors</span>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button class="button secondary" id="clearColors">Clear All Colors</button>
+                    <button class="button secondary" id="resetImage">Reset Image</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Preview</h2>
+            <div class="preview-container">
+                <div>
+                    <div class="preview-label">Result with transparent areas:</div>
+                    <div class="preview-box" id="previewBox">
+                        <img id="previewImage" alt="Preview">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Preview background:</label>
+                    <div class="background-selector" id="bgSelector">
+                        <div class="bg-option checkerboard active" data-bg="checkerboard" title="Checkerboard"></div>
+                        <div class="bg-option" data-bg="#ffffff" style="background: #ffffff;" title="White"></div>
+                        <div class="bg-option" data-bg="#000000" style="background: #000000;" title="Black"></div>
+                        <div class="bg-option" data-bg="#ff0000" style="background: #ff0000;" title="Red"></div>
+                        <div class="bg-option" data-bg="#00ff00" style="background: #00ff00;" title="Green"></div>
+                        <div class="bg-option" data-bg="#0000ff" style="background: #0000ff;" title="Blue"></div>
+                        <div class="bg-option custom" title="Custom color">
+                            <input type="color" id="customBgColor" value="#ffff00">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="button" id="downloadBtn">Download PNG</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="cursor-preview" id="cursorPreview">
+        <div class="color-half left" id="cursorColor"></div>
+        <div class="color-half right"></div>
+    </div>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const workspace = document.getElementById('workspace');
+        const sourceCanvas = document.getElementById('sourceCanvas');
+        const ctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+        const previewImage = document.getElementById('previewImage');
+        const previewBox = document.getElementById('previewBox');
+        const toleranceInput = document.getElementById('tolerance');
+        const toleranceValue = document.getElementById('toleranceValue');
+        const colorList = document.getElementById('colorList');
+        const clearColorsBtn = document.getElementById('clearColors');
+        const resetImageBtn = document.getElementById('resetImage');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const bgSelector = document.getElementById('bgSelector');
+        const customBgColor = document.getElementById('customBgColor');
+        const cursorPreview = document.getElementById('cursorPreview');
+        const cursorColor = document.getElementById('cursorColor');
+
+        let originalImageData = null;
+        let originalImage = null;
+        let selectedColors = [];
+        let currentFileName = 'image';
+
+        // File handling
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('drag-over');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('drag-over');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // Paste handling
+        document.addEventListener('paste', (e) => {
+            const items = e.clipboardData.items;
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    handleFile(file);
+                    break;
+                }
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file');
+                return;
+            }
+
+            currentFileName = file.name.replace(/\.[^/.]+$/, '') || 'image';
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    loadImage(img);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function loadImage(img) {
+            originalImage = img;
+            sourceCanvas.width = img.width;
+            sourceCanvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            originalImageData = ctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+
+            selectedColors = [];
+            updateColorList();
+            updatePreview();
+            workspace.classList.add('visible');
+        }
+
+        // Canvas click handling
+        sourceCanvas.addEventListener('click', (e) => {
+            const rect = sourceCanvas.getBoundingClientRect();
+            const scaleX = sourceCanvas.width / rect.width;
+            const scaleY = sourceCanvas.height / rect.height;
+            const x = Math.floor((e.clientX - rect.left) * scaleX);
+            const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+            const pixel = ctx.getImageData(x, y, 1, 1).data;
+            const color = {
+                r: pixel[0],
+                g: pixel[1],
+                b: pixel[2]
+            };
+
+            // Check if color already selected
+            const exists = selectedColors.some(c =>
+                c.r === color.r && c.g === color.g && c.b === color.b
+            );
+
+            if (!exists) {
+                selectedColors.push(color);
+                updateColorList();
+                updatePreview();
+            }
+        });
+
+        // Cursor preview on hover
+        sourceCanvas.addEventListener('mousemove', (e) => {
+            const rect = sourceCanvas.getBoundingClientRect();
+            const scaleX = sourceCanvas.width / rect.width;
+            const scaleY = sourceCanvas.height / rect.height;
+            const x = Math.floor((e.clientX - rect.left) * scaleX);
+            const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+            if (x >= 0 && x < sourceCanvas.width && y >= 0 && y < sourceCanvas.height) {
+                const pixel = ctx.getImageData(x, y, 1, 1).data;
+                const colorStr = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+                cursorColor.style.background = colorStr;
+                cursorPreview.style.left = e.clientX + 'px';
+                cursorPreview.style.top = (e.clientY - 70) + 'px';
+                cursorPreview.classList.add('visible');
+            }
+        });
+
+        sourceCanvas.addEventListener('mouseleave', () => {
+            cursorPreview.classList.remove('visible');
+        });
+
+        // Tolerance handling
+        toleranceInput.addEventListener('input', () => {
+            toleranceValue.textContent = toleranceInput.value;
+            if (selectedColors.length > 0) {
+                updatePreview();
+            }
+        });
+
+        // Color list management
+        function updateColorList() {
+            if (selectedColors.length === 0) {
+                colorList.innerHTML = '<span class="empty-message">Click on the image to select colors</span>';
+                return;
+            }
+
+            colorList.innerHTML = selectedColors.map((color, index) => {
+                const hex = rgbToHex(color.r, color.g, color.b);
+                return `
+                    <div class="color-chip">
+                        <span class="swatch" style="background: ${hex}"></span>
+                        <span>${hex}</span>
+                        <button class="remove" data-index="${index}">&times;</button>
+                    </div>
+                `;
+            }).join('');
+
+            // Add remove handlers
+            colorList.querySelectorAll('.remove').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    selectedColors.splice(index, 1);
+                    updateColorList();
+                    updatePreview();
+                });
+            });
+        }
+
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+        }
+
+        // Clear and reset
+        clearColorsBtn.addEventListener('click', () => {
+            selectedColors = [];
+            updateColorList();
+            updatePreview();
+        });
+
+        resetImageBtn.addEventListener('click', () => {
+            if (originalImage) {
+                loadImage(originalImage);
+            }
+        });
+
+        // Preview update
+        function updatePreview() {
+            if (!originalImageData) return;
+
+            const processedCanvas = document.createElement('canvas');
+            processedCanvas.width = sourceCanvas.width;
+            processedCanvas.height = sourceCanvas.height;
+            const processedCtx = processedCanvas.getContext('2d');
+
+            const imageData = new ImageData(
+                new Uint8ClampedArray(originalImageData.data),
+                originalImageData.width,
+                originalImageData.height
+            );
+
+            const tolerance = parseInt(toleranceInput.value);
+            const data = imageData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+
+                for (const color of selectedColors) {
+                    if (colorDistance(r, g, b, color.r, color.g, color.b) <= tolerance) {
+                        data[i + 3] = 0; // Set alpha to 0 (transparent)
+                        break;
+                    }
+                }
+            }
+
+            processedCtx.putImageData(imageData, 0, 0);
+            previewImage.src = processedCanvas.toDataURL('image/png');
+        }
+
+        function colorDistance(r1, g1, b1, r2, g2, b2) {
+            return Math.sqrt(
+                Math.pow(r1 - r2, 2) +
+                Math.pow(g1 - g2, 2) +
+                Math.pow(b1 - b2, 2)
+            );
+        }
+
+        // Background selector
+        bgSelector.addEventListener('click', (e) => {
+            const option = e.target.closest('.bg-option');
+            if (!option || option.classList.contains('custom')) return;
+
+            bgSelector.querySelectorAll('.bg-option').forEach(o => o.classList.remove('active'));
+            option.classList.add('active');
+
+            const bg = option.dataset.bg;
+            if (bg === 'checkerboard') {
+                previewBox.className = 'preview-box checkerboard';
+                previewBox.style.background = '';
+            } else {
+                previewBox.className = 'preview-box';
+                previewBox.style.background = bg;
+            }
+        });
+
+        customBgColor.addEventListener('input', (e) => {
+            bgSelector.querySelectorAll('.bg-option').forEach(o => o.classList.remove('active'));
+            e.target.closest('.bg-option').classList.add('active');
+            previewBox.className = 'preview-box';
+            previewBox.style.background = e.target.value;
+        });
+
+        // Download
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = `${currentFileName}-transparent.png`;
+            link.href = previewImage.src;
+            link.click();
+        });
+
+        // Initialize preview box with checkerboard
+        previewBox.classList.add('checkerboard');
+    </script>
+</body>
+</html>
