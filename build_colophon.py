@@ -68,17 +68,13 @@ def build_colophon():
     <title>tools.simonwillison.net colophon</title>
     <style>
         body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.5;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 1rem;
-            color: #1a1a1a;
+            font-family: "Helvetica Neue", helvetica, sans-serif;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
         }
         h1 {
-            border-bottom: 2px solid #f0f0f0;
-            padding-bottom: 0.5rem;
-            margin-top: 2rem;
+            font-family: Georgia, 'Times New Roman', Times, serif;
         }
         h2 {
             margin-top: 2rem;
@@ -103,9 +99,31 @@ def build_colophon():
         a.hashref:active {
             color: #666;
         }
+        nav {
+            text-align: left;
+            background: linear-gradient(to bottom, rgb(154, 103, 175) 0%, rgb(96, 72, 129) 49%, rgb(100, 67, 130) 100%);
+            color: white;
+        }
+        nav p {
+            display: block;
+            margin: 0;
+            padding: 4px 0px 4px 2em;
+        }
+        nav a:link,
+        nav a:visited,
+        nav a:hover,
+        nav a:focus,
+        nav a:active {
+            color: white;
+            text-decoration: none;
+        }
+        section.body {
+            padding: 0.5em 2em;
+            max-width: 800px;
+        }
         .tool {
             margin-bottom: 2rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid #ccc;
             padding-bottom: 1rem;
         }
         .tool-name {
@@ -117,7 +135,7 @@ def build_colophon():
             padding: 1rem;
             margin: 0.75rem 0;
             border-radius: 4px;
-            border-left: 3px solid #ddd;
+            border-left: 3px solid #9e6bb5;
         }
         .commit-hash {
             font-family: monospace;
@@ -133,7 +151,7 @@ def build_colophon():
             margin-top: 0.5rem;
         }
         .docs {
-            margin-top: 1.5rem;
+            margin-top: 1rem;
         }
         .docs pre {
             white-space: pre-wrap;
@@ -144,7 +162,7 @@ def build_colophon():
         .urls {
             margin-top: 1rem;
         }
-        /* New styles for the heading */
+        /* Styles for the heading */
         .heading {
             display: flex;
             align-items: center;
@@ -187,9 +205,17 @@ def build_colophon():
         summary:hover {
             text-decoration: underline;
         }
+        blockquote {
+            margin: 1em 0;
+            border-left: 0.75em solid #9e6bb52e;
+            padding-left: 0.75em;
+        }
         @media (max-width: 600px) {
-            body {
-                padding: 0.5rem;
+            section.body {
+                padding: 0em 1em;
+            }
+            nav p {
+                padding: 4px 0px 4px 1em;
             }
             .commit {
                 padding: 0.75rem;
@@ -198,6 +224,10 @@ def build_colophon():
     </style>
 </head>
 <body>
+<nav>
+    <p><a href="/">Simon Willison's Tools</a></p>
+</nav>
+<section class="body">
     <h1>tools.simonwillison.net colophon</h1>
 """
 
@@ -309,6 +339,7 @@ def build_colophon():
         }
     });
     </script>
+</section>
 </body>
 </html>
 """
