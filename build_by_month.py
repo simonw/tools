@@ -134,23 +134,17 @@ def build_by_month() -> None:
     <title>Tools by month - tools.simonwillison.net</title>
     <style>
         body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.5;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 1rem;
-            color: #1a1a1a;
+            font-family: "Helvetica Neue", helvetica, sans-serif;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
         }
         h1 {
-            border-bottom: 2px solid #f0f0f0;
-            padding-bottom: 0.5rem;
-            margin-top: 2rem;
+            font-family: Georgia, 'Times New Roman', Times, serif;
         }
         h2 {
             margin-top: 2rem;
             font-size: 1.4rem;
-            border-bottom: 1px solid #f0f0f0;
-            padding-bottom: 0.3rem;
         }
         a {
             color: #0066cc;
@@ -167,6 +161,29 @@ def build_by_month() -> None:
             color: #666;
             margin-right: 0.3rem;
         }
+        nav {
+            text-align: left;
+            background: linear-gradient(to bottom, rgb(154, 103, 175) 0%, rgb(96, 72, 129) 49%, rgb(100, 67, 130) 100%);
+            color: white;
+        }
+        nav p {
+            display: flex;
+            justify-content: space-between;
+            margin: 0;
+            padding: 4px 2em;
+        }
+        nav a:link,
+        nav a:visited,
+        nav a:hover,
+        nav a:focus,
+        nav a:active {
+            color: white;
+            text-decoration: none;
+        }
+        section.body {
+            padding: 0.5em 2em;
+            max-width: 800px;
+        }
         .tool-list {
             list-style: none;
             margin: 0;
@@ -175,7 +192,7 @@ def build_by_month() -> None:
         .tool-item {
             margin-bottom: 1rem;
             padding-bottom: 0.75rem;
-            border-bottom: 1px solid #f8f8f8;
+            border-bottom: 1px solid #eee;
         }
         .tool-item:last-child {
             border-bottom: none;
@@ -192,13 +209,21 @@ def build_by_month() -> None:
             color: #444;
             font-size: 0.95rem;
         }
-        .back-link {
-            margin-bottom: 1rem;
+        @media (max-width: 600px) {
+            section.body {
+                padding: 0em 1em;
+            }
+            nav p {
+                padding: 4px 1em;
+            }
         }
     </style>
 </head>
 <body>
-    <p class="back-link"><a href="/">&larr; Back to tools.simonwillison.net</a></p>
+<nav>
+    <p><a href="/">Simon Willison's Tools</a> <a href="https://simonwillison.net/">My blog</a></p>
+</nav>
+<section class="body">
     <h1>Tools by month</h1>
 """
 
@@ -230,7 +255,8 @@ def build_by_month() -> None:
 
         html_content += '    </ul>\n'
 
-    html_content += """</body>
+    html_content += """</section>
+</body>
 </html>
 """
 

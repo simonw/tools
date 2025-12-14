@@ -189,24 +189,19 @@ def build_index() -> None:
     <title>tools.simonwillison.net</title>
     <style>
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-            line-height: 1.6;
-            max-width: 980px;
-            margin: 0 auto;
-            padding: 20px;
-            color: #24292e;
+            font-family: "Helvetica Neue", helvetica, sans-serif;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
         }}
         h1 {{
-            border-bottom: 1px solid #eaecef;
-            padding-bottom: 0.3em;
+            font-family: Georgia, 'Times New Roman', Times, serif;
         }}
         h2 {{
-            border-bottom: 1px solid #eaecef;
-            padding-bottom: 0.3em;
-            margin-top: 24px;
+            margin-top: 1.5em;
         }}
         a {{
-            color: #0366d6;
+            color: #0066cc;
             text-decoration: none;
         }}
         a:hover {{
@@ -216,6 +211,37 @@ def build_index() -> None:
             background-color: rgba(27,31,35,0.05);
             border-radius: 3px;
             padding: 0.2em 0.4em;
+        }}
+        nav {{
+            text-align: left;
+            background: linear-gradient(to bottom, rgb(154, 103, 175) 0%, rgb(96, 72, 129) 49%, rgb(100, 67, 130) 100%);
+            color: white;
+        }}
+        nav p {{
+            display: flex;
+            justify-content: space-between;
+            margin: 0;
+            padding: 4px 2em;
+        }}
+        nav a:link,
+        nav a:visited,
+        nav a:hover,
+        nav a:focus,
+        nav a:active {{
+            color: white;
+            text-decoration: none;
+        }}
+        section.body {{
+            padding: 0.5em 2em;
+            max-width: 800px;
+        }}
+        @media (max-width: 600px) {{
+            section.body {{
+                padding: 0em 1em;
+            }}
+            nav p {{
+                padding: 4px 1em;
+            }}
         }}
         .recent-container {{
             display: flex;
@@ -238,18 +264,23 @@ def build_index() -> None:
             margin-bottom: 0.5em;
         }}
         .recent-date {{
-            color: #6a737d;
+            color: #666;
         }}
         .browse-all {{
             margin-top: 1em;
             padding-top: 0.5em;
-            border-top: 1px solid #eaecef;
+            border-top: 1px solid #ccc;
             font-size: 0.9em;
         }}
     </style>
 </head>
 <body>
+<nav>
+    <p><a href="/">Simon Willison's Tools</a> <a href="https://simonwillison.net/">My blog</a></p>
+</nav>
+<section class="body">
 {body_html}
+</section>
 </body>
 </html>
 """
