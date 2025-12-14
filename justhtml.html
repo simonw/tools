@@ -430,6 +430,8 @@
                 <button class="mode-btn" data-mode="pretty">Pretty Print HTML</button>
                 <button class="mode-btn" data-mode="tree">Tree Structure</button>
                 <button class="mode-btn" data-mode="stream">Stream Events</button>
+                <button class="mode-btn" data-mode="text">Extract Text</button>
+                <button class="mode-btn" data-mode="markdown">To Markdown</button>
             </div>
 
             <div id="selector-options" class="mode-options active">
@@ -450,6 +452,22 @@
 
             <div id="stream-options" class="mode-options">
                 <button id="stream-btn" class="run-btn" disabled>Show Events</button>
+            </div>
+
+            <div id="text-options" class="mode-options">
+                <label for="text-selector-input">CSS Selector (optional - leave empty for whole document):</label>
+                <div class="selector-input">
+                    <input type="text" id="text-selector-input" placeholder="e.g., article, main, .content (or leave empty)">
+                    <button id="text-btn" class="run-btn" disabled>Extract Text</button>
+                </div>
+            </div>
+
+            <div id="markdown-options" class="mode-options">
+                <label for="markdown-selector-input">CSS Selector (optional - leave empty for whole document):</label>
+                <div class="selector-input">
+                    <input type="text" id="markdown-selector-input" placeholder="e.g., article, main, .content (or leave empty)">
+                    <button id="markdown-btn" class="run-btn" disabled>Convert to Markdown</button>
+                </div>
             </div>
         </div>
 
@@ -490,6 +508,8 @@
         const htmlInputEl = document.getElementById('html-input');
         const urlInputEl = document.getElementById('url-input');
         const selectorInputEl = document.getElementById('selector-input');
+        const textSelectorInputEl = document.getElementById('text-selector-input');
+        const markdownSelectorInputEl = document.getElementById('markdown-selector-input');
 
         // Tab switching
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -621,6 +641,58 @@ def get_stream_events(html_str):
         elif event == "doctype":
             events.append(f"DOCTYPE: {data}")
     return "\\n".join(events)
+
+def extract_text(html_str, selector=None):
+    """Extract text from HTML, optionally filtered by CSS selector."""
+    doc = JustHTML(html_str)
+    if selector and selector.strip():
+        results = doc.query(selector)
+        if not results:
+            return {
+                'count': 0,
+                'results': []
+            }
+        output = []
+        for node in results:
+            text = node.to_text()
+            if text.strip():
+                output.append(text)
+        return {
+            'count': len(results),
+            'results': output
+        }
+    else:
+        # Whole document
+        return {
+            'count': 1,
+            'results': [doc.to_text()]
+        }
+
+def convert_to_markdown(html_str, selector=None):
+    """Convert HTML to Markdown, optionally filtered by CSS selector."""
+    doc = JustHTML(html_str)
+    if selector and selector.strip():
+        results = doc.query(selector)
+        if not results:
+            return {
+                'count': 0,
+                'results': []
+            }
+        output = []
+        for node in results:
+            md = node.to_markdown()
+            if md.strip():
+                output.append(md)
+        return {
+            'count': len(results),
+            'results': output
+        }
+    else:
+        # Whole document
+        return {
+            'count': 1,
+            'results': [doc.to_markdown()]
+        }
 `);
 
                 statusEl.textContent = 'Ready';
@@ -775,6 +847,94 @@ get_stream_events(html)
             }
         }
 
+        async function extractText() {
+            if (!pyodide) return;
+
+            const html = getHtmlInput();
+            const selector = textSelectorInputEl.value.trim();
+
+            try {
+                const escapedHtml = html.replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"');
+                const escapedSelector = selector ? selector.replace(/\\/g, '\\\\').replace(/"/g, '\\"') : '';
+
+                const result = await pyodide.runPythonAsync(`
+html = """${escapedHtml}"""
+selector = "${escapedSelector}" if "${escapedSelector}" else None
+extract_text(html, selector)
+`);
+
+                const jsResult = result.toJs();
+                const count = jsResult.get('count');
+                const results = jsResult.get('results');
+
+                if (selector) {
+                    matchCountEl.textContent = `${count} match${count !== 1 ? 'es' : ''}`;
+                    matchCountEl.style.display = 'inline';
+                } else {
+                    matchCountEl.textContent = 'Whole document';
+                    matchCountEl.style.display = 'inline';
+                }
+
+                if (count === 0) {
+                    outputEl.textContent = `No elements match the selector "${selector}"`;
+                    outputEl.className = 'output-content';
+                } else {
+                    const resultsArray = Array.from(results);
+                    outputEl.textContent = resultsArray.join('\n\n---\n\n');
+                    outputEl.className = 'output-content';
+                }
+
+            } catch (error) {
+                outputEl.textContent = error.message;
+                outputEl.className = 'output-content error';
+                matchCountEl.style.display = 'none';
+            }
+        }
+
+        async function convertToMarkdown() {
+            if (!pyodide) return;
+
+            const html = getHtmlInput();
+            const selector = markdownSelectorInputEl.value.trim();
+
+            try {
+                const escapedHtml = html.replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"');
+                const escapedSelector = selector ? selector.replace(/\\/g, '\\\\').replace(/"/g, '\\"') : '';
+
+                const result = await pyodide.runPythonAsync(`
+html = """${escapedHtml}"""
+selector = "${escapedSelector}" if "${escapedSelector}" else None
+convert_to_markdown(html, selector)
+`);
+
+                const jsResult = result.toJs();
+                const count = jsResult.get('count');
+                const results = jsResult.get('results');
+
+                if (selector) {
+                    matchCountEl.textContent = `${count} match${count !== 1 ? 'es' : ''}`;
+                    matchCountEl.style.display = 'inline';
+                } else {
+                    matchCountEl.textContent = 'Whole document';
+                    matchCountEl.style.display = 'inline';
+                }
+
+                if (count === 0) {
+                    outputEl.textContent = `No elements match the selector "${selector}"`;
+                    outputEl.className = 'output-content';
+                } else {
+                    const resultsArray = Array.from(results);
+                    outputEl.textContent = resultsArray.join('\n\n---\n\n');
+                    outputEl.className = 'output-content';
+                }
+
+            } catch (error) {
+                outputEl.textContent = error.message;
+                outputEl.className = 'output-content error';
+                matchCountEl.style.display = 'none';
+            }
+        }
+
         async function fetchUrl() {
             const url = urlInputEl.value.trim();
             if (!url) {
@@ -817,11 +977,19 @@ get_stream_events(html)
         document.getElementById('pretty-btn').addEventListener('click', prettyPrint);
         document.getElementById('tree-btn').addEventListener('click', showTree);
         document.getElementById('stream-btn').addEventListener('click', showStreamEvents);
+        document.getElementById('text-btn').addEventListener('click', extractText);
+        document.getElementById('markdown-btn').addEventListener('click', convertToMarkdown);
         document.getElementById('fetch-btn').addEventListener('click', fetchUrl);
 
-        // Run query on Enter in selector input
+        // Run query on Enter in selector inputs
         selectorInputEl.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') runQuery();
+        });
+        textSelectorInputEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') extractText();
+        });
+        markdownSelectorInputEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') convertToMarkdown();
         });
 
         // Initialize
