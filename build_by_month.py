@@ -167,9 +167,10 @@ def build_by_month() -> None:
             color: white;
         }
         nav p {
-            display: block;
+            display: flex;
+            justify-content: space-between;
             margin: 0;
-            padding: 4px 0px 4px 2em;
+            padding: 4px 2em;
         }
         nav a:link,
         nav a:visited,
@@ -213,14 +214,14 @@ def build_by_month() -> None:
                 padding: 0em 1em;
             }
             nav p {
-                padding: 4px 0px 4px 1em;
+                padding: 4px 1em;
             }
         }
     </style>
 </head>
 <body>
 <nav>
-    <p><a href="/">Simon Willison's Tools</a></p>
+    <p><a href="/">Simon Willison's Tools</a> <a href="https://simonwillison.net/">My blog</a></p>
 </nav>
 <section class="body">
     <h1>Tools by month</h1>
