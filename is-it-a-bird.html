@@ -111,6 +111,10 @@
       font-weight: bold;
       font-size: 16px;
     }
+    #model-status.pending {
+      background: #e7f1ff;
+      color: #004085;
+    }
     #model-status.loading {
       background: #fff3cd;
       color: #856404;
@@ -122,6 +126,20 @@
     #model-status.error {
       background: #f8d7da;
       color: #721c24;
+    }
+    #load-model-btn {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    #load-model-btn:hover {
+      background: #0056b3;
     }
     #model-status .spinner-inline {
       display: inline-block;
@@ -192,10 +210,14 @@
     <h1>Is It a Bird?</h1>
     <p>Drop, paste, or select an image to find out if it contains a bird using <a href="https://huggingface.co/docs/transformers.js">Transformers.js</a> and OpenAI's CLIP model.</p>
 
-    <div id="model-status" class="loading">
-      <div><span class="spinner-inline"></span><span id="status-text">Loading CLIP model...</span></div>
-      <div class="progress-container"><div class="progress-bar" id="progress-bar"></div></div>
-      <div class="progress-text" id="progress-text"></div>
+    <div id="model-status" class="pending">
+      <div id="pending-message">CLIP model required (~150 MB download)</div>
+      <button id="load-model-btn">Load 150 MB model</button>
+      <div id="loading-ui" style="display: none;">
+        <div><span class="spinner-inline"></span><span id="status-text">Loading CLIP model...</span></div>
+        <div class="progress-container"><div class="progress-bar" id="progress-bar"></div></div>
+        <div class="progress-text" id="progress-text"></div>
+      </div>
     </div>
 
     <input type="file" id="file-input" accept="image/*">
@@ -237,9 +259,13 @@
     const statusText = document.getElementById('status-text');
     const progressBar = document.getElementById('progress-bar');
     const progressText = document.getElementById('progress-text');
+    const loadModelBtn = document.getElementById('load-model-btn');
+    const pendingMessage = document.getElementById('pending-message');
+    const loadingUI = document.getElementById('loading-ui');
 
     let classifier = null;
     let isProcessing = false;
+    let isModelLoading = false;
     let pendingImage = null;
 
     // Track progress across multiple files
@@ -271,6 +297,15 @@
 
     // Load the CLIP model
     async function loadModel() {
+      if (isModelLoading || classifier) return;
+      isModelLoading = true;
+
+      // Switch to loading UI
+      modelStatus.className = 'loading';
+      pendingMessage.style.display = 'none';
+      loadModelBtn.style.display = 'none';
+      loadingUI.style.display = 'block';
+
       try {
         classifier = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', {
           progress_callback: updateProgress
@@ -288,17 +323,21 @@
         console.error('Failed to load model:', error);
         modelStatus.innerHTML = 'Failed to load model. Please refresh the page.';
         modelStatus.className = 'error';
+        isModelLoading = false;
       }
     }
 
-    // Start loading model immediately
-    loadModel();
+    // Load model button click handler
+    loadModelBtn.addEventListener('click', loadModel);
 
     // Classify an image
     async function classifyImage(imageSource) {
-      // If model isn't ready yet, queue the image
+      // If model isn't ready yet, queue the image and start loading
       if (!classifier) {
         pendingImage = imageSource;
+        if (!isModelLoading) {
+          loadModel();
+        }
         statusText.textContent = 'Loading model... your image will be analyzed automatically';
         return;
       }
