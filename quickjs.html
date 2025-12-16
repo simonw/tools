@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickJS Code Executor</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .description {
+            margin-top: 0;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            min-height: 200px;
+            resize: vertical;
+            tab-size: 2;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: wait;
+            opacity: 0.7;
+        }
+        button.secondary {
+            background-color: #6c757d;
+        }
+        button.secondary:hover:not(:disabled) {
+            background-color: #545b62;
+        }
+        #status {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+        #status.visible {
+            display: block;
+        }
+        #status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        #status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        #output-section {
+            display: none;
+        }
+        #output-section.visible {
+            display: block;
+        }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .output-header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        #copy-btn {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        #output {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: 100px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        #output.error-output {
+            background-color: #2d1f1f;
+            color: #f8d7da;
+        }
+        .execution-time {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+        }
+        .examples-section {
+            margin-bottom: 20px;
+        }
+        .examples-section h3 {
+            font-size: 14px;
+            color: #666;
+            margin: 0 0 10px 0;
+            font-weight: 500;
+        }
+        .examples-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .example-btn {
+            padding: 6px 12px;
+            font-size: 13px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 20px;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .example-btn:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+            color: #212529;
+        }
+        .example-btn:active {
+            background: #dee2e6;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>QuickJS Code Executor</h1>
+    <p class="description">Execute JavaScript code in a sandboxed QuickJS environment running via WebAssembly. Code is saved in the URL for easy sharing.</p>
+
+    <div class="examples-section">
+        <h3>Try an example:</h3>
+        <div class="examples-list" id="examples-list"></div>
+    </div>
+
+    <div class="input-group">
+        <label for="code-input">JavaScript Code:</label>
+        <textarea id="code-input" placeholder="// Enter your JavaScript code here, or click an example above"></textarea>
+    </div>
+
+    <div class="button-group">
+        <button id="run-btn" disabled>Initializing...</button>
+        <button id="clear-btn" class="secondary">Clear</button>
+    </div>
+
+    <div id="status"></div>
+
+    <div id="output-section">
+        <div class="output-header">
+            <h2>Output</h2>
+            <button id="copy-btn" class="secondary">Copy</button>
+        </div>
+        <div id="output"></div>
+        <div class="execution-time" id="execution-time"></div>
+    </div>
+
+    <!-- Load QuickJS as IIFE global build -->
+    <script src="https://cdn.jsdelivr.net/npm/quickjs-emscripten@0.31.0/dist/index.global.js"></script>
+    <script>
+        // Example code snippets
+        const examples = [
+            {
+                name: 'Hello World',
+                code: `console.log('Hello, World!');`
+            },
+            {
+                name: 'Factorial',
+                code: `function factorial(n) {
+  if (n <= 1) return 1;
+  return n * factorial(n - 1);
+}
+
+console.log('5! =', factorial(5));
+console.log('10! =', factorial(10));`
+            },
+            {
+                name: 'Fibonacci',
+                code: `function fibonacci(n) {
+  const seq = [0, 1];
+  for (let i = 2; i < n; i++) {
+    seq.push(seq[i-1] + seq[i-2]);
+  }
+  return seq;
+}
+
+console.log('First 15 Fibonacci numbers:');
+console.log(fibonacci(15).join(', '));`
+            },
+            {
+                name: 'Array Methods',
+                code: `const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+const doubled = numbers.map(n => n * 2);
+console.log('Doubled:', doubled);
+
+const evens = numbers.filter(n => n % 2 === 0);
+console.log('Evens:', evens);
+
+const sum = numbers.reduce((a, b) => a + b, 0);
+console.log('Sum:', sum);`
+            },
+            {
+                name: 'Objects & JSON',
+                code: `const person = {
+  name: 'Alice',
+  age: 30,
+  hobbies: ['reading', 'coding', 'hiking'],
+  address: {
+    city: 'San Francisco',
+    country: 'USA'
+  }
+};
+
+console.log(JSON.stringify(person, null, 2));
+console.log('\\nName:', person.name);
+console.log('First hobby:', person.hobbies[0]);`
+            },
+            {
+                name: 'Prime Numbers',
+                code: `function isPrime(n) {
+  if (n < 2) return false;
+  for (let i = 2; i <= Math.sqrt(n); i++) {
+    if (n % i === 0) return false;
+  }
+  return true;
+}
+
+const primes = [];
+for (let i = 2; i <= 100; i++) {
+  if (isPrime(i)) primes.push(i);
+}
+
+console.log('Primes up to 100:');
+console.log(primes.join(', '));`
+            },
+            {
+                name: 'String Fun',
+                code: `const text = 'JavaScript is awesome!';
+
+console.log('Original:', text);
+console.log('Uppercase:', text.toUpperCase());
+console.log('Reversed:', text.split('').reverse().join(''));
+console.log('Word count:', text.split(' ').length);
+console.log('Contains "awesome":', text.includes('awesome'));`
+            },
+            {
+                name: 'FizzBuzz',
+                code: `for (let i = 1; i <= 30; i++) {
+  if (i % 15 === 0) console.log('FizzBuzz');
+  else if (i % 3 === 0) console.log('Fizz');
+  else if (i % 5 === 0) console.log('Buzz');
+  else console.log(i);
+}`
+            },
+            {
+                name: 'Sorting',
+                code: `const fruits = ['banana', 'apple', 'orange', 'mango', 'kiwi'];
+console.log('Original:', fruits);
+console.log('Sorted:', [...fruits].sort());
+
+const nums = [42, 8, 15, 23, 4, 16];
+console.log('\\nNumbers:', nums);
+console.log('Ascending:', [...nums].sort((a, b) => a - b));
+console.log('Descending:', [...nums].sort((a, b) => b - a));`
+            },
+            {
+                name: 'Date & Time',
+                code: `const now = new Date();
+console.log('Current time:', now.toString());
+console.log('ISO format:', now.toISOString());
+console.log('Year:', now.getFullYear());
+console.log('Month:', now.getMonth() + 1);
+console.log('Day:', now.getDate());
+console.log('Day of week:', ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()]);`
+            }
+        ];
+
+        const codeInput = document.getElementById('code-input');
+        const runBtn = document.getElementById('run-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const statusEl = document.getElementById('status');
+        const outputSection = document.getElementById('output-section');
+        const outputEl = document.getElementById('output');
+        const executionTimeEl = document.getElementById('execution-time');
+        const examplesList = document.getElementById('examples-list');
+
+        let QuickJS = null;
+
+        // Populate examples
+        examples.forEach((example, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'example-btn';
+            btn.textContent = example.name;
+            btn.addEventListener('click', () => {
+                codeInput.value = example.code;
+                codeInput.focus();
+                // Auto-run if QuickJS is ready
+                if (QuickJS && !runBtn.disabled) {
+                    executeCode(example.code);
+                }
+            });
+            examplesList.appendChild(btn);
+        });
+
+        // Status helpers
+        function showStatus(message, type = 'info') {
+            statusEl.textContent = message;
+            statusEl.className = `visible ${type}`;
+        }
+
+        function hideStatus() {
+            statusEl.className = '';
+        }
+
+        function showOutput(text, isError = false) {
+            outputEl.textContent = text || '(no output)';
+            outputEl.className = isError ? 'error-output' : '';
+            outputSection.classList.add('visible');
+        }
+
+        function hideOutput() {
+            outputSection.classList.remove('visible');
+        }
+
+        // URL hash management
+        function updateUrlHash(code) {
+            const encoded = encodeURIComponent(code);
+            window.history.replaceState(null, null, '#' + encoded);
+        }
+
+        function loadFromHash() {
+            if (!window.location.hash) return null;
+            try {
+                const hash = window.location.hash.substring(1);
+                return decodeURIComponent(hash);
+            } catch (e) {
+                console.error('Error decoding hash:', e);
+                return null;
+            }
+        }
+
+        // Execute code using QuickJS
+        async function executeCode(code) {
+            if (!QuickJS) {
+                showStatus('QuickJS not initialized', 'error');
+                return;
+            }
+
+            if (!code.trim()) {
+                showStatus('Please enter some code to execute', 'error');
+                return;
+            }
+
+            runBtn.disabled = true;
+            runBtn.textContent = 'Running...';
+            hideStatus();
+
+            const startTime = performance.now();
+            const logs = [];
+
+            try {
+                const vm = QuickJS.newContext();
+
+                // Create console.log function
+                const logHandle = vm.newFunction('log', (...args) => {
+                    const output = args.map(arg => {
+                        if (typeof arg === 'undefined') return 'undefined';
+                        const str = vm.dump(arg);
+                        if (typeof str === 'string') return str;
+                        if (typeof str === 'object') return JSON.stringify(str, null, 2);
+                        return String(str);
+                    }).join(' ');
+                    logs.push(output);
+                });
+
+                // Create console object with log, warn, error methods
+                const consoleHandle = vm.newObject();
+                vm.setProp(consoleHandle, 'log', logHandle);
+                vm.setProp(consoleHandle, 'warn', logHandle);
+                vm.setProp(consoleHandle, 'error', logHandle);
+                vm.setProp(consoleHandle, 'info', logHandle);
+                vm.setProp(vm.global, 'console', consoleHandle);
+
+                consoleHandle.dispose();
+                logHandle.dispose();
+
+                // Execute the code
+                const result = vm.evalCode(code);
+
+                const endTime = performance.now();
+                const executionTime = (endTime - startTime).toFixed(2);
+
+                if (result.error) {
+                    const error = vm.dump(result.error);
+                    result.error.dispose();
+                    vm.dispose();
+
+                    const errorMessage = typeof error === 'object' ?
+                        (error.message || JSON.stringify(error)) : String(error);
+
+                    showOutput(`Error: ${errorMessage}`, true);
+                    executionTimeEl.textContent = `Execution time: ${executionTime}ms`;
+                } else {
+                    const value = vm.dump(result.value);
+                    result.value.dispose();
+                    vm.dispose();
+
+                    // Build output
+                    let output = '';
+                    if (logs.length > 0) {
+                        output = logs.join('\n');
+                    }
+
+                    // Show return value if it's not undefined
+                    if (value !== undefined) {
+                        const valueStr = typeof value === 'object' ?
+                            JSON.stringify(value, null, 2) : String(value);
+                        if (output) {
+                            output += '\n\n=> ' + valueStr;
+                        } else {
+                            output = '=> ' + valueStr;
+                        }
+                    }
+
+                    showOutput(output || '(no output)');
+                    executionTimeEl.textContent = `Execution time: ${executionTime}ms`;
+                }
+
+                // Update URL with the code
+                updateUrlHash(code);
+
+            } catch (e) {
+                const endTime = performance.now();
+                const executionTime = (endTime - startTime).toFixed(2);
+                showOutput(`Error: ${e.message}`, true);
+                executionTimeEl.textContent = `Execution time: ${executionTime}ms`;
+            } finally {
+                runBtn.disabled = false;
+                runBtn.textContent = 'Run Code';
+            }
+        }
+
+        // Initialize QuickJS
+        async function initialize() {
+            try {
+                showStatus('Loading QuickJS WebAssembly runtime...', 'info');
+
+                // Use the QJS global from the IIFE build
+                QuickJS = await QJS.getQuickJS();
+
+                runBtn.textContent = 'Run Code';
+                runBtn.disabled = false;
+
+                showStatus('Ready!', 'success');
+                setTimeout(hideStatus, 1500);
+
+                // Check for code in URL hash and execute
+                const hashCode = loadFromHash();
+                if (hashCode) {
+                    codeInput.value = hashCode;
+                    executeCode(hashCode);
+                }
+            } catch (e) {
+                showStatus('Failed to initialize QuickJS: ' + e.message, 'error');
+                console.error('Initialization error:', e);
+            }
+        }
+
+        // Event listeners
+        runBtn.addEventListener('click', () => {
+            executeCode(codeInput.value);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            codeInput.value = '';
+            hideOutput();
+            hideStatus();
+            window.history.replaceState(null, null, window.location.pathname);
+        });
+
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(outputEl.textContent);
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy';
+                }, 1500);
+            } catch (e) {
+                showStatus('Failed to copy to clipboard', 'error');
+            }
+        });
+
+        // Keyboard shortcut: Ctrl/Cmd + Enter to run
+        codeInput.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (!runBtn.disabled) {
+                    executeCode(codeInput.value);
+                }
+            }
+            // Handle Tab key for indentation
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = codeInput.selectionStart;
+                const end = codeInput.selectionEnd;
+                codeInput.value = codeInput.value.substring(0, start) + '  ' + codeInput.value.substring(end);
+                codeInput.selectionStart = codeInput.selectionEnd = start + 2;
+            }
+        });
+
+        // Handle hash changes (e.g., browser back/forward)
+        window.addEventListener('hashchange', () => {
+            const hashCode = loadFromHash();
+            if (hashCode && hashCode !== codeInput.value) {
+                codeInput.value = hashCode;
+                if (QuickJS) {
+                    executeCode(hashCode);
+                }
+            }
+        });
+
+        // Initialize on page load
+        initialize();
+    </script>
+</body>
+</html>
