@@ -103,10 +103,36 @@
     }
     #model-status {
       text-align: center;
-      padding: 10px;
+      padding: 15px;
       margin-bottom: 20px;
       border-radius: 8px;
-      background: #f0f0f0;
+      background: #fff3cd;
+      color: #856404;
+      font-weight: bold;
+      font-size: 16px;
+    }
+    #model-status.loading {
+      background: #fff3cd;
+      color: #856404;
+    }
+    #model-status.ready {
+      background: #d4edda;
+      color: #155724;
+    }
+    #model-status.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    #model-status .spinner-inline {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #856404;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
     }
     .footer {
       margin-top: 30px;
@@ -143,7 +169,7 @@
     <h1>Is It a Bird?</h1>
     <p>Drop, paste, or select an image to find out if it contains a bird using <a href="https://huggingface.co/docs/transformers.js">Transformers.js</a> and OpenAI's CLIP model.</p>
 
-    <div id="model-status">Loading CLIP model... (this may take a moment on first visit)</div>
+    <div id="model-status" class="loading"><span class="spinner-inline"></span>Loading CLIP model... (this may take a moment on first visit)</div>
 
     <input type="file" id="file-input" accept="image/*">
     <div class="dropzone" id="dropzone">
@@ -184,19 +210,25 @@
 
     let classifier = null;
     let isProcessing = false;
+    let pendingImage = null;
 
     // Load the CLIP model
     async function loadModel() {
       try {
         classifier = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32');
-        modelStatus.textContent = 'CLIP model loaded and ready!';
-        modelStatus.style.backgroundColor = '#d4edda';
-        modelStatus.style.color = '#155724';
+        modelStatus.innerHTML = 'CLIP model loaded and ready!';
+        modelStatus.className = 'ready';
+
+        // If there's a pending image, classify it now
+        if (pendingImage) {
+          const imageToClassify = pendingImage;
+          pendingImage = null;
+          classifyImage(imageToClassify);
+        }
       } catch (error) {
         console.error('Failed to load model:', error);
-        modelStatus.textContent = 'Failed to load model. Please refresh the page.';
-        modelStatus.style.backgroundColor = '#f8d7da';
-        modelStatus.style.color = '#721c24';
+        modelStatus.innerHTML = 'Failed to load model. Please refresh the page.';
+        modelStatus.className = 'error';
       }
     }
 
@@ -205,8 +237,10 @@
 
     // Classify an image
     async function classifyImage(imageSource) {
+      // If model isn't ready yet, queue the image
       if (!classifier) {
-        alert('Model is still loading. Please wait a moment.');
+        pendingImage = imageSource;
+        modelStatus.innerHTML = '<span class="spinner-inline"></span>Loading model... your image will be analyzed automatically';
         return;
       }
 
