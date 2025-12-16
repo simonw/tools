@@ -134,6 +134,29 @@
       vertical-align: middle;
       margin-right: 8px;
     }
+    .progress-container {
+      width: 100%;
+      height: 8px;
+      background: rgba(0, 0, 0, 0.1);
+      border-radius: 4px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #856404;
+      border-radius: 4px;
+      transition: width 0.2s ease;
+      width: 0%;
+    }
+    #model-status.ready .progress-container {
+      display: none;
+    }
+    .progress-text {
+      font-size: 12px;
+      margin-top: 5px;
+      font-weight: normal;
+    }
     .footer {
       margin-top: 30px;
       padding-top: 20px;
@@ -169,7 +192,11 @@
     <h1>Is It a Bird?</h1>
     <p>Drop, paste, or select an image to find out if it contains a bird using <a href="https://huggingface.co/docs/transformers.js">Transformers.js</a> and OpenAI's CLIP model.</p>
 
-    <div id="model-status" class="loading"><span class="spinner-inline"></span>Loading CLIP model... (this may take a moment on first visit)</div>
+    <div id="model-status" class="loading">
+      <div><span class="spinner-inline"></span><span id="status-text">Loading CLIP model...</span></div>
+      <div class="progress-container"><div class="progress-bar" id="progress-bar"></div></div>
+      <div class="progress-text" id="progress-text"></div>
+    </div>
 
     <input type="file" id="file-input" accept="image/*">
     <div class="dropzone" id="dropzone">
@@ -207,15 +234,47 @@
     const scoreDetails = document.getElementById('score-details');
     const loading = document.getElementById('loading');
     const modelStatus = document.getElementById('model-status');
+    const statusText = document.getElementById('status-text');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
 
     let classifier = null;
     let isProcessing = false;
     let pendingImage = null;
 
+    // Track progress across multiple files
+    const fileProgress = {};
+
+    function updateProgress(data) {
+      if (data.status === 'progress') {
+        fileProgress[data.file] = { loaded: data.loaded, total: data.total };
+
+        // Calculate overall progress
+        let totalLoaded = 0;
+        let totalSize = 0;
+        for (const file of Object.values(fileProgress)) {
+          totalLoaded += file.loaded;
+          totalSize += file.total;
+        }
+
+        const percent = totalSize > 0 ? (totalLoaded / totalSize) * 100 : 0;
+        progressBar.style.width = `${percent}%`;
+
+        // Format bytes for display
+        const loadedMB = (totalLoaded / 1024 / 1024).toFixed(1);
+        const totalMB = (totalSize / 1024 / 1024).toFixed(1);
+        progressText.textContent = `${loadedMB} MB / ${totalMB} MB (${percent.toFixed(0)}%)`;
+      } else if (data.status === 'initiate') {
+        statusText.textContent = `Loading ${data.file}...`;
+      }
+    }
+
     // Load the CLIP model
     async function loadModel() {
       try {
-        classifier = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32');
+        classifier = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', {
+          progress_callback: updateProgress
+        });
         modelStatus.innerHTML = 'CLIP model loaded and ready!';
         modelStatus.className = 'ready';
 
@@ -240,7 +299,7 @@
       // If model isn't ready yet, queue the image
       if (!classifier) {
         pendingImage = imageSource;
-        modelStatus.innerHTML = '<span class="spinner-inline"></span>Loading model... your image will be analyzed automatically';
+        statusText.textContent = 'Loading model... your image will be analyzed automatically';
         return;
       }
 
