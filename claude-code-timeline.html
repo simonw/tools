@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Claude Code Timeline Viewer</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0b0c0f;
+      --panel: #12141a;
+      --panel-2: #0f1116;
+      --text: #e8eaf0;
+      --muted: #a6adbf;
+      --line: rgba(255, 255, 255, 0.10);
+      --line-2: rgba(255, 255, 255, 0.16);
+      --accent: #6aa9ff;
+      --accent-2: #8a5cff;
+      --good: #46d39a;
+      --warn: #ffcc66;
+      --bad: #ff6b6b;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+        "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+        "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f7f8fc;
+        --panel: #ffffff;
+        --panel-2: #ffffff;
+        --text: #10121a;
+        --muted: #5b647a;
+        --line: rgba(16, 18, 26, 0.12);
+        --line-2: rgba(16, 18, 26, 0.18);
+        --shadow: 0 18px 50px rgba(16, 18, 26, 0.10);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: radial-gradient(1200px 600px at 10% -10%, rgba(106, 169, 255, 0.18), transparent 45%),
+        radial-gradient(1200px 600px at 90% -20%, rgba(138, 92, 255, 0.16), transparent 50%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: none;
+      margin: 0;
+      padding: 22px 16px 42px;
+    }
+
+    header {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(22px, 3vw, 32px);
+      letter-spacing: 0.2px;
+    }
+
+    .sub {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.35;
+      max-width: 70ch;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .controls .field {
+      display: grid;
+      gap: 4px;
+      min-width: 180px;
+    }
+
+    .label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    input[type="search"], input[type="url"], select, textarea {
+      font: inherit;
+      color: inherit;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      border-radius: 10px;
+      padding: 10px 11px;
+      outline: none;
+    }
+
+    input[type="search"]:focus, input[type="url"]:focus, select:focus, textarea:focus {
+      border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+    }
+
+    .segmented button {
+      border: none;
+      padding: 9px 12px;
+      font: inherit;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      min-width: 74px;
+    }
+
+    .segmented button.active {
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      color: var(--text);
+    }
+
+    .segmented button:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+      outline-offset: -2px;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font: inherit;
+      cursor: pointer;
+      transition: transform 80ms ease, border-color 120ms ease;
+    }
+
+    .btn:hover { border-color: var(--line-2); }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary {
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .input-panel {
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .filters-panel {
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    @media (min-width: 920px) {
+      .input-grid {
+        grid-template-columns: 380px 1fr;
+      }
+    }
+
+    .dropzone {
+      border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line));
+      border-radius: 14px;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--accent) 12%, transparent),
+        transparent 45%,
+        color-mix(in srgb, var(--accent-2) 10%, transparent)
+      );
+      padding: 16px;
+      display: grid;
+      gap: 6px;
+      cursor: pointer;
+      min-height: 124px;
+      align-content: center;
+    }
+
+    .dropzone.dragover {
+      border-style: solid;
+      border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .dropzone strong { font-size: 15px; }
+    .muted { color: var(--muted); }
+    .tiny { font-size: 12px; color: var(--muted); }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .tab {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 94%, transparent);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 7px 10px;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .tab.active {
+      color: var(--text);
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 190px;
+      resize: vertical;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 94%, transparent);
+      display: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .status.visible { display: block; }
+    .status.error { border-color: color-mix(in srgb, var(--bad) 60%, var(--line)); }
+    .status.good { border-color: color-mix(in srgb, var(--good) 55%, var(--line)); }
+    .status.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+
+    main {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      min-height: 560px;
+    }
+
+    @media (min-width: 1060px) {
+      main {
+        grid-template-columns: 1fr 520px;
+        align-items: stretch;
+      }
+    }
+
+    .timeline-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 560px;
+    }
+
+    .stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stats .big {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .timeline {
+      overflow: auto;
+      padding: 8px 0;
+    }
+
+    .timeline:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+      outline-offset: -2px;
+      border-radius: 14px;
+    }
+
+    .day-sep {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: 8px 14px;
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+      backdrop-filter: blur(6px);
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 176px 1fr;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+      cursor: pointer;
+    }
+
+    .event:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+    .event.selected {
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      outline-offset: -2px;
+    }
+
+    .time {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--muted);
+      display: grid;
+      gap: 3px;
+    }
+
+    .time .ts {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-family: var(--mono);
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: color-mix(in srgb, var(--panel-2) 90%, transparent);
+    }
+
+    .badge.k-user { border-color: color-mix(in srgb, #00c8ff 55%, var(--line)); color: color-mix(in srgb, #00c8ff 78%, var(--text)); }
+    .badge.k-assistant { border-color: color-mix(in srgb, #ff73c4 55%, var(--line)); color: color-mix(in srgb, #ff73c4 78%, var(--text)); }
+    .badge.k-file-history-snapshot { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); color: color-mix(in srgb, var(--warn) 75%, var(--text)); }
+
+    .badge.ct-text { border-color: color-mix(in srgb, var(--good) 55%, var(--line)); color: color-mix(in srgb, var(--good) 75%, var(--text)); }
+    .badge.ct-thinking { border-color: color-mix(in srgb, var(--accent-2) 55%, var(--line)); color: color-mix(in srgb, var(--accent-2) 75%, var(--text)); }
+    .badge.ct-tool_use { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); color: color-mix(in srgb, var(--accent) 75%, var(--text)); }
+    .badge.ct-tool_result { border-color: color-mix(in srgb, #8690a8 55%, var(--line)); color: color-mix(in srgb, #8690a8 70%, var(--text)); }
+    .badge.ct-image { border-color: color-mix(in srgb, #ff9f43 55%, var(--line)); color: color-mix(in srgb, #ff9f43 75%, var(--text)); }
+
+    .badge.role-user { border-color: color-mix(in srgb, #00c8ff 55%, var(--line)); color: color-mix(in srgb, #00c8ff 78%, var(--text)); }
+    .badge.role-assistant { border-color: color-mix(in srgb, #ff73c4 55%, var(--line)); color: color-mix(in srgb, #ff73c4 78%, var(--text)); }
+
+    .summary {
+      font-size: 13px;
+      line-height: 1.35;
+      color: var(--text);
+      word-break: break-word;
+    }
+
+    .summary code {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: color-mix(in srgb, var(--panel-2) 85%, transparent);
+      border: 1px solid var(--line);
+      padding: 2px 5px;
+      border-radius: 7px;
+    }
+
+    .detail {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      min-height: 560px;
+    }
+
+    @media (min-width: 1060px) {
+      .detail {
+        position: sticky;
+        top: 16px;
+        align-self: start;
+        max-height: calc(100vh - 32px);
+      }
+    }
+
+    .detail.inline {
+      position: static;
+      top: auto;
+      align-self: auto;
+      max-height: none;
+      min-height: 0;
+      margin: 8px 14px 12px;
+      box-shadow: none;
+    }
+
+    .detail.inline pre {
+      max-height: 52vh;
+    }
+
+    .detail-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      gap: 8px;
+    }
+
+    .detail-title {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.25;
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      user-select: none;
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px 14px 16px;
+      overflow: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.45;
+      color: color-mix(in srgb, var(--text) 92%, transparent);
+      background: transparent;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .detail-images {
+      display: flex;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+    }
+
+    .thumb {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+      border-radius: 12px;
+      padding: 0;
+      cursor: pointer;
+      width: 78px;
+      height: 58px;
+      overflow: hidden;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: stretch;
+    }
+
+    .thumb:hover { border-color: var(--line-2); }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .image-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.68);
+      display: none;
+      padding: 18px;
+      place-items: center;
+    }
+
+    .image-modal.open { display: grid; }
+
+    .image-modal .dialog {
+      position: relative;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 98%, transparent);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      max-width: min(1200px, 96vw);
+      max-height: 92vh;
+      display: grid;
+      place-items: center;
+    }
+
+    .image-modal img {
+      display: block;
+      max-width: min(1140px, 92vw);
+      max-height: 84vh;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+    }
+
+    .image-modal .close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 10px;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .image-modal .close:hover { border-color: var(--line-2); }
+
+    .empty {
+      padding: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+  </style>
+</head>
+  <body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Claude Code Timeline Viewer</h1>
+        <p class="sub">Open a Claude Code session <code>.jsonl</code> file and explore it as an interactive timeline. Times are shown in your local timezone by default. Find sessions in <code>~/.claude/projects/</code>.</p>
+      </div>
+    </header>
+
+    <section class="panel input-panel" aria-label="Input">
+      <div class="input-grid">
+        <div>
+          <div id="dropzone" class="dropzone" tabindex="0">
+            <strong>Drop a <code>.jsonl</code> file here</strong>
+            <div class="muted">or click to choose a file</div>
+            <div class="tiny">Supported: file picker, drag-and-drop, paste, or URL fetch (CORS-enabled).</div>
+            <input id="file-input" type="file" accept=".jsonl,application/json,text/plain" hidden />
+          </div>
+        </div>
+        <div>
+          <div class="tabs" role="tablist" aria-label="Input tabs">
+            <button type="button" class="tab active" data-tab="paste" aria-selected="true">Paste</button>
+            <button type="button" class="tab" data-tab="url" aria-selected="false">URL</button>
+          </div>
+
+          <div id="panel-paste" data-panel="paste">
+            <textarea id="paste-input" placeholder="Paste JSONL content here..."></textarea>
+            <div class="row">
+              <button type="button" class="btn primary" id="render-paste">Render pasted content</button>
+              <div class="tiny">Tip: the timeline uses one JSON object per line.</div>
+            </div>
+          </div>
+
+          <div id="panel-url" data-panel="url" hidden>
+            <input id="url-input" type="url" placeholder="https://example.com/session.jsonl" />
+            <div class="row">
+              <button type="button" class="btn primary" id="fetch-url">Fetch and render</button>
+              <div class="tiny">The URL must allow cross-origin requests (CORS).</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="panel filters-panel" aria-label="Filters">
+      <div class="controls" aria-label="Timeline controls">
+        <div class="field" style="min-width: 170px">
+          <div class="label">Timezone</div>
+          <div class="segmented" role="group" aria-label="Timezone toggle">
+            <button type="button" id="tz-local" class="active">Local</button>
+            <button type="button" id="tz-utc">UTC</button>
+          </div>
+        </div>
+        <div class="field" style="min-width: 220px">
+          <div class="label">Search</div>
+          <input id="search" type="search" placeholder="message, tool name, cwd..." autocomplete="off" />
+        </div>
+        <div class="field" style="min-width: 190px">
+          <div class="label">Type</div>
+          <select id="type-filter"></select>
+        </div>
+        <div class="field" style="min-width: 210px">
+          <div class="label">Content Type</div>
+          <select id="content-type-filter"></select>
+        </div>
+        <div class="field" style="min-width: 160px">
+          <div class="label">Role</div>
+          <select id="role-filter"></select>
+        </div>
+        <label class="check" title="Hide thinking blocks (can be verbose)">
+          <input type="checkbox" id="hide-thinking" />
+          Hide thinking
+        </label>
+        <button type="button" class="btn" id="clear-filters">Clear</button>
+      </div>
+    </section>
+
+    <main>
+      <section class="panel timeline-panel" aria-label="Timeline">
+        <div class="stats">
+          <div class="big"><span id="stats-showing">0</span> <span class="muted">showing</span> <span class="muted">/</span> <span id="stats-total">0</span> <span class="muted">events</span></div>
+          <div class="muted" id="stats-range">-</div>
+        </div>
+        <div id="timeline" class="timeline" role="list" tabindex="0" aria-label="Events list"></div>
+      </section>
+
+      <aside class="panel detail" aria-label="Details">
+        <div class="detail-head">
+          <div class="detail-title" id="detail-title">Select an event</div>
+          <div class="detail-actions">
+            <button type="button" class="btn" id="copy-json" disabled>Copy JSON</button>
+            <button type="button" class="btn" id="copy-raw" disabled>Copy raw line</button>
+            <label class="check" title="Truncate very long strings in the JSON preview">
+              <input type="checkbox" id="truncate-strings" checked />
+              Truncate long strings
+            </label>
+          </div>
+        </div>
+        <div id="detail-images" class="detail-images" hidden aria-label="Event images"></div>
+        <pre id="detail-json" aria-label="Selected event JSON" class="empty">Load a file to get started.</pre>
+      </aside>
+    </main>
+  </div>
+
+  <div id="image-modal" class="image-modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="dialog">
+      <button type="button" class="close" id="image-modal-close" aria-label="Close image">Close</button>
+      <img id="image-modal-img" alt="" />
+    </div>
+  </div>
+
+  <script>
+    const els = {
+      dropzone: document.getElementById('dropzone'),
+      fileInput: document.getElementById('file-input'),
+      pasteInput: document.getElementById('paste-input'),
+      renderPaste: document.getElementById('render-paste'),
+      urlInput: document.getElementById('url-input'),
+      fetchUrl: document.getElementById('fetch-url'),
+      status: document.getElementById('status'),
+      timeline: document.getElementById('timeline'),
+      detailPanel: document.querySelector('aside.detail'),
+      detailTitle: document.getElementById('detail-title'),
+      detailImages: document.getElementById('detail-images'),
+      detailJson: document.getElementById('detail-json'),
+      copyJson: document.getElementById('copy-json'),
+      copyRaw: document.getElementById('copy-raw'),
+      truncateStrings: document.getElementById('truncate-strings'),
+      tzLocal: document.getElementById('tz-local'),
+      tzUtc: document.getElementById('tz-utc'),
+      search: document.getElementById('search'),
+      typeFilter: document.getElementById('type-filter'),
+      contentTypeFilter: document.getElementById('content-type-filter'),
+      roleFilter: document.getElementById('role-filter'),
+      hideThinking: document.getElementById('hide-thinking'),
+      statsShowing: document.getElementById('stats-showing'),
+      statsTotal: document.getElementById('stats-total'),
+      statsRange: document.getElementById('stats-range'),
+      clearFilters: document.getElementById('clear-filters'),
+      imageModal: document.getElementById('image-modal'),
+      imageModalImg: document.getElementById('image-modal-img'),
+      imageModalClose: document.getElementById('image-modal-close'),
+    };
+
+    const state = {
+      sourceLabel: null,
+      tzMode: 'local',
+      events: [],
+      filtered: [],
+      selectedId: null,
+      selected: null,
+      filters: {
+        query: '',
+        type: 'all',
+        contentType: 'all',
+        role: 'all',
+        hideThinking: false,
+      },
+    };
+
+    let lastActiveElementBeforeModal = null;
+    let lastBodyOverflow = null;
+    let suppressUrlStateSync = false;
+    const wideLayoutMq = window.matchMedia('(min-width: 1060px)');
+    const detailDock = document.createElement('div');
+    detailDock.id = 'detail-dock';
+    detailDock.style.display = 'none';
+    els.detailPanel.parentElement.insertBefore(detailDock, els.detailPanel);
+
+    function updateDetailPlacement() {
+      const inline = !wideLayoutMq.matches;
+
+      if (!inline) {
+        if (els.detailPanel.previousSibling !== detailDock) detailDock.after(els.detailPanel);
+        els.detailPanel.classList.remove('inline');
+        return;
+      }
+
+      const selectedNode = els.timeline.querySelector('.event.selected');
+      if (!selectedNode) {
+        if (els.detailPanel.previousSibling !== detailDock) detailDock.after(els.detailPanel);
+        els.detailPanel.classList.remove('inline');
+        return;
+      }
+
+      if (selectedNode.nextSibling !== els.detailPanel) selectedNode.after(els.detailPanel);
+      els.detailPanel.classList.add('inline');
+    }
+
+    function setStatus(message, kind = 'good') {
+      if (!message) {
+        els.status.className = 'status';
+        els.status.textContent = '';
+        return;
+      }
+      els.status.className = `status visible ${kind}`;
+      els.status.textContent = message;
+    }
+
+    function pad2(number) {
+      return String(number).padStart(2, '0');
+    }
+
+    function pad3(number) {
+      return String(number).padStart(3, '0');
+    }
+
+    function getOffsetString(date) {
+      const offsetMinutes = -date.getTimezoneOffset();
+      const sign = offsetMinutes >= 0 ? '+' : '-';
+      const abs = Math.abs(offsetMinutes);
+      const hours = Math.floor(abs / 60);
+      const minutes = abs % 60;
+      return `${sign}${pad2(hours)}:${pad2(minutes)}`;
+    }
+
+    function formatTimestamp(date, tzMode) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '-';
+      if (tzMode === 'utc') {
+        return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())} ` +
+          `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}:${pad2(date.getUTCSeconds())}.` +
+          `${pad3(date.getUTCMilliseconds())}Z`;
+      }
+      return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ` +
+        `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}.` +
+        `${pad3(date.getMilliseconds())} ${getOffsetString(date)}`;
+    }
+
+    function dayKey(date, tzMode) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '-';
+      if (tzMode === 'utc') {
+        return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+      }
+      return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+    }
+
+    function formatDelta(ms) {
+      if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
+      const abs = Math.abs(ms);
+      const sign = ms < 0 ? '-' : '+';
+      if (abs < 1000) return `${sign}${Math.round(abs)}ms`;
+      if (abs < 60_000) return `${sign}${(abs / 1000).toFixed(abs < 10_000 ? 2 : 1)}s`;
+      if (abs < 3_600_000) {
+        const m = Math.floor(abs / 60_000);
+        const s = Math.floor((abs % 60_000) / 1000);
+        return `${sign}${m}m ${pad2(s)}s`;
+      }
+      if (abs < 86_400_000) {
+        const h = Math.floor(abs / 3_600_000);
+        const m = Math.floor((abs % 3_600_000) / 60_000);
+        return `${sign}${h}h ${m}m`;
+      }
+      const d = Math.floor(abs / 86_400_000);
+      const h = Math.floor((abs % 86_400_000) / 3_600_000);
+      return `${sign}${d}d ${h}h`;
+    }
+
+    function safeJsonParse(text) {
+      try {
+        return { ok: true, value: JSON.parse(text) };
+      } catch (error) {
+        return { ok: false, error };
+      }
+    }
+
+    function extractMessageText(message) {
+      if (!message || typeof message !== 'object') return null;
+      const content = message.content;
+      if (typeof content === 'string') return content;
+      if (!Array.isArray(content)) return null;
+      const parts = [];
+      for (const item of content) {
+        if (!item || typeof item !== 'object') continue;
+        if (typeof item.text === 'string') parts.push(item.text);
+        else if (typeof item.thinking === 'string') parts.push(item.thinking);
+      }
+      const joined = parts.join('');
+      return joined || null;
+    }
+
+    function getContentTypes(message) {
+      if (!message || typeof message !== 'object') return [];
+      const content = message.content;
+      if (typeof content === 'string') return ['text'];
+      if (!Array.isArray(content)) return [];
+      const types = new Set();
+      for (const item of content) {
+        if (!item || typeof item !== 'object') continue;
+        if (item.type) types.add(item.type);
+      }
+      return Array.from(types);
+    }
+
+    function firstLine(text) {
+      if (typeof text !== 'string') return null;
+      const trimmed = text.trim();
+      if (!trimmed) return null;
+      const idx = trimmed.indexOf('\n');
+      return idx === -1 ? trimmed : trimmed.slice(0, idx).trim();
+    }
+
+    function normalizeSummaryText(text, maxLen = 260) {
+      if (typeof text !== 'string') return '';
+      const singleLine = text.replace(/\s+/g, ' ').trim();
+      if (singleLine.length <= maxLen) return singleLine;
+      return singleLine.slice(0, maxLen - 1) + '...';
+    }
+
+    function summarizeEvent(obj) {
+      const kind = obj?.type || '';
+      const message = obj?.message;
+
+      if (kind === 'file-history-snapshot') {
+        const msgId = obj?.messageId ? `msg=${obj.messageId.slice(0, 8)}...` : null;
+        return normalizeSummaryText(msgId || 'file-history-snapshot');
+      }
+
+      if (kind === 'user' || kind === 'assistant') {
+        const role = message?.role || kind;
+        const content = message?.content;
+
+        if (typeof content === 'string') {
+          return normalizeSummaryText(`${role}: ${content}`);
+        }
+
+        if (Array.isArray(content) && content.length > 0) {
+          for (const item of content) {
+            if (item?.type === 'text' && item.text) {
+              return normalizeSummaryText(`${role}: ${item.text}`);
+            }
+            if (item?.type === 'thinking' && item.thinking) {
+              return normalizeSummaryText(`${role} (thinking): ${item.thinking}`);
+            }
+            if (item?.type === 'tool_use') {
+              const name = item.name || 'tool';
+              const input = item.input;
+              if (name === 'Bash' && input?.command) {
+                return normalizeSummaryText(`${name}: ${input.command}`);
+              }
+              if (name === 'Read' && input?.file_path) {
+                return normalizeSummaryText(`${name}: ${input.file_path}`);
+              }
+              if (name === 'Write' && input?.file_path) {
+                return normalizeSummaryText(`${name}: ${input.file_path}`);
+              }
+              if (name === 'Edit' && input?.file_path) {
+                return normalizeSummaryText(`${name}: ${input.file_path}`);
+              }
+              if (name === 'Glob' && input?.pattern) {
+                return normalizeSummaryText(`${name}: ${input.pattern}`);
+              }
+              if (name === 'Grep' && input?.pattern) {
+                return normalizeSummaryText(`${name}: ${input.pattern}`);
+              }
+              if (name === 'Task' && input?.description) {
+                return normalizeSummaryText(`${name}: ${input.description}`);
+              }
+              if (input && typeof input === 'object') {
+                const keys = Object.keys(input).slice(0, 3);
+                return normalizeSummaryText(`${name}(${keys.join(', ')}${Object.keys(input).length > 3 ? ', ...' : ''})`);
+              }
+              return normalizeSummaryText(`${name}()`);
+            }
+            if (item?.type === 'tool_result') {
+              const toolUseId = item.tool_use_id ? item.tool_use_id.slice(0, 12) : 'result';
+              const resultContent = item.content;
+              if (typeof resultContent === 'string') {
+                return normalizeSummaryText(`tool_result: ${firstLine(resultContent) || toolUseId}`);
+              }
+              if (Array.isArray(resultContent)) {
+                for (const rc of resultContent) {
+                  if (rc?.type === 'text' && rc.text) {
+                    return normalizeSummaryText(`tool_result: ${firstLine(rc.text) || toolUseId}`);
+                  }
+                  if (rc?.type === 'image') {
+                    return normalizeSummaryText(`tool_result: [image]`);
+                  }
+                }
+              }
+              return normalizeSummaryText(`tool_result: ${toolUseId}`);
+            }
+            if (item?.type === 'image') {
+              return normalizeSummaryText(`${role}: [image]`);
+            }
+          }
+          return normalizeSummaryText(`${role}: [${content.length} content items]`);
+        }
+
+        return kind;
+      }
+
+      return kind || 'event';
+    }
+
+    function buildSearchText(obj, summary) {
+      const pieces = [];
+      pieces.push(obj?.type || '');
+      pieces.push(obj?.uuid || '');
+      pieces.push(obj?.sessionId || '');
+      pieces.push(obj?.cwd || '');
+      pieces.push(obj?.gitBranch || '');
+      pieces.push(obj?.slug || '');
+      const message = obj?.message;
+      if (message && typeof message === 'object') {
+        pieces.push(message.role || '');
+        const msg = extractMessageText(message);
+        if (msg) pieces.push(msg);
+        const content = message.content;
+        if (Array.isArray(content)) {
+          for (const item of content) {
+            if (item?.type === 'tool_use') {
+              pieces.push(item.name || '');
+              if (item.input && typeof item.input === 'object') {
+                pieces.push(JSON.stringify(item.input).slice(0, 500));
+              }
+            }
+            if (item?.type === 'tool_result' && typeof item.content === 'string') {
+              pieces.push(item.content.slice(0, 500));
+            }
+          }
+        }
+      }
+      if (typeof summary === 'string') pieces.push(summary);
+      return pieces.join('\n').toLowerCase();
+    }
+
+    function stringifyJson(value, truncateLongStrings) {
+      const maxLen = 8000;
+      return JSON.stringify(value, (key, v) => {
+        if (!truncateLongStrings) return v;
+        if (typeof v === 'string' && v.length > maxLen) {
+          return v.slice(0, maxLen) + `... [truncated ${v.length - maxLen} chars]`;
+        }
+        return v;
+      }, 2);
+    }
+
+    function updateFilterOptions(events) {
+      const typeSet = new Set();
+      const contentTypeSet = new Set();
+      const roleSet = new Set();
+      for (const e of events) {
+        if (e.kind) typeSet.add(e.kind);
+        for (const ct of e.contentTypes) {
+          contentTypeSet.add(ct);
+        }
+        if (!e.contentTypes.length) contentTypeSet.add('(none)');
+        if (e.role) roleSet.add(e.role);
+      }
+
+      function setOptions(select, items, current) {
+        select.innerHTML = '';
+        const optAll = document.createElement('option');
+        optAll.value = 'all';
+        optAll.textContent = 'All';
+        select.appendChild(optAll);
+        for (const item of items) {
+          const opt = document.createElement('option');
+          opt.value = item;
+          opt.textContent = item;
+          select.appendChild(opt);
+        }
+        select.value = current;
+      }
+
+      setOptions(els.typeFilter, Array.from(typeSet).sort(), state.filters.type);
+      setOptions(els.contentTypeFilter, Array.from(contentTypeSet).sort(), state.filters.contentType);
+      setOptions(els.roleFilter, Array.from(roleSet).sort(), state.filters.role);
+
+      if (events.length) {
+        state.filters.type = els.typeFilter.value || 'all';
+        state.filters.contentType = els.contentTypeFilter.value || 'all';
+        state.filters.role = els.roleFilter.value || 'all';
+      }
+    }
+
+    function readHashParams() {
+      const raw = window.location.hash && window.location.hash.startsWith('#')
+        ? window.location.hash.slice(1)
+        : '';
+      return new URLSearchParams(raw);
+    }
+
+    function writeHashParams(params) {
+      const base = window.location.href.split('#')[0];
+      const hash = params.toString();
+      const next = base + (hash ? `#${hash}` : '');
+      window.history.replaceState(null, '', next);
+    }
+
+    function syncUrlHashFromControls({ clearSel = false } = {}) {
+      if (suppressUrlStateSync) return;
+      const params = readHashParams();
+      params.set('tz', state.tzMode);
+      params.set('q', (els.search.value || '').trim());
+      params.set('type', state.filters.type || 'all');
+      params.set('ct', state.filters.contentType || 'all');
+      params.set('role', state.filters.role || 'all');
+      params.set('hide', state.filters.hideThinking ? '1' : '0');
+      params.set('truncate', els.truncateStrings.checked ? '1' : '0');
+      const selectedLine = state.selected?.line;
+      if (typeof selectedLine === 'number' && Number.isFinite(selectedLine)) {
+        params.set('sel', String(selectedLine));
+      } else if (clearSel) {
+        params.delete('sel');
+      }
+      writeHashParams(params);
+    }
+
+    function applySelectionFromHash() {
+      if (!state.events.length) return;
+      const params = readHashParams();
+      const raw = params.get('sel');
+      if (!raw) return;
+      const line = Number(raw);
+      if (!Number.isFinite(line)) return;
+      const found = state.events.find(e => e.line === line);
+      if (!found) return;
+      if (state.selectedId === found.id) return;
+      suppressUrlStateSync = true;
+      try {
+        selectEvent(found.id, { scroll: true });
+      } finally {
+        suppressUrlStateSync = false;
+      }
+    }
+
+    function applyControlsFromHash() {
+      const params = readHashParams();
+      suppressUrlStateSync = true;
+      try {
+        const q = params.get('q');
+        if (q !== null) {
+          els.search.value = q;
+          state.filters.query = q.trim().toLowerCase();
+        }
+
+        const type = params.get('type');
+        if (type !== null) state.filters.type = type;
+        const ct = params.get('ct');
+        if (ct !== null) state.filters.contentType = ct;
+        const role = params.get('role');
+        if (role !== null) state.filters.role = role;
+
+        const hide = params.get('hide');
+        if (hide !== null) {
+          els.hideThinking.checked = hide === '1' || hide === 'true';
+          state.filters.hideThinking = els.hideThinking.checked;
+        }
+
+        const truncate = params.get('truncate');
+        if (truncate !== null) {
+          els.truncateStrings.checked = truncate === '1' || truncate === 'true';
+        }
+
+        const tz = params.get('tz');
+        if (tz === 'utc' || tz === 'local') {
+          state.tzMode = tz;
+          els.tzLocal.classList.toggle('active', tz === 'local');
+          els.tzUtc.classList.toggle('active', tz === 'utc');
+        }
+      } finally {
+        suppressUrlStateSync = false;
+      }
+    }
+
+    function applyFilters() {
+      const query = state.filters.query;
+      const type = state.filters.type;
+      const contentType = state.filters.contentType;
+      const role = state.filters.role;
+      const hideThinking = state.filters.hideThinking;
+
+      const out = [];
+      for (const e of state.events) {
+        if (hideThinking && e.contentTypes.includes('thinking') && e.contentTypes.length === 1) continue;
+        if (type !== 'all' && e.kind !== type) continue;
+        if (contentType !== 'all') {
+          const ct = e.contentTypes.length ? e.contentTypes : ['(none)'];
+          if (!ct.includes(contentType)) continue;
+        }
+        if (role !== 'all' && e.role !== role) continue;
+        if (query && !e.search.includes(query)) continue;
+        out.push(e);
+      }
+
+      state.filtered = out;
+      els.statsShowing.textContent = String(out.length);
+      els.statsTotal.textContent = String(state.events.length);
+
+      const start = out.find(e => e.date instanceof Date && !Number.isNaN(e.date.getTime()))?.date;
+      const end = [...out].reverse().find(e => e.date instanceof Date && !Number.isNaN(e.date.getTime()))?.date;
+      if (start && end) {
+        els.statsRange.textContent = `${formatTimestamp(start, state.tzMode)} -> ${formatTimestamp(end, state.tzMode)}`;
+      } else {
+        els.statsRange.textContent = '-';
+      }
+
+      renderTimeline();
+    }
+
+    function clearSelection({ syncHash = true } = {}) {
+      state.selectedId = null;
+      state.selected = null;
+      els.detailTitle.textContent = 'Select an event';
+      renderDetailImages(null);
+      els.detailJson.textContent = state.events.length ? 'Select an event from the timeline.' : 'Load a file to get started.';
+      els.detailJson.classList.add('empty');
+      els.copyJson.disabled = true;
+      els.copyRaw.disabled = true;
+      for (const node of els.timeline.querySelectorAll('.event.selected')) {
+        node.classList.remove('selected');
+      }
+      updateDetailPlacement();
+      if (syncHash) syncUrlHashFromControls({ clearSel: true });
+    }
+
+    function renderTimeline() {
+      els.timeline.innerHTML = '';
+
+      if (!state.filtered.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = state.events.length ? 'No events match your filters.' : 'Load a file to see a timeline.';
+        els.timeline.appendChild(empty);
+        clearSelection();
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      let lastDay = null;
+      let prevDate = null;
+
+      for (const e of state.filtered) {
+        const day = dayKey(e.date, state.tzMode);
+        if (day !== lastDay) {
+          lastDay = day;
+          const sep = document.createElement('div');
+          sep.className = 'day-sep';
+          sep.textContent = day;
+          fragment.appendChild(sep);
+        }
+
+        const row = document.createElement('div');
+        row.className = 'event';
+        row.setAttribute('role', 'listitem');
+        row.dataset.eventId = String(e.id);
+
+        const time = document.createElement('div');
+        time.className = 'time';
+
+        const ts = document.createElement('div');
+        ts.className = 'ts';
+        ts.textContent = formatTimestamp(e.date, state.tzMode);
+        ts.dataset.kind = 'timestamp';
+
+        const meta = document.createElement('div');
+        meta.textContent = [
+          `#${e.line}`,
+          (prevDate && e.date) ? formatDelta(e.date.getTime() - prevDate.getTime()) : null,
+        ].filter(Boolean).join(' . ');
+
+        time.appendChild(ts);
+        time.appendChild(meta);
+
+        const body = document.createElement('div');
+
+        const badges = document.createElement('div');
+        badges.className = 'badges';
+        const badgeKind = document.createElement('span');
+        badgeKind.className = `badge k-${e.kind}`;
+        badgeKind.textContent = e.kind;
+        badges.appendChild(badgeKind);
+
+        for (const ct of e.contentTypes.slice(0, 2)) {
+          const badgeCt = document.createElement('span');
+          badgeCt.className = `badge ct-${ct}`;
+          badgeCt.textContent = ct;
+          badges.appendChild(badgeCt);
+        }
+        if (e.contentTypes.length > 2) {
+          const badgeMore = document.createElement('span');
+          badgeMore.className = 'badge';
+          badgeMore.textContent = `+${e.contentTypes.length - 2}`;
+          badges.appendChild(badgeMore);
+        }
+
+        if (e.role) {
+          const badgeRole = document.createElement('span');
+          badgeRole.className = `badge role-${e.role}`;
+          badgeRole.textContent = e.role;
+          badges.appendChild(badgeRole);
+        }
+
+        const summary = document.createElement('div');
+        summary.className = 'summary';
+        summary.textContent = e.summary;
+
+        body.appendChild(badges);
+        body.appendChild(summary);
+
+        row.appendChild(time);
+        row.appendChild(body);
+
+        row.addEventListener('click', () => selectEvent(e.id, { focusTimeline: true }));
+        fragment.appendChild(row);
+
+        if (e.date instanceof Date && !Number.isNaN(e.date.getTime())) prevDate = e.date;
+      }
+
+      els.timeline.appendChild(fragment);
+
+      if (state.selectedId !== null) {
+        const stillThere = state.filtered.some(e => e.id === state.selectedId);
+        if (!stillThere) clearSelection();
+        else selectEvent(state.selectedId, { scroll: false });
+      } else {
+        clearSelection({ syncHash: false });
+      }
+    }
+
+    function selectEvent(id, { scroll = false, focusTimeline = false } = {}) {
+      const e = state.filtered.find(item => item.id === id) || state.events.find(item => item.id === id);
+      if (!e) return;
+      state.selectedId = id;
+      state.selected = e;
+
+      if (focusTimeline) {
+        els.timeline.focus({ preventScroll: true });
+      }
+
+      for (const node of els.timeline.querySelectorAll('.event.selected')) {
+        node.classList.remove('selected');
+      }
+      const node = els.timeline.querySelector(`.event[data-event-id="${CSS.escape(String(id))}"]`);
+      if (node) {
+        node.classList.add('selected');
+        updateDetailPlacement();
+        if (scroll) node.scrollIntoView({ block: 'center' });
+      }
+
+      els.detailJson.classList.remove('empty');
+      const titleParts = [
+        formatTimestamp(e.date, state.tzMode),
+        `#${e.line}`,
+        e.kind,
+        e.role ? `(${e.role})` : null,
+      ].filter(Boolean);
+      els.detailTitle.textContent = titleParts.join(' ');
+
+      const shouldTruncate = els.truncateStrings.checked;
+      renderDetailImages(e.obj);
+      els.detailJson.textContent = stringifyJson(e.obj, shouldTruncate) || '';
+      els.copyJson.disabled = false;
+      els.copyRaw.disabled = false;
+      updateDetailPlacement();
+      syncUrlHashFromControls();
+    }
+
+    function extractImageUrls(obj) {
+      const urls = [];
+      const message = obj?.message;
+      if (!message || typeof message !== 'object') return urls;
+      const content = message.content;
+      if (!Array.isArray(content)) return urls;
+
+      for (const item of content) {
+        if (!item || typeof item !== 'object') continue;
+
+        // Direct image in content
+        if (item.type === 'image' && item.source?.type === 'base64' && item.source?.data) {
+          const mediaType = item.source.media_type || 'image/png';
+          urls.push(`data:${mediaType};base64,${item.source.data}`);
+        }
+
+        // Image in tool_result content
+        if (item.type === 'tool_result' && Array.isArray(item.content)) {
+          for (const rc of item.content) {
+            if (rc?.type === 'image' && rc.source?.type === 'base64' && rc.source?.data) {
+              const mediaType = rc.source.media_type || 'image/png';
+              urls.push(`data:${mediaType};base64,${rc.source.data}`);
+            }
+          }
+        }
+      }
+
+      return urls;
+    }
+
+    function openImageModal(src, altText = '') {
+      if (!src) return;
+      lastActiveElementBeforeModal = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      lastBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      els.imageModalImg.src = src;
+      els.imageModalImg.alt = altText;
+      els.imageModal.classList.add('open');
+      els.imageModal.setAttribute('aria-hidden', 'false');
+      els.imageModalClose.focus();
+    }
+
+    function closeImageModal() {
+      if (!els.imageModal.classList.contains('open')) return;
+      els.imageModal.classList.remove('open');
+      els.imageModal.setAttribute('aria-hidden', 'true');
+      els.imageModalImg.removeAttribute('src');
+      els.imageModalImg.alt = '';
+      document.body.style.overflow = lastBodyOverflow ?? '';
+
+      if (lastActiveElementBeforeModal) {
+        lastActiveElementBeforeModal.focus();
+      }
+      lastActiveElementBeforeModal = null;
+      lastBodyOverflow = null;
+    }
+
+    function renderDetailImages(obj) {
+      const urls = extractImageUrls(obj);
+      els.detailImages.innerHTML = '';
+      if (!urls.length) {
+        els.detailImages.hidden = true;
+        return;
+      }
+      const fragment = document.createDocumentFragment();
+      urls.forEach((src, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'thumb';
+        btn.title = `Open image ${idx + 1}`;
+        const img = document.createElement('img');
+        img.loading = 'lazy';
+        img.src = src;
+        img.alt = `Image ${idx + 1}`;
+        btn.appendChild(img);
+        btn.addEventListener('click', () => openImageModal(src, `Image ${idx + 1}`));
+        fragment.appendChild(btn);
+      });
+      els.detailImages.appendChild(fragment);
+      els.detailImages.hidden = false;
+    }
+
+    function isEditableElement(el) {
+      if (!(el instanceof HTMLElement)) return false;
+      if (el.isContentEditable) return true;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    }
+
+    function moveSelection(delta) {
+      if (!state.filtered.length) return;
+      const idx = state.filtered.findIndex(e => e.id === state.selectedId);
+      if (idx === -1) {
+        selectEvent(state.filtered[0].id, { scroll: true });
+        return;
+      }
+      const nextIdx = Math.max(0, Math.min(state.filtered.length - 1, idx + delta));
+      if (nextIdx === idx) return;
+      selectEvent(state.filtered[nextIdx].id, { scroll: true });
+    }
+
+    async function copyText(text) {
+      if (typeof text !== 'string') return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('Copied to clipboard.', 'good');
+      } catch (error) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setStatus('Copied to clipboard.', 'good');
+      }
+    }
+
+    function setTimezoneMode(mode) {
+      state.tzMode = mode;
+      els.tzLocal.classList.toggle('active', mode === 'local');
+      els.tzUtc.classList.toggle('active', mode === 'utc');
+      applyFilters();
+      if (state.selectedId !== null) selectEvent(state.selectedId);
+      syncUrlHashFromControls();
+    }
+
+    els.imageModalClose.addEventListener('click', closeImageModal);
+    els.imageModal.addEventListener('click', (event) => {
+      if (event.target === els.imageModal) closeImageModal();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeImageModal();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (els.imageModal.classList.contains('open')) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      if (isEditableElement(document.activeElement)) return;
+      if (document.activeElement !== els.timeline && !els.timeline.contains(document.activeElement)) return;
+      if (state.selectedId === null) return;
+      event.preventDefault();
+      moveSelection(event.key === 'ArrowUp' ? -1 : 1);
+    });
+
+    if (typeof wideLayoutMq.addEventListener === 'function') {
+      wideLayoutMq.addEventListener('change', updateDetailPlacement);
+    } else if (typeof wideLayoutMq.addListener === 'function') {
+      wideLayoutMq.addListener(updateDetailPlacement);
+    }
+
+    function setTab(tabName) {
+      for (const tab of document.querySelectorAll('.tab')) {
+        const active = tab.dataset.tab === tabName;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      }
+      for (const panel of document.querySelectorAll('[data-panel]')) {
+        panel.hidden = panel.dataset.panel !== tabName;
+      }
+    }
+
+    function setShareUrlParam(url) {
+      const current = new URL(window.location.href);
+      if (url) current.searchParams.set('url', url);
+      else current.searchParams.delete('url');
+      window.history.replaceState(null, '', current);
+    }
+
+    async function fetchAndRenderUrl(url, { syncUrl = true } = {}) {
+      const trimmed = (url || '').trim();
+      if (!trimmed) {
+        setStatus('Enter a URL first.', 'error');
+        return;
+      }
+      if (syncUrl) setShareUrlParam(trimmed);
+      setStatus(`Fetching ${trimmed}...`, 'warn');
+      try {
+        const resp = await fetch(trimmed, { mode: 'cors' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const text = await resp.text();
+        await loadText(text, trimmed);
+      } catch (error) {
+        setStatus(`Failed to fetch URL: ${String(error)}`, 'error');
+      }
+    }
+
+    async function loadText(text, sourceLabel) {
+      const started = performance.now();
+      state.sourceLabel = sourceLabel || null;
+      setStatus(`Parsing ${sourceLabel || 'content'}...`, 'warn');
+      clearSelection({ syncHash: false });
+
+      const lines = text.split(/\r?\n/);
+      const events = [];
+      const errors = [];
+      let idCounter = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        const parsed = safeJsonParse(line);
+        if (!parsed.ok) {
+          errors.push({ line: i + 1, error: parsed.error });
+          continue;
+        }
+        const obj = parsed.value;
+        const ts = typeof obj.timestamp === 'string' ? new Date(obj.timestamp) : null;
+        const kind = obj.type || '(unknown)';
+        const message = obj.message && typeof obj.message === 'object' ? obj.message : null;
+        const contentTypes = message ? getContentTypes(message) : [];
+        const role = message?.role ?? null;
+
+        const summary = summarizeEvent(obj);
+        events.push({
+          id: ++idCounter,
+          line: i + 1,
+          raw: line,
+          obj,
+          date: ts,
+          kind,
+          contentTypes,
+          role,
+          summary,
+          search: buildSearchText(obj, summary),
+        });
+      }
+
+      state.events = events;
+      updateFilterOptions(events);
+      applyFilters();
+      applySelectionFromHash();
+      syncUrlHashFromControls();
+
+      const durationMs = Math.round(performance.now() - started);
+      if (errors.length) {
+        const first = errors[0];
+        setStatus(
+          `Loaded ${events.length} events from ${sourceLabel || 'content'} in ${durationMs}ms.\n` +
+          `Could not parse ${errors.length} line(s). First error at line ${first.line}: ${String(first.error)}`,
+          'warn'
+        );
+      } else {
+        setStatus(`Loaded ${events.length} events from ${sourceLabel || 'content'} in ${durationMs}ms.`, 'good');
+      }
+    }
+
+    async function handleFile(file) {
+      if (!file) return;
+      setShareUrlParam(null);
+      try {
+        const text = await file.text();
+        await loadText(text, file.name);
+      } catch (error) {
+        setStatus(`Failed to read file: ${String(error)}`, 'error');
+      }
+    }
+
+    els.dropzone.addEventListener('click', () => els.fileInput.click());
+    els.dropzone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        els.fileInput.click();
+      }
+    });
+    els.fileInput.addEventListener('change', () => handleFile(els.fileInput.files?.[0]));
+
+    els.dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      els.dropzone.classList.add('dragover');
+    });
+    els.dropzone.addEventListener('dragleave', () => els.dropzone.classList.remove('dragover'));
+    els.dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      els.dropzone.classList.remove('dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleFile(file);
+    });
+
+    els.renderPaste.addEventListener('click', async () => {
+      const text = els.pasteInput.value || '';
+      if (!text.trim()) {
+        setStatus('Paste some JSONL content first.', 'error');
+        return;
+      }
+      setShareUrlParam(null);
+      await loadText(text, 'pasted content');
+    });
+
+    els.fetchUrl.addEventListener('click', async () => {
+      await fetchAndRenderUrl(els.urlInput.value, { syncUrl: true });
+    });
+
+    for (const tab of document.querySelectorAll('.tab')) {
+      tab.addEventListener('click', () => setTab(tab.dataset.tab));
+    }
+
+    els.tzLocal.addEventListener('click', () => setTimezoneMode('local'));
+    els.tzUtc.addEventListener('click', () => setTimezoneMode('utc'));
+
+    els.search.addEventListener('input', () => {
+      state.filters.query = els.search.value.trim().toLowerCase();
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+    els.typeFilter.addEventListener('change', () => {
+      state.filters.type = els.typeFilter.value;
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+    els.contentTypeFilter.addEventListener('change', () => {
+      state.filters.contentType = els.contentTypeFilter.value;
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+    els.roleFilter.addEventListener('change', () => {
+      state.filters.role = els.roleFilter.value;
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+    els.hideThinking.addEventListener('change', () => {
+      state.filters.hideThinking = els.hideThinking.checked;
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+    els.truncateStrings.addEventListener('change', () => {
+      if (state.selectedId !== null) selectEvent(state.selectedId);
+      syncUrlHashFromControls();
+    });
+
+    els.clearFilters.addEventListener('click', () => {
+      els.search.value = '';
+      state.filters.query = '';
+      state.filters.type = 'all';
+      state.filters.contentType = 'all';
+      state.filters.role = 'all';
+      state.filters.hideThinking = false;
+      els.hideThinking.checked = false;
+      updateFilterOptions(state.events);
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+
+    els.copyJson.addEventListener('click', () => {
+      if (!state.selected) return;
+      copyText(stringifyJson(state.selected.obj, false));
+    });
+    els.copyRaw.addEventListener('click', () => {
+      if (!state.selected) return;
+      copyText(state.selected.raw);
+    });
+
+    async function initFromQuery() {
+      const url = new URLSearchParams(window.location.search).get('url');
+      if (!url) return;
+      setTab('url');
+      els.urlInput.value = url;
+      await fetchAndRenderUrl(url, { syncUrl: false });
+    }
+
+    // Initialize select options for the empty state.
+    applyControlsFromHash();
+    updateFilterOptions([]);
+    syncUrlHashFromControls();
+    window.addEventListener('hashchange', () => {
+      applyControlsFromHash();
+      updateFilterOptions(state.events);
+      applyFilters();
+      applySelectionFromHash();
+    });
+    void initFromQuery();
+  </script>
+</body>
+</html>
