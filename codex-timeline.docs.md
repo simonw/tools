@@ -1,0 +1,3 @@
+View and explore Codex rollout timeline data by loading a `.jsonl` file through file upload, drag-and-drop, URL fetch, or direct paste. The application displays events in an interactive timeline with filtering by type, payload, role, and search terms, while showing detailed JSON information for each selected event with timezone support for both local and UTC time. Event data is processed and rendered client-side with no server persistence.
+
+<!-- Generated from commit: 6802ca602570a9aaf4f2d8405270be82961f70f5 -->
