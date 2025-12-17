@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Codex Timeline Viewer</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0b0c0f;
+      --panel: #12141a;
+      --panel-2: #0f1116;
+      --text: #e8eaf0;
+      --muted: #a6adbf;
+      --line: rgba(255, 255, 255, 0.10);
+      --line-2: rgba(255, 255, 255, 0.16);
+      --accent: #6aa9ff;
+      --accent-2: #8a5cff;
+      --good: #46d39a;
+      --warn: #ffcc66;
+      --bad: #ff6b6b;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+        "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+        "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f7f8fc;
+        --panel: #ffffff;
+        --panel-2: #ffffff;
+        --text: #10121a;
+        --muted: #5b647a;
+        --line: rgba(16, 18, 26, 0.12);
+        --line-2: rgba(16, 18, 26, 0.18);
+        --shadow: 0 18px 50px rgba(16, 18, 26, 0.10);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: radial-gradient(1200px 600px at 10% -10%, rgba(106, 169, 255, 0.18), transparent 45%),
+        radial-gradient(1200px 600px at 90% -20%, rgba(138, 92, 255, 0.16), transparent 50%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: none;
+      margin: 0;
+      padding: 22px 16px 42px;
+    }
+
+    header {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(22px, 3vw, 32px);
+      letter-spacing: 0.2px;
+    }
+
+    .sub {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.35;
+      max-width: 70ch;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .controls .field {
+      display: grid;
+      gap: 4px;
+      min-width: 180px;
+    }
+
+    .label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    input[type="search"], input[type="url"], select, textarea {
+      font: inherit;
+      color: inherit;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      border-radius: 10px;
+      padding: 10px 11px;
+      outline: none;
+    }
+
+    input[type="search"]:focus, input[type="url"]:focus, select:focus, textarea:focus {
+      border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+    }
+
+    .segmented button {
+      border: none;
+      padding: 9px 12px;
+      font: inherit;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      min-width: 74px;
+    }
+
+    .segmented button.active {
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      color: var(--text);
+    }
+
+    .segmented button:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+      outline-offset: -2px;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font: inherit;
+      cursor: pointer;
+      transition: transform 80ms ease, border-color 120ms ease;
+    }
+
+    .btn:hover { border-color: var(--line-2); }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary {
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .input-panel {
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .filters-panel {
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    @media (min-width: 920px) {
+      .input-grid {
+        grid-template-columns: 380px 1fr;
+      }
+    }
+
+    .dropzone {
+      border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line));
+      border-radius: 14px;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--accent) 12%, transparent),
+        transparent 45%,
+        color-mix(in srgb, var(--accent-2) 10%, transparent)
+      );
+      padding: 16px;
+      display: grid;
+      gap: 6px;
+      cursor: pointer;
+      min-height: 124px;
+      align-content: center;
+    }
+
+    .dropzone.dragover {
+      border-style: solid;
+      border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .dropzone strong { font-size: 15px; }
+    .muted { color: var(--muted); }
+    .tiny { font-size: 12px; color: var(--muted); }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .tab {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 94%, transparent);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 7px 10px;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .tab.active {
+      color: var(--text);
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 190px;
+      resize: vertical;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 94%, transparent);
+      display: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .status.visible { display: block; }
+    .status.error { border-color: color-mix(in srgb, var(--bad) 60%, var(--line)); }
+    .status.good { border-color: color-mix(in srgb, var(--good) 55%, var(--line)); }
+    .status.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+
+    main {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      min-height: 560px;
+    }
+
+    @media (min-width: 1060px) {
+      main {
+        grid-template-columns: 1fr 520px;
+        align-items: stretch;
+      }
+    }
+
+    .timeline-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 560px;
+    }
+
+    .stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stats .big {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .timeline {
+      overflow: auto;
+      padding: 8px 0;
+    }
+
+    .day-sep {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: 8px 14px;
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+      backdrop-filter: blur(6px);
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 176px 1fr;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+      cursor: pointer;
+    }
+
+    .event:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+    .event.selected {
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      outline-offset: -2px;
+    }
+
+    .time {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--muted);
+      display: grid;
+      gap: 3px;
+    }
+
+    .time .ts {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-family: var(--mono);
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: color-mix(in srgb, var(--panel-2) 90%, transparent);
+    }
+
+    .badge.k-event_msg { border-color: color-mix(in srgb, #8690a8 55%, var(--line)); color: color-mix(in srgb, #8690a8 70%, var(--text)); }
+    .badge.k-response_item { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); color: color-mix(in srgb, var(--accent) 75%, var(--text)); }
+    .badge.k-turn_context { border-color: color-mix(in srgb, var(--accent-2) 55%, var(--line)); color: color-mix(in srgb, var(--accent-2) 75%, var(--text)); }
+    .badge.k-session_meta { border-color: color-mix(in srgb, var(--good) 55%, var(--line)); color: color-mix(in srgb, var(--good) 75%, var(--text)); }
+    .badge.k-compacted { border-color: color-mix(in srgb, var(--warn) 65%, var(--line)); color: color-mix(in srgb, var(--warn) 85%, var(--text)); }
+
+    .badge.role-user { border-color: color-mix(in srgb, #00c8ff 55%, var(--line)); color: color-mix(in srgb, #00c8ff 78%, var(--text)); }
+    .badge.role-assistant { border-color: color-mix(in srgb, #ff73c4 55%, var(--line)); color: color-mix(in srgb, #ff73c4 78%, var(--text)); }
+
+    .summary {
+      font-size: 13px;
+      line-height: 1.35;
+      color: var(--text);
+      word-break: break-word;
+    }
+
+    .summary code {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: color-mix(in srgb, var(--panel-2) 85%, transparent);
+      border: 1px solid var(--line);
+      padding: 2px 5px;
+      border-radius: 7px;
+    }
+
+    .detail {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 560px;
+    }
+
+    @media (min-width: 1060px) {
+      .detail {
+        position: sticky;
+        top: 16px;
+        align-self: start;
+        max-height: calc(100vh - 32px);
+      }
+    }
+
+    .detail-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      gap: 8px;
+    }
+
+    .detail-title {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.25;
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      user-select: none;
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px 14px 16px;
+      overflow: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.45;
+      color: color-mix(in srgb, var(--text) 92%, transparent);
+      background: transparent;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .empty {
+      padding: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+  </style>
+</head>
+  <body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Codex Timeline Viewer</h1>
+        <p class="sub">Open a Codex rollout <code>.jsonl</code> file and explore it as an interactive timeline. Times are shown in your local timezone by default.</p>
+      </div>
+    </header>
+
+    <section class="panel input-panel" aria-label="Input">
+      <div class="input-grid">
+        <div>
+          <div id="dropzone" class="dropzone" tabindex="0">
+            <strong>Drop a <code>.jsonl</code> file here</strong>
+            <div class="muted">or click to choose a file</div>
+            <div class="tiny">Supported: file picker, drag-and-drop, paste, or URL fetch (CORS-enabled).</div>
+            <input id="file-input" type="file" accept=".jsonl,application/json,text/plain" hidden />
+          </div>
+        </div>
+        <div>
+          <div class="tabs" role="tablist" aria-label="Input tabs">
+            <button type="button" class="tab active" data-tab="paste" aria-selected="true">Paste</button>
+            <button type="button" class="tab" data-tab="url" aria-selected="false">URL</button>
+          </div>
+
+          <div id="panel-paste" data-panel="paste">
+            <textarea id="paste-input" placeholder="Paste JSONL content here…"></textarea>
+            <div class="row">
+              <button type="button" class="btn primary" id="render-paste">Render pasted content</button>
+              <div class="tiny">Tip: the timeline uses one JSON object per line.</div>
+            </div>
+          </div>
+
+          <div id="panel-url" data-panel="url" hidden>
+            <input id="url-input" type="url" placeholder="https://example.com/rollout.jsonl" />
+            <div class="row">
+              <button type="button" class="btn primary" id="fetch-url">Fetch and render</button>
+              <div class="tiny">The URL must allow cross-origin requests (CORS).</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="panel filters-panel" aria-label="Filters">
+      <div class="controls" aria-label="Timeline controls">
+        <div class="field" style="min-width: 170px">
+          <div class="label">Timezone</div>
+          <div class="segmented" role="group" aria-label="Timezone toggle">
+            <button type="button" id="tz-local" class="active">Local</button>
+            <button type="button" id="tz-utc">UTC</button>
+          </div>
+        </div>
+        <div class="field" style="min-width: 220px">
+          <div class="label">Search</div>
+          <input id="search" type="search" placeholder="message, function name, cwd…" autocomplete="off" />
+        </div>
+        <div class="field" style="min-width: 190px">
+          <div class="label">Type</div>
+          <select id="type-filter"></select>
+        </div>
+        <div class="field" style="min-width: 210px">
+          <div class="label">Payload</div>
+          <select id="payload-filter"></select>
+        </div>
+        <div class="field" style="min-width: 160px">
+          <div class="label">Role</div>
+          <select id="role-filter"></select>
+        </div>
+        <label class="check" title="Hide token_count events (often very noisy)">
+          <input type="checkbox" id="hide-token-count" checked />
+          Hide token_count
+        </label>
+        <button type="button" class="btn" id="clear-filters">Clear</button>
+      </div>
+    </section>
+
+    <main>
+      <section class="panel timeline-panel" aria-label="Timeline">
+        <div class="stats">
+          <div class="big"><span id="stats-showing">0</span> <span class="muted">showing</span> <span class="muted">/</span> <span id="stats-total">0</span> <span class="muted">events</span></div>
+          <div class="muted" id="stats-range">—</div>
+        </div>
+        <div id="timeline" class="timeline" role="list"></div>
+      </section>
+
+      <aside class="panel detail" aria-label="Details">
+        <div class="detail-head">
+          <div class="detail-title" id="detail-title">Select an event</div>
+          <div class="detail-actions">
+            <button type="button" class="btn" id="copy-json" disabled>Copy JSON</button>
+            <button type="button" class="btn" id="copy-raw" disabled>Copy raw line</button>
+            <label class="check" title="Truncate very long strings in the JSON preview">
+              <input type="checkbox" id="truncate-strings" checked />
+              Truncate long strings
+            </label>
+          </div>
+        </div>
+        <pre id="detail-json" aria-label="Selected event JSON" class="empty">Load a file to get started.</pre>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const els = {
+      dropzone: document.getElementById('dropzone'),
+      fileInput: document.getElementById('file-input'),
+      pasteInput: document.getElementById('paste-input'),
+      renderPaste: document.getElementById('render-paste'),
+      urlInput: document.getElementById('url-input'),
+      fetchUrl: document.getElementById('fetch-url'),
+      status: document.getElementById('status'),
+      timeline: document.getElementById('timeline'),
+      detailTitle: document.getElementById('detail-title'),
+      detailJson: document.getElementById('detail-json'),
+      copyJson: document.getElementById('copy-json'),
+      copyRaw: document.getElementById('copy-raw'),
+      truncateStrings: document.getElementById('truncate-strings'),
+      tzLocal: document.getElementById('tz-local'),
+      tzUtc: document.getElementById('tz-utc'),
+      search: document.getElementById('search'),
+      typeFilter: document.getElementById('type-filter'),
+      payloadFilter: document.getElementById('payload-filter'),
+      roleFilter: document.getElementById('role-filter'),
+      hideTokenCount: document.getElementById('hide-token-count'),
+      statsShowing: document.getElementById('stats-showing'),
+      statsTotal: document.getElementById('stats-total'),
+      statsRange: document.getElementById('stats-range'),
+      clearFilters: document.getElementById('clear-filters'),
+    };
+
+    const state = {
+      sourceLabel: null,
+      tzMode: 'local',
+      events: [],
+      filtered: [],
+      selectedId: null,
+      selected: null,
+      filters: {
+        query: '',
+        type: 'all',
+        payload: 'all',
+        role: 'all',
+        hideTokenCount: true,
+      },
+    };
+
+    function setStatus(message, kind = 'good') {
+      if (!message) {
+        els.status.className = 'status';
+        els.status.textContent = '';
+        return;
+      }
+      els.status.className = `status visible ${kind}`;
+      els.status.textContent = message;
+    }
+
+    function pad2(number) {
+      return String(number).padStart(2, '0');
+    }
+
+    function pad3(number) {
+      return String(number).padStart(3, '0');
+    }
+
+    function getOffsetString(date) {
+      const offsetMinutes = -date.getTimezoneOffset(); // minutes east of UTC
+      const sign = offsetMinutes >= 0 ? '+' : '-';
+      const abs = Math.abs(offsetMinutes);
+      const hours = Math.floor(abs / 60);
+      const minutes = abs % 60;
+      return `${sign}${pad2(hours)}:${pad2(minutes)}`;
+    }
+
+    function formatTimestamp(date, tzMode) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '—';
+      if (tzMode === 'utc') {
+        return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())} ` +
+          `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}:${pad2(date.getUTCSeconds())}.` +
+          `${pad3(date.getUTCMilliseconds())}Z`;
+      }
+      return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ` +
+        `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}.` +
+        `${pad3(date.getMilliseconds())} ${getOffsetString(date)}`;
+    }
+
+    function dayKey(date, tzMode) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '—';
+      if (tzMode === 'utc') {
+        return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+      }
+      return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+    }
+
+    function formatDelta(ms) {
+      if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
+      const abs = Math.abs(ms);
+      const sign = ms < 0 ? '−' : '+';
+      if (abs < 1000) return `${sign}${Math.round(abs)}ms`;
+      if (abs < 60_000) return `${sign}${(abs / 1000).toFixed(abs < 10_000 ? 2 : 1)}s`;
+      if (abs < 3_600_000) {
+        const m = Math.floor(abs / 60_000);
+        const s = Math.floor((abs % 60_000) / 1000);
+        return `${sign}${m}m ${pad2(s)}s`;
+      }
+      if (abs < 86_400_000) {
+        const h = Math.floor(abs / 3_600_000);
+        const m = Math.floor((abs % 3_600_000) / 60_000);
+        return `${sign}${h}h ${m}m`;
+      }
+      const d = Math.floor(abs / 86_400_000);
+      const h = Math.floor((abs % 86_400_000) / 3_600_000);
+      return `${sign}${d}d ${h}h`;
+    }
+
+    function safeJsonParse(text) {
+      try {
+        return { ok: true, value: JSON.parse(text) };
+      } catch (error) {
+        return { ok: false, error };
+      }
+    }
+
+    function extractMessageText(payload) {
+      if (!payload || typeof payload !== 'object') return null;
+      const content = payload.content;
+      if (!Array.isArray(content)) return null;
+      const parts = [];
+      for (const item of content) {
+        if (!item || typeof item !== 'object') continue;
+        if (typeof item.text === 'string') parts.push(item.text);
+        else if (typeof item.input_text === 'string') parts.push(item.input_text);
+        else if (typeof item.output_text === 'string') parts.push(item.output_text);
+      }
+      const joined = parts.join('');
+      return joined || null;
+    }
+
+    function firstLine(text) {
+      if (typeof text !== 'string') return null;
+      const trimmed = text.trim();
+      if (!trimmed) return null;
+      const idx = trimmed.indexOf('\n');
+      return idx === -1 ? trimmed : trimmed.slice(0, idx).trim();
+    }
+
+    function normalizeSummaryText(text, maxLen = 260) {
+      if (typeof text !== 'string') return '';
+      const singleLine = text.replace(/\s+/g, ' ').trim();
+      if (singleLine.length <= maxLen) return singleLine;
+      return singleLine.slice(0, maxLen - 1) + '…';
+    }
+
+    function summarizeEvent(obj) {
+      const kind = obj?.type || '';
+      const payload = obj?.payload;
+      const payloadType = payload && typeof payload === 'object' ? payload.type : null;
+
+      if (kind === 'session_meta') {
+        const id = payload?.id ? `id=${payload.id}` : null;
+        const cwd = payload?.cwd ? `cwd=${payload.cwd}` : null;
+        const model = payload?.model_provider ? `model_provider=${payload.model_provider}` : null;
+        return normalizeSummaryText([id, cwd, model].filter(Boolean).join(' · ')) || 'session_meta';
+      }
+
+      if (kind === 'turn_context') {
+        const cwd = payload?.cwd ? `cwd=${payload.cwd}` : null;
+        const model = payload?.model ? `model=${payload.model}` : null;
+        const effort = payload?.effort ? `effort=${payload.effort}` : null;
+        return normalizeSummaryText([cwd, model, effort].filter(Boolean).join(' · ')) || 'turn_context';
+      }
+
+      if (payloadType === 'message') {
+        const role = payload?.role ? `${payload.role}: ` : '';
+        const msg = extractMessageText(payload) || '';
+        return normalizeSummaryText(role + msg) || 'message';
+      }
+
+      if (payloadType === 'user_message' || payloadType === 'agent_message') {
+        const msg = payload?.message || '';
+        return normalizeSummaryText(msg) || payloadType;
+      }
+
+      if (payloadType === 'function_call') {
+        const name = payload?.name || 'function_call';
+        const argsText = typeof payload?.arguments === 'string' ? payload.arguments : null;
+        const args = argsText ? safeJsonParse(argsText) : null;
+        if (name === 'shell_command' && args?.ok && typeof args.value?.command === 'string') {
+          return normalizeSummaryText(`${name}: ${args.value.command}`);
+        }
+        if (name === 'update_plan' && args?.ok && typeof args.value?.explanation === 'string') {
+          return normalizeSummaryText(`${name}: ${args.value.explanation}`);
+        }
+        if (name === 'apply_patch' && args?.ok && typeof args.value?.patch === 'string') {
+          return normalizeSummaryText(`${name}: ${firstLine(args.value.patch) || 'patch'}`);
+        }
+        if (args?.ok && args.value && typeof args.value === 'object') {
+          const keys = Object.keys(args.value).slice(0, 5);
+          return normalizeSummaryText(`${name}(${keys.join(', ')}${Object.keys(args.value).length > 5 ? ', …' : ''})`);
+        }
+        return normalizeSummaryText(`${name}(${argsText ? '…' : ''})`);
+      }
+
+      if (payloadType === 'function_call_output') {
+        const out = typeof payload?.output === 'string' ? payload.output : '';
+        const line = firstLine(out) || '';
+        return normalizeSummaryText(`output: ${line}`) || 'function_call_output';
+      }
+
+      if (payloadType === 'custom_tool_call') {
+        const name = payload?.name || 'custom_tool_call';
+        const status = payload?.status ? ` (${payload.status})` : '';
+        const inputLine = firstLine(payload?.input) || '';
+        return normalizeSummaryText(`${name}${status}: ${inputLine}`) || `${name}${status}`;
+      }
+
+      if (payloadType === 'custom_tool_call_output') {
+        const out = typeof payload?.output === 'string' ? payload.output : '';
+        return normalizeSummaryText(`tool output: ${firstLine(out) || ''}`) || 'custom_tool_call_output';
+      }
+
+      if (payloadType === 'token_count') {
+        const used = payload?.rate_limits?.primary?.used_percent;
+        const windowMinutes = payload?.rate_limits?.primary?.window_minutes;
+        if (typeof used === 'number' && typeof windowMinutes === 'number') {
+          return normalizeSummaryText(`token_count: primary ${used}% / ${windowMinutes}m window`);
+        }
+        return 'token_count';
+      }
+
+      if (payloadType === 'agent_reasoning') {
+        return normalizeSummaryText(firstLine(payload?.text) || payload?.text || '') || 'agent_reasoning';
+      }
+
+      if (payloadType === 'reasoning') {
+        const summaryText = payload?.summary?.[0]?.text;
+        return normalizeSummaryText(firstLine(summaryText) || summaryText || '') || 'reasoning';
+      }
+
+      if (kind && payloadType) return `${kind} · ${payloadType}`;
+      if (kind) return kind;
+      return 'event';
+    }
+
+    function buildSearchText(obj, summary) {
+      const pieces = [];
+      pieces.push(obj?.type || '');
+      const payload = obj?.payload;
+      if (payload && typeof payload === 'object') {
+        pieces.push(payload.type || '');
+        pieces.push(payload.role || '');
+        pieces.push(payload.name || '');
+        if (typeof payload.message === 'string') pieces.push(payload.message);
+        if (typeof payload.text === 'string') pieces.push(payload.text);
+        const msg = extractMessageText(payload);
+        if (msg) pieces.push(msg);
+        if (typeof payload.arguments === 'string') pieces.push(payload.arguments);
+        if (typeof payload.output === 'string') pieces.push(payload.output.slice(0, 500));
+        if (typeof payload.cwd === 'string') pieces.push(payload.cwd);
+        if (typeof payload.model === 'string') pieces.push(payload.model);
+      }
+      if (typeof summary === 'string') pieces.push(summary);
+      return pieces.join('\n').toLowerCase();
+    }
+
+    function stringifyJson(value, truncateLongStrings) {
+      const maxLen = 8000;
+      return JSON.stringify(value, (key, v) => {
+        if (!truncateLongStrings) return v;
+        if (typeof v === 'string' && v.length > maxLen) {
+          return v.slice(0, maxLen) + `… [truncated ${v.length - maxLen} chars]`;
+        }
+        return v;
+      }, 2);
+    }
+
+    function updateFilterOptions(events) {
+      const typeSet = new Set();
+      const payloadSet = new Set();
+      const roleSet = new Set();
+      for (const e of events) {
+        if (e.kind) typeSet.add(e.kind);
+        if (e.payloadType !== null && e.payloadType !== undefined) payloadSet.add(e.payloadType);
+        else payloadSet.add('(none)');
+        if (e.role) roleSet.add(e.role);
+      }
+
+      function setOptions(select, items, current) {
+        select.innerHTML = '';
+        const optAll = document.createElement('option');
+        optAll.value = 'all';
+        optAll.textContent = 'All';
+        select.appendChild(optAll);
+        for (const item of items) {
+          const opt = document.createElement('option');
+          opt.value = item;
+          opt.textContent = item;
+          select.appendChild(opt);
+        }
+        select.value = current;
+      }
+
+      setOptions(els.typeFilter, Array.from(typeSet).sort(), state.filters.type);
+      setOptions(els.payloadFilter, Array.from(payloadSet).sort(), state.filters.payload);
+      setOptions(els.roleFilter, Array.from(roleSet).sort(), state.filters.role);
+    }
+
+    function applyFilters() {
+      const query = state.filters.query;
+      const type = state.filters.type;
+      const payload = state.filters.payload;
+      const role = state.filters.role;
+      const hideTokenCount = state.filters.hideTokenCount;
+
+      const out = [];
+      for (const e of state.events) {
+        if (hideTokenCount && e.payloadType === 'token_count') continue;
+        if (type !== 'all' && e.kind !== type) continue;
+        if (payload !== 'all') {
+          const pt = e.payloadType ?? '(none)';
+          if (pt !== payload) continue;
+        }
+        if (role !== 'all' && e.role !== role) continue;
+        if (query && !e.search.includes(query)) continue;
+        out.push(e);
+      }
+
+      state.filtered = out;
+      els.statsShowing.textContent = String(out.length);
+      els.statsTotal.textContent = String(state.events.length);
+
+      const start = out.find(e => e.date instanceof Date && !Number.isNaN(e.date.getTime()))?.date;
+      const end = [...out].reverse().find(e => e.date instanceof Date && !Number.isNaN(e.date.getTime()))?.date;
+      if (start && end) {
+        els.statsRange.textContent = `${formatTimestamp(start, state.tzMode)} → ${formatTimestamp(end, state.tzMode)}`;
+      } else {
+        els.statsRange.textContent = '—';
+      }
+
+      renderTimeline();
+    }
+
+    function clearSelection() {
+      state.selectedId = null;
+      state.selected = null;
+      els.detailTitle.textContent = 'Select an event';
+      els.detailJson.textContent = state.events.length ? 'Select an event from the timeline.' : 'Load a file to get started.';
+      els.detailJson.classList.add('empty');
+      els.copyJson.disabled = true;
+      els.copyRaw.disabled = true;
+      for (const node of els.timeline.querySelectorAll('.event.selected')) {
+        node.classList.remove('selected');
+      }
+    }
+
+    function renderTimeline() {
+      els.timeline.innerHTML = '';
+
+      if (!state.filtered.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = state.events.length ? 'No events match your filters.' : 'Load a file to see a timeline.';
+        els.timeline.appendChild(empty);
+        clearSelection();
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      let lastDay = null;
+      let prevDate = null;
+
+      for (const e of state.filtered) {
+        const day = dayKey(e.date, state.tzMode);
+        if (day !== lastDay) {
+          lastDay = day;
+          const sep = document.createElement('div');
+          sep.className = 'day-sep';
+          sep.textContent = day;
+          fragment.appendChild(sep);
+        }
+
+        const row = document.createElement('div');
+        row.className = 'event';
+        row.setAttribute('role', 'listitem');
+        row.dataset.eventId = String(e.id);
+
+        const time = document.createElement('div');
+        time.className = 'time';
+
+        const ts = document.createElement('div');
+        ts.className = 'ts';
+        ts.textContent = formatTimestamp(e.date, state.tzMode);
+        ts.dataset.kind = 'timestamp';
+
+        const meta = document.createElement('div');
+        meta.textContent = [
+          `#${e.line}`,
+          (prevDate && e.date) ? formatDelta(e.date.getTime() - prevDate.getTime()) : null,
+        ].filter(Boolean).join(' · ');
+
+        time.appendChild(ts);
+        time.appendChild(meta);
+
+        const body = document.createElement('div');
+
+        const badges = document.createElement('div');
+        badges.className = 'badges';
+        const badgeKind = document.createElement('span');
+        badgeKind.className = `badge k-${e.kind}`;
+        badgeKind.textContent = e.kind;
+        badges.appendChild(badgeKind);
+
+        if (e.payloadType) {
+          const badgePayload = document.createElement('span');
+          badgePayload.className = 'badge';
+          badgePayload.textContent = e.payloadType;
+          badges.appendChild(badgePayload);
+        }
+
+        if (e.role) {
+          const badgeRole = document.createElement('span');
+          badgeRole.className = `badge role-${e.role}`;
+          badgeRole.textContent = e.role;
+          badges.appendChild(badgeRole);
+        }
+
+        const summary = document.createElement('div');
+        summary.className = 'summary';
+        summary.textContent = e.summary;
+
+        body.appendChild(badges);
+        body.appendChild(summary);
+
+        row.appendChild(time);
+        row.appendChild(body);
+
+        row.addEventListener('click', () => selectEvent(e.id));
+        fragment.appendChild(row);
+
+        if (e.date instanceof Date && !Number.isNaN(e.date.getTime())) prevDate = e.date;
+      }
+
+      els.timeline.appendChild(fragment);
+
+      if (state.selectedId !== null) {
+        const stillThere = state.filtered.some(e => e.id === state.selectedId);
+        if (!stillThere) clearSelection();
+        else selectEvent(state.selectedId, { scroll: false });
+      } else {
+        clearSelection();
+      }
+    }
+
+    function selectEvent(id, { scroll = false } = {}) {
+      const e = state.filtered.find(item => item.id === id) || state.events.find(item => item.id === id);
+      if (!e) return;
+      state.selectedId = id;
+      state.selected = e;
+
+      for (const node of els.timeline.querySelectorAll('.event.selected')) {
+        node.classList.remove('selected');
+      }
+      const node = els.timeline.querySelector(`.event[data-event-id="${CSS.escape(String(id))}"]`);
+      if (node) {
+        node.classList.add('selected');
+        if (scroll) node.scrollIntoView({ block: 'center' });
+      }
+
+      els.detailJson.classList.remove('empty');
+      const titleParts = [
+        formatTimestamp(e.date, state.tzMode),
+        `#${e.line}`,
+        e.kind,
+        e.payloadType ? `· ${e.payloadType}` : null,
+      ].filter(Boolean);
+      els.detailTitle.textContent = titleParts.join(' ');
+
+      const shouldTruncate = els.truncateStrings.checked;
+      els.detailJson.textContent = stringifyJson(e.obj, shouldTruncate) || '';
+      els.copyJson.disabled = false;
+      els.copyRaw.disabled = false;
+    }
+
+    async function copyText(text) {
+      if (typeof text !== 'string') return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('Copied to clipboard.', 'good');
+      } catch (error) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setStatus('Copied to clipboard.', 'good');
+      }
+    }
+
+    function setTimezoneMode(mode) {
+      state.tzMode = mode;
+      els.tzLocal.classList.toggle('active', mode === 'local');
+      els.tzUtc.classList.toggle('active', mode === 'utc');
+      applyFilters();
+      if (state.selectedId !== null) selectEvent(state.selectedId);
+    }
+
+    function setTab(tabName) {
+      for (const tab of document.querySelectorAll('.tab')) {
+        const active = tab.dataset.tab === tabName;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      }
+      for (const panel of document.querySelectorAll('[data-panel]')) {
+        panel.hidden = panel.dataset.panel !== tabName;
+      }
+    }
+
+    async function loadText(text, sourceLabel) {
+      const started = performance.now();
+      state.sourceLabel = sourceLabel || null;
+      setStatus(`Parsing ${sourceLabel || 'content'}…`, 'warn');
+      clearSelection();
+
+      const lines = text.split(/\r?\n/);
+      const events = [];
+      const errors = [];
+      let idCounter = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        const parsed = safeJsonParse(line);
+        if (!parsed.ok) {
+          errors.push({ line: i + 1, error: parsed.error });
+          continue;
+        }
+        const obj = parsed.value;
+        const ts = typeof obj.timestamp === 'string' ? new Date(obj.timestamp) : null;
+        const kind = obj.type || '(unknown)';
+        const payload = obj.payload && typeof obj.payload === 'object' ? obj.payload : null;
+        const payloadType = payload?.type ?? null;
+        const role = payload?.role ?? null;
+
+        const summary = summarizeEvent(obj);
+        events.push({
+          id: ++idCounter,
+          line: i + 1,
+          raw: line,
+          obj,
+          date: ts,
+          kind,
+          payloadType,
+          role,
+          summary,
+          search: buildSearchText(obj, summary),
+        });
+      }
+
+      state.events = events;
+      updateFilterOptions(events);
+      applyFilters();
+
+      const durationMs = Math.round(performance.now() - started);
+      if (errors.length) {
+        const first = errors[0];
+        setStatus(
+          `Loaded ${events.length} events from ${sourceLabel || 'content'} in ${durationMs}ms.\n` +
+          `Could not parse ${errors.length} line(s). First error at line ${first.line}: ${String(first.error)}`,
+          'warn'
+        );
+      } else {
+        setStatus(`Loaded ${events.length} events from ${sourceLabel || 'content'} in ${durationMs}ms.`, 'good');
+      }
+    }
+
+    async function handleFile(file) {
+      if (!file) return;
+      try {
+        const text = await file.text();
+        await loadText(text, file.name);
+      } catch (error) {
+        setStatus(`Failed to read file: ${String(error)}`, 'error');
+      }
+    }
+
+    els.dropzone.addEventListener('click', () => els.fileInput.click());
+    els.dropzone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        els.fileInput.click();
+      }
+    });
+    els.fileInput.addEventListener('change', () => handleFile(els.fileInput.files?.[0]));
+
+    els.dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      els.dropzone.classList.add('dragover');
+    });
+    els.dropzone.addEventListener('dragleave', () => els.dropzone.classList.remove('dragover'));
+    els.dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      els.dropzone.classList.remove('dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleFile(file);
+    });
+
+    els.renderPaste.addEventListener('click', async () => {
+      const text = els.pasteInput.value || '';
+      if (!text.trim()) {
+        setStatus('Paste some JSONL content first.', 'error');
+        return;
+      }
+      await loadText(text, 'pasted content');
+    });
+
+    els.fetchUrl.addEventListener('click', async () => {
+      const url = els.urlInput.value.trim();
+      if (!url) {
+        setStatus('Enter a URL first.', 'error');
+        return;
+      }
+      setStatus(`Fetching ${url}…`, 'warn');
+      try {
+        const resp = await fetch(url, { mode: 'cors' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const text = await resp.text();
+        await loadText(text, url);
+      } catch (error) {
+        setStatus(`Failed to fetch URL: ${String(error)}`, 'error');
+      }
+    });
+
+    for (const tab of document.querySelectorAll('.tab')) {
+      tab.addEventListener('click', () => setTab(tab.dataset.tab));
+    }
+
+    els.tzLocal.addEventListener('click', () => setTimezoneMode('local'));
+    els.tzUtc.addEventListener('click', () => setTimezoneMode('utc'));
+
+    els.search.addEventListener('input', () => {
+      state.filters.query = els.search.value.trim().toLowerCase();
+      applyFilters();
+    });
+    els.typeFilter.addEventListener('change', () => {
+      state.filters.type = els.typeFilter.value;
+      applyFilters();
+    });
+    els.payloadFilter.addEventListener('change', () => {
+      state.filters.payload = els.payloadFilter.value;
+      applyFilters();
+    });
+    els.roleFilter.addEventListener('change', () => {
+      state.filters.role = els.roleFilter.value;
+      applyFilters();
+    });
+    els.hideTokenCount.addEventListener('change', () => {
+      state.filters.hideTokenCount = els.hideTokenCount.checked;
+      applyFilters();
+    });
+    els.truncateStrings.addEventListener('change', () => {
+      if (state.selectedId !== null) selectEvent(state.selectedId);
+    });
+
+    els.clearFilters.addEventListener('click', () => {
+      els.search.value = '';
+      state.filters.query = '';
+      state.filters.type = 'all';
+      state.filters.payload = 'all';
+      state.filters.role = 'all';
+      state.filters.hideTokenCount = true;
+      els.hideTokenCount.checked = true;
+      updateFilterOptions(state.events);
+      applyFilters();
+    });
+
+    els.copyJson.addEventListener('click', () => {
+      if (!state.selected) return;
+      copyText(stringifyJson(state.selected.obj, false));
+    });
+    els.copyRaw.addEventListener('click', () => {
+      if (!state.selected) return;
+      copyText(state.selected.raw);
+    });
+
+    // Initialize select options for the empty state.
+    updateFilterOptions([]);
+  </script>
+</body>
+</html>
