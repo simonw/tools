@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Claude Code Timeline Viewer</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js" integrity="sha384-osZDKVu4ipZP703HmPOhWdyBajcFyjX2Psjk//TG1Rc0AdwEtuToaylrmcK3LdAl" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/4.4.0/markdown-it.min.js" integrity="sha384-cxGp+QDeMxACP73aA0Lj0Sc/h4z1X73+umcvCyI0Vbyh3OYxgrPI+0mxG9slsMTN" crossorigin="anonymous"></script>
   <style>
     :root {
       color-scheme: light dark;
@@ -696,6 +697,29 @@
 
     .pretty-content em {
       font-style: italic;
+    }
+
+    .pretty-content table {
+      border-collapse: collapse;
+      margin: 10px 0;
+      width: 100%;
+      font-size: 13px;
+    }
+
+    .pretty-content th,
+    .pretty-content td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+    }
+
+    .pretty-content th {
+      background: color-mix(in srgb, var(--panel-2) 85%, transparent);
+      font-weight: 600;
+    }
+
+    .pretty-content tr:hover {
+      background: color-mix(in srgb, var(--accent) 6%, transparent);
     }
 
     .command-block {
@@ -1642,60 +1666,21 @@
       return div.innerHTML;
     }
 
+    // Initialize markdown-it with GFM-like settings
+    const md = window.markdownit({
+      html: false,        // Disable raw HTML input
+      linkify: true,      // Auto-convert URLs to links
+      typographer: true,  // Smart quotes, dashes
+      breaks: true        // Convert \n to <br>
+    });
+
     function renderMarkdown(text) {
       if (typeof text !== 'string') return '';
 
-      // Escape HTML first to prevent raw HTML injection
-      let html = escapeHtml(text);
+      // Render markdown to HTML
+      const html = md.render(text);
 
-      // Code blocks (```...```)
-      html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
-        return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
-      });
-
-      // Inline code (`...`)
-      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-      // Headers
-      html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
-      html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
-      html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
-      html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
-      html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
-      html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
-
-      // Bold and italic
-      html = html.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
-      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-      html = html.replace(/___([^_]+)___/g, '<strong><em>$1</em></strong>');
-      html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
-      html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
-
-      // Links
-      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-
-      // Blockquotes
-      html = html.replace(/^&gt;\s+(.+)$/gm, '<blockquote>$1</blockquote>');
-
-      // Unordered lists
-      html = html.replace(/^[\*\-]\s+(.+)$/gm, '<li>$1</li>');
-      html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-
-      // Ordered lists
-      html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
-
-      // Line breaks - convert double newlines to paragraphs
-      html = html.split(/\n\n+/).map(para => {
-        para = para.trim();
-        if (!para) return '';
-        // Don't wrap if already wrapped in block element
-        if (/^<(h[1-6]|ul|ol|li|pre|blockquote|div)/.test(para)) return para;
-        return `<p>${para.replace(/\n/g, '<br>')}</p>`;
-      }).join('\n');
-
-      // Sanitize with DOMPurify to prevent XSS from crafted markdown
-      // (e.g., javascript: URLs in links, attribute injection via quotes)
+      // Sanitize with DOMPurify to prevent XSS
       return DOMPurify.sanitize(html);
     }
 
@@ -1919,8 +1904,9 @@
 
             if (resultText) {
               const block = document.createElement('div');
-              block.className = 'result-block' + (item.is_error ? ' result-error' : '');
-              block.textContent = resultText.length > 5000 ? resultText.slice(0, 5000) + '\n... [truncated]' : resultText;
+              block.className = 'pretty-content' + (item.is_error ? ' result-error' : '');
+              const displayText = resultText.length > 5000 ? resultText.slice(0, 5000) + '\n... [truncated]' : resultText;
+              block.innerHTML = renderMarkdown(displayText);
               section.appendChild(label);
               section.appendChild(block);
               fragment.appendChild(section);
