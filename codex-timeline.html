@@ -405,26 +405,40 @@
       border-radius: 7px;
     }
 
-    .detail {
-      display: grid;
-      grid-template-rows: auto auto 1fr;
-      min-height: 560px;
-    }
+	    .detail {
+	      display: grid;
+	      grid-template-rows: auto auto 1fr;
+	      min-height: 560px;
+	    }
 
-    @media (min-width: 1060px) {
-      .detail {
-        position: sticky;
-        top: 16px;
-        align-self: start;
-        max-height: calc(100vh - 32px);
-      }
-    }
+	    @media (min-width: 1060px) {
+	      .detail {
+	        position: sticky;
+	        top: 16px;
+	        align-self: start;
+	        max-height: calc(100vh - 32px);
+	      }
+	    }
 
-    .detail-head {
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--line);
-      display: grid;
-      gap: 8px;
+	    .detail.inline {
+	      position: static;
+	      top: auto;
+	      align-self: auto;
+	      max-height: none;
+	      min-height: 0;
+	      margin: 8px 14px 12px;
+	      box-shadow: none;
+	    }
+
+	    .detail.inline pre {
+	      max-height: 52vh;
+	    }
+
+	    .detail-head {
+	      padding: 12px 14px;
+	      border-bottom: 1px solid var(--line);
+	      display: grid;
+	      gap: 8px;
     }
 
     .detail-title {
@@ -672,20 +686,21 @@
   </div>
 
   <script>
-    const els = {
-      dropzone: document.getElementById('dropzone'),
-      fileInput: document.getElementById('file-input'),
-      pasteInput: document.getElementById('paste-input'),
-      renderPaste: document.getElementById('render-paste'),
-      urlInput: document.getElementById('url-input'),
-      fetchUrl: document.getElementById('fetch-url'),
-      status: document.getElementById('status'),
-      timeline: document.getElementById('timeline'),
-      detailTitle: document.getElementById('detail-title'),
-      detailImages: document.getElementById('detail-images'),
-      detailJson: document.getElementById('detail-json'),
-      copyJson: document.getElementById('copy-json'),
-      copyRaw: document.getElementById('copy-raw'),
+	    const els = {
+	      dropzone: document.getElementById('dropzone'),
+	      fileInput: document.getElementById('file-input'),
+	      pasteInput: document.getElementById('paste-input'),
+	      renderPaste: document.getElementById('render-paste'),
+	      urlInput: document.getElementById('url-input'),
+	      fetchUrl: document.getElementById('fetch-url'),
+	      status: document.getElementById('status'),
+	      timeline: document.getElementById('timeline'),
+	      detailPanel: document.querySelector('aside.detail'),
+	      detailTitle: document.getElementById('detail-title'),
+	      detailImages: document.getElementById('detail-images'),
+	      detailJson: document.getElementById('detail-json'),
+	      copyJson: document.getElementById('copy-json'),
+	      copyRaw: document.getElementById('copy-raw'),
       truncateStrings: document.getElementById('truncate-strings'),
       tzLocal: document.getElementById('tz-local'),
       tzUtc: document.getElementById('tz-utc'),
@@ -719,14 +734,39 @@
       },
     };
 
-    let lastActiveElementBeforeModal = null;
-    let lastBodyOverflow = null;
-    let suppressUrlStateSync = false;
+	    let lastActiveElementBeforeModal = null;
+	    let lastBodyOverflow = null;
+	    let suppressUrlStateSync = false;
+	    const wideLayoutMq = window.matchMedia('(min-width: 1060px)');
+	    const detailDock = document.createElement('div');
+	    detailDock.id = 'detail-dock';
+	    detailDock.style.display = 'none';
+	    els.detailPanel.parentElement.insertBefore(detailDock, els.detailPanel);
 
-    function setStatus(message, kind = 'good') {
-      if (!message) {
-        els.status.className = 'status';
-        els.status.textContent = '';
+	    function updateDetailPlacement() {
+	      const inline = !wideLayoutMq.matches;
+
+	      if (!inline) {
+	        if (els.detailPanel.previousSibling !== detailDock) detailDock.after(els.detailPanel);
+	        els.detailPanel.classList.remove('inline');
+	        return;
+	      }
+
+	      const selectedNode = els.timeline.querySelector('.event.selected');
+	      if (!selectedNode) {
+	        if (els.detailPanel.previousSibling !== detailDock) detailDock.after(els.detailPanel);
+	        els.detailPanel.classList.remove('inline');
+	        return;
+	      }
+
+	      if (selectedNode.nextSibling !== els.detailPanel) selectedNode.after(els.detailPanel);
+	      els.detailPanel.classList.add('inline');
+	    }
+
+	    function setStatus(message, kind = 'good') {
+	      if (!message) {
+	        els.status.className = 'status';
+	        els.status.textContent = '';
         return;
       }
       els.status.className = `status visible ${kind}`;
@@ -1115,20 +1155,21 @@
       renderTimeline();
     }
 
-    function clearSelection({ syncHash = true } = {}) {
-      state.selectedId = null;
-      state.selected = null;
-      els.detailTitle.textContent = 'Select an event';
-      renderDetailImages(null);
-      els.detailJson.textContent = state.events.length ? 'Select an event from the timeline.' : 'Load a file to get started.';
-      els.detailJson.classList.add('empty');
-      els.copyJson.disabled = true;
-      els.copyRaw.disabled = true;
-      for (const node of els.timeline.querySelectorAll('.event.selected')) {
-        node.classList.remove('selected');
-      }
-      if (syncHash) syncUrlHashFromControls({ clearSel: true });
-    }
+	    function clearSelection({ syncHash = true } = {}) {
+	      state.selectedId = null;
+	      state.selected = null;
+	      els.detailTitle.textContent = 'Select an event';
+	      renderDetailImages(null);
+	      els.detailJson.textContent = state.events.length ? 'Select an event from the timeline.' : 'Load a file to get started.';
+	      els.detailJson.classList.add('empty');
+	      els.copyJson.disabled = true;
+	      els.copyRaw.disabled = true;
+	      for (const node of els.timeline.querySelectorAll('.event.selected')) {
+	        node.classList.remove('selected');
+	      }
+	      updateDetailPlacement();
+	      if (syncHash) syncUrlHashFromControls({ clearSel: true });
+	    }
 
     function renderTimeline() {
       els.timeline.innerHTML = '';
@@ -1228,11 +1269,11 @@
       }
     }
 
-    function selectEvent(id, { scroll = false, focusTimeline = false } = {}) {
-      const e = state.filtered.find(item => item.id === id) || state.events.find(item => item.id === id);
-      if (!e) return;
-      state.selectedId = id;
-      state.selected = e;
+	    function selectEvent(id, { scroll = false, focusTimeline = false } = {}) {
+	      const e = state.filtered.find(item => item.id === id) || state.events.find(item => item.id === id);
+	      if (!e) return;
+	      state.selectedId = id;
+	      state.selected = e;
 
       if (focusTimeline) {
         els.timeline.focus({ preventScroll: true });
@@ -1241,14 +1282,15 @@
       for (const node of els.timeline.querySelectorAll('.event.selected')) {
         node.classList.remove('selected');
       }
-      const node = els.timeline.querySelector(`.event[data-event-id="${CSS.escape(String(id))}"]`);
-      if (node) {
-        node.classList.add('selected');
-        if (scroll) node.scrollIntoView({ block: 'center' });
-      }
+	      const node = els.timeline.querySelector(`.event[data-event-id="${CSS.escape(String(id))}"]`);
+	      if (node) {
+	        node.classList.add('selected');
+	        updateDetailPlacement();
+	        if (scroll) node.scrollIntoView({ block: 'center' });
+	      }
 
-      els.detailJson.classList.remove('empty');
-      const titleParts = [
+	      els.detailJson.classList.remove('empty');
+	      const titleParts = [
         formatTimestamp(e.date, state.tzMode),
         `#${e.line}`,
         e.kind,
@@ -1258,11 +1300,12 @@
 
       const shouldTruncate = els.truncateStrings.checked;
       renderDetailImages(e.obj);
-      els.detailJson.textContent = stringifyJson(e.obj, shouldTruncate) || '';
-      els.copyJson.disabled = false;
-      els.copyRaw.disabled = false;
-      syncUrlHashFromControls();
-    }
+	      els.detailJson.textContent = stringifyJson(e.obj, shouldTruncate) || '';
+	      els.copyJson.disabled = false;
+	      els.copyRaw.disabled = false;
+	      updateDetailPlacement();
+	      syncUrlHashFromControls();
+	    }
 
     function extractImageUrls(obj) {
       const payloadImages = obj?.payload?.images;
@@ -1379,16 +1422,22 @@
       if (event.key === 'Escape') closeImageModal();
     });
 
-    document.addEventListener('keydown', (event) => {
-      if (els.imageModal.classList.contains('open')) return;
-      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
-      if (isEditableElement(document.activeElement)) return;
-      if (document.activeElement !== els.timeline && !els.timeline.contains(document.activeElement)) return;
-      if (state.selectedId === null) return;
-      event.preventDefault();
-      moveSelection(event.key === 'ArrowUp' ? -1 : 1);
-    });
+	    document.addEventListener('keydown', (event) => {
+	      if (els.imageModal.classList.contains('open')) return;
+	      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+	      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+	      if (isEditableElement(document.activeElement)) return;
+	      if (document.activeElement !== els.timeline && !els.timeline.contains(document.activeElement)) return;
+	      if (state.selectedId === null) return;
+	      event.preventDefault();
+	      moveSelection(event.key === 'ArrowUp' ? -1 : 1);
+	    });
+
+	    if (typeof wideLayoutMq.addEventListener === 'function') {
+	      wideLayoutMq.addEventListener('change', updateDetailPlacement);
+	    } else if (typeof wideLayoutMq.addListener === 'function') {
+	      wideLayoutMq.addListener(updateDetailPlacement);
+	    }
 
 	    function setTab(tabName) {
 	      for (const tab of document.querySelectorAll('.tab')) {
