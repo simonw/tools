@@ -287,7 +287,7 @@ def main():
     parser.add_argument("--list", action="store_true", help="List recent sessions and exit")
     args = parser.parse_args()
 
-    projects_folder = Path(__file__).parent / "projects"
+    projects_folder = Path.home() / ".claude" / "projects"
 
     if not projects_folder.exists():
         print(f"Projects folder not found: {projects_folder}")
