@@ -313,6 +313,12 @@
       padding: 8px 0;
     }
 
+    .timeline:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+      outline-offset: -2px;
+      border-radius: 14px;
+    }
+
     .day-sep {
       position: sticky;
       top: 0;
@@ -637,7 +643,7 @@
           <div class="big"><span id="stats-showing">0</span> <span class="muted">showing</span> <span class="muted">/</span> <span id="stats-total">0</span> <span class="muted">events</span></div>
           <div class="muted" id="stats-range">—</div>
         </div>
-        <div id="timeline" class="timeline" role="list"></div>
+        <div id="timeline" class="timeline" role="list" tabindex="0" aria-label="Events list"></div>
       </section>
 
       <aside class="panel detail" aria-label="Details">
@@ -715,6 +721,7 @@
 
     let lastActiveElementBeforeModal = null;
     let lastBodyOverflow = null;
+    let suppressUrlStateSync = false;
 
     function setStatus(message, kind = 'good') {
       if (!message) {
@@ -974,6 +981,103 @@
       setOptions(els.typeFilter, Array.from(typeSet).sort(), state.filters.type);
       setOptions(els.payloadFilter, Array.from(payloadSet).sort(), state.filters.payload);
       setOptions(els.roleFilter, Array.from(roleSet).sort(), state.filters.role);
+
+      // Only clamp unknown filter values once we have real options (i.e. after loading a file).
+      if (events.length) {
+        state.filters.type = els.typeFilter.value || 'all';
+        state.filters.payload = els.payloadFilter.value || 'all';
+        state.filters.role = els.roleFilter.value || 'all';
+      }
+    }
+
+    function readHashParams() {
+      const raw = window.location.hash && window.location.hash.startsWith('#')
+        ? window.location.hash.slice(1)
+        : '';
+      return new URLSearchParams(raw);
+    }
+
+    function writeHashParams(params) {
+      const base = window.location.href.split('#')[0];
+      const hash = params.toString();
+      const next = base + (hash ? `#${hash}` : '');
+      window.history.replaceState(null, '', next);
+    }
+
+    function syncUrlHashFromControls({ clearSel = false } = {}) {
+      if (suppressUrlStateSync) return;
+      const params = readHashParams();
+      params.set('tz', state.tzMode);
+      params.set('q', (els.search.value || '').trim());
+      params.set('type', state.filters.type || 'all');
+      params.set('payload', state.filters.payload || 'all');
+      params.set('role', state.filters.role || 'all');
+      params.set('hide', state.filters.hideTokenCount ? '1' : '0');
+      params.set('truncate', els.truncateStrings.checked ? '1' : '0');
+      const selectedLine = state.selected?.line;
+      if (typeof selectedLine === 'number' && Number.isFinite(selectedLine)) {
+        params.set('sel', String(selectedLine));
+      } else if (clearSel) {
+        params.delete('sel');
+      }
+      writeHashParams(params);
+    }
+
+    function applySelectionFromHash() {
+      if (!state.events.length) return;
+      const params = readHashParams();
+      const raw = params.get('sel');
+      if (!raw) return;
+      const line = Number(raw);
+      if (!Number.isFinite(line)) return;
+      const found = state.events.find(e => e.line === line);
+      if (!found) return;
+      if (state.selectedId === found.id) return;
+      suppressUrlStateSync = true;
+      try {
+        selectEvent(found.id, { scroll: true });
+      } finally {
+        suppressUrlStateSync = false;
+      }
+    }
+
+    function applyControlsFromHash() {
+      const params = readHashParams();
+      suppressUrlStateSync = true;
+      try {
+        const q = params.get('q');
+        if (q !== null) {
+          els.search.value = q;
+          state.filters.query = q.trim().toLowerCase();
+        }
+
+        const type = params.get('type');
+        if (type !== null) state.filters.type = type;
+        const payload = params.get('payload');
+        if (payload !== null) state.filters.payload = payload;
+        const role = params.get('role');
+        if (role !== null) state.filters.role = role;
+
+        const hide = params.get('hide');
+        if (hide !== null) {
+          els.hideTokenCount.checked = hide === '1' || hide === 'true';
+          state.filters.hideTokenCount = els.hideTokenCount.checked;
+        }
+
+        const truncate = params.get('truncate');
+        if (truncate !== null) {
+          els.truncateStrings.checked = truncate === '1' || truncate === 'true';
+        }
+
+        const tz = params.get('tz');
+        if (tz === 'utc' || tz === 'local') {
+          state.tzMode = tz;
+          els.tzLocal.classList.toggle('active', tz === 'local');
+          els.tzUtc.classList.toggle('active', tz === 'utc');
+        }
+      } finally {
+        suppressUrlStateSync = false;
+      }
     }
 
     function applyFilters() {
@@ -1011,7 +1115,7 @@
       renderTimeline();
     }
 
-    function clearSelection() {
+    function clearSelection({ syncHash = true } = {}) {
       state.selectedId = null;
       state.selected = null;
       els.detailTitle.textContent = 'Select an event';
@@ -1023,6 +1127,7 @@
       for (const node of els.timeline.querySelectorAll('.event.selected')) {
         node.classList.remove('selected');
       }
+      if (syncHash) syncUrlHashFromControls({ clearSel: true });
     }
 
     function renderTimeline() {
@@ -1106,7 +1211,7 @@
         row.appendChild(time);
         row.appendChild(body);
 
-        row.addEventListener('click', () => selectEvent(e.id));
+        row.addEventListener('click', () => selectEvent(e.id, { focusTimeline: true }));
         fragment.appendChild(row);
 
         if (e.date instanceof Date && !Number.isNaN(e.date.getTime())) prevDate = e.date;
@@ -1119,15 +1224,19 @@
         if (!stillThere) clearSelection();
         else selectEvent(state.selectedId, { scroll: false });
       } else {
-        clearSelection();
+        clearSelection({ syncHash: false });
       }
     }
 
-    function selectEvent(id, { scroll = false } = {}) {
+    function selectEvent(id, { scroll = false, focusTimeline = false } = {}) {
       const e = state.filtered.find(item => item.id === id) || state.events.find(item => item.id === id);
       if (!e) return;
       state.selectedId = id;
       state.selected = e;
+
+      if (focusTimeline) {
+        els.timeline.focus({ preventScroll: true });
+      }
 
       for (const node of els.timeline.querySelectorAll('.event.selected')) {
         node.classList.remove('selected');
@@ -1152,6 +1261,7 @@
       els.detailJson.textContent = stringifyJson(e.obj, shouldTruncate) || '';
       els.copyJson.disabled = false;
       els.copyRaw.disabled = false;
+      syncUrlHashFromControls();
     }
 
     function extractImageUrls(obj) {
@@ -1215,6 +1325,25 @@
       els.detailImages.hidden = false;
     }
 
+    function isEditableElement(el) {
+      if (!(el instanceof HTMLElement)) return false;
+      if (el.isContentEditable) return true;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    }
+
+    function moveSelection(delta) {
+      if (!state.filtered.length) return;
+      const idx = state.filtered.findIndex(e => e.id === state.selectedId);
+      if (idx === -1) {
+        selectEvent(state.filtered[0].id, { scroll: true });
+        return;
+      }
+      const nextIdx = Math.max(0, Math.min(state.filtered.length - 1, idx + delta));
+      if (nextIdx === idx) return;
+      selectEvent(state.filtered[nextIdx].id, { scroll: true });
+    }
+
     async function copyText(text) {
       if (typeof text !== 'string') return;
       try {
@@ -1239,6 +1368,7 @@
       els.tzUtc.classList.toggle('active', mode === 'utc');
       applyFilters();
       if (state.selectedId !== null) selectEvent(state.selectedId);
+      syncUrlHashFromControls();
     }
 
     els.imageModalClose.addEventListener('click', closeImageModal);
@@ -1247,6 +1377,17 @@
     });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') closeImageModal();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (els.imageModal.classList.contains('open')) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      if (isEditableElement(document.activeElement)) return;
+      if (document.activeElement !== els.timeline && !els.timeline.contains(document.activeElement)) return;
+      if (state.selectedId === null) return;
+      event.preventDefault();
+      moveSelection(event.key === 'ArrowUp' ? -1 : 1);
     });
 
 	    function setTab(tabName) {
@@ -1289,7 +1430,7 @@
 	      const started = performance.now();
 	      state.sourceLabel = sourceLabel || null;
 	      setStatus(`Parsing ${sourceLabel || 'content'}…`, 'warn');
-	      clearSelection();
+	      clearSelection({ syncHash: false });
 
       const lines = text.split(/\r?\n/);
       const events = [];
@@ -1329,6 +1470,8 @@
       state.events = events;
       updateFilterOptions(events);
       applyFilters();
+      applySelectionFromHash();
+      syncUrlHashFromControls();
 
       const durationMs = Math.round(performance.now() - started);
       if (errors.length) {
@@ -1399,25 +1542,31 @@
     els.search.addEventListener('input', () => {
       state.filters.query = els.search.value.trim().toLowerCase();
       applyFilters();
+      syncUrlHashFromControls();
     });
     els.typeFilter.addEventListener('change', () => {
       state.filters.type = els.typeFilter.value;
       applyFilters();
+      syncUrlHashFromControls();
     });
     els.payloadFilter.addEventListener('change', () => {
       state.filters.payload = els.payloadFilter.value;
       applyFilters();
+      syncUrlHashFromControls();
     });
     els.roleFilter.addEventListener('change', () => {
       state.filters.role = els.roleFilter.value;
       applyFilters();
+      syncUrlHashFromControls();
     });
     els.hideTokenCount.addEventListener('change', () => {
       state.filters.hideTokenCount = els.hideTokenCount.checked;
       applyFilters();
+      syncUrlHashFromControls();
     });
     els.truncateStrings.addEventListener('change', () => {
       if (state.selectedId !== null) selectEvent(state.selectedId);
+      syncUrlHashFromControls();
     });
 
     els.clearFilters.addEventListener('click', () => {
@@ -1430,6 +1579,7 @@
       els.hideTokenCount.checked = true;
       updateFilterOptions(state.events);
       applyFilters();
+      syncUrlHashFromControls();
     });
 
     els.copyJson.addEventListener('click', () => {
@@ -1450,7 +1600,15 @@
 	    }
 
 	    // Initialize select options for the empty state.
+      applyControlsFromHash();
 	    updateFilterOptions([]);
+      syncUrlHashFromControls();
+      window.addEventListener('hashchange', () => {
+        applyControlsFromHash();
+        updateFilterOptions(state.events);
+        applyFilters();
+        applySelectionFromHash();
+      });
 	    void initFromQuery();
 	  </script>
 </body>
