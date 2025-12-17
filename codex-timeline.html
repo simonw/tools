@@ -1080,22 +1080,47 @@
       if (state.selectedId !== null) selectEvent(state.selectedId);
     }
 
-    function setTab(tabName) {
-      for (const tab of document.querySelectorAll('.tab')) {
-        const active = tab.dataset.tab === tabName;
-        tab.classList.toggle('active', active);
-        tab.setAttribute('aria-selected', active ? 'true' : 'false');
-      }
-      for (const panel of document.querySelectorAll('[data-panel]')) {
-        panel.hidden = panel.dataset.panel !== tabName;
-      }
-    }
+	    function setTab(tabName) {
+	      for (const tab of document.querySelectorAll('.tab')) {
+	        const active = tab.dataset.tab === tabName;
+	        tab.classList.toggle('active', active);
+	        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+	      }
+	      for (const panel of document.querySelectorAll('[data-panel]')) {
+	        panel.hidden = panel.dataset.panel !== tabName;
+	      }
+	    }
 
-    async function loadText(text, sourceLabel) {
-      const started = performance.now();
-      state.sourceLabel = sourceLabel || null;
-      setStatus(`Parsing ${sourceLabel || 'content'}…`, 'warn');
-      clearSelection();
+	    function setShareUrlParam(url) {
+	      const current = new URL(window.location.href);
+	      if (url) current.searchParams.set('url', url);
+	      else current.searchParams.delete('url');
+	      window.history.replaceState(null, '', current);
+	    }
+
+	    async function fetchAndRenderUrl(url, { syncUrl = true } = {}) {
+	      const trimmed = (url || '').trim();
+	      if (!trimmed) {
+	        setStatus('Enter a URL first.', 'error');
+	        return;
+	      }
+	      if (syncUrl) setShareUrlParam(trimmed);
+	      setStatus(`Fetching ${trimmed}…`, 'warn');
+	      try {
+	        const resp = await fetch(trimmed, { mode: 'cors' });
+	        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+	        const text = await resp.text();
+	        await loadText(text, trimmed);
+	      } catch (error) {
+	        setStatus(`Failed to fetch URL: ${String(error)}`, 'error');
+	      }
+	    }
+
+	    async function loadText(text, sourceLabel) {
+	      const started = performance.now();
+	      state.sourceLabel = sourceLabel || null;
+	      setStatus(`Parsing ${sourceLabel || 'content'}…`, 'warn');
+	      clearSelection();
 
       const lines = text.split(/\r?\n/);
       const events = [];
@@ -1149,13 +1174,14 @@
       }
     }
 
-    async function handleFile(file) {
-      if (!file) return;
-      try {
-        const text = await file.text();
-        await loadText(text, file.name);
-      } catch (error) {
-        setStatus(`Failed to read file: ${String(error)}`, 'error');
+	    async function handleFile(file) {
+	      if (!file) return;
+	      setShareUrlParam(null);
+	      try {
+	        const text = await file.text();
+	        await loadText(text, file.name);
+	      } catch (error) {
+	        setStatus(`Failed to read file: ${String(error)}`, 'error');
       }
     }
 
@@ -1180,31 +1206,19 @@
       if (file) handleFile(file);
     });
 
-    els.renderPaste.addEventListener('click', async () => {
-      const text = els.pasteInput.value || '';
-      if (!text.trim()) {
-        setStatus('Paste some JSONL content first.', 'error');
-        return;
-      }
-      await loadText(text, 'pasted content');
-    });
+	    els.renderPaste.addEventListener('click', async () => {
+	      const text = els.pasteInput.value || '';
+	      if (!text.trim()) {
+	        setStatus('Paste some JSONL content first.', 'error');
+	        return;
+	      }
+	      setShareUrlParam(null);
+	      await loadText(text, 'pasted content');
+	    });
 
-    els.fetchUrl.addEventListener('click', async () => {
-      const url = els.urlInput.value.trim();
-      if (!url) {
-        setStatus('Enter a URL first.', 'error');
-        return;
-      }
-      setStatus(`Fetching ${url}…`, 'warn');
-      try {
-        const resp = await fetch(url, { mode: 'cors' });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const text = await resp.text();
-        await loadText(text, url);
-      } catch (error) {
-        setStatus(`Failed to fetch URL: ${String(error)}`, 'error');
-      }
-    });
+	    els.fetchUrl.addEventListener('click', async () => {
+	      await fetchAndRenderUrl(els.urlInput.value, { syncUrl: true });
+	    });
 
     for (const tab of document.querySelectorAll('.tab')) {
       tab.addEventListener('click', () => setTab(tab.dataset.tab));
@@ -1253,13 +1267,22 @@
       if (!state.selected) return;
       copyText(stringifyJson(state.selected.obj, false));
     });
-    els.copyRaw.addEventListener('click', () => {
-      if (!state.selected) return;
-      copyText(state.selected.raw);
-    });
+	    els.copyRaw.addEventListener('click', () => {
+	      if (!state.selected) return;
+	      copyText(state.selected.raw);
+	    });
 
-    // Initialize select options for the empty state.
-    updateFilterOptions([]);
-  </script>
+	    async function initFromQuery() {
+	      const url = new URLSearchParams(window.location.search).get('url');
+	      if (!url) return;
+	      setTab('url');
+	      els.urlInput.value = url;
+	      await fetchAndRenderUrl(url, { syncUrl: false });
+	    }
+
+	    // Initialize select options for the empty state.
+	    updateFilterOptions([]);
+	    void initFromQuery();
+	  </script>
 </body>
 </html>
