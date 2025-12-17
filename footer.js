@@ -128,7 +128,7 @@
     const footer = document.createElement('footer');
     footer.innerHTML = `
         <hr style="margin: 2rem 0 1rem 0; border: none; border-top: 1px solid ${textColor};">
-        <nav style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; text-align: center; font-style: normal;">
+        <nav style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; text-align: center; font-style: normal; padding-bottom: 1rem;">
             <a href="/" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">Home</a>
             <a href="/colophon#${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">About ${pageName}</a>
             <a href="https://github.com/simonw/tools/blob/main/${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">View source</a>
