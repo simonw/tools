@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Claude Code Timeline Viewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js" integrity="sha384-osZDKVu4ipZP703HmPOhWdyBajcFyjX2Psjk//TG1Rc0AdwEtuToaylrmcK3LdAl" crossorigin="anonymous"></script>
   <style>
     :root {
       color-scheme: light dark;
@@ -1644,7 +1645,7 @@
     function renderMarkdown(text) {
       if (typeof text !== 'string') return '';
 
-      // Escape HTML first
+      // Escape HTML first to prevent raw HTML injection
       let html = escapeHtml(text);
 
       // Code blocks (```...```)
@@ -1693,7 +1694,9 @@
         return `<p>${para.replace(/\n/g, '<br>')}</p>`;
       }).join('\n');
 
-      return html;
+      // Sanitize with DOMPurify to prevent XSS from crafted markdown
+      // (e.g., javascript: URLs in links, attribute injection via quotes)
+      return DOMPurify.sanitize(html);
     }
 
     function renderPrettyView(obj) {
