@@ -1,3 +1,3 @@
-View Claude Code session timelines by loading `.jsonl` files exported from Claude projects and exploring them as an interactive event log. Filter events by type, content, role, and search terms while viewing detailed JSON data for each event, with support for timezone conversion, image preview, and shareable URL states.
+View Claude Code session timeline logs with an interactive explorer that displays events in chronological order with filtering and search capabilities. Load `.jsonl` files from your local machine, paste content directly, or fetch from a URL, then browse individual messages, tool calls, and results with syntax highlighting and formatted display. Navigate through the timeline with keyboard controls, filter by event type or content, and inspect raw JSON or pretty-printed views of any event.
 
-<!-- Generated from commit: e6a1b498961e5618c082de744d5b136c1f5752fe -->
+<!-- Generated from commit: bebff95056203fc05cd3ecd5865e8d3efd8fb581 -->
