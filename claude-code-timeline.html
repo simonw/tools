@@ -941,6 +941,10 @@
       </div>
     </section>
 
+    <div class="controls" style="margin-bottom: 14px;">
+      <button type="button" class="btn" id="copy-prompts">Copy prompts</button>
+    </div>
+
     <main>
       <section class="panel timeline-panel" aria-label="Timeline">
         <div class="stats">
@@ -1011,6 +1015,7 @@
       imageModal: document.getElementById('image-modal'),
       imageModalImg: document.getElementById('image-modal-img'),
       imageModalClose: document.getElementById('image-modal-close'),
+      copyPrompts: document.getElementById('copy-prompts'),
     };
 
     const state = {
@@ -2014,6 +2019,45 @@
       }
     }
 
+    function extractUserPrompts() {
+      const prompts = [];
+      for (const e of state.events) {
+        // Filter: type=user, content-type includes text, role=user
+        if (e.kind !== 'user') continue;
+        if (e.role !== 'user') continue;
+        if (!e.contentTypes.includes('text')) continue;
+
+        const message = e.obj?.message;
+        if (!message) continue;
+
+        const content = message.content;
+        if (typeof content === 'string') {
+          prompts.push(content);
+        } else if (Array.isArray(content)) {
+          for (const item of content) {
+            if (item?.type === 'text' && item.text) {
+              prompts.push(item.text);
+            }
+          }
+        }
+      }
+      return prompts.join('\n\n');
+    }
+
+    async function copyUserPrompts() {
+      const text = extractUserPrompts();
+      if (!text) {
+        setStatus('No user prompts found.', 'warn');
+        return;
+      }
+      await copyText(text);
+      const originalText = els.copyPrompts.textContent;
+      els.copyPrompts.textContent = 'Copied!';
+      setTimeout(() => {
+        els.copyPrompts.textContent = originalText;
+      }, 2000);
+    }
+
     function setTimezoneMode(mode) {
       state.tzMode = mode;
       els.tzLocal.classList.toggle('active', mode === 'local');
@@ -2248,6 +2292,7 @@
       if (!state.selected) return;
       copyText(state.selected.raw);
     });
+    els.copyPrompts.addEventListener('click', copyUserPrompts);
 
     async function initFromQuery() {
       const url = new URLSearchParams(window.location.search).get('url');
