@@ -4,6 +4,13 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## claude_code_to_gist.py
+
+```bash
+uv run https://tools.simonwillison.net/python/claude_code_to_gist.py
+```
+Shows an interactive list where you can select a recent Claude Code conversation, then publishes that conversation to a GitHub Gist using the `gh` CLI tool and returns a URL to the [claude-code-timeline viewer](https://tools.simonwillison.net/claude-code-timeline) for that Gist.
+
 ## extract_issues.py
 
 ```bash
