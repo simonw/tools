@@ -1,3 +1,5 @@
-Explore Codex rollout timeline data with an interactive viewer that parses `.jsonl` files and displays events in a searchable, filterable interface. Load files via drag-and-drop, file picker, paste, or URL, then browse events organized by day with detailed filtering by type, payload kind, and role. Select individual events to inspect their full JSON representation, view associated images, and copy data to your clipboard.
+# Codex Timeline Viewer
 
-<!-- Generated from commit: d2786838805d90e1e17c47ef24224ec9bde3c313 -->
+Explore Mozilla Codex rollout events through an interactive timeline with powerful filtering and search capabilities. Load a `.jsonl` file via drag-and-drop, file picker, text paste, or URL fetch to visualize the sequence of events, view detailed JSON payloads, and navigate through timestamped entries. The viewer automatically groups events by day, supports local and UTC timezone display, and includes filters for event type, payload kind, and message role to help you focus on relevant data.
+
+<!-- Generated from commit: 2fcee53e5467859bac9b9ee16b60cd862534ea74 -->
