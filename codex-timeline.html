@@ -401,7 +401,7 @@
 
     .detail {
       display: grid;
-      grid-template-rows: auto 1fr;
+      grid-template-rows: auto auto 1fr;
       min-height: 560px;
     }
 
@@ -460,6 +460,89 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
+
+    .detail-images {
+      display: flex;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+    }
+
+    .thumb {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+      border-radius: 12px;
+      padding: 0;
+      cursor: pointer;
+      width: 78px;
+      height: 58px;
+      overflow: hidden;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: stretch;
+    }
+
+    .thumb:hover { border-color: var(--line-2); }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .image-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.68);
+      display: none;
+      padding: 18px;
+      place-items: center;
+    }
+
+    .image-modal.open { display: grid; }
+
+    .image-modal .dialog {
+      position: relative;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 98%, transparent);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      max-width: min(1200px, 96vw);
+      max-height: 92vh;
+      display: grid;
+      place-items: center;
+    }
+
+    .image-modal img {
+      display: block;
+      max-width: min(1140px, 92vw);
+      max-height: 84vh;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+    }
+
+    .image-modal .close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 10px;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .image-modal .close:hover { border-color: var(--line-2); }
 
     .empty {
       padding: 14px;
@@ -569,9 +652,17 @@
             </label>
           </div>
         </div>
+        <div id="detail-images" class="detail-images" hidden aria-label="Event images"></div>
         <pre id="detail-json" aria-label="Selected event JSON" class="empty">Load a file to get started.</pre>
       </aside>
     </main>
+  </div>
+
+  <div id="image-modal" class="image-modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="dialog">
+      <button type="button" class="close" id="image-modal-close" aria-label="Close image">Close</button>
+      <img id="image-modal-img" alt="" />
+    </div>
   </div>
 
   <script>
@@ -585,6 +676,7 @@
       status: document.getElementById('status'),
       timeline: document.getElementById('timeline'),
       detailTitle: document.getElementById('detail-title'),
+      detailImages: document.getElementById('detail-images'),
       detailJson: document.getElementById('detail-json'),
       copyJson: document.getElementById('copy-json'),
       copyRaw: document.getElementById('copy-raw'),
@@ -600,6 +692,9 @@
       statsTotal: document.getElementById('stats-total'),
       statsRange: document.getElementById('stats-range'),
       clearFilters: document.getElementById('clear-filters'),
+      imageModal: document.getElementById('image-modal'),
+      imageModalImg: document.getElementById('image-modal-img'),
+      imageModalClose: document.getElementById('image-modal-close'),
     };
 
     const state = {
@@ -617,6 +712,9 @@
         hideTokenCount: true,
       },
     };
+
+    let lastActiveElementBeforeModal = null;
+    let lastBodyOverflow = null;
 
     function setStatus(message, kind = 'good') {
       if (!message) {
@@ -917,6 +1015,7 @@
       state.selectedId = null;
       state.selected = null;
       els.detailTitle.textContent = 'Select an event';
+      renderDetailImages(null);
       els.detailJson.textContent = state.events.length ? 'Select an event from the timeline.' : 'Load a file to get started.';
       els.detailJson.classList.add('empty');
       els.copyJson.disabled = true;
@@ -1049,9 +1148,71 @@
       els.detailTitle.textContent = titleParts.join(' ');
 
       const shouldTruncate = els.truncateStrings.checked;
+      renderDetailImages(e.obj);
       els.detailJson.textContent = stringifyJson(e.obj, shouldTruncate) || '';
       els.copyJson.disabled = false;
       els.copyRaw.disabled = false;
+    }
+
+    function extractImageUrls(obj) {
+      const payloadImages = obj?.payload?.images;
+      if (Array.isArray(payloadImages)) return payloadImages.filter(v => typeof v === 'string' && v.trim());
+      const rootImages = obj?.images;
+      if (Array.isArray(rootImages)) return rootImages.filter(v => typeof v === 'string' && v.trim());
+      return [];
+    }
+
+    function openImageModal(src, altText = '') {
+      if (!src) return;
+      lastActiveElementBeforeModal = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      lastBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      els.imageModalImg.src = src;
+      els.imageModalImg.alt = altText;
+      els.imageModal.classList.add('open');
+      els.imageModal.setAttribute('aria-hidden', 'false');
+      els.imageModalClose.focus();
+    }
+
+    function closeImageModal() {
+      if (!els.imageModal.classList.contains('open')) return;
+      els.imageModal.classList.remove('open');
+      els.imageModal.setAttribute('aria-hidden', 'true');
+      els.imageModalImg.removeAttribute('src');
+      els.imageModalImg.alt = '';
+      document.body.style.overflow = lastBodyOverflow ?? '';
+
+      if (lastActiveElementBeforeModal) {
+        lastActiveElementBeforeModal.focus();
+      }
+      lastActiveElementBeforeModal = null;
+      lastBodyOverflow = null;
+    }
+
+    function renderDetailImages(obj) {
+      const urls = extractImageUrls(obj);
+      els.detailImages.innerHTML = '';
+      if (!urls.length) {
+        els.detailImages.hidden = true;
+        return;
+      }
+      const fragment = document.createDocumentFragment();
+      urls.forEach((src, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'thumb';
+        btn.title = `Open image ${idx + 1}`;
+        const img = document.createElement('img');
+        img.loading = 'lazy';
+        img.src = src;
+        img.alt = `Image ${idx + 1}`;
+        btn.appendChild(img);
+        btn.addEventListener('click', () => openImageModal(src, `Image ${idx + 1}`));
+        fragment.appendChild(btn);
+      });
+      els.detailImages.appendChild(fragment);
+      els.detailImages.hidden = false;
     }
 
     async function copyText(text) {
@@ -1079,6 +1240,14 @@
       applyFilters();
       if (state.selectedId !== null) selectEvent(state.selectedId);
     }
+
+    els.imageModalClose.addEventListener('click', closeImageModal);
+    els.imageModal.addEventListener('click', (event) => {
+      if (event.target === els.imageModal) closeImageModal();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeImageModal();
+    });
 
 	    function setTab(tabName) {
 	      for (const tab of document.querySelectorAll('.tab')) {
