@@ -860,6 +860,63 @@
       color: var(--muted);
       font-weight: 500;
     }
+
+    .prompts-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      background: rgba(0, 0, 0, 0.68);
+      display: none;
+      padding: 18px;
+      place-items: center;
+    }
+
+    .prompts-modal.open { display: grid; }
+
+    .prompts-modal .dialog {
+      position: relative;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 98%, transparent);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      width: min(1100px, 96vw);
+      height: min(86vh, 780px);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+    }
+
+    .prompts-head {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .prompts-title {
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .prompts-modal textarea {
+      width: 100%;
+      height: 100%;
+      resize: none;
+      border-radius: 12px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.45;
+      padding: 12px;
+    }
+
+    .prompts-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
   <body>
@@ -942,7 +999,7 @@
     </section>
 
     <div class="controls" style="margin-bottom: 14px;">
-      <button type="button" class="btn" id="copy-prompts">Copy prompts</button>
+      <button type="button" class="btn" id="show-prompts" disabled>Show prompts</button>
     </div>
 
     <main>
@@ -983,6 +1040,19 @@
     </div>
   </div>
 
+  <div id="prompts-modal" class="prompts-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="User prompts">
+    <div class="dialog">
+      <div class="prompts-head">
+        <div class="prompts-title">User prompts</div>
+        <button type="button" class="btn" id="prompts-close" aria-label="Close prompts">Close</button>
+      </div>
+      <textarea id="prompts-text" readonly spellcheck="false"></textarea>
+      <div class="prompts-actions">
+        <button type="button" class="btn primary" id="prompts-copy">Copy</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const els = {
       dropzone: document.getElementById('dropzone'),
@@ -1015,7 +1085,11 @@
       imageModal: document.getElementById('image-modal'),
       imageModalImg: document.getElementById('image-modal-img'),
       imageModalClose: document.getElementById('image-modal-close'),
-      copyPrompts: document.getElementById('copy-prompts'),
+      showPrompts: document.getElementById('show-prompts'),
+      promptsModal: document.getElementById('prompts-modal'),
+      promptsClose: document.getElementById('prompts-close'),
+      promptsText: document.getElementById('prompts-text'),
+      promptsCopy: document.getElementById('prompts-copy'),
     };
 
     const state = {
@@ -1036,6 +1110,9 @@
 
     let lastActiveElementBeforeModal = null;
     let lastBodyOverflow = null;
+    let lastActiveElementBeforePrompts = null;
+    let lastBodyOverflowBeforePrompts = null;
+    let promptsCopiedTimer = null;
     let suppressUrlStateSync = false;
     const wideLayoutMq = window.matchMedia('(min-width: 1060px)');
     const detailDock = document.createElement('div');
@@ -2044,18 +2121,28 @@
       return prompts.join('\n\n');
     }
 
-    async function copyUserPrompts() {
-      const text = extractUserPrompts();
-      if (!text) {
-        setStatus('No user prompts found.', 'warn');
-        return;
-      }
-      await copyText(text);
-      const originalText = els.copyPrompts.textContent;
-      els.copyPrompts.textContent = 'Copied!';
-      setTimeout(() => {
-        els.copyPrompts.textContent = originalText;
-      }, 2000);
+    function openPromptsModal(text) {
+      lastActiveElementBeforePrompts = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      lastBodyOverflowBeforePrompts = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      els.promptsText.value = text || '';
+      els.promptsModal.classList.add('open');
+      els.promptsModal.setAttribute('aria-hidden', 'false');
+      els.promptsClose.focus();
+      els.promptsText.scrollTop = 0;
+    }
+
+    function closePromptsModal() {
+      if (!els.promptsModal.classList.contains('open')) return;
+      els.promptsModal.classList.remove('open');
+      els.promptsModal.setAttribute('aria-hidden', 'true');
+      els.promptsText.value = '';
+      document.body.style.overflow = lastBodyOverflowBeforePrompts ?? '';
+
+      if (lastActiveElementBeforePrompts) lastActiveElementBeforePrompts.focus();
+      lastActiveElementBeforePrompts = null;
+      lastBodyOverflowBeforePrompts = null;
     }
 
     function setTimezoneMode(mode) {
@@ -2067,16 +2154,47 @@
       syncUrlHashFromControls();
     }
 
+    els.promptsClose.addEventListener('click', closePromptsModal);
+    els.promptsModal.addEventListener('click', (event) => {
+      if (event.target === els.promptsModal) closePromptsModal();
+    });
+    els.promptsCopy.addEventListener('click', async () => {
+      const text = els.promptsText.value || '';
+      if (!text.trim()) {
+        setStatus('No user prompts found.', 'warn');
+        return;
+      }
+      await copyText(text);
+      if (promptsCopiedTimer) clearTimeout(promptsCopiedTimer);
+      const originalText = els.promptsCopy.textContent;
+      els.promptsCopy.textContent = 'Copied!';
+      promptsCopiedTimer = setTimeout(() => {
+        els.promptsCopy.textContent = originalText;
+        promptsCopiedTimer = null;
+      }, 1500);
+    });
+    els.showPrompts.addEventListener('click', () => {
+      const text = extractUserPrompts();
+      if (!text) {
+        setStatus('No user prompts found.', 'warn');
+        return;
+      }
+      openPromptsModal(text);
+    });
+
     els.imageModalClose.addEventListener('click', closeImageModal);
     els.imageModal.addEventListener('click', (event) => {
       if (event.target === els.imageModal) closeImageModal();
     });
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeImageModal();
+      if (event.key !== 'Escape') return;
+      if (els.promptsModal.classList.contains('open')) closePromptsModal();
+      if (els.imageModal.classList.contains('open')) closeImageModal();
     });
 
     document.addEventListener('keydown', (event) => {
       if (els.imageModal.classList.contains('open')) return;
+      if (els.promptsModal.classList.contains('open')) return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
       if (isEditableElement(document.activeElement)) return;
@@ -2132,6 +2250,8 @@
       const started = performance.now();
       state.sourceLabel = sourceLabel || null;
       setStatus(`Parsing ${sourceLabel || 'content'}...`, 'warn');
+      closePromptsModal();
+      els.showPrompts.disabled = true;
       clearSelection({ syncHash: false });
 
       const lines = text.split(/\r?\n/);
@@ -2170,6 +2290,7 @@
       }
 
       state.events = events;
+      els.showPrompts.disabled = !events.length;
       updateFilterOptions(events);
       applyFilters();
       applySelectionFromHash();
@@ -2292,7 +2413,6 @@
       if (!state.selected) return;
       copyText(state.selected.raw);
     });
-    els.copyPrompts.addEventListener('click', copyUserPrompts);
 
     async function initFromQuery() {
       const url = new URLSearchParams(window.location.search).get('url');
