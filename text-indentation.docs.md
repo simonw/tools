@@ -1,3 +1,3 @@
-Modify text indentation by adding or removing leading spaces from each line, or format text with quotation markers. The tool offers multiple options including indenting by 2 or 4 spaces, removing specific indentation levels, and toggling quote prefixes on all lines. An unquote button automatically appears when all non-empty lines are quoted, providing a convenient way to reverse the formatting.
+Adjust indentation levels in your text with this tool that offers multiple formatting options. Add or remove spaces from the beginning of each line, strip all leading whitespace, eliminate trailing spaces, and apply or remove quote markers (>) for formatted text. Copy the processed result directly to your clipboard with a single click.
 
-<!-- Generated from commit: b30871bf30cc8b195bad85d43291fc0dece96793 -->
+<!-- Generated from commit: 42c83ef2843c8e5d1645b3921b8ee05a1a81bbea -->
