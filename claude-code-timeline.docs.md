@@ -1,3 +1,3 @@
-View Claude Code session timelines by loading `.jsonl` files exported from the Claude Code editor. This viewer displays a chronological sequence of events including messages, tool calls, and file snapshots, with support for searching, filtering by type or role, and examining individual events in detail. All timestamps are displayed in your local timezone by default, and the interactive interface preserves your view state through URL parameters for easy sharing.
+View Claude Code session files as an interactive timeline to explore conversations and tool usage chronologically. Load a `.jsonl` file from your local filesystem or a CORS-enabled URL, then filter and search through events by type, content, role, and custom queries. The viewer displays formatted message content, tool calls and results, images, and thinking blocks alongside raw JSON data for each event.
 
-<!-- Generated from commit: 8c53c07be071a86351b51a3a801ca6062166e4ad -->
+<!-- Generated from commit: 3edc789436070bb692eca081f787fc06ba17e3ab -->
