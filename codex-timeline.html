@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Codex Timeline Viewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js" integrity="sha384-osZDKVu4ipZP703HmPOhWdyBajcFyjX2Psjk//TG1Rc0AdwEtuToaylrmcK3LdAl" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/4.4.0/markdown-it.min.js" integrity="sha384-cxGp+QDeMxACP73aA0Lj0Sc/h4z1X73+umcvCyI0Vbyh3OYxgrPI+0mxG9slsMTN" crossorigin="anonymous"></script>
   <style>
     :root {
       color-scheme: light dark;
@@ -406,8 +408,8 @@
     }
 
 	    .detail {
-	      display: grid;
-	      grid-template-rows: auto auto 1fr;
+	      display: flex;
+	      flex-direction: column;
 	      min-height: 560px;
 	    }
 
@@ -479,6 +481,11 @@
       background: transparent;
       white-space: pre-wrap;
       word-break: break-word;
+    }
+
+    #detail-json {
+      flex: 1;
+      min-height: 0;
     }
 
     .detail-images {
@@ -570,6 +577,198 @@
       font-size: 13px;
       line-height: 1.35;
     }
+
+    .detail-pretty {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      overflow: auto;
+      max-height: 50vh;
+    }
+
+    .detail.inline .detail-pretty {
+      max-height: 40vh;
+    }
+
+    .pretty-section {
+      margin-bottom: 14px;
+    }
+
+    .pretty-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .pretty-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }
+
+    .pretty-content {
+      background: color-mix(in srgb, var(--panel-2) 85%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .pretty-content code {
+      font-family: var(--mono);
+      font-size: 0.95em;
+    }
+
+    .pretty-content pre {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre;
+      overflow: auto;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      max-height: 520px;
+    }
+
+    .thinking-block {
+      background: color-mix(in srgb, var(--accent-2) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-2) 30%, var(--line));
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .command-block {
+      background: color-mix(in srgb, var(--panel-2) 85%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .command-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 50%, transparent);
+      gap: 10px;
+    }
+
+    .tool-name {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .tool-desc {
+      font-size: 12px;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    .command-input {
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .tool-params {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 10px 12px;
+    }
+
+    .tool-param {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: start;
+      font-size: 12px;
+    }
+
+    .tool-param-name {
+      font-family: var(--mono);
+      font-weight: 600;
+      color: var(--accent);
+      padding: 2px 6px;
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .tool-param-value {
+      font-family: var(--mono);
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding: 2px 0;
+    }
+
+    .prompts-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      background: rgba(0, 0, 0, 0.68);
+      display: none;
+      padding: 18px;
+      place-items: center;
+    }
+
+    .prompts-modal.open { display: grid; }
+
+    .prompts-modal .dialog {
+      position: relative;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 98%, transparent);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      width: min(1100px, 96vw);
+      height: min(86vh, 780px);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+    }
+
+    .prompts-head {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .prompts-title {
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .prompts-modal textarea {
+      width: 100%;
+      height: 100%;
+      resize: none;
+      border-radius: 12px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.45;
+      padding: 12px;
+    }
+
+    .prompts-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
   <body>
@@ -651,6 +850,10 @@
       </div>
     </section>
 
+    <div class="controls" style="margin-bottom: 14px;">
+      <button type="button" class="btn" id="show-prompts" disabled>Show prompts</button>
+    </div>
+
     <main>
       <section class="panel timeline-panel" aria-label="Timeline">
         <div class="stats">
@@ -673,6 +876,7 @@
           </div>
         </div>
         <div id="detail-images" class="detail-images" hidden aria-label="Event images"></div>
+        <div id="detail-pretty" class="detail-pretty" hidden aria-label="Formatted event view"></div>
         <pre id="detail-json" aria-label="Selected event JSON" class="empty">Load a file to get started.</pre>
       </aside>
     </main>
@@ -682,6 +886,19 @@
     <div class="dialog">
       <button type="button" class="close" id="image-modal-close" aria-label="Close image">Close</button>
       <img id="image-modal-img" alt="" />
+    </div>
+  </div>
+
+  <div id="prompts-modal" class="prompts-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="User prompts">
+    <div class="dialog">
+      <div class="prompts-head">
+        <div class="prompts-title">User prompts</div>
+        <button type="button" class="btn" id="prompts-close" aria-label="Close prompts">Close</button>
+      </div>
+      <textarea id="prompts-text" readonly spellcheck="false"></textarea>
+      <div class="prompts-actions">
+        <button type="button" class="btn primary" id="prompts-copy">Copy</button>
+      </div>
     </div>
   </div>
 
@@ -698,6 +915,7 @@
 	      detailPanel: document.querySelector('aside.detail'),
 	      detailTitle: document.getElementById('detail-title'),
 	      detailImages: document.getElementById('detail-images'),
+	      detailPretty: document.getElementById('detail-pretty'),
 	      detailJson: document.getElementById('detail-json'),
 	      copyJson: document.getElementById('copy-json'),
 	      copyRaw: document.getElementById('copy-raw'),
@@ -716,7 +934,12 @@
       imageModal: document.getElementById('image-modal'),
       imageModalImg: document.getElementById('image-modal-img'),
       imageModalClose: document.getElementById('image-modal-close'),
-    };
+      showPrompts: document.getElementById('show-prompts'),
+      promptsModal: document.getElementById('prompts-modal'),
+      promptsClose: document.getElementById('prompts-close'),
+      promptsText: document.getElementById('prompts-text'),
+      promptsCopy: document.getElementById('prompts-copy'),
+	    };
 
     const state = {
       sourceLabel: null,
@@ -736,12 +959,40 @@
 
 	    let lastActiveElementBeforeModal = null;
 	    let lastBodyOverflow = null;
+      let lastActiveElementBeforePrompts = null;
+      let lastBodyOverflowBeforePrompts = null;
+      let promptsCopiedTimer = null;
 	    let suppressUrlStateSync = false;
 	    const wideLayoutMq = window.matchMedia('(min-width: 1060px)');
 	    const detailDock = document.createElement('div');
 	    detailDock.id = 'detail-dock';
 	    detailDock.style.display = 'none';
 	    els.detailPanel.parentElement.insertBefore(detailDock, els.detailPanel);
+
+    const md = typeof window.markdownit === 'function'
+      ? window.markdownit({
+        html: false,
+        linkify: true,
+        typographer: true,
+        breaks: true,
+      })
+      : null;
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = String(text ?? '');
+      return div.innerHTML;
+    }
+
+    function renderMarkdown(text) {
+      if (typeof text !== 'string') return '';
+      if (!md) return escapeHtml(text).replace(/\n/g, '<br>');
+      const html = md.render(text);
+      if (window.DOMPurify && typeof window.DOMPurify.sanitize === 'function') {
+        return window.DOMPurify.sanitize(html);
+      }
+      return html;
+    }
 
 	    function updateDetailPlacement() {
 	      const inline = !wideLayoutMq.matches;
@@ -981,6 +1232,262 @@
       return pieces.join('\n').toLowerCase();
     }
 
+    function normalizeShellCommand(args) {
+      if (!args || typeof args !== 'object') return null;
+      const cmd = args.command;
+      if (typeof cmd === 'string') return cmd;
+      if (Array.isArray(cmd)) return cmd.map(v => String(v)).join(' ');
+      if (Array.isArray(args.cmd)) return args.cmd.map(v => String(v)).join(' ');
+      if (typeof args.cmd === 'string') return args.cmd;
+      return null;
+    }
+
+    function renderPrettyView(obj) {
+      els.detailPretty.innerHTML = '';
+
+      if (!obj || typeof obj !== 'object') {
+        els.detailPretty.hidden = true;
+        return;
+      }
+
+      const payload = obj.payload && typeof obj.payload === 'object' ? obj.payload : null;
+      const payloadType = payload?.type;
+      const fragment = document.createDocumentFragment();
+      let hasContent = false;
+
+      function addSection(labelText, bodyEl) {
+        const section = document.createElement('div');
+        section.className = 'pretty-section';
+        const label = document.createElement('div');
+        label.className = 'pretty-label';
+        label.textContent = labelText;
+        section.appendChild(label);
+        section.appendChild(bodyEl);
+        fragment.appendChild(section);
+        hasContent = true;
+      }
+
+      if (payloadType === 'message') {
+        const role = payload?.role || 'message';
+        const content = payload?.content;
+
+        if (Array.isArray(content)) {
+          const textParts = [];
+          const thinkingParts = [];
+          for (const item of content) {
+            if (!item || typeof item !== 'object') continue;
+
+            const kind = item.type || '';
+            if ((kind === 'input_text' || kind === 'output_text' || kind === 'text') && typeof item.text === 'string') {
+              textParts.push(item.text);
+            } else if (kind === 'thinking' && typeof item.thinking === 'string') {
+              thinkingParts.push(item.thinking);
+            } else if (kind === 'tool_use' && item.name) {
+              const toolName = String(item.name);
+              const input = item.input && typeof item.input === 'object' ? item.input : {};
+
+              const block = document.createElement('div');
+              block.className = 'command-block';
+
+              const header = document.createElement('div');
+              header.className = 'command-header';
+              const nameSpan = document.createElement('span');
+              nameSpan.className = 'tool-name';
+              nameSpan.textContent = toolName;
+              header.appendChild(nameSpan);
+              block.appendChild(header);
+
+              if (Object.keys(input).length) {
+                const params = document.createElement('div');
+                params.className = 'tool-params';
+                for (const [key, value] of Object.entries(input)) {
+                  const param = document.createElement('div');
+                  param.className = 'tool-param';
+                  const paramName = document.createElement('span');
+                  paramName.className = 'tool-param-name';
+                  paramName.textContent = key;
+                  const paramValue = document.createElement('span');
+                  paramValue.className = 'tool-param-value';
+                  if (typeof value === 'string') paramValue.textContent = value.length > 2000 ? value.slice(0, 2000) + '…' : value;
+                  else paramValue.textContent = JSON.stringify(value, null, 2);
+                  param.appendChild(paramName);
+                  param.appendChild(paramValue);
+                  params.appendChild(param);
+                }
+                block.appendChild(params);
+              }
+
+              addSection('Tool', block);
+            }
+          }
+
+          const joinedText = textParts.map(v => String(v ?? '').trim()).filter(Boolean).join('\n\n').trim();
+          if (joinedText) {
+            const body = document.createElement('div');
+            body.className = 'pretty-content';
+            body.innerHTML = renderMarkdown(joinedText);
+            addSection(role === 'assistant' ? 'Response' : 'Prompt', body);
+          }
+
+          const joinedThinking = thinkingParts.map(v => String(v ?? '').trim()).filter(Boolean).join('\n\n').trim();
+          if (joinedThinking) {
+            const body = document.createElement('div');
+            body.className = 'thinking-block';
+            body.innerHTML = renderMarkdown(joinedThinking);
+            addSection('Thinking', body);
+          }
+        }
+      }
+
+      if (payloadType === 'user_message' || payloadType === 'agent_message') {
+        const msg = typeof payload?.message === 'string' ? payload.message : '';
+        if (msg) {
+          const body = document.createElement('div');
+          body.className = 'pretty-content';
+          body.innerHTML = renderMarkdown(msg);
+          addSection(payloadType === 'user_message' ? 'Prompt' : 'Message', body);
+        }
+      }
+
+      if (payloadType === 'function_call') {
+        const toolName = payload?.name || 'function_call';
+        const argsText = typeof payload?.arguments === 'string' ? payload.arguments : '';
+        const parsed = argsText ? safeJsonParse(argsText) : null;
+        const args = parsed?.ok ? parsed.value : null;
+
+        const block = document.createElement('div');
+        block.className = 'command-block';
+
+        const header = document.createElement('div');
+        header.className = 'command-header';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'tool-name';
+        nameSpan.textContent = toolName;
+        header.appendChild(nameSpan);
+        block.appendChild(header);
+
+        const maybeCmd = normalizeShellCommand(args);
+        if (maybeCmd) {
+          const cmd = document.createElement('div');
+          cmd.className = 'command-input';
+          cmd.textContent = maybeCmd;
+          block.appendChild(cmd);
+        }
+
+        const argObj = args && typeof args === 'object' ? args : null;
+        if (argObj && Object.keys(argObj).length) {
+          const params = document.createElement('div');
+          params.className = 'tool-params';
+          for (const [key, value] of Object.entries(argObj)) {
+            if (key === 'command' && maybeCmd) continue;
+            const param = document.createElement('div');
+            param.className = 'tool-param';
+            const paramName = document.createElement('span');
+            paramName.className = 'tool-param-name';
+            paramName.textContent = key;
+            const paramValue = document.createElement('span');
+            paramValue.className = 'tool-param-value';
+            if (typeof value === 'string') paramValue.textContent = value.length > 4000 ? value.slice(0, 4000) + '…' : value;
+            else paramValue.textContent = JSON.stringify(value, null, 2);
+            param.appendChild(paramName);
+            param.appendChild(paramValue);
+            params.appendChild(param);
+          }
+          block.appendChild(params);
+        } else if (argsText) {
+          const raw = document.createElement('div');
+          raw.className = 'command-input';
+          raw.textContent = argsText.length > 8000 ? argsText.slice(0, 8000) + '…' : argsText;
+          block.appendChild(raw);
+        }
+
+        addSection('Tool call', block);
+      }
+
+      if (payloadType === 'function_call_output') {
+        const outText = typeof payload?.output === 'string' ? payload.output : '';
+        let display = outText;
+        const parsed = outText ? safeJsonParse(outText) : null;
+        if (parsed?.ok && parsed.value && typeof parsed.value === 'object' && typeof parsed.value.output === 'string') {
+          display = parsed.value.output;
+        }
+        if (display) {
+          const body = document.createElement('div');
+          body.className = 'pretty-content';
+          const pre = document.createElement('pre');
+          pre.textContent = display.length > 60_000 ? display.slice(0, 60_000) + '\n… [truncated]' : display;
+          body.appendChild(pre);
+          addSection('Tool output', body);
+        }
+      }
+
+      if (payloadType === 'agent_reasoning') {
+        const text = typeof payload?.text === 'string' ? payload.text : '';
+        if (text) {
+          const body = document.createElement('div');
+          body.className = 'thinking-block';
+          body.innerHTML = renderMarkdown(text);
+          addSection('Reasoning', body);
+        }
+      }
+
+      if (payloadType === 'reasoning') {
+        const parts = Array.isArray(payload?.summary)
+          ? payload.summary.map(item => (item && typeof item === 'object' ? item.text : null)).filter(v => typeof v === 'string')
+          : [];
+        const summaryText = parts.map(v => v.trim()).filter(Boolean).join('\n\n').trim();
+        if (summaryText) {
+          const body = document.createElement('div');
+          body.className = 'thinking-block';
+          body.innerHTML = renderMarkdown(summaryText);
+          addSection('Reasoning', body);
+        }
+      }
+
+      if (payloadType === 'custom_tool_call') {
+        const name = payload?.name || 'custom_tool_call';
+        const status = payload?.status ? ` (${payload.status})` : '';
+        const input = typeof payload?.input === 'string' ? payload.input : '';
+        if (name || input) {
+          const block = document.createElement('div');
+          block.className = 'command-block';
+          const header = document.createElement('div');
+          header.className = 'command-header';
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'tool-name';
+          nameSpan.textContent = `${name}${status}`;
+          header.appendChild(nameSpan);
+          block.appendChild(header);
+          if (input) {
+            const pre = document.createElement('div');
+            pre.className = 'command-input';
+            pre.textContent = input.length > 20_000 ? input.slice(0, 20_000) + '\n… [truncated]' : input;
+            block.appendChild(pre);
+          }
+          addSection('Tool call', block);
+        }
+      }
+
+      if (payloadType === 'custom_tool_call_output') {
+        const out = typeof payload?.output === 'string' ? payload.output : '';
+        if (out) {
+          const body = document.createElement('div');
+          body.className = 'pretty-content';
+          const pre = document.createElement('pre');
+          pre.textContent = out.length > 60_000 ? out.slice(0, 60_000) + '\n… [truncated]' : out;
+          body.appendChild(pre);
+          addSection('Tool output', body);
+        }
+      }
+
+      if (hasContent) {
+        els.detailPretty.appendChild(fragment);
+        els.detailPretty.hidden = false;
+      } else {
+        els.detailPretty.hidden = true;
+      }
+    }
+
     function stringifyJson(value, truncateLongStrings) {
       const maxLen = 8000;
       return JSON.stringify(value, (key, v) => {
@@ -1160,6 +1667,8 @@
 	      state.selected = null;
 	      els.detailTitle.textContent = 'Select an event';
 	      renderDetailImages(null);
+        els.detailPretty.innerHTML = '';
+        els.detailPretty.hidden = true;
 	      els.detailJson.textContent = state.events.length ? 'Select an event from the timeline.' : 'Load a file to get started.';
 	      els.detailJson.classList.add('empty');
 	      els.copyJson.disabled = true;
@@ -1300,6 +1809,7 @@
 
       const shouldTruncate = els.truncateStrings.checked;
       renderDetailImages(e.obj);
+      renderPrettyView(e.obj);
 	      els.detailJson.textContent = stringifyJson(e.obj, shouldTruncate) || '';
 	      els.copyJson.disabled = false;
 	      els.copyRaw.disabled = false;
@@ -1313,6 +1823,79 @@
       const rootImages = obj?.images;
       if (Array.isArray(rootImages)) return rootImages.filter(v => typeof v === 'string' && v.trim());
       return [];
+    }
+
+    function extractUserPrompts() {
+      const prompts = [];
+
+      const canonicalize = (text) => String(text ?? '')
+        .replace(/\r\n/g, '\n')
+        .replace(/[ \t]+\n/g, '\n')
+        .trim();
+
+      const isEnvContextBlock = (text) => {
+        const t = canonicalize(text);
+        return t.startsWith('<environment_context>') && t.includes('</environment_context>');
+      };
+
+      const hasUserMessageEvents = state.events.some((e) => e?.obj?.payload?.type === 'user_message');
+
+      let lastCanonical = null;
+      const pushPrompt = (text) => {
+        const canon = canonicalize(text);
+        if (!canon) return;
+        if (canon === lastCanonical) return; // adjacent dedupe
+        prompts.push(canon);
+        lastCanonical = canon;
+      };
+
+      for (const e of state.events) {
+        const payload = e?.obj?.payload;
+        if (!payload || typeof payload !== 'object') continue;
+        const payloadType = payload.type;
+
+        if (payloadType === 'user_message' && typeof payload.message === 'string') {
+          pushPrompt(payload.message);
+          continue;
+        }
+
+        if (payloadType === 'message' && payload.role === 'user') {
+          const msg = extractMessageText(payload);
+          if (!msg) continue;
+          if (!hasUserMessageEvents) {
+            pushPrompt(msg);
+            continue;
+          }
+          // When user_message events exist, only include environment context blocks from message events.
+          if (isEnvContextBlock(msg)) pushPrompt(msg);
+        }
+      }
+
+      return prompts.join('\n\n').trim();
+    }
+
+    function openPromptsModal(text) {
+      lastActiveElementBeforePrompts = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      lastBodyOverflowBeforePrompts = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      els.promptsText.value = text || '';
+      els.promptsModal.classList.add('open');
+      els.promptsModal.setAttribute('aria-hidden', 'false');
+      els.promptsClose.focus();
+      els.promptsText.scrollTop = 0;
+    }
+
+    function closePromptsModal() {
+      if (!els.promptsModal.classList.contains('open')) return;
+      els.promptsModal.classList.remove('open');
+      els.promptsModal.setAttribute('aria-hidden', 'true');
+      els.promptsText.value = '';
+      document.body.style.overflow = lastBodyOverflowBeforePrompts ?? '';
+
+      if (lastActiveElementBeforePrompts) lastActiveElementBeforePrompts.focus();
+      lastActiveElementBeforePrompts = null;
+      lastBodyOverflowBeforePrompts = null;
     }
 
     function openImageModal(src, altText = '') {
@@ -1414,16 +1997,47 @@
       syncUrlHashFromControls();
     }
 
+    els.promptsClose.addEventListener('click', closePromptsModal);
+    els.promptsModal.addEventListener('click', (event) => {
+      if (event.target === els.promptsModal) closePromptsModal();
+    });
+    els.promptsCopy.addEventListener('click', async () => {
+      const text = els.promptsText.value || '';
+      if (!text.trim()) {
+        setStatus('No user prompts found.', 'warn');
+        return;
+      }
+      await copyText(text);
+      if (promptsCopiedTimer) clearTimeout(promptsCopiedTimer);
+      const originalText = els.promptsCopy.textContent;
+      els.promptsCopy.textContent = 'Copied!';
+      promptsCopiedTimer = setTimeout(() => {
+        els.promptsCopy.textContent = originalText;
+        promptsCopiedTimer = null;
+      }, 1500);
+    });
+    els.showPrompts.addEventListener('click', () => {
+      const text = extractUserPrompts();
+      if (!text) {
+        setStatus('No user prompts found.', 'warn');
+        return;
+      }
+      openPromptsModal(text);
+    });
+
     els.imageModalClose.addEventListener('click', closeImageModal);
     els.imageModal.addEventListener('click', (event) => {
       if (event.target === els.imageModal) closeImageModal();
     });
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeImageModal();
+      if (event.key !== 'Escape') return;
+      if (els.promptsModal.classList.contains('open')) closePromptsModal();
+      if (els.imageModal.classList.contains('open')) closeImageModal();
     });
 
 	    document.addEventListener('keydown', (event) => {
 	      if (els.imageModal.classList.contains('open')) return;
+        if (els.promptsModal.classList.contains('open')) return;
 	      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
 	      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
 	      if (isEditableElement(document.activeElement)) return;
@@ -1479,6 +2093,8 @@
 	      const started = performance.now();
 	      state.sourceLabel = sourceLabel || null;
 	      setStatus(`Parsing ${sourceLabel || 'content'}…`, 'warn');
+        closePromptsModal();
+        els.showPrompts.disabled = true;
 	      clearSelection({ syncHash: false });
 
       const lines = text.split(/\r?\n/);
@@ -1517,6 +2133,7 @@
       }
 
       state.events = events;
+      els.showPrompts.disabled = !events.length;
       updateFilterOptions(events);
       applyFilters();
       applySelectionFromHash();
