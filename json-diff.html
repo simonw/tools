@@ -261,6 +261,25 @@
       margin: 0 8px;
     }
 
+    .char-added {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .char-removed {
+      background: #f8d7da;
+      color: #721c24;
+      text-decoration: line-through;
+    }
+
+    .char-same {
+      color: #666;
+    }
+
+    .string-diff {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    }
+
     .summary {
       display: flex;
       gap: 20px;
@@ -641,19 +660,89 @@ function formatValue(value) {
   return String(value);
 }
 
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function diffStrings(oldStr, newStr) {
+  // Compute LCS-based character diff
+  const m = oldStr.length;
+  const n = newStr.length;
+
+  // Build LCS table
+  const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (oldStr[i - 1] === newStr[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // Backtrack to find diff operations
+  const ops = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldStr[i - 1] === newStr[j - 1]) {
+      ops.unshift({type: 'same', char: oldStr[i - 1]});
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      ops.unshift({type: 'add', char: newStr[j - 1]});
+      j--;
+    } else {
+      ops.unshift({type: 'del', char: oldStr[i - 1]});
+      i--;
+    }
+  }
+
+  // Build HTML with grouped spans
+  let html = '"';
+  let currentType = null;
+  let buffer = '';
+
+  for (const op of ops) {
+    if (op.type !== currentType) {
+      if (buffer) {
+        if (currentType === 'same') html += `<span class="char-same">${escapeHtml(buffer)}</span>`;
+        else if (currentType === 'del') html += `<span class="char-removed">${escapeHtml(buffer)}</span>`;
+        else if (currentType === 'add') html += `<span class="char-added">${escapeHtml(buffer)}</span>`;
+      }
+      buffer = op.char;
+      currentType = op.type;
+    } else {
+      buffer += op.char;
+    }
+  }
+  if (buffer) {
+    if (currentType === 'same') html += `<span class="char-same">${escapeHtml(buffer)}</span>`;
+    else if (currentType === 'del') html += `<span class="char-removed">${escapeHtml(buffer)}</span>`;
+    else if (currentType === 'add') html += `<span class="char-added">${escapeHtml(buffer)}</span>`;
+  }
+  html += '"';
+
+  return html;
+}
+
 function renderDiff(diffs) {
   if (diffs.length === 0) {
     return '<div class="no-diff">The JSON documents are identical</div>';
   }
-  
+
   return diffs.map(diff => {
     const pathHtml = `<span class="diff-path">${diff.path}</span>`;
-    
+
     if (diff.type === 'added') {
       return `<div class="diff-line diff-added">+ ${pathHtml}: <span class="diff-new-value">${formatValue(diff.value)}</span></div>`;
     } else if (diff.type === 'removed') {
       return `<div class="diff-line diff-removed">− ${pathHtml}: <span class="diff-old-value">${formatValue(diff.value)}</span></div>`;
     } else {
+      // Check if both values are strings for character-level diff
+      if (typeof diff.oldValue === 'string' && typeof diff.newValue === 'string') {
+        const charDiff = diffStrings(diff.oldValue, diff.newValue);
+        return `<div class="diff-line diff-modified">± ${pathHtml}: <span class="string-diff">${charDiff}</span></div>`;
+      }
       return `<div class="diff-line diff-modified">± ${pathHtml}: <span class="diff-old-value">${formatValue(diff.oldValue)}</span><span class="diff-arrow">→</span><span class="diff-new-value">${formatValue(diff.newValue)}</span></div>`;
     }
   }).join('');
@@ -856,6 +945,36 @@ const testCases = [
     left: {items: [{id: 1, temp: true}, {id: 2}]},
     right: {items: [{id: 1}, {id: 2}]},
     expectedDiffs: [{type: "removed", path: "items[0].temp", value: true}]
+  },
+  {
+    name: "String with single character change",
+    left: {text: "hello world"},
+    right: {text: "hello World"},
+    expectedDiffs: [{type: "modified", path: "text", oldValue: "hello world", newValue: "hello World"}]
+  },
+  {
+    name: "String with prefix added",
+    left: {msg: "world"},
+    right: {msg: "hello world"},
+    expectedDiffs: [{type: "modified", path: "msg", oldValue: "world", newValue: "hello world"}]
+  },
+  {
+    name: "String with suffix removed",
+    left: {name: "John Doe Jr."},
+    right: {name: "John Doe"},
+    expectedDiffs: [{type: "modified", path: "name", oldValue: "John Doe Jr.", newValue: "John Doe"}]
+  },
+  {
+    name: "Complete string replacement",
+    left: {status: "pending"},
+    right: {status: "complete"},
+    expectedDiffs: [{type: "modified", path: "status", oldValue: "pending", newValue: "complete"}]
+  },
+  {
+    name: "Empty string to non-empty",
+    left: {value: ""},
+    right: {value: "filled"},
+    expectedDiffs: [{type: "modified", path: "value", oldValue: "", newValue: "filled"}]
   }
 ];
 
