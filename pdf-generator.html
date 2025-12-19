@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Generator - Build PDFs visually</title>
+  <script defer data-domain="tools.simonwillison.net" src="https://plausible.io/js/script.js"></script>
+  <script type="module">
+    import pdfjsDist from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/+esm';
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.mjs";
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 1rem;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.5rem;
+    }
+
+    .intro {
+      margin-bottom: 1rem;
+      color: #666;
+      font-size: 0.9rem;
+    }
+
+    .intro a {
+      color: #0366d6;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 1rem;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .panel-title {
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin: 0;
+    }
+
+    /* Block toolbar */
+    .block-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #eee;
+    }
+
+    .block-toolbar button {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .block-toolbar button:hover {
+      background: #f0f0f0;
+      border-color: #ccc;
+    }
+
+    .block-toolbar button:active {
+      background: #e0e0e0;
+    }
+
+    /* Content blocks */
+    .blocks-container {
+      min-height: 200px;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .content-block {
+      background: #fafafa;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+    }
+
+    .content-block.dragging {
+      opacity: 0.5;
+    }
+
+    .content-block.drag-over {
+      border-color: #0366d6;
+      border-style: dashed;
+    }
+
+    .block-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0.75rem;
+      background: #f0f0f0;
+      border-bottom: 1px solid #e0e0e0;
+      cursor: grab;
+    }
+
+    .block-header:active {
+      cursor: grabbing;
+    }
+
+    .block-type {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #666;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .block-actions {
+      display: flex;
+      gap: 0.25rem;
+    }
+
+    .block-actions button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.25rem;
+      border-radius: 4px;
+      font-size: 1rem;
+      line-height: 1;
+      color: #666;
+    }
+
+    .block-actions button:hover {
+      background: #ddd;
+      color: #333;
+    }
+
+    .block-content {
+      padding: 0.75rem;
+    }
+
+    .block-content textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 14px;
+      resize: vertical;
+    }
+
+    .block-content input[type="text"],
+    .block-content input[type="number"],
+    .block-content input[type="color"],
+    .block-content select {
+      padding: 0.4rem 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .block-content input[type="color"] {
+      padding: 0;
+      width: 40px;
+      height: 32px;
+      cursor: pointer;
+    }
+
+    .block-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      align-items: center;
+    }
+
+    .block-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .block-row label {
+      font-size: 0.8rem;
+      color: #666;
+      min-width: 60px;
+    }
+
+    .block-row input[type="number"] {
+      width: 70px;
+    }
+
+    /* Image block specific */
+    .image-dropzone {
+      border: 2px dashed #ccc;
+      border-radius: 4px;
+      padding: 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #888;
+      font-size: 0.9rem;
+    }
+
+    .image-dropzone:hover,
+    .image-dropzone.drag-over {
+      border-color: #0366d6;
+      background: #f0f7ff;
+    }
+
+    .image-dropzone img {
+      max-width: 100%;
+      max-height: 150px;
+      margin-top: 0.5rem;
+      border-radius: 4px;
+    }
+
+    /* Preview panel */
+    .preview-container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 150px);
+      min-height: 400px;
+    }
+
+    .preview-canvas-wrapper {
+      flex: 1;
+      overflow: auto;
+      background: #e0e0e0;
+      border-radius: 4px;
+      padding: 1rem;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .preview-canvas-wrapper canvas {
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      max-width: 100%;
+      height: auto !important;
+    }
+
+    .preview-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #eee;
+    }
+
+    .preview-actions button {
+      padding: 0.6rem 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #0366d6;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #0255b3;
+    }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #218838;
+    }
+
+    /* Page settings */
+    .page-settings {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding: 0.75rem;
+      background: #f8f8f8;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .page-settings label {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .page-settings select,
+    .page-settings input {
+      padding: 0.3rem 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+
+    /* Page navigation */
+    .page-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .page-nav button {
+      padding: 0.3rem 0.6rem;
+      border: 1px solid #ddd;
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .page-nav button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .page-nav span {
+      font-size: 0.85rem;
+      color: #666;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #888;
+    }
+
+    .empty-state p {
+      margin: 0.5rem 0;
+    }
+
+    /* Mobile improvements */
+    @media (max-width: 600px) {
+      body {
+        padding: 0.5rem;
+      }
+
+      h1 {
+        font-size: 1.25rem;
+      }
+
+      .block-toolbar button {
+        padding: 0.6rem;
+        font-size: 0.8rem;
+      }
+
+      .blocks-container {
+        max-height: 40vh;
+      }
+
+      .preview-container {
+        height: auto;
+        min-height: 300px;
+      }
+
+      .preview-canvas-wrapper {
+        min-height: 250px;
+      }
+
+      .preview-actions {
+        justify-content: stretch;
+      }
+
+      .preview-actions button {
+        flex: 1;
+      }
+    }
+
+    /* Loading state */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: #888;
+    }
+
+    /* Shape block colors */
+    .block-type.text { color: #0366d6; }
+    .block-type.markdown { color: #6f42c1; }
+    .block-type.image { color: #28a745; }
+    .block-type.rect { color: #fd7e14; }
+    .block-type.line { color: #dc3545; }
+    .block-type.spacer { color: #6c757d; }
+
+    /* Drag handle */
+    .drag-handle {
+      cursor: grab;
+      color: #aaa;
+      margin-right: 0.3rem;
+    }
+
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid #ddd;
+      color: #666;
+      font-size: 0.85rem;
+    }
+
+    footer a {
+      color: #0366d6;
+    }
+  </style>
+</head>
+<body>
+  <h1>PDF Generator</h1>
+  <p class="intro">
+    Build PDFs visually using <a href="https://github.com/Lulzx/tinypdf">tinypdf</a>.
+    Add text, images, markdown, and shapes. Everything runs in your browser.
+  </p>
+
+  <div class="container">
+    <!-- Builder Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2 class="panel-title">Content Blocks</h2>
+      </div>
+
+      <div class="page-settings">
+        <label>
+          Page Size:
+          <select id="pageSize">
+            <option value="letter">Letter (8.5" x 11")</option>
+            <option value="a4">A4</option>
+            <option value="legal">Legal</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label id="customWidthLabel" style="display:none">
+          Width (pt):
+          <input type="number" id="customWidth" value="612" min="72" max="1440">
+        </label>
+        <label id="customHeightLabel" style="display:none">
+          Height (pt):
+          <input type="number" id="customHeight" value="792" min="72" max="1440">
+        </label>
+        <label>
+          Margin:
+          <select id="pageMargin">
+            <option value="36">0.5"</option>
+            <option value="54" selected>0.75"</option>
+            <option value="72">1"</option>
+            <option value="0">None</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="block-toolbar">
+        <button type="button" data-block="text" title="Add text block">
+          <span>T</span> Text
+        </button>
+        <button type="button" data-block="markdown" title="Add markdown block">
+          <span>M</span> Markdown
+        </button>
+        <button type="button" data-block="image" title="Add image">
+          <span>🖼</span> Image
+        </button>
+        <button type="button" data-block="rect" title="Add rectangle">
+          <span>▢</span> Rectangle
+        </button>
+        <button type="button" data-block="line" title="Add line">
+          <span>—</span> Line
+        </button>
+        <button type="button" data-block="spacer" title="Add spacer">
+          <span>↕</span> Spacer
+        </button>
+      </div>
+
+      <div class="blocks-container" id="blocksContainer">
+        <div class="empty-state">
+          <p><strong>No content blocks yet</strong></p>
+          <p>Click the buttons above to add text, images, or shapes.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2 class="panel-title">Live Preview</h2>
+        <div class="page-nav">
+          <button type="button" id="prevPage" disabled>◀</button>
+          <span id="pageInfo">Page 1 of 1</span>
+          <button type="button" id="nextPage" disabled>▶</button>
+        </div>
+      </div>
+
+      <div class="preview-container">
+        <div class="preview-canvas-wrapper">
+          <canvas id="previewCanvas"></canvas>
+        </div>
+
+        <div class="preview-actions">
+          <button type="button" class="btn-primary" id="refreshPreview">
+            Refresh Preview
+          </button>
+          <button type="button" class="btn-success" id="downloadPdf">
+            Download PDF
+          </button>
+          <button type="button" class="btn-secondary" id="loadExample">
+            Load Example
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <a href="https://github.com/simonw/tools">Source code</a> |
+    Uses <a href="https://github.com/Lulzx/tinypdf">tinypdf</a> and
+    <a href="https://mozilla.github.io/pdf.js/">PDF.js</a>
+  </footer>
+
+<script type="module">
+import { pdf, measureText } from 'https://cdn.jsdelivr.net/npm/tinypdf/+esm';
+
+// State
+let blocks = [];
+let blockIdCounter = 0;
+let pdfBytes = null;
+let currentPage = 1;
+let totalPages = 1;
+
+// Page dimensions (in points, 72 points = 1 inch)
+const PAGE_SIZES = {
+  letter: { width: 612, height: 792 },
+  a4: { width: 595, height: 842 },
+  legal: { width: 612, height: 1008 }
+};
+
+// DOM elements
+const blocksContainer = document.getElementById('blocksContainer');
+const previewCanvas = document.getElementById('previewCanvas');
+const pageSizeSelect = document.getElementById('pageSize');
+const customWidthInput = document.getElementById('customWidth');
+const customHeightInput = document.getElementById('customHeight');
+const customWidthLabel = document.getElementById('customWidthLabel');
+const customHeightLabel = document.getElementById('customHeightLabel');
+const pageMarginSelect = document.getElementById('pageMargin');
+const pageInfo = document.getElementById('pageInfo');
+const prevPageBtn = document.getElementById('prevPage');
+const nextPageBtn = document.getElementById('nextPage');
+
+// Get page dimensions
+function getPageDimensions() {
+  const size = pageSizeSelect.value;
+  if (size === 'custom') {
+    return {
+      width: parseInt(customWidthInput.value) || 612,
+      height: parseInt(customHeightInput.value) || 792
+    };
+  }
+  return PAGE_SIZES[size] || PAGE_SIZES.letter;
+}
+
+function getMargin() {
+  return parseInt(pageMarginSelect.value) || 54;
+}
+
+// Block templates
+function createBlockElement(type, id, data = {}) {
+  const block = document.createElement('div');
+  block.className = 'content-block';
+  block.dataset.id = id;
+  block.dataset.type = type;
+  block.draggable = true;
+
+  let contentHTML = '';
+
+  switch (type) {
+    case 'text':
+      contentHTML = `
+        <div class="block-row">
+          <textarea placeholder="Enter your text here...">${data.text || ''}</textarea>
+        </div>
+        <div class="block-row">
+          <label>Size:</label>
+          <input type="number" class="text-size" value="${data.size || 12}" min="6" max="72">
+          <label>Color:</label>
+          <input type="color" class="text-color" value="${data.color || '#000000'}">
+          <label>Align:</label>
+          <select class="text-align">
+            <option value="left" ${data.align === 'left' ? 'selected' : ''}>Left</option>
+            <option value="center" ${data.align === 'center' ? 'selected' : ''}>Center</option>
+            <option value="right" ${data.align === 'right' ? 'selected' : ''}>Right</option>
+          </select>
+        </div>
+      `;
+      break;
+
+    case 'markdown':
+      contentHTML = `
+        <div class="block-row">
+          <textarea placeholder="# Heading\n\nParagraph text here...\n\n- Bullet point\n- Another point">${data.text || ''}</textarea>
+        </div>
+        <div class="block-row">
+          <label>Base Size:</label>
+          <input type="number" class="md-size" value="${data.size || 11}" min="6" max="48">
+          <label>Color:</label>
+          <input type="color" class="md-color" value="${data.color || '#000000'}">
+        </div>
+      `;
+      break;
+
+    case 'image':
+      contentHTML = `
+        <div class="image-dropzone" data-block-id="${id}">
+          ${data.preview ? `<img src="${data.preview}" alt="Preview">` : 'Drop a JPEG image here or click to select'}
+          <input type="file" accept="image/jpeg,.jpg,.jpeg" style="display:none">
+        </div>
+        <div class="block-row">
+          <label>Width:</label>
+          <input type="number" class="img-width" value="${data.width || 200}" min="10" max="600">
+          <label>Height:</label>
+          <input type="number" class="img-height" value="${data.height || 150}" min="10" max="800">
+          <label>
+            <input type="checkbox" class="img-auto-size" ${data.autoSize !== false ? 'checked' : ''}> Auto
+          </label>
+        </div>
+      `;
+      break;
+
+    case 'rect':
+      contentHTML = `
+        <div class="block-row">
+          <label>Width:</label>
+          <input type="number" class="rect-width" value="${data.width || 100}" min="1" max="612">
+          <label>Height:</label>
+          <input type="number" class="rect-height" value="${data.height || 30}" min="1" max="792">
+          <label>Fill:</label>
+          <input type="color" class="rect-color" value="${data.color || '#0366d6'}">
+        </div>
+        <div class="block-row">
+          <label>Align:</label>
+          <select class="rect-align">
+            <option value="left" ${data.align === 'left' ? 'selected' : ''}>Left</option>
+            <option value="center" ${data.align === 'center' ? 'selected' : ''}>Center</option>
+            <option value="right" ${data.align === 'right' ? 'selected' : ''}>Right</option>
+            <option value="full" ${data.align === 'full' ? 'selected' : ''}>Full Width</option>
+          </select>
+        </div>
+      `;
+      break;
+
+    case 'line':
+      contentHTML = `
+        <div class="block-row">
+          <label>Width:</label>
+          <input type="number" class="line-width" value="${data.width || 1}" min="0.5" max="10" step="0.5">
+          <label>Color:</label>
+          <input type="color" class="line-color" value="${data.color || '#cccccc'}">
+          <label>
+            <input type="checkbox" class="line-full" ${data.fullWidth !== false ? 'checked' : ''}> Full Width
+          </label>
+        </div>
+      `;
+      break;
+
+    case 'spacer':
+      contentHTML = `
+        <div class="block-row">
+          <label>Height (pt):</label>
+          <input type="number" class="spacer-height" value="${data.height || 20}" min="1" max="200">
+        </div>
+      `;
+      break;
+  }
+
+  block.innerHTML = `
+    <div class="block-header">
+      <span class="block-type ${type}">
+        <span class="drag-handle">⋮⋮</span>
+        ${type.charAt(0).toUpperCase() + type.slice(1)}
+      </span>
+      <div class="block-actions">
+        <button type="button" class="move-up" title="Move up">↑</button>
+        <button type="button" class="move-down" title="Move down">↓</button>
+        <button type="button" class="duplicate" title="Duplicate">⧉</button>
+        <button type="button" class="delete" title="Delete">×</button>
+      </div>
+    </div>
+    <div class="block-content">
+      ${contentHTML}
+    </div>
+  `;
+
+  return block;
+}
+
+// Add block
+function addBlock(type, data = {}) {
+  const id = ++blockIdCounter;
+  const blockData = { id, type, ...data };
+  blocks.push(blockData);
+
+  const blockEl = createBlockElement(type, id, data);
+
+  // Remove empty state if present
+  const emptyState = blocksContainer.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+
+  blocksContainer.appendChild(blockEl);
+  setupBlockEvents(blockEl);
+  schedulePreviewUpdate();
+
+  return blockEl;
+}
+
+// Setup block events
+function setupBlockEvents(blockEl) {
+  const id = parseInt(blockEl.dataset.id);
+
+  // Delete
+  blockEl.querySelector('.delete').addEventListener('click', () => {
+    blocks = blocks.filter(b => b.id !== id);
+    blockEl.remove();
+    if (blocks.length === 0) {
+      blocksContainer.innerHTML = `
+        <div class="empty-state">
+          <p><strong>No content blocks yet</strong></p>
+          <p>Click the buttons above to add text, images, or shapes.</p>
+        </div>
+      `;
+    }
+    schedulePreviewUpdate();
+  });
+
+  // Move up
+  blockEl.querySelector('.move-up').addEventListener('click', () => {
+    const idx = blocks.findIndex(b => b.id === id);
+    if (idx > 0) {
+      [blocks[idx - 1], blocks[idx]] = [blocks[idx], blocks[idx - 1]];
+      blockEl.previousElementSibling.before(blockEl);
+      schedulePreviewUpdate();
+    }
+  });
+
+  // Move down
+  blockEl.querySelector('.move-down').addEventListener('click', () => {
+    const idx = blocks.findIndex(b => b.id === id);
+    if (idx < blocks.length - 1) {
+      [blocks[idx], blocks[idx + 1]] = [blocks[idx + 1], blocks[idx]];
+      blockEl.nextElementSibling.after(blockEl);
+      schedulePreviewUpdate();
+    }
+  });
+
+  // Duplicate
+  blockEl.querySelector('.duplicate').addEventListener('click', () => {
+    const blockData = getBlockData(blockEl);
+    delete blockData.id;
+    const newEl = addBlock(blockData.type, blockData);
+    blockEl.after(newEl);
+    const idx = blocks.findIndex(b => b.id === parseInt(blockEl.dataset.id));
+    const newIdx = blocks.length - 1;
+    const [item] = blocks.splice(newIdx, 1);
+    blocks.splice(idx + 1, 0, item);
+  });
+
+  // Image dropzone
+  const dropzone = blockEl.querySelector('.image-dropzone');
+  if (dropzone) {
+    const fileInput = dropzone.querySelector('input[type="file"]');
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag-over');
+    });
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('drag-over');
+    });
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && (file.type === 'image/jpeg' || file.name.match(/\.jpe?g$/i))) {
+        handleImageFile(file, blockEl);
+      } else {
+        alert('Only JPEG images are supported by tinypdf.');
+      }
+    });
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleImageFile(file, blockEl);
+    });
+  }
+
+  // Auto-update on input changes
+  blockEl.querySelectorAll('input, textarea, select').forEach(input => {
+    input.addEventListener('input', schedulePreviewUpdate);
+    input.addEventListener('change', schedulePreviewUpdate);
+  });
+
+  // Drag and drop reordering
+  blockEl.addEventListener('dragstart', handleDragStart);
+  blockEl.addEventListener('dragend', handleDragEnd);
+  blockEl.addEventListener('dragover', handleDragOver);
+  blockEl.addEventListener('drop', handleBlockDrop);
+}
+
+// Image handling
+async function handleImageFile(file, blockEl) {
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const arrayBuffer = e.target.result;
+    const bytes = new Uint8Array(arrayBuffer);
+    const base64 = btoa(String.fromCharCode.apply(null, bytes));
+    const preview = `data:image/jpeg;base64,${base64}`;
+
+    // Store image data
+    const blockId = parseInt(blockEl.dataset.id);
+    const blockData = blocks.find(b => b.id === blockId);
+    if (blockData) {
+      blockData.imageBytes = bytes;
+      blockData.preview = preview;
+
+      // Update preview in dropzone
+      const dropzone = blockEl.querySelector('.image-dropzone');
+      dropzone.innerHTML = `<img src="${preview}" alt="Preview"><input type="file" accept="image/jpeg,.jpg,.jpeg" style="display:none">`;
+
+      // Re-setup file input
+      const fileInput = dropzone.querySelector('input[type="file"]');
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files[0]) handleImageFile(e.target.files[0], blockEl);
+      });
+
+      // Auto-detect dimensions if checkbox checked
+      const autoSize = blockEl.querySelector('.img-auto-size');
+      if (autoSize && autoSize.checked) {
+        const img = new Image();
+        img.onload = () => {
+          const maxWidth = getPageDimensions().width - (getMargin() * 2);
+          let w = img.width;
+          let h = img.height;
+          if (w > maxWidth) {
+            const ratio = maxWidth / w;
+            w = maxWidth;
+            h = h * ratio;
+          }
+          blockEl.querySelector('.img-width').value = Math.round(w);
+          blockEl.querySelector('.img-height').value = Math.round(h);
+          schedulePreviewUpdate();
+        };
+        img.src = preview;
+      } else {
+        schedulePreviewUpdate();
+      }
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Drag and drop reordering
+let draggedBlock = null;
+
+function handleDragStart(e) {
+  draggedBlock = this;
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnd() {
+  this.classList.remove('dragging');
+  document.querySelectorAll('.content-block').forEach(b => b.classList.remove('drag-over'));
+  draggedBlock = null;
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  if (draggedBlock && this !== draggedBlock) {
+    this.classList.add('drag-over');
+  }
+}
+
+function handleBlockDrop(e) {
+  e.preventDefault();
+  this.classList.remove('drag-over');
+
+  if (draggedBlock && this !== draggedBlock) {
+    const allBlocks = [...blocksContainer.querySelectorAll('.content-block')];
+    const fromIdx = allBlocks.indexOf(draggedBlock);
+    const toIdx = allBlocks.indexOf(this);
+
+    if (fromIdx < toIdx) {
+      this.after(draggedBlock);
+    } else {
+      this.before(draggedBlock);
+    }
+
+    // Update blocks array order
+    const draggedId = parseInt(draggedBlock.dataset.id);
+    const draggedData = blocks.find(b => b.id === draggedId);
+    blocks = blocks.filter(b => b.id !== draggedId);
+
+    const targetId = parseInt(this.dataset.id);
+    const targetIdx = blocks.findIndex(b => b.id === targetId);
+
+    if (fromIdx < toIdx) {
+      blocks.splice(targetIdx + 1, 0, draggedData);
+    } else {
+      blocks.splice(targetIdx, 0, draggedData);
+    }
+
+    schedulePreviewUpdate();
+  }
+}
+
+// Get block data from DOM
+function getBlockData(blockEl) {
+  const id = parseInt(blockEl.dataset.id);
+  const type = blockEl.dataset.type;
+  const existingData = blocks.find(b => b.id === id) || {};
+
+  const data = { id, type };
+
+  switch (type) {
+    case 'text':
+      data.text = blockEl.querySelector('textarea').value;
+      data.size = parseInt(blockEl.querySelector('.text-size').value);
+      data.color = blockEl.querySelector('.text-color').value;
+      data.align = blockEl.querySelector('.text-align').value;
+      break;
+
+    case 'markdown':
+      data.text = blockEl.querySelector('textarea').value;
+      data.size = parseInt(blockEl.querySelector('.md-size').value);
+      data.color = blockEl.querySelector('.md-color').value;
+      break;
+
+    case 'image':
+      data.width = parseInt(blockEl.querySelector('.img-width').value);
+      data.height = parseInt(blockEl.querySelector('.img-height').value);
+      data.autoSize = blockEl.querySelector('.img-auto-size').checked;
+      data.imageBytes = existingData.imageBytes;
+      data.preview = existingData.preview;
+      break;
+
+    case 'rect':
+      data.width = parseInt(blockEl.querySelector('.rect-width').value);
+      data.height = parseInt(blockEl.querySelector('.rect-height').value);
+      data.color = blockEl.querySelector('.rect-color').value;
+      data.align = blockEl.querySelector('.rect-align').value;
+      break;
+
+    case 'line':
+      data.width = parseFloat(blockEl.querySelector('.line-width').value);
+      data.color = blockEl.querySelector('.line-color').value;
+      data.fullWidth = blockEl.querySelector('.line-full').checked;
+      break;
+
+    case 'spacer':
+      data.height = parseInt(blockEl.querySelector('.spacer-height').value);
+      break;
+  }
+
+  return data;
+}
+
+// Sync blocks data from DOM
+function syncBlocksFromDOM() {
+  const blockEls = blocksContainer.querySelectorAll('.content-block');
+  const newBlocks = [];
+
+  blockEls.forEach(el => {
+    const data = getBlockData(el);
+    newBlocks.push(data);
+  });
+
+  blocks = newBlocks;
+}
+
+// Parse simple markdown to PDF commands
+function parseMarkdownForPDF(text, baseSize, color, pageWidth, margin) {
+  const lines = text.split('\n');
+  const commands = [];
+  const contentWidth = pageWidth - (margin * 2);
+
+  for (let line of lines) {
+    line = line.trimEnd();
+
+    // Empty line = paragraph break
+    if (!line.trim()) {
+      commands.push({ type: 'spacer', height: baseSize * 0.5 });
+      continue;
+    }
+
+    // Headers
+    if (line.startsWith('### ')) {
+      commands.push({ type: 'text', text: line.slice(4), size: baseSize * 1.2, color, bold: true });
+      commands.push({ type: 'spacer', height: baseSize * 0.3 });
+    } else if (line.startsWith('## ')) {
+      commands.push({ type: 'text', text: line.slice(3), size: baseSize * 1.4, color, bold: true });
+      commands.push({ type: 'spacer', height: baseSize * 0.4 });
+    } else if (line.startsWith('# ')) {
+      commands.push({ type: 'text', text: line.slice(2), size: baseSize * 1.7, color, bold: true });
+      commands.push({ type: 'spacer', height: baseSize * 0.5 });
+    }
+    // Horizontal rule
+    else if (line.match(/^(-{3,}|\*{3,}|_{3,})$/)) {
+      commands.push({ type: 'line', color: '#cccccc', width: 1 });
+      commands.push({ type: 'spacer', height: baseSize * 0.5 });
+    }
+    // Bullet list
+    else if (line.match(/^[-*+]\s/)) {
+      commands.push({ type: 'text', text: '•  ' + line.slice(2), size: baseSize, color, indent: baseSize });
+    }
+    // Numbered list
+    else if (line.match(/^\d+\.\s/)) {
+      const match = line.match(/^(\d+\.)\s(.*)$/);
+      if (match) {
+        commands.push({ type: 'text', text: match[1] + ' ' + match[2], size: baseSize, color, indent: baseSize });
+      }
+    }
+    // Regular paragraph
+    else {
+      commands.push({ type: 'text', text: line, size: baseSize, color });
+    }
+  }
+
+  return commands;
+}
+
+// Word wrap text
+function wrapText(text, maxWidth, fontSize) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? currentLine + ' ' + word : word;
+    const testWidth = measureText(testLine, fontSize);
+
+    if (testWidth > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return lines.length ? lines : [''];
+}
+
+// Generate PDF
+function generatePDF() {
+  syncBlocksFromDOM();
+
+  const { width: pageWidth, height: pageHeight } = getPageDimensions();
+  const margin = getMargin();
+  const contentWidth = pageWidth - (margin * 2);
+
+  const doc = pdf();
+
+  // Calculate content and handle pagination
+  let y = pageHeight - margin;
+  const lineHeight = 1.4;
+  let currentPageCommands = [];
+  const pages = [currentPageCommands];
+
+  // Process all blocks into commands
+  for (const block of blocks) {
+    const commands = [];
+
+    switch (block.type) {
+      case 'text':
+        if (block.text) {
+          const lines = wrapText(block.text, contentWidth, block.size || 12);
+          for (const line of lines) {
+            commands.push({
+              type: 'text',
+              text: line,
+              size: block.size || 12,
+              color: block.color || '#000000',
+              align: block.align || 'left'
+            });
+          }
+        }
+        break;
+
+      case 'markdown':
+        if (block.text) {
+          const mdCommands = parseMarkdownForPDF(block.text, block.size || 11, block.color || '#000000', pageWidth, margin);
+          for (const cmd of mdCommands) {
+            if (cmd.type === 'text') {
+              const wrapped = wrapText(cmd.text, contentWidth - (cmd.indent || 0), cmd.size);
+              for (const line of wrapped) {
+                commands.push({ ...cmd, text: line });
+              }
+            } else {
+              commands.push(cmd);
+            }
+          }
+        }
+        break;
+
+      case 'image':
+        if (block.imageBytes) {
+          commands.push({
+            type: 'image',
+            bytes: block.imageBytes,
+            width: block.width || 200,
+            height: block.height || 150
+          });
+        }
+        break;
+
+      case 'rect':
+        commands.push({
+          type: 'rect',
+          width: block.align === 'full' ? contentWidth : (block.width || 100),
+          height: block.height || 30,
+          color: block.color || '#0366d6',
+          align: block.align || 'left'
+        });
+        break;
+
+      case 'line':
+        commands.push({
+          type: 'line',
+          strokeWidth: block.width || 1,
+          color: block.color || '#cccccc',
+          fullWidth: block.fullWidth !== false
+        });
+        break;
+
+      case 'spacer':
+        commands.push({
+          type: 'spacer',
+          height: block.height || 20
+        });
+        break;
+    }
+
+    // Add commands to pages with overflow handling
+    for (const cmd of commands) {
+      let cmdHeight = 0;
+
+      switch (cmd.type) {
+        case 'text':
+          cmdHeight = (cmd.size || 12) * lineHeight;
+          break;
+        case 'image':
+          cmdHeight = cmd.height + 10;
+          break;
+        case 'rect':
+          cmdHeight = cmd.height + 5;
+          break;
+        case 'line':
+          cmdHeight = (cmd.strokeWidth || 1) + 10;
+          break;
+        case 'spacer':
+          cmdHeight = cmd.height;
+          break;
+      }
+
+      // Check if we need a new page
+      if (y - cmdHeight < margin && currentPageCommands.length > 0) {
+        currentPageCommands = [];
+        pages.push(currentPageCommands);
+        y = pageHeight - margin;
+      }
+
+      cmd.y = y;
+      currentPageCommands.push(cmd);
+      y -= cmdHeight;
+    }
+  }
+
+  // Render pages
+  for (const pageCommands of pages) {
+    doc.page(pageWidth, pageHeight, (ctx) => {
+      for (const cmd of pageCommands) {
+        const cmdY = cmd.y;
+
+        switch (cmd.type) {
+          case 'text':
+            let textX = margin + (cmd.indent || 0);
+            const textOpts = { color: cmd.color };
+
+            if (cmd.align === 'center') {
+              textOpts.align = 'center';
+              textOpts.width = contentWidth;
+            } else if (cmd.align === 'right') {
+              textOpts.align = 'right';
+              textOpts.width = contentWidth;
+            }
+
+            ctx.text(cmd.text, textX, cmdY - cmd.size, cmd.size, textOpts);
+            break;
+
+          case 'image':
+            ctx.image(cmd.bytes, margin, cmdY - cmd.height, cmd.width, cmd.height);
+            break;
+
+          case 'rect':
+            let rectX = margin;
+            if (cmd.align === 'center') {
+              rectX = margin + (contentWidth - cmd.width) / 2;
+            } else if (cmd.align === 'right') {
+              rectX = margin + contentWidth - cmd.width;
+            }
+            ctx.rect(rectX, cmdY - cmd.height, cmd.width, cmd.height, cmd.color);
+            break;
+
+          case 'line':
+            const lineY = cmdY - (cmd.strokeWidth || 1);
+            ctx.line(margin, lineY, margin + contentWidth, lineY, cmd.color, cmd.strokeWidth || 1);
+            break;
+        }
+      }
+    });
+  }
+
+  // Handle empty document
+  if (pages[0].length === 0) {
+    doc.page(pageWidth, pageHeight, (ctx) => {
+      ctx.text('Empty document', margin, pageHeight - margin - 12, 12, { color: '#999999' });
+    });
+  }
+
+  totalPages = pages.length || 1;
+  return doc.build();
+}
+
+// Render PDF preview
+async function renderPreview() {
+  try {
+    pdfBytes = generatePDF();
+
+    const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
+    const pdfDoc = await loadingTask.promise;
+
+    totalPages = pdfDoc.numPages;
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const page = await pdfDoc.getPage(currentPage);
+    const viewport = page.getViewport({ scale: 1 });
+
+    // Scale to fit container
+    const container = document.querySelector('.preview-canvas-wrapper');
+    const maxWidth = container.clientWidth - 32;
+    const scale = Math.min(maxWidth / viewport.width, 1.5);
+    const scaledViewport = page.getViewport({ scale });
+
+    previewCanvas.width = scaledViewport.width;
+    previewCanvas.height = scaledViewport.height;
+
+    const ctx = previewCanvas.getContext('2d');
+    await page.render({
+      canvasContext: ctx,
+      viewport: scaledViewport
+    }).promise;
+
+    // Update page navigation
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+    prevPageBtn.disabled = currentPage <= 1;
+    nextPageBtn.disabled = currentPage >= totalPages;
+
+  } catch (err) {
+    console.error('Preview error:', err);
+  }
+}
+
+// Debounced preview update
+let previewTimeout = null;
+function schedulePreviewUpdate() {
+  if (previewTimeout) clearTimeout(previewTimeout);
+  previewTimeout = setTimeout(renderPreview, 300);
+}
+
+// Download PDF
+function downloadPDF() {
+  if (!pdfBytes) {
+    pdfBytes = generatePDF();
+  }
+
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'document.pdf';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Load example
+function loadExample() {
+  // Clear existing blocks
+  blocks = [];
+  blocksContainer.innerHTML = '';
+
+  // Add example blocks
+  addBlock('rect', { width: 500, height: 50, color: '#0366d6', align: 'full' });
+  addBlock('text', { text: 'Welcome to PDF Generator', size: 28, color: '#ffffff', align: 'center' });
+  addBlock('spacer', { height: 30 });
+  addBlock('markdown', {
+    text: '# Getting Started\n\nThis tool lets you create PDFs visually. You can add:\n\n- Text blocks with custom fonts and colors\n- Markdown content with headers and lists\n- JPEG images\n- Rectangles and lines for design\n\n## How It Works\n\n1. Add content blocks using the toolbar\n2. Customize each block\'s settings\n3. Drag blocks to reorder them\n4. Download your PDF when ready\n\n---\n\n*Built with tinypdf - a minimal PDF library*',
+    size: 11,
+    color: '#333333'
+  });
+
+  schedulePreviewUpdate();
+}
+
+// Event listeners
+document.querySelectorAll('.block-toolbar button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.block;
+    if (type) addBlock(type);
+  });
+});
+
+document.getElementById('refreshPreview').addEventListener('click', renderPreview);
+document.getElementById('downloadPdf').addEventListener('click', downloadPDF);
+document.getElementById('loadExample').addEventListener('click', loadExample);
+
+prevPageBtn.addEventListener('click', () => {
+  if (currentPage > 1) {
+    currentPage--;
+    renderPreview();
+  }
+});
+
+nextPageBtn.addEventListener('click', () => {
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderPreview();
+  }
+});
+
+pageSizeSelect.addEventListener('change', () => {
+  const isCustom = pageSizeSelect.value === 'custom';
+  customWidthLabel.style.display = isCustom ? '' : 'none';
+  customHeightLabel.style.display = isCustom ? '' : 'none';
+  schedulePreviewUpdate();
+});
+
+customWidthInput.addEventListener('input', schedulePreviewUpdate);
+customHeightInput.addEventListener('input', schedulePreviewUpdate);
+pageMarginSelect.addEventListener('change', schedulePreviewUpdate);
+
+// Initial render
+renderPreview();
+</script>
+</body>
+</html>
