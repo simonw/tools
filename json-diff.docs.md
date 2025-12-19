@@ -1,0 +1,3 @@
+Compare two JSON documents side-by-side to identify all differences, including added fields, removed properties, and modified values. The tool provides a detailed visual breakdown of changes with color-coded highlighting and a summary count of modifications. Pre-loaded examples demonstrate various comparison scenarios such as configuration updates, user profile changes, and nested data structures.
+
+<!-- Generated from commit: 3f430b8897055891e3f292d52a38e0253aeaac23 -->
