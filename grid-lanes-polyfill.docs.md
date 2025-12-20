@@ -1,0 +1,5 @@
+# CSS Grid Lanes Polyfill Demo
+
+Explore the CSS Grid Lanes polyfill, which brings native masonry-style layout capabilities to all browsers through the `display: grid-lanes` property. The demonstration showcases six practical layout patterns including photo galleries, varying column widths, newspaper-style articles with spanning elements, explicit item placement, horizontal brick layouts, and mega menus. Each example includes the relevant CSS code and interactive previews that automatically detect native browser support or activate the polyfill as needed.
+
+<!-- Generated from commit: 8ca341f1fa7f535682f4cf4271669c99ef0befbb -->
