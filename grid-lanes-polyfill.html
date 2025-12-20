@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSS Grid Lanes Polyfill Demo</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Mono&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #16161d;
+      --surface-hover: #1e1e28;
+      --border: #2a2a35;
+      --text: #e8e8ed;
+      --text-muted: #8888a0;
+      --accent: #6366f1;
+      --accent-light: #818cf8;
+      --success: #22c55e;
+      --warning: #f59e0b;
+    }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 3rem 2rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #12121a 0%, var(--bg) 100%);
+    }
+
+    header h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--text) 0%, var(--accent-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 1rem;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 1.125rem;
+      max-width: 600px;
+      margin: 0 auto 1.5rem;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 2rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.875rem;
+    }
+
+    .status::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    section {
+      margin-bottom: 4rem;
+    }
+
+    section h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    section > p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      overflow-x: auto;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.875rem;
+      color: var(--accent-light);
+      margin-bottom: 1.5rem;
+    }
+
+    /* Demo 1: Basic Photo Gallery */
+    .gallery {
+      display: grid-lanes;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .gallery-item {
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .gallery-item:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .gallery-item img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Demo 2: Varying Column Widths */
+    .varying-cols {
+      display: grid-lanes;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr) minmax(180px, 2fr)) minmax(120px, 1fr);
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+    }
+
+    .card h3 {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    .card p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    /* Demo 3: Newspaper Layout with Spanning */
+    .newspaper {
+      display: grid-lanes;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 24px;
+      --item-tolerance: 1em;
+    }
+
+    .article {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .article.hero {
+      grid-column: span 3;
+      background: linear-gradient(135deg, var(--surface) 0%, #1a1a2e 100%);
+      border-color: var(--accent);
+    }
+
+    .article.featured {
+      grid-column: span 2;
+    }
+
+    .article h3 {
+      font-size: 1.125rem;
+      margin-bottom: 0.75rem;
+      line-height: 1.3;
+    }
+
+    .article.hero h3 {
+      font-size: 1.75rem;
+    }
+
+    .article p {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    .article .meta {
+      font-size: 0.75rem;
+      color: var(--accent-light);
+      margin-top: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Demo 4: Explicit Placement */
+    .placed {
+      display: grid-lanes;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+    }
+
+    .placed-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.875rem;
+      text-align: center;
+    }
+
+    .placed-item.special {
+      grid-column: -2 / -1;
+      background: linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%);
+      border-color: var(--accent-light);
+      color: white;
+    }
+
+    /* Demo 5: Brick Layout (Horizontal) */
+    .brick {
+      display: grid-lanes;
+      grid-template-rows: repeat(3, 100px);
+      gap: 12px;
+      height: 350px;
+      overflow-x: auto;
+    }
+
+    .brick-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.875rem;
+      white-space: nowrap;
+    }
+
+    /* Demo 6: Mega Menu */
+    .mega-menu {
+      display: grid-lanes;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 32px 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+    }
+
+    .menu-group h4 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent-light);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menu-group ul {
+      list-style: none;
+    }
+
+    .menu-group li {
+      margin-bottom: 0.5rem;
+    }
+
+    .menu-group a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+
+    .menu-group a:hover {
+      color: var(--text);
+    }
+
+    /* Utility */
+    .demo-container {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 3rem 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    footer a {
+      color: var(--accent-light);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CSS Grid Lanes Polyfill</h1>
+    <p>A polyfill for the new <code>display: grid-lanes</code> CSS feature, enabling masonry-style layouts in all browsers.</p>
+    <div class="status" id="status">Checking support...</div>
+  </header>
+
+  <main>
+    <!-- Demo 1: Basic Gallery -->
+    <section>
+      <h2>Basic Photo Gallery</h2>
+      <p>The classic masonry layout with auto-fill columns. Items flow into whichever column gets them closest to the top.</p>
+      <pre><code>.gallery {
+  display: grid-lanes;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}</code></pre>
+      <div class="demo-container">
+        <div class="gallery">
+          <div class="gallery-item"><img src="https://picsum.photos/400/300?random=1" alt="Photo 1"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/500?random=2" alt="Photo 2"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/350?random=3" alt="Photo 3"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/280?random=4" alt="Photo 4"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/420?random=5" alt="Photo 5"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/320?random=6" alt="Photo 6"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/450?random=7" alt="Photo 7"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/380?random=8" alt="Photo 8"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/340?random=9" alt="Photo 9"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/290?random=10" alt="Photo 10"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/400?random=11" alt="Photo 11"></div>
+          <div class="gallery-item"><img src="https://picsum.photos/400/360?random=12" alt="Photo 12"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Demo 2: Varying Column Widths -->
+    <section>
+      <h2>Varying Column Widths</h2>
+      <p>Alternating narrow and wide columns using complex repeat patterns.</p>
+      <pre><code>.varying-cols {
+  display: grid-lanes;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr) minmax(180px, 2fr)) minmax(120px, 1fr);
+  gap: 12px;
+}</code></pre>
+      <div class="demo-container">
+        <div class="varying-cols">
+          <div class="card"><h3>Short</h3><p>Brief content.</p></div>
+          <div class="card"><h3>Medium Card</h3><p>This card has a moderate amount of content that takes up more vertical space.</p></div>
+          <div class="card"><h3>Tiny</h3><p>Minimal.</p></div>
+          <div class="card"><h3>Longer Content</h3><p>This card contains significantly more text content that will cause it to be taller than some of its neighbors.</p></div>
+          <div class="card"><h3>Quick</h3><p>Fast read.</p></div>
+          <div class="card"><h3>Extended</h3><p>A more detailed description that spans multiple lines and creates visual variety.</p></div>
+          <div class="card"><h3>Brief</h3><p>Short.</p></div>
+          <div class="card"><h3>Standard</h3><p>Average length content for demonstration purposes.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Demo 3: Newspaper Layout -->
+    <section>
+      <h2>Newspaper Layout with Spanning</h2>
+      <p>Using <code>grid-column: span N</code> to create hero and featured articles.</p>
+      <pre><code>.newspaper {
+  display: grid-lanes;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 24px;
+}
+.article.hero { grid-column: span 3; }
+.article.featured { grid-column: span 2; }</code></pre>
+      <div class="demo-container">
+        <div class="newspaper">
+          <article class="article hero">
+            <h3>Breaking: CSS Grid Lanes Revolutionizes Web Layout</h3>
+            <p>The long-awaited masonry layout feature has finally arrived, bringing native support for waterfall-style layouts without JavaScript.</p>
+            <div class="meta">Technology • 5 min read</div>
+          </article>
+          <article class="article featured">
+            <h3>The Future of Responsive Design</h3>
+            <p>How Grid Lanes changes everything we know about fluid layouts.</p>
+            <div class="meta">Design • 3 min read</div>
+          </article>
+          <article class="article featured">
+            <h3>Performance Gains with Native Masonry</h3>
+            <p>Benchmarks show significant improvements over JavaScript solutions.</p>
+            <div class="meta">Performance • 4 min read</div>
+          </article>
+          <article class="article">
+            <h3>Quick Start Guide</h3>
+            <p>Get started in minutes.</p>
+            <div class="meta">Tutorial</div>
+          </article>
+          <article class="article">
+            <h3>Browser Support Matrix</h3>
+            <p>Current implementation status across browsers.</p>
+            <div class="meta">Compatibility</div>
+          </article>
+          <article class="article">
+            <h3>Migration Tips</h3>
+            <p>Moving from JS masonry libraries to native CSS.</p>
+            <div class="meta">Guide</div>
+          </article>
+          <article class="article">
+            <h3>Accessibility Considerations</h3>
+            <p>Ensuring your masonry layouts work for everyone.</p>
+            <div class="meta">A11y</div>
+          </article>
+          <article class="article">
+            <h3>Advanced Patterns</h3>
+            <p>Complex layouts with explicit placement.</p>
+            <div class="meta">Advanced</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Demo 4: Explicit Placement -->
+    <section>
+      <h2>Explicit Placement</h2>
+      <p>Using negative indices to place items in specific columns (the "Special" item is placed in the last column).</p>
+      <pre><code>.placed {
+  display: grid-lanes;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+.special { grid-column: -2 / -1; }</code></pre>
+      <div class="demo-container">
+        <div class="placed">
+          <div class="placed-item special">Special<br>(last column)</div>
+          <div class="placed-item">Item 1</div>
+          <div class="placed-item">Item 2<br>+more</div>
+          <div class="placed-item">Item 3</div>
+          <div class="placed-item">Item 4<br>+extra<br>+content</div>
+          <div class="placed-item">Item 5</div>
+          <div class="placed-item">Item 6<br>+more</div>
+          <div class="placed-item">Item 7</div>
+          <div class="placed-item">Item 8</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Demo 5: Brick Layout -->
+    <section>
+      <h2>Brick Layout (Horizontal)</h2>
+      <p>Define rows instead of columns to create horizontal masonry flow.</p>
+      <pre><code>.brick {
+  display: grid-lanes;
+  grid-template-rows: repeat(3, 100px);
+  gap: 12px;
+}</code></pre>
+      <div class="demo-container">
+        <div class="brick">
+          <div class="brick-item" style="width: 120px;">Brick 1</div>
+          <div class="brick-item" style="width: 180px;">Brick 2 (wider)</div>
+          <div class="brick-item" style="width: 100px;">Brick 3</div>
+          <div class="brick-item" style="width: 150px;">Brick 4</div>
+          <div class="brick-item" style="width: 200px;">Brick 5 (widest)</div>
+          <div class="brick-item" style="width: 130px;">Brick 6</div>
+          <div class="brick-item" style="width: 110px;">Brick 7</div>
+          <div class="brick-item" style="width: 160px;">Brick 8</div>
+          <div class="brick-item" style="width: 140px;">Brick 9</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Demo 6: Mega Menu -->
+    <section>
+      <h2>Mega Menu Footer</h2>
+      <p>Perfect for navigation footers with variable-length link groups.</p>
+      <pre><code>.mega-menu {
+  display: grid-lanes;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 32px 24px;
+}</code></pre>
+      <div class="demo-container">
+        <nav class="mega-menu">
+          <div class="menu-group">
+            <h4>Products</h4>
+            <ul>
+              <li><a href="#">Overview</a></li>
+              <li><a href="#">Features</a></li>
+              <li><a href="#">Pricing</a></li>
+              <li><a href="#">Enterprise</a></li>
+            </ul>
+          </div>
+          <div class="menu-group">
+            <h4>Resources</h4>
+            <ul>
+              <li><a href="#">Documentation</a></li>
+              <li><a href="#">API Reference</a></li>
+              <li><a href="#">Tutorials</a></li>
+              <li><a href="#">Blog</a></li>
+              <li><a href="#">Community</a></li>
+              <li><a href="#">Support</a></li>
+            </ul>
+          </div>
+          <div class="menu-group">
+            <h4>Company</h4>
+            <ul>
+              <li><a href="#">About</a></li>
+              <li><a href="#">Careers</a></li>
+              <li><a href="#">Press</a></li>
+            </ul>
+          </div>
+          <div class="menu-group">
+            <h4>Legal</h4>
+            <ul>
+              <li><a href="#">Privacy</a></li>
+              <li><a href="#">Terms</a></li>
+              <li><a href="#">Security</a></li>
+              <li><a href="#">Compliance</a></li>
+              <li><a href="#">GDPR</a></li>
+            </ul>
+          </div>
+          <div class="menu-group">
+            <h4>Connect</h4>
+            <ul>
+              <li><a href="#">Twitter</a></li>
+              <li><a href="#">GitHub</a></li>
+              <li><a href="#">Discord</a></li>
+              <li><a href="#">LinkedIn</a></li>
+              <li><a href="#">YouTube</a></li>
+              <li><a href="#">Newsletter</a></li>
+              <li><a href="#">RSS</a></li>
+            </ul>
+          </div>
+          <div class="menu-group">
+            <h4>More</h4>
+            <ul>
+              <li><a href="#">Status</a></li>
+              <li><a href="#">Changelog</a></li>
+            </ul>
+          </div>
+        </nav>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>CSS Grid Lanes Polyfill • <a href="https://webkit.org/blog/17660/introducing-css-grid-lanes/">Learn about the native feature</a></p>
+  </footer>
+
+  <script src="grid-lanes-polyfill.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const statusEl = document.getElementById('status');
+      
+      if (GridLanesPolyfill.supportsGridLanes()) {
+        statusEl.textContent = 'Native support detected ✓';
+        statusEl.style.setProperty('--status-color', '#22c55e');
+      } else {
+        // Initialize polyfill
+        const result = GridLanesPolyfill.init({ force: true });
+        statusEl.textContent = `Polyfill active (${result.instances.size} containers)`;
+      }
+
+      // Handle images loading (re-layout after images load)
+      const images = document.querySelectorAll('.gallery img');
+      let loadedCount = 0;
+      
+      images.forEach(img => {
+        if (img.complete) {
+          loadedCount++;
+        } else {
+          img.addEventListener('load', () => {
+            loadedCount++;
+            if (loadedCount === images.length) {
+              // Refresh all layouts after all images loaded
+              GridLanesPolyfill.init({ force: true });
+            }
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
