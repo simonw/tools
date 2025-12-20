@@ -76,24 +76,15 @@
     }
 
     #copy-button {
-      position: relative;
-      margin: 0 0 0.5em 0;
-      height: 40px;
-      min-width: 120px;
-      background-color: #2ea44f;
-      border-radius: 4px;
-      border: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      background: #2ea44f;
     }
 
-    #copy-button:active {
-      background-color: #22863a;
+    #copy-button:hover {
+      background: #22863a;
     }
 
-    .copy-text {
-      font-size: 14px;
+    #copy-button.success {
+      background: #22863a;
     }
 
     .controls {
@@ -125,26 +116,6 @@
     h3 {
       margin: 1.5em 0 0.5em 0;
       font-size: 1.2em;
-    }
-
-    /* Message after successful copy */
-    .copied-message {
-      position: absolute;
-      background-color: rgba(0, 0, 0, 0.7);
-      color: white;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 14px;
-      top: -30px;
-      left: 50%;
-      transform: translateX(-50%);
-      opacity: 0;
-      transition: opacity 0.3s;
-      pointer-events: none;
-    }
-
-    .show-message {
-      opacity: 1;
     }
 
     @media (max-width: 768px) {
@@ -377,15 +348,13 @@
   <div id="preview"></div>
   
   <h3>HTML Output</h3>
-  <button id="copy-button" aria-label="Copy HTML to clipboard">
-    <span class="copy-text">Copy HTML</span>
-  </button>
+  <button id="copy-button">Copy HTML</button>
   
   <div class="output-container">
-    <textarea id="output" readonly></textarea>
+    <textarea id="output"></textarea>
   </div>
   
-  <script type="module">
+  <script>
 // Initialize elements
 const button = document.getElementById('render-button');
 const stripHidden = document.getElementById('strip_hidden');
@@ -527,57 +496,23 @@ async function render(markdown) {
 // Add copy to clipboard functionality
 const copyButton = document.getElementById('copy-button');
 
-function showCopySuccess() {
-  const textSpan = copyButton.querySelector('.copy-text');
-  const originalText = textSpan.textContent;
-  textSpan.textContent = '✓ Copied!';
-  copyButton.style.backgroundColor = '#22863a';
-  setTimeout(() => {
-    textSpan.textContent = originalText;
-    copyButton.style.backgroundColor = '';
-  }, 2000);
-}
-
-function copyWithExecCommand() {
-  // Focus the textarea and select all content
-  output.focus();
-  output.select();
-  output.setSelectionRange(0, output.value.length);
-
-  try {
-    const successful = document.execCommand('copy');
-    if (successful) {
-      showCopySuccess();
-      return true;
-    }
-  } catch (err) {
-    console.error('execCommand copy failed:', err);
-  }
-  return false;
-}
-
 copyButton.addEventListener('click', async () => {
   if (!output.value) {
     return;
   }
-
-  // Try modern clipboard API first
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    try {
-      await navigator.clipboard.writeText(output.value);
-      showCopySuccess();
-      return;
-    } catch (err) {
-      console.warn('navigator.clipboard.writeText failed, trying fallback:', err);
-    }
-  }
-
-  // Fallback to execCommand
-  if (!copyWithExecCommand()) {
-    // Last resort: prompt user to copy manually
-    output.focus();
-    output.select();
-    alert('Press Ctrl+C (Cmd+C on Mac) to copy the selected text.');
+  try {
+    await navigator.clipboard.writeText(output.value);
+    copyButton.textContent = 'Copied!';
+    copyButton.classList.add('success');
+    setTimeout(() => {
+      copyButton.textContent = 'Copy HTML';
+      copyButton.classList.remove('success');
+    }, 2000);
+  } catch (err) {
+    copyButton.textContent = 'Failed to copy';
+    setTimeout(() => {
+      copyButton.textContent = 'Copy HTML';
+    }, 2000);
   }
 });
 
@@ -590,14 +525,6 @@ if (!input.value && localStorage.getItem('saved')) {
 input.addEventListener('input', () => {
   localStorage.setItem('saved', input.value);
 });
-
-// Add double-tap zoom prevention
-document.addEventListener('touchstart', function(event) {
-  if (event.target.tagName === 'BUTTON' || event.target.tagName === 'INPUT') {
-    event.preventDefault();
-    event.target.click();
-  }
-}, { passive: false });
 
 // Add service worker for offline capabilities if needed
 if ('serviceWorker' in navigator) {
