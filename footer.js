@@ -124,8 +124,43 @@
         textColor = isDark ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)';
     }
 
+    // Check if body uses flex or grid layout that could break footer positioning
+    const bodyStyle = window.getComputedStyle(document.body);
+    const bodyDisplay = bodyStyle.display;
+    const needsLayoutFix = (bodyDisplay === 'flex' || bodyDisplay === 'grid');
+
+    if (needsLayoutFix) {
+        // Wrap existing body content to preserve the original layout behavior
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = `
+            display: ${bodyDisplay};
+            flex: 1 1 auto;
+            flex-direction: ${bodyStyle.flexDirection};
+            align-items: ${bodyStyle.alignItems};
+            justify-content: ${bodyStyle.justifyContent};
+            flex-wrap: ${bodyStyle.flexWrap};
+            gap: ${bodyStyle.gap};
+            width: 100%;
+            min-height: inherit;
+        `;
+
+        // Move all existing children (except scripts at the end) into the wrapper
+        while (document.body.firstChild) {
+            wrapper.appendChild(document.body.firstChild);
+        }
+
+        // Reset body to a vertical flex column
+        document.body.style.display = 'flex';
+        document.body.style.flexDirection = 'column';
+        document.body.style.alignItems = 'stretch';
+        document.body.style.justifyContent = 'flex-start';
+
+        document.body.appendChild(wrapper);
+    }
+
     // Create the footer element
     const footer = document.createElement('footer');
+    footer.style.cssText = 'flex-shrink: 0; width: 100%; box-sizing: border-box;';
     footer.innerHTML = `
         <hr style="margin: 2rem 0 1rem 0; border: none; border-top: 1px solid ${textColor};">
         <nav style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; text-align: center; font-style: normal; padding-bottom: 1rem;">
