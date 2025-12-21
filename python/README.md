@@ -4,6 +4,23 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## git_read_only_http.py
+
+Serve a local Git repository over HTTP in read-only mode.
+
+```bash
+uv run https://tools.simonwillison.net/python/git_read_only_http.py \
+  /path/to/repo
+```
+Defaults to serving on `localhost:8000`. Use `-H/--host` and `-p/--port` to change that.
+
+You can then clone the repo like this:
+```bash
+git clone http://localhost:8000/ directory_name
+```
+
+[Claude transcript](https://claude.ai/share/95001fd2-24ea-427e-91f0-6a76f97206e7).
+
 ## claude_code_to_gist.py
 
 ```bash
