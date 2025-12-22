@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo print layout</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: #f0f0f0;
+  min-height: 100vh;
+}
+
+h1 {
+  margin: 0 0 20px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control-group label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+}
+
+input[type="file"] {
+  font-size: 16px;
+  font-family: inherit;
+}
+
+select, input {
+  font-size: 16px;
+  font-family: inherit;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+}
+
+select:focus, input:focus {
+  outline: none;
+  border-color: #0066cc;
+}
+
+.btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  font-family: inherit;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-primary {
+  background: #0066cc;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #0055aa;
+}
+
+.btn-secondary {
+  background: #666;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #555;
+}
+
+.preview-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  padding: 20px;
+  overflow: auto;
+}
+
+.preview-label {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.page {
+  background: white;
+  margin: 0 auto;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
+.page.portrait {
+  width: 210mm;
+  height: 297mm;
+  max-width: 100%;
+}
+
+.page.landscape {
+  width: 297mm;
+  height: 210mm;
+  max-width: 100%;
+}
+
+.photo-cell {
+  position: relative;
+  overflow: hidden;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #ddd;
+}
+
+.photo-cell img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.photo-cell.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-btn:hover {
+  background: rgba(200,0,0,0.8);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+}
+
+.empty-state svg {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.photo-count {
+  font-size: 14px;
+  color: #666;
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: 12px;
+  }
+  
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .control-group {
+    width: 100%;
+  }
+  
+  select, input, .btn {
+    width: 100%;
+  }
+  
+  .page.portrait, .page.landscape {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 210 / 297;
+  }
+  
+  .page.landscape {
+    aspect-ratio: 297 / 210;
+  }
+  
+  .photo-count {
+    margin-left: 0;
+    text-align: center;
+  }
+}
+
+@media print {
+  body {
+    background: white;
+    padding: 0;
+    margin: 0;
+  }
+  
+  h1, .controls, .preview-label {
+    display: none !important;
+  }
+
+  .preview-container {
+    padding: 0;
+    box-shadow: none;
+    background: none;
+  }
+  
+  .page {
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    page-break-after: avoid;
+  }
+  
+  .photo-cell {
+    border: none;
+  }
+  
+  .remove-btn {
+    display: none !important;
+  }
+}
+
+@page {
+  margin: 0;
+}
+  </style>
+</head>
+<body>
+  <h1>Photo print layout</h1>
+  
+  <div class="controls">
+    <div class="control-group">
+      <label>Add photos</label>
+      <input type="file" id="fileInput" accept="image/*" multiple>
+    </div>
+    
+    <div class="control-group">
+      <label>Orientation</label>
+      <select id="orientation">
+        <option value="portrait">Portrait</option>
+        <option value="landscape">Landscape</option>
+      </select>
+    </div>
+    
+    <div class="control-group">
+      <label>Photos per row</label>
+      <select id="columns">
+        <option value="1">1</option>
+        <option value="2" selected>2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+    </div>
+    
+    <div class="control-group">
+      <label>Rows</label>
+      <select id="rows">
+        <option value="1">1</option>
+        <option value="2" selected>2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+    </div>
+    
+    <div class="control-group">
+      <label>Fit mode</label>
+      <select id="fitMode">
+        <option value="contain">Fit (show all)</option>
+        <option value="cover">Fill (crop)</option>
+      </select>
+    </div>
+    
+    <button class="btn btn-secondary" id="clearBtn">Clear all</button>
+    <button class="btn btn-primary" id="printBtn">Print</button>
+    
+    <div class="photo-count" id="photoCount">0 photos</div>
+  </div>
+  
+  <div class="preview-container">
+    <div class="preview-label">Preview (actual print size)</div>
+    <div class="page portrait" id="page">
+      <div class="empty-state" id="emptyState">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <p>Add photos to get started</p>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+const fileInput = document.getElementById('fileInput');
+const orientation = document.getElementById('orientation');
+const columns = document.getElementById('columns');
+const rows = document.getElementById('rows');
+const fitMode = document.getElementById('fitMode');
+const clearBtn = document.getElementById('clearBtn');
+const printBtn = document.getElementById('printBtn');
+const page = document.getElementById('page');
+const emptyState = document.getElementById('emptyState');
+const photoCount = document.getElementById('photoCount');
+
+let photos = [];
+
+function updatePhotoCount() {
+  const count = photos.length;
+  photoCount.textContent = `${count} photo${count !== 1 ? 's' : ''}`;
+}
+
+function updateGrid() {
+  const cols = parseInt(columns.value);
+  const numRows = parseInt(rows.value);
+  const orient = orientation.value;
+  const fit = fitMode.value;
+  
+  page.className = `page ${orient}`;
+  page.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  page.style.gridTemplateRows = `repeat(${numRows}, 1fr)`;
+  
+  page.innerHTML = '';
+  
+  const totalCells = cols * numRows;
+  
+  if (photos.length === 0) {
+    page.innerHTML = emptyState.outerHTML;
+    return;
+  }
+  
+  for (let i = 0; i < totalCells; i++) {
+    const cell = document.createElement('div');
+    cell.className = `photo-cell ${fit === 'cover' ? 'cover' : ''}`;
+    
+    if (photos[i]) {
+      const img = document.createElement('img');
+      img.src = photos[i];
+      img.alt = `Photo ${i + 1}`;
+      cell.appendChild(img);
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'remove-btn';
+      removeBtn.innerHTML = '×';
+      removeBtn.title = 'Remove photo';
+      removeBtn.addEventListener('click', () => removePhoto(i));
+      cell.appendChild(removeBtn);
+    }
+    
+    page.appendChild(cell);
+  }
+  
+  updatePrintStyles();
+}
+
+function updatePrintStyles() {
+  let printStyle = document.getElementById('dynamic-print-style');
+  if (!printStyle) {
+    printStyle = document.createElement('style');
+    printStyle.id = 'dynamic-print-style';
+    document.head.appendChild(printStyle);
+  }
+  
+  const orient = orientation.value;
+  const cols = parseInt(columns.value);
+  const numRows = parseInt(rows.value);
+  
+  printStyle.textContent = `
+    @media print {
+      @page {
+        size: A4 ${orient};
+        margin: 0;
+      }
+      
+      .page {
+        width: 100vw;
+        height: 100vh;
+        display: grid;
+        grid-template-columns: repeat(${cols}, 1fr);
+        grid-template-rows: repeat(${numRows}, 1fr);
+        gap: 2mm;
+        padding: 2mm;
+      }
+    }
+  `;
+}
+
+function removePhoto(index) {
+  photos.splice(index, 1);
+  updatePhotoCount();
+  updateGrid();
+}
+
+function handleFiles(files) {
+  Array.from(files).forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      photos.push(e.target.result);
+      updatePhotoCount();
+      updateGrid();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+fileInput.addEventListener('change', (e) => {
+  handleFiles(e.target.files);
+  fileInput.value = '';
+});
+
+orientation.addEventListener('change', updateGrid);
+columns.addEventListener('change', updateGrid);
+rows.addEventListener('change', updateGrid);
+fitMode.addEventListener('change', updateGrid);
+
+clearBtn.addEventListener('click', () => {
+  photos = [];
+  updatePhotoCount();
+  updateGrid();
+});
+
+printBtn.addEventListener('click', () => {
+  window.print();
+});
+
+// Drag and drop support
+document.body.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+});
+
+document.body.addEventListener('drop', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  handleFiles(e.dataTransfer.files);
+});
+
+// Initial render
+updateGrid();
+</script>
+</body>
+</html>
