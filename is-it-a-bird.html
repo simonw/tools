@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Is It a Bird? - CLIP Bird Detector</title>
+  <title>Is it a bird?</title>
   <script defer data-domain="tools.simonwillison.net" src="https://plausible.io/js/script.js"></script>
   <style>
     * {
@@ -222,12 +222,39 @@
     .webcam-container.active {
       display: block;
     }
+    .video-wrapper {
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #000;
+      touch-action: none;
+      max-height: 400px;
+    }
     #webcam-video {
       width: 100%;
       max-height: 400px;
-      border-radius: 8px;
+      display: block;
       background: #000;
       object-fit: cover;
+      transform-origin: center center;
+      transition: transform 0.05s ease-out;
+    }
+    .zoom-hint {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .video-wrapper:active .zoom-hint {
+      opacity: 1;
     }
     .webcam-controls {
       display: flex;
@@ -341,7 +368,10 @@
         <div class="webcam-placeholder-icon">📹</div>
         <div>Click "Start Camera" to begin</div>
       </div>
-      <video id="webcam-video" autoplay playsinline style="display: none;"></video>
+      <div class="video-wrapper" id="video-wrapper" style="display: none;">
+        <video id="webcam-video" autoplay playsinline></video>
+        <div class="zoom-hint" id="zoom-hint">Pinch to zoom</div>
+      </div>
       <div class="webcam-controls">
         <button class="webcam-btn start" id="start-camera-btn">Start Camera</button>
         <button class="webcam-btn stop" id="stop-camera-btn" style="display: none;">Stop Camera</button>
@@ -395,6 +425,8 @@
     // Webcam elements
     const webcamVideo = document.getElementById('webcam-video');
     const webcamPlaceholder = document.getElementById('webcam-placeholder');
+    const videoWrapper = document.getElementById('video-wrapper');
+    const zoomHint = document.getElementById('zoom-hint');
     const startCameraBtn = document.getElementById('start-camera-btn');
     const stopCameraBtn = document.getElementById('stop-camera-btn');
     const switchCameraBtn = document.getElementById('switch-camera-btn');
@@ -409,6 +441,11 @@
     let webcamInterval = null;
     let currentFacingMode = 'environment'; // 'environment' (rear) or 'user' (front)
     let hasMultipleCameras = false;
+
+    // Pinch-to-zoom state
+    let currentScale = 1;
+    let initialDistance = null;
+    let initialScale = 1;
 
     // Track progress across multiple files
     const fileProgress = {};
@@ -654,10 +691,14 @@
         webcamStream = await navigator.mediaDevices.getUserMedia(constraints);
         webcamVideo.srcObject = webcamStream;
 
-        webcamVideo.style.display = 'block';
+        videoWrapper.style.display = 'block';
         webcamPlaceholder.style.display = 'none';
         startCameraBtn.style.display = 'none';
         stopCameraBtn.style.display = 'inline-block';
+
+        // Reset zoom
+        currentScale = 1;
+        webcamVideo.style.transform = 'scale(1)';
 
         await checkCameras();
         if (hasMultipleCameras) {
@@ -693,12 +734,16 @@
       }
 
       webcamVideo.srcObject = null;
-      webcamVideo.style.display = 'none';
+      videoWrapper.style.display = 'none';
       webcamPlaceholder.style.display = 'flex';
       startCameraBtn.style.display = 'inline-block';
       stopCameraBtn.style.display = 'none';
       switchCameraBtn.style.display = 'none';
       webcamStatus.textContent = '';
+
+      // Reset zoom
+      currentScale = 1;
+      webcamVideo.style.transform = 'scale(1)';
     }
 
     // Switch camera
@@ -794,6 +839,60 @@
     startCameraBtn.addEventListener('click', startWebcam);
     stopCameraBtn.addEventListener('click', stopWebcam);
     switchCameraBtn.addEventListener('click', switchCamera);
+
+    // Pinch-to-zoom handlers
+    function getDistance(touches) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    videoWrapper.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        initialDistance = getDistance(e.touches);
+        initialScale = currentScale;
+        zoomHint.style.opacity = '1';
+      }
+    }, { passive: false });
+
+    videoWrapper.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && initialDistance !== null) {
+        e.preventDefault();
+        const currentDistance = getDistance(e.touches);
+        const scaleFactor = currentDistance / initialDistance;
+        currentScale = Math.min(Math.max(initialScale * scaleFactor, 1), 4);
+        webcamVideo.style.transform = `scale(${currentScale})`;
+        zoomHint.textContent = `${currentScale.toFixed(1)}x zoom`;
+      }
+    }, { passive: false });
+
+    videoWrapper.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        initialDistance = null;
+        zoomHint.style.opacity = '0';
+        zoomHint.textContent = 'Pinch to zoom';
+      }
+    });
+
+    // Double-tap to reset zoom
+    let lastTap = 0;
+    videoWrapper.addEventListener('touchend', (e) => {
+      if (e.touches.length === 0) {
+        const now = Date.now();
+        if (now - lastTap < 300) {
+          currentScale = 1;
+          webcamVideo.style.transform = 'scale(1)';
+          zoomHint.textContent = 'Zoom reset';
+          zoomHint.style.opacity = '1';
+          setTimeout(() => {
+            zoomHint.style.opacity = '0';
+            zoomHint.textContent = 'Pinch to zoom';
+          }, 500);
+        }
+        lastTap = now;
+      }
+    });
   </script>
 </body>
 </html>
