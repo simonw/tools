@@ -4,6 +4,26 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## list_llm_model_ids.py
+
+List available model IDs from OpenAI, Anthropic, and Gemini.
+
+You must have [LLM](https://llm.datasette.io/) installed and have configured the API keys for one or more of `anthorpic`, `openai`, or `gemini` using `llm keys set`.
+
+```bash
+uv run https://tools.simonwillison.net/python/list_llm_model_ids.py
+```
+Output starts:
+```
+===================
+openai (136 models)
+===================
+babbage-002
+chatgpt-4o-latest
+chatgpt-image-latest
+...
+```
+
 ## git_read_only_http.py
 
 Serve a local Git repository over HTTP in read-only mode.
