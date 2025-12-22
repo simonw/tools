@@ -1,3 +1,3 @@
-Create custom photo print layouts by uploading images and arranging them on virtual A4 pages with adjustable orientation, grid dimensions, and image fitting options. The application provides real-time preview of your layout and supports drag-and-drop file upload, with the ability to remove individual photos and adjust settings before printing. Print-optimized output ensures your photos are arranged exactly as previewed.
+Create custom photo print layouts for A4 pages with adjustable grid configurations, image fitting options, and portrait or landscape orientations. Users can add photos by uploading files or dragging and dropping them directly onto the page, then remove individual photos or clear the entire layout before printing. The preview displays actual print dimensions, allowing precise control over how photos will appear on the final printed output.
 
-<!-- Generated from commit: 6fe87ed80e94e00cee4918d9b9dca47d660e0c91 -->
+<!-- Generated from commit: f389301cb51c22552db22cac5e8d46b9f8e99cde -->
