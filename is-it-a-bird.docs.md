@@ -1,3 +1,3 @@
-Classify images to determine if they contain a bird using OpenAI's CLIP model running entirely in your browser. Upload an image via drag-and-drop, paste, or file selection, or use your webcam for real-time analysis with pinch-to-zoom support. The model downloads locally (~150 MB) on first use and no images are sent to any server.
+Determine whether an image contains a bird using OpenAI's CLIP model running entirely in your browser. Upload an image by dragging and dropping, pasting from your clipboard, or selecting a file, and the tool will analyze it against multiple candidate labels to classify whether it depicts a bird. The application also supports real-time webcam analysis with pinch-to-zoom controls and camera switching on mobile devices.
 
-<!-- Generated from commit: 7a9f763ed211ff884c1d4f2fab00d14cae6832d6 -->
+<!-- Generated from commit: c3df0fc7fd4ac2a804fd5be114ff8f18a465d1f5 -->
