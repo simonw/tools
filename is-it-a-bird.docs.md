@@ -1,3 +1,3 @@
-Determine whether an image contains a bird using OpenAI's CLIP model running entirely in your browser with Transformers.js. Upload an image by dragging, pasting, or selecting a file, or use your device's webcam for real-time bird detection analysis. The tool processes all images locally without sending any data to external servers, and displays confidence scores across five categories: bird, animal, object, person, and landscape.
+Determine whether images contain birds using OpenAI's CLIP model running directly in your browser through Transformers.js. Upload images by dragging and dropping, pasting from your clipboard, or selecting files, or use your device's camera for real-time analysis. The tool processes all images locally with no data sent to external servers, and includes a webcam mode with pinch-to-zoom functionality for mobile devices.
 
-<!-- Generated from commit: 670e92ffae7aa15044fce594589563bee24f81c1 -->
+<!-- Generated from commit: 5eed328d7e2c2a0ce9554c4cfdf26999a0fd6fa7 -->
