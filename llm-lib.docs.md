@@ -1,0 +1,3 @@
+Test a unified JavaScript library for interacting with multiple AI providers including OpenAI, Anthropic Claude, and Google Gemini from a single interface. Configure your preferred provider and model, enter an API key, and send prompts to receive responses in either non-streaming or streaming modes. The application stores API keys locally for convenience and displays real-time status indicators during request processing.
+
+<!-- Generated from commit: 59621c1472369fdcdde478f3e9904ac149340fd2 -->
