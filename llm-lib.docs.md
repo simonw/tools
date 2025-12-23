@@ -1,3 +1,5 @@
-Test a unified JavaScript library for interacting with multiple AI providers including OpenAI, Anthropic Claude, and Google Gemini from a single interface. Configure your preferred provider and model, enter an API key, and send prompts to receive responses in either non-streaming or streaming modes. The application stores API keys locally for convenience and displays real-time status indicators during request processing.
+# Documentation
 
-<!-- Generated from commit: 59621c1472369fdcdde478f3e9904ac149340fd2 -->
+Test llm-lib, a unified JavaScript library that provides a consistent interface for multiple large language model providers including OpenAI, Anthropic Claude, and Google Gemini. Configure your provider credentials and model settings, then send messages either as complete responses or as real-time streams. The demo includes code examples showing how to integrate the library into your own projects.
+
+<!-- Generated from commit: b4ccc24c91d8ef80dce0d4b9c40e9883653895b5 -->
