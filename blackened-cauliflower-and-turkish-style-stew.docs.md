@@ -1,0 +1,3 @@
+Manage a dual-recipe cooking timer that coordinates preparation and cooking steps for a Cauliflower & Couscous dish and a Chickpea Stew. The application displays elapsed time, highlights the current step to perform, previews upcoming tasks with countdowns, and provides a full timeline of all 22 steps organized by recipe. Data persists in browser storage so you can close and reopen the page without losing your progress.
+
+<!-- Generated from commit: 341cac82eedbb2597c63eca5e2de3afce9de65fe -->
