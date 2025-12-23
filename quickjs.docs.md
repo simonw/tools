@@ -1,3 +1,3 @@
-Execute JavaScript code in a sandboxed QuickJS environment powered by WebAssembly, with real-time output display and code sharing through URL hashes. The application includes a collection of example programs covering common JavaScript patterns, from basic algorithms like Fibonacci and factorials to data structure operations and string manipulation. Use Ctrl+Enter to quickly execute code or select from the pre-built examples to learn and experiment with different JavaScript techniques.
+Execute JavaScript code in a WebAssembly-based QuickJS sandbox environment with real-time output display and code sharing via URL hashing. The tool includes pre-built examples ranging from basic operations to algorithms like Fibonacci and prime number generation, and supports keyboard shortcuts for convenient code execution. Code is automatically persisted in the URL fragment, allowing you to easily share executable snippets with others.
 
-<!-- Generated from commit: 410dfcc941ebc71760524aafdba2bf41a74fec2a -->
+<!-- Generated from commit: bd408a676913952c68c2c51343960bb766086d11 -->
