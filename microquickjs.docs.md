@@ -1,0 +1,3 @@
+Execute JavaScript code in a minimal MicroQuickJS sandbox environment powered by WebAssembly, with results displayed immediately and code automatically preserved in the URL for sharing. The executor supports ES5-like JavaScript features and includes a collection of ready-to-use examples demonstrating common programming patterns, from basic algorithms like factorial and Fibonacci to data manipulation and mathematical operations.
+
+<!-- Generated from commit: 669840d8a059dc17408266bf4b6f65fd3400696d -->
