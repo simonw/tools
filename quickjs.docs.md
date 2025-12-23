@@ -1,3 +1,3 @@
-Execute JavaScript code in a WebAssembly-based QuickJS sandbox environment with real-time output display and code sharing via URL hashing. The tool includes pre-built examples ranging from basic operations to algorithms like Fibonacci and prime number generation, and supports keyboard shortcuts for convenient code execution. Code is automatically persisted in the URL fragment, allowing you to easily share executable snippets with others.
+Execute JavaScript code in a sandboxed QuickJS environment that runs via WebAssembly, enabling secure and fast script execution directly in the browser. Code is automatically saved to the URL hash, making it easy to share executable snippets with others. The interface includes ten built-in examples ranging from basic algorithms to practical string and array manipulation, along with keyboard shortcuts and real-time execution timing.
 
-<!-- Generated from commit: bd408a676913952c68c2c51343960bb766086d11 -->
+<!-- Generated from commit: ca48e2496d347b1cee2a6d6ab9ff0926046909f1 -->
