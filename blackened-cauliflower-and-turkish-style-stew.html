@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Dual Recipe Cooking Timer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  min-height: 100vh;
+  color: #fff;
+  padding: 16px;
+  padding-bottom: 100px;
+}
+
+h1 {
+  font-size: 1.4rem;
+  text-align: center;
+  margin-bottom: 16px;
+  color: #fff;
+}
+
+.start-section {
+  background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px rgba(233, 69, 96, 0.3);
+}
+
+.start-section.running {
+  background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
+}
+
+.start-btn {
+  background: #fff;
+  color: #e94560;
+  border: none;
+  padding: 16px 48px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.start-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 20px rgba(255,255,255,0.3);
+}
+
+.start-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.elapsed-time {
+  font-size: 3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 8px;
+}
+
+.elapsed-label {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.reset-btn {
+  background: transparent;
+  border: 2px solid rgba(255,255,255,0.5);
+  color: #fff;
+  padding: 8px 24px;
+  border-radius: 20px;
+  margin-top: 12px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.current-step {
+  background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px rgba(0, 184, 148, 0.3);
+}
+
+.current-step-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.9;
+  margin-bottom: 8px;
+}
+
+.current-step-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.current-step-detail {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  opacity: 0.95;
+}
+
+.current-step-recipe {
+  display: inline-block;
+  background: rgba(0,0,0,0.2);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  margin-top: 10px;
+}
+
+.next-steps {
+  background: #1e3a5f;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.next-steps h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.7;
+  margin-bottom: 12px;
+}
+
+.next-step-item {
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.next-step-item:last-child {
+  margin-bottom: 0;
+}
+
+.next-step-info {
+  flex: 1;
+}
+
+.next-step-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.next-step-recipe-tag {
+  font-size: 0.7rem;
+  opacity: 0.6;
+}
+
+.next-step-countdown {
+  background: #e94560;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 70px;
+  text-align: center;
+}
+
+.next-step-countdown.soon {
+  background: #f39c12;
+  animation: pulse 1s infinite;
+}
+
+.next-step-countdown.now {
+  background: #00b894;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.timeline-section {
+  background: #1e3a5f;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.timeline-section h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.7;
+  margin-bottom: 16px;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  position: relative;
+}
+
+.timeline-item:last-child {
+  border-bottom: none;
+}
+
+.timeline-item.completed {
+  opacity: 0.4;
+}
+
+.timeline-item.active {
+  opacity: 1;
+}
+
+.timeline-item.active::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #00b894;
+  border-radius: 2px;
+}
+
+.timeline-time {
+  min-width: 55px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #00cec9;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-content {
+  flex: 1;
+}
+
+.timeline-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.timeline-detail {
+  font-size: 0.8rem;
+  opacity: 0.7;
+  line-height: 1.4;
+}
+
+.timeline-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-top: 6px;
+}
+
+.tag-cauliflower {
+  background: #9b59b6;
+}
+
+.tag-stew {
+  background: #e67e22;
+}
+
+.tag-both {
+  background: #3498db;
+}
+
+.not-started {
+  text-align: center;
+  padding: 40px 20px;
+  opacity: 0.6;
+}
+
+.completed-section {
+  background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+  border-radius: 16px;
+  padding: 32px 20px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.completed-section h2 {
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+
+  </style>
+</head>
+<body>
+  <h1>🍳 Dual Recipe Cooking Timer</h1>
+
+  <div class="start-section" id="startSection">
+    <button class="start-btn" id="startBtn" onclick="startCooking()">START COOKING</button>
+    <div class="hidden" id="timerDisplay">
+      <div class="elapsed-time" id="elapsedTime">00:00</div>
+      <div class="elapsed-label">Elapsed Time</div>
+      <button class="reset-btn" onclick="resetTimer()">Reset Timer</button>
+    </div>
+  </div>
+
+  <div id="completedSection" class="completed-section hidden">
+    <h2>🎉 All Done!</h2>
+    <p>Time to plate and enjoy your meal!</p>
+  </div>
+
+  <div id="currentStepSection" class="current-step hidden">
+    <div class="current-step-label">⏰ Do This Now</div>
+    <div class="current-step-title" id="currentStepTitle"></div>
+    <div class="current-step-detail" id="currentStepDetail"></div>
+    <div class="current-step-recipe" id="currentStepRecipe"></div>
+  </div>
+
+  <div id="nextStepsSection" class="next-steps hidden">
+    <h2>Coming Up Next</h2>
+    <div id="nextStepsList"></div>
+  </div>
+
+  <div class="timeline-section">
+    <h2>📋 Full Timeline</h2>
+    <div id="timeline"></div>
+    <div class="not-started" id="notStartedMsg">
+      Press START to begin your cooking timer
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'dualRecipeStartTime';
+    
+    // Timeline in seconds from start
+    const steps = [
+      { time: 0, title: "Preheat Oven", detail: "Preheat oven to 425°F", recipe: "cauliflower", duration: null },
+      { time: 0, title: "Start All Prep Work", detail: "Cut cauliflower into bite-size pieces. Trim and slice green beans (1½ inch). Dice half the yellow onion (½ inch pieces). Drain and rinse chickpeas. Halve and slice squash into ¼ inch half-moons. Roughly chop cilantro. Zest lemon and quarter it. Finely chop sliced almonds.", recipe: "both", duration: 480 },
+      { time: 480, title: "Prep Complete", detail: "All vegetables and ingredients should now be prepped and ready", recipe: "both", duration: null },
+      { time: 600, title: "Season Cauliflower", detail: "Place cauliflower in medium bowl. Drizzle with 1 tbsp oil. Season with half the blackening spice, ½ tsp salt, pinch of pepper. Toss to coat.", recipe: "cauliflower", duration: 120 },
+      { time: 720, title: "Roast Cauliflower", detail: "Spread cauliflower on foil-lined baking sheet. Put in oven. Set timer for 19 minutes.", recipe: "cauliflower", duration: 1140 },
+      { time: 720, title: "Start Couscous Water", detail: "Bring 1¾ cups water and ½ tsp salt to boil in small pot.", recipe: "cauliflower", duration: 180 },
+      { time: 900, title: "Add Couscous", detail: "Stir in toasted pearl couscous. Reduce heat to medium-low. Simmer 13 minutes.", recipe: "cauliflower", duration: 780 },
+      { time: 960, title: "Start Stew - Brown Chickpeas", detail: "Heat 1½ tbsp oil in medium pot over medium-high heat. Add onion and chickpeas. Season with 1 tsp Turkish spice blend, ¼ tsp salt, pinch of pepper. Cook 4 minutes, stirring occasionally.", recipe: "stew", duration: 240 },
+      { time: 1200, title: "Add Squash to Stew", detail: "Add squash to pot. Stir to combine. Cook 2 minutes.", recipe: "stew", duration: 120 },
+      { time: 1290, title: "⚠️ Stir Cauliflower", detail: "Open oven and stir cauliflower (halfway point). Return to oven.", recipe: "cauliflower", duration: 30 },
+      { time: 1320, title: "Add Sauce to Stew", detail: "Reduce heat to medium. Add paprika-turmeric tomato sauce, veggie stock concentrate, and ¼ cup water. Simmer 9 minutes, stirring occasionally.", recipe: "stew", duration: 540 },
+      { time: 1680, title: "Couscous Done", detail: "Remove couscous from heat. Drizzle with 1 tbsp olive oil. Stir to coat. Set aside.", recipe: "cauliflower", duration: null },
+      { time: 1860, title: "Finish Stew", detail: "Remove stew from heat. Add half the feta cheese and 1 tbsp butter. Stir to combine. Season with salt and pepper. Set aside.", recipe: "stew", duration: 60 },
+      { time: 1860, title: "Cauliflower Done", detail: "Remove cauliflower from oven. It should be fork-tender.", recipe: "cauliflower", duration: null },
+      { time: 1920, title: "Make Almond Gremolata", detail: "In small bowl: combine cilantro, chopped almonds, squeeze of lemon juice, 2 tbsp olive oil, half the chili flakes, ½ tsp sugar. Season with salt and pepper.", recipe: "stew", duration: 120 },
+      { time: 2040, title: "Make Lemon Crema", detail: "In small bowl: combine sour cream, lemon zest, pinch of salt. Add water 1 tsp at a time until drizzling consistency.", recipe: "stew", duration: 90 },
+      { time: 2130, title: "Cook Green Beans", detail: "Heat 1½ tbsp oil in medium sauté pan over medium heat. Add green beans and sliced almonds. Season with ½ tsp salt, pinch of pepper. Cook 5 minutes until tender.", recipe: "cauliflower", duration: 300 },
+      { time: 2280, title: "Cook Corn & Peppers", detail: "Heat 1½ tbsp oil in large sauté pan over medium heat. Add corn and roasted red peppers. Season lightly. Cook 3 minutes.", recipe: "cauliflower", duration: 180 },
+      { time: 2430, title: "Glaze Green Beans", detail: "Remove green beans from heat. Add apricot jam. Stir to coat.", recipe: "cauliflower", duration: 30 },
+      { time: 2460, title: "Finish Couscous", detail: "Add couscous to pan with corn and peppers. Stir to combine. Season with salt and pepper to taste.", recipe: "cauliflower", duration: 60 },
+      { time: 2520, title: "🍽️ Plate Everything!", detail: "CAULIFLOWER DISH: Divide couscous & veggies between plates. Top with blackened cauliflower. Drizzle with Creole Dijonnaise. Serve green beans on the side.\n\nSTEW: Divide stew between bowls. Top with almond gremolata. Drizzle with lemon crema. Garnish with remaining lemon zest and feta.", recipe: "both", duration: null },
+      { time: 2640, title: "🎉 Enjoy Your Meal!", detail: "Both dishes are ready to serve!", recipe: "both", duration: null }
+    ];
+    
+    let startTime = null;
+    let timerInterval = null;
+    
+    function init() {
+      const savedStart = localStorage.getItem(STORAGE_KEY);
+      if (savedStart) {
+        startTime = parseInt(savedStart);
+        startTimer();
+      }
+      renderTimeline();
+    }
+    
+    function startCooking() {
+      startTime = Date.now();
+      localStorage.setItem(STORAGE_KEY, startTime.toString());
+      startTimer();
+    }
+    
+    function startTimer() {
+      document.getElementById('startBtn').classList.add('hidden');
+      document.getElementById('timerDisplay').classList.remove('hidden');
+      document.getElementById('startSection').classList.add('running');
+      document.getElementById('notStartedMsg').classList.add('hidden');
+      
+      updateDisplay();
+      timerInterval = setInterval(updateDisplay, 1000);
+    }
+    
+    function resetTimer() {
+      if (confirm('Are you sure you want to reset the timer?')) {
+        localStorage.removeItem(STORAGE_KEY);
+        startTime = null;
+        clearInterval(timerInterval);
+        document.getElementById('startBtn').classList.remove('hidden');
+        document.getElementById('timerDisplay').classList.add('hidden');
+        document.getElementById('startSection').classList.remove('running');
+        document.getElementById('currentStepSection').classList.add('hidden');
+        document.getElementById('nextStepsSection').classList.add('hidden');
+        document.getElementById('completedSection').classList.add('hidden');
+        document.getElementById('notStartedMsg').classList.remove('hidden');
+        renderTimeline();
+      }
+    }
+    
+    function formatTime(seconds) {
+      const mins = Math.floor(Math.abs(seconds) / 60);
+      const secs = Math.abs(seconds) % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    function formatTimeWithHours(seconds) {
+      if (seconds >= 3600) {
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+      return formatTime(seconds);
+    }
+    
+    function getRecipeTag(recipe) {
+      switch(recipe) {
+        case 'cauliflower': return '<span class="timeline-tag tag-cauliflower">Cauliflower & Couscous</span>';
+        case 'stew': return '<span class="timeline-tag tag-stew">Chickpea Stew</span>';
+        case 'both': return '<span class="timeline-tag tag-both">Both Recipes</span>';
+        default: return '';
+      }
+    }
+    
+    function getRecipeLabel(recipe) {
+      switch(recipe) {
+        case 'cauliflower': return 'Cauliflower & Couscous';
+        case 'stew': return 'Chickpea Stew';
+        case 'both': return 'Both Recipes';
+        default: return '';
+      }
+    }
+    
+    function updateDisplay() {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      document.getElementById('elapsedTime').textContent = formatTimeWithHours(elapsed);
+      
+      // Find current and upcoming steps
+      let currentStep = null;
+      let currentStepIndex = -1;
+      const upcomingSteps = [];
+      
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const timeUntil = step.time - elapsed;
+        
+        if (timeUntil <= 0 && timeUntil > -60) {
+          // Step just started (within last 60 seconds)
+          currentStep = step;
+          currentStepIndex = i;
+        } else if (timeUntil > 0 && upcomingSteps.length < 3) {
+          upcomingSteps.push({ ...step, timeUntil, index: i });
+        }
+      }
+      
+      // If no "just started" step, find the most recent active step
+      if (!currentStep) {
+        for (let i = steps.length - 1; i >= 0; i--) {
+          if (steps[i].time <= elapsed) {
+            currentStep = steps[i];
+            currentStepIndex = i;
+            break;
+          }
+        }
+      }
+      
+      // Check if cooking is complete
+      const lastStep = steps[steps.length - 1];
+      if (elapsed >= lastStep.time) {
+        document.getElementById('completedSection').classList.remove('hidden');
+        document.getElementById('currentStepSection').classList.add('hidden');
+        document.getElementById('nextStepsSection').classList.add('hidden');
+      } else {
+        document.getElementById('completedSection').classList.add('hidden');
+        
+        // Update current step display
+        if (currentStep) {
+          document.getElementById('currentStepSection').classList.remove('hidden');
+          document.getElementById('currentStepTitle').textContent = currentStep.title;
+          document.getElementById('currentStepDetail').textContent = currentStep.detail;
+          document.getElementById('currentStepRecipe').textContent = getRecipeLabel(currentStep.recipe);
+        }
+        
+        // Update upcoming steps
+        if (upcomingSteps.length > 0) {
+          document.getElementById('nextStepsSection').classList.remove('hidden');
+          let html = '';
+          for (const step of upcomingSteps) {
+            const countdownClass = step.timeUntil <= 30 ? 'now' : step.timeUntil <= 60 ? 'soon' : '';
+            html += `
+              <div class="next-step-item">
+                <div class="next-step-info">
+                  <div class="next-step-title">${step.title}</div>
+                  <div class="next-step-recipe-tag">${getRecipeLabel(step.recipe)}</div>
+                </div>
+                <div class="next-step-countdown ${countdownClass}">
+                  ${step.timeUntil <= 0 ? 'NOW' : 'in ' + formatTime(step.timeUntil)}
+                </div>
+              </div>
+            `;
+          }
+          document.getElementById('nextStepsList').innerHTML = html;
+        } else {
+          document.getElementById('nextStepsSection').classList.add('hidden');
+        }
+      }
+      
+      // Update timeline
+      renderTimeline(elapsed, currentStepIndex);
+    }
+    
+    function renderTimeline(elapsed = null, currentIndex = -1) {
+      let html = '';
+      
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        let statusClass = '';
+        let timeDisplay = formatTime(step.time);
+        
+        if (elapsed !== null) {
+          if (step.time < elapsed - 60) {
+            statusClass = 'completed';
+          } else if (i === currentIndex) {
+            statusClass = 'active';
+          }
+          
+          // Calculate actual clock time
+          const stepDate = new Date(startTime + step.time * 1000);
+          timeDisplay = stepDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        html += `
+          <div class="timeline-item ${statusClass}">
+            <div class="timeline-time">${timeDisplay}</div>
+            <div class="timeline-content">
+              <div class="timeline-title">${step.title}</div>
+              <div class="timeline-detail">${step.detail.replace(/\n/g, '<br>')}</div>
+              ${getRecipeTag(step.recipe)}
+            </div>
+          </div>
+        `;
+      }
+      
+      document.getElementById('timeline').innerHTML = html;
+    }
+    
+    // Initialize on load
+    init();
+  </script>
+
+</body>
+</html>
