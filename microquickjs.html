@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroQuickJS Code Executor</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .description {
+            margin-top: 0;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            min-height: 200px;
+            resize: vertical;
+            tab-size: 2;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: wait;
+            opacity: 0.7;
+        }
+        button.secondary {
+            background-color: #6c757d;
+        }
+        button.secondary:hover:not(:disabled) {
+            background-color: #545b62;
+        }
+        #status {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+        #status.visible {
+            display: block;
+        }
+        #status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        #status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        #output-section {
+            display: none;
+        }
+        #output-section.visible {
+            display: block;
+        }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .output-header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        #copy-btn {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        #output {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: 100px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        #output.error-output {
+            background-color: #2d1f1f;
+            color: #f8d7da;
+        }
+        .execution-time {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+        }
+        .examples-section {
+            margin-bottom: 20px;
+        }
+        .examples-section h3 {
+            font-size: 14px;
+            color: #666;
+            margin: 0 0 10px 0;
+            font-weight: 500;
+        }
+        .examples-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .example-btn {
+            padding: 6px 12px;
+            font-size: 13px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 20px;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .example-btn:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+            color: #212529;
+        }
+        .example-btn:active {
+            background: #dee2e6;
+        }
+        .note {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #856404;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            .button-group button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>MicroQuickJS Code Executor</h1>
+    <p class="description">Execute JavaScript code in a minimal <a href="https://github.com/bellard/mquickjs">MicroQuickJS</a> sandbox running via WebAssembly. Returns the result of the last expression. Code is saved in the URL for easy sharing. See <a href="https://github.com/simonw/research/blob/main/mquickjs-sandbox/README.md">research notes</a>.</p>
+
+    <div class="note">
+        <strong>Note:</strong> MicroQuickJS is a minimal ES5-like JavaScript engine. No console.log, async/await, Promises, or modern APIs. Code should return a value to see output.
+    </div>
+
+    <div class="examples-section">
+        <h3>Try an example:</h3>
+        <div class="examples-list" id="examples-list"></div>
+    </div>
+
+    <div class="input-group">
+        <label for="code-input">JavaScript Code:</label>
+        <textarea id="code-input" placeholder="// Enter your JavaScript code here, or click an example above
+// The result of the last expression will be displayed"></textarea>
+    </div>
+
+    <div class="button-group">
+        <button id="run-btn" disabled>Initializing...</button>
+        <button id="clear-btn" class="secondary">Clear</button>
+    </div>
+
+    <div id="status"></div>
+
+    <div id="output-section">
+        <div class="output-header">
+            <h2>Output</h2>
+            <button id="copy-btn" class="secondary">Copy</button>
+        </div>
+        <div id="output"></div>
+        <div class="execution-time" id="execution-time"></div>
+    </div>
+
+    <!-- Load MicroQuickJS -->
+    <script src="mquickjs.js"></script>
+    <script>
+        // Example code snippets (adapted for MicroQuickJS - no console.log)
+        const examples = [
+            {
+                name: 'Hello World',
+                code: `'Hello, World!'`
+            },
+            {
+                name: 'Factorial',
+                code: `function factorial(n) {
+  if (n <= 1) return 1;
+  return n * factorial(n - 1);
+}
+
+'5! = ' + factorial(5) + ', 10! = ' + factorial(10)`
+            },
+            {
+                name: 'Fibonacci',
+                code: `function fibonacci(n) {
+  var seq = [0, 1];
+  for (var i = 2; i < n; i++) {
+    seq.push(seq[i-1] + seq[i-2]);
+  }
+  return seq;
+}
+
+'First 15 Fibonacci: ' + fibonacci(15).join(', ')`
+            },
+            {
+                name: 'Array Methods',
+                code: `var numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+var doubled = numbers.map(function(n) { return n * 2; });
+var evens = numbers.filter(function(n) { return n % 2 === 0; });
+var sum = numbers.reduce(function(a, b) { return a + b; }, 0);
+
+JSON.stringify({
+  doubled: doubled,
+  evens: evens,
+  sum: sum
+}, null, 2)`
+            },
+            {
+                name: 'Objects & JSON',
+                code: `var person = {
+  name: 'Alice',
+  age: 30,
+  hobbies: ['reading', 'coding', 'hiking'],
+  address: {
+    city: 'San Francisco',
+    country: 'USA'
+  }
+};
+
+JSON.stringify(person, null, 2)`
+            },
+            {
+                name: 'Prime Numbers',
+                code: `function isPrime(n) {
+  if (n < 2) return false;
+  for (var i = 2; i * i <= n; i++) {
+    if (n % i === 0) return false;
+  }
+  return true;
+}
+
+var primes = [];
+for (var i = 2; i <= 100; i++) {
+  if (isPrime(i)) primes.push(i);
+}
+
+'Primes up to 100: ' + primes.join(', ')`
+            },
+            {
+                name: 'String Fun',
+                code: `var text = 'JavaScript is awesome!';
+
+JSON.stringify({
+  original: text,
+  reversed: text.split('').reverse().join(''),
+  wordCount: text.split(' ').length,
+  hasAwesome: text.indexOf('awesome') !== -1
+}, null, 2)`
+            },
+            {
+                name: 'FizzBuzz',
+                code: `var result = [];
+for (var i = 1; i <= 30; i++) {
+  if (i % 15 === 0) result.push('FizzBuzz');
+  else if (i % 3 === 0) result.push('Fizz');
+  else if (i % 5 === 0) result.push('Buzz');
+  else result.push(i);
+}
+result.join(', ')`
+            },
+            {
+                name: 'Sorting',
+                code: `var fruits = ['banana', 'apple', 'orange', 'mango', 'kiwi'];
+var nums = [42, 8, 15, 23, 4, 16];
+
+JSON.stringify({
+  fruits: fruits,
+  fruitsSorted: fruits.slice().sort(),
+  numbers: nums,
+  ascending: nums.slice().sort(function(a, b) { return a - b; }),
+  descending: nums.slice().sort(function(a, b) { return b - a; })
+}, null, 2)`
+            },
+            {
+                name: 'Math',
+                code: `JSON.stringify({
+  pi: Math.PI,
+  e: Math.E,
+  sqrt2: Math.sqrt(2),
+  pow2_10: Math.pow(2, 10),
+  abs_neg5: Math.abs(-5),
+  floor_3_7: Math.floor(3.7),
+  ceil_3_2: Math.ceil(3.2),
+  round_3_5: Math.round(3.5),
+  max: Math.max(1, 5, 3, 9, 2),
+  min: Math.min(1, 5, 3, 9, 2)
+}, null, 2)`
+            }
+        ];
+
+        const codeInput = document.getElementById('code-input');
+        const runBtn = document.getElementById('run-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const statusEl = document.getElementById('status');
+        const outputSection = document.getElementById('output-section');
+        const outputEl = document.getElementById('output');
+        const executionTimeEl = document.getElementById('execution-time');
+        const examplesList = document.getElementById('examples-list');
+
+        let Module = null;
+        let sandbox_init = null;
+        let sandbox_free = null;
+        let sandbox_eval = null;
+        let sandbox_get_error = null;
+        let sandboxReady = false;
+
+        // Populate examples
+        examples.forEach((example, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'example-btn';
+            btn.textContent = example.name;
+            btn.addEventListener('click', () => {
+                codeInput.value = example.code;
+                codeInput.focus();
+                // Auto-run if sandbox is ready
+                if (sandboxReady && !runBtn.disabled) {
+                    executeCode(example.code);
+                }
+            });
+            examplesList.appendChild(btn);
+        });
+
+        // Status helpers
+        function showStatus(message, type = 'info') {
+            statusEl.textContent = message;
+            statusEl.className = `visible ${type}`;
+        }
+
+        function hideStatus() {
+            statusEl.className = '';
+        }
+
+        function showOutput(text, isError = false) {
+            outputEl.textContent = text || '(no output)';
+            outputEl.className = isError ? 'error-output' : '';
+            outputSection.classList.add('visible');
+        }
+
+        function hideOutput() {
+            outputSection.classList.remove('visible');
+        }
+
+        // URL hash management
+        function updateUrlHash(code) {
+            const encoded = encodeURIComponent(code);
+            window.history.replaceState(null, null, '#' + encoded);
+        }
+
+        function loadFromHash() {
+            if (!window.location.hash) return null;
+            try {
+                const hash = window.location.hash.substring(1);
+                return decodeURIComponent(hash);
+            } catch (e) {
+                console.error('Error decoding hash:', e);
+                return null;
+            }
+        }
+
+        // Execute code using MicroQuickJS
+        async function executeCode(code) {
+            if (!sandboxReady) {
+                showStatus('MicroQuickJS not initialized', 'error');
+                return;
+            }
+
+            if (!code.trim()) {
+                showStatus('Please enter some code to execute', 'error');
+                return;
+            }
+
+            runBtn.disabled = true;
+            runBtn.textContent = 'Running...';
+            hideStatus();
+
+            const startTime = performance.now();
+
+            try {
+                // Re-initialize sandbox for each execution (clean state)
+                sandbox_free();
+                const initResult = sandbox_init(1024 * 1024);
+                if (!initResult) {
+                    throw new Error('Failed to initialize sandbox');
+                }
+
+                // Execute the code
+                const result = sandbox_eval(code);
+
+                const endTime = performance.now();
+                const executionTime = (endTime - startTime).toFixed(2);
+
+                if (result === null) {
+                    // Error occurred
+                    const error = sandbox_get_error();
+                    showOutput('Error: ' + (error || 'Unknown error'), true);
+                } else {
+                    showOutput(result || '(undefined)');
+                }
+
+                executionTimeEl.textContent = `Execution time: ${executionTime}ms`;
+
+                // Update URL with the code
+                updateUrlHash(code);
+
+            } catch (e) {
+                const endTime = performance.now();
+                const executionTime = (endTime - startTime).toFixed(2);
+                showOutput(`Error: ${e.message}`, true);
+                executionTimeEl.textContent = `Execution time: ${executionTime}ms`;
+            } finally {
+                runBtn.disabled = false;
+                runBtn.textContent = 'Run Code';
+            }
+        }
+
+        // Initialize MicroQuickJS
+        async function initialize() {
+            try {
+                showStatus('Loading MicroQuickJS WebAssembly runtime...', 'info');
+
+                // Create the module
+                Module = await createMQuickJS();
+
+                // Get function wrappers
+                sandbox_init = Module.cwrap('sandbox_init', 'number', ['number']);
+                sandbox_free = Module.cwrap('sandbox_free', null, []);
+                sandbox_eval = Module.cwrap('sandbox_eval', 'string', ['string']);
+                sandbox_get_error = Module.cwrap('sandbox_get_error', 'string', []);
+
+                // Initialize sandbox
+                const initResult = sandbox_init(1024 * 1024);
+                if (!initResult) {
+                    throw new Error('Failed to initialize sandbox');
+                }
+
+                sandboxReady = true;
+                runBtn.textContent = 'Run Code';
+                runBtn.disabled = false;
+
+                showStatus('Ready!', 'success');
+                setTimeout(hideStatus, 1500);
+
+                // Check for code in URL hash and execute
+                const hashCode = loadFromHash();
+                if (hashCode) {
+                    codeInput.value = hashCode;
+                    executeCode(hashCode);
+                }
+            } catch (e) {
+                showStatus('Failed to initialize MicroQuickJS: ' + e.message, 'error');
+                console.error('Initialization error:', e);
+            }
+        }
+
+        // Event listeners
+        runBtn.addEventListener('click', () => {
+            executeCode(codeInput.value);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            codeInput.value = '';
+            hideOutput();
+            hideStatus();
+            window.history.replaceState(null, null, window.location.pathname);
+        });
+
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(outputEl.textContent);
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy';
+                }, 1500);
+            } catch (e) {
+                showStatus('Failed to copy to clipboard', 'error');
+            }
+        });
+
+        // Keyboard shortcut: Ctrl/Cmd + Enter to run
+        codeInput.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (!runBtn.disabled) {
+                    executeCode(codeInput.value);
+                }
+            }
+            // Handle Tab key for indentation
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = codeInput.selectionStart;
+                const end = codeInput.selectionEnd;
+                codeInput.value = codeInput.value.substring(0, start) + '  ' + codeInput.value.substring(end);
+                codeInput.selectionStart = codeInput.selectionEnd = start + 2;
+            }
+        });
+
+        // Handle hash changes (e.g., browser back/forward)
+        window.addEventListener('hashchange', () => {
+            const hashCode = loadFromHash();
+            if (hashCode && hashCode !== codeInput.value) {
+                codeInput.value = hashCode;
+                if (sandboxReady) {
+                    executeCode(hashCode);
+                }
+            }
+        });
+
+        // Initialize on page load
+        initialize();
+    </script>
+</body>
+</html>
