@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>llm-lib demo</title>
+  <style>
+    :root {
+      --bg: #f9fafb;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --faint: #9ca3af;
+      --surface: #fff;
+      --border: #e5e7eb;
+      --border-focus: #9ca3af;
+      --btn-hover: #f3f4f6;
+      --btn-active: #e5e7eb;
+      --btn-primary-bg: #1f2937;
+      --btn-primary-hover: #374151;
+      --error: #dc2626;
+      --error-border: #ef4444;
+      --code-comment: #9ca3af;
+      --code-keyword: #8b5cf6;
+      --code-string: #059669;
+      --code-func: #2563eb;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --faint: #6b7280;
+        --surface: #1a1a1a;
+        --border: #333;
+        --border-focus: #555;
+        --btn-hover: #252525;
+        --btn-active: #333;
+        --btn-primary-bg: #e5e7eb;
+        --btn-primary-hover: #d1d5db;
+        --error: #f87171;
+        --error-border: #ef4444;
+        --code-comment: #6b7280;
+        --code-keyword: #a78bfa;
+        --code-string: #34d399;
+        --code-func: #60a5fa;
+      }
+      .btn-primary { color: #111; }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+      line-height: 1.5;
+    }
+    h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+    .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 14px; }
+    .container { max-width: 700px; margin: 0 auto; }
+
+    .section { margin-bottom: 24px; }
+    .section h2 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--faint);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .row > * { flex: 1; min-width: 120px; }
+    .row.buttons { justify-content: flex-start; }
+    .row.buttons > * { flex: none; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--border-focus);
+    }
+    textarea {
+      min-height: 70px;
+      resize: vertical;
+    }
+
+    button {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover { background: var(--btn-hover); }
+    button:active { background: var(--btn-active); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--btn-primary-bg);
+      color: #fff;
+      border-color: var(--btn-primary-bg);
+    }
+    .btn-primary:hover { background: var(--btn-primary-hover); border-color: var(--btn-primary-hover); }
+
+    #output {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      min-height: 150px;
+      white-space: pre-wrap;
+      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    #output.streaming { border-color: var(--border-focus); }
+    #output.error { border-color: var(--error-border); color: var(--error); }
+
+    .status {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--faint);
+    }
+    .status-dot.ready { background: #22c55e; }
+    .status-dot.streaming { background: #f59e0b; animation: pulse 1s infinite; }
+    .status-dot.error { background: #ef4444; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .code-example {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      white-space: pre;
+      line-height: 1.5;
+    }
+    .code-example .comment { color: var(--code-comment); }
+    .code-example .keyword { color: var(--code-keyword); }
+    .code-example .string { color: var(--code-string); }
+    .code-example .func { color: var(--code-func); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>llm-lib demo</h1>
+    <p class="subtitle">A unified JavaScript library for OpenAI, Anthropic, and Gemini</p>
+
+    <div class="section">
+      <h2>Configuration</h2>
+      <div class="row">
+        <div>
+          <label>Provider</label>
+          <select id="provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="gemini">Google Gemini</option>
+          </select>
+        </div>
+        <div>
+          <label>Model</label>
+          <select id="model">
+            <optgroup label="OpenAI">
+              <option value="gpt-4.1">gpt-4.1</option>
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+              <option value="gpt-4.1-nano">gpt-4.1-nano</option>
+              <option value="gpt-5-mini">gpt-5-mini</option>
+              <option value="gpt-5-nano">gpt-5-nano</option>
+              <option value="gpt-5.1-codex">gpt-5.1-codex</option>
+              <option value="gpt-5.1-codex-max">gpt-5.1-codex-max</option>
+              <option value="gpt-5.1-codex-mini">gpt-5.1-codex-mini</option>
+              <option value="gpt-5.2">gpt-5.2</option>
+              <option value="gpt-5.2-pro">gpt-5.2-pro</option>
+            </optgroup>
+            <optgroup label="Anthropic">
+              <option value="claude-3-5-haiku-20241022">claude-3-5-haiku-20241022</option>
+              <option value="claude-3-haiku-20240307">claude-3-haiku-20240307</option>
+              <option value="claude-haiku-4-5-20251001">claude-haiku-4-5-20251001</option>
+              <option value="claude-opus-4-5-20251101">claude-opus-4-5-20251101</option>
+              <option value="claude-sonnet-4-5-20250929">claude-sonnet-4-5-20250929</option>
+            </optgroup>
+            <optgroup label="Gemini">
+              <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+              <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+              <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+              <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+              <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>API Key (stored in localStorage)</label>
+          <input type="password" id="apiKey" placeholder="Enter API key for selected provider">
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Prompt</h2>
+      <div>
+        <label>System Prompt (optional)</label>
+        <textarea id="systemPrompt" placeholder="Optional system instructions...">You are a helpful assistant. Be concise.</textarea>
+      </div>
+      <div style="margin-top: 12px;">
+        <label>User Message</label>
+        <textarea id="userMessage" placeholder="Enter your message...">What are the three laws of robotics? Explain each briefly.</textarea>
+      </div>
+      <div class="row buttons" style="margin-top: 16px;">
+        <button class="btn-primary" id="sendBtn">Send (Non-streaming)</button>
+        <button class="btn-secondary" id="streamBtn">Stream Response</button>
+        <button class="btn-secondary" id="clearBtn">Clear</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Response</h2>
+      <div class="status">
+        <div class="status-item">
+          <div class="status-dot" id="statusDot"></div>
+          <span id="statusText">Ready</span>
+        </div>
+        <div class="status-item" id="providerInfo"></div>
+      </div>
+      <div id="output">Response will appear here...</div>
+    </div>
+
+    <div class="section">
+      <h2>Usage</h2>
+      <div class="code-example"><span class="comment">// Include the library</span>
+<span class="keyword">import</span> { LLM } <span class="keyword">from</span> <span class="string">'./llm-lib.js'</span>;
+
+<span class="comment">// Create an instance</span>
+<span class="keyword">const</span> llm = <span class="keyword">new</span> <span class="func">LLM</span>({
+  provider: <span class="string">'openai'</span>,  <span class="comment">// 'openai' | 'anthropic' | 'gemini'</span>
+  apiKey: <span class="string">'your-api-key'</span>,
+  model: <span class="string">'gpt-4.1'</span>,
+  systemPrompt: <span class="string">'You are helpful.'</span>
+});
+
+<span class="comment">// Non-streaming</span>
+<span class="keyword">const</span> response = <span class="keyword">await</span> llm.<span class="func">prompt</span>(<span class="string">'Hello!'</span>);
+
+<span class="comment">// Streaming</span>
+<span class="keyword">for await</span> (<span class="keyword">const</span> chunk <span class="keyword">of</span> llm.<span class="func">stream</span>(<span class="string">'Tell me a story'</span>)) {
+  process.stdout.<span class="func">write</span>(chunk);
+}</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { LLM } from './llm-lib.js';
+
+    const $ = id => document.getElementById(id);
+
+    // Elements
+    const providerSelect = $('provider');
+    const modelSelect = $('model');
+    const apiKeyInput = $('apiKey');
+    const systemPromptInput = $('systemPrompt');
+    const userMessageInput = $('userMessage');
+    const sendBtn = $('sendBtn');
+    const streamBtn = $('streamBtn');
+    const clearBtn = $('clearBtn');
+    const output = $('output');
+    const statusDot = $('statusDot');
+    const statusText = $('statusText');
+    const providerInfo = $('providerInfo');
+
+    // Provider-specific model defaults
+    const providerModels = {
+      openai: [
+        'gpt-4.1',
+        'gpt-4.1-mini',
+        'gpt-4.1-nano',
+        'gpt-5-mini',
+        'gpt-5-nano',
+        'gpt-5.1-codex',
+        'gpt-5.1-codex-max',
+        'gpt-5.1-codex-mini',
+        'gpt-5.2',
+        'gpt-5.2-pro'
+      ],
+      anthropic: [
+        'claude-3-5-haiku-20241022',
+        'claude-3-haiku-20240307',
+        'claude-haiku-4-5-20251001',
+        'claude-opus-4-5-20251101',
+        'claude-sonnet-4-5-20250929'
+      ],
+      gemini: [
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-2.5-pro',
+        'gemini-3-flash-preview',
+        'gemini-3-pro-preview'
+      ]
+    };
+
+    // Reverse mapping: model -> provider
+    const modelToProvider = {};
+    for (const [provider, models] of Object.entries(providerModels)) {
+      for (const model of models) {
+        modelToProvider[model] = provider;
+      }
+    }
+
+    // Update model dropdown when provider changes
+    providerSelect.addEventListener('change', () => {
+      const provider = providerSelect.value;
+      const models = providerModels[provider];
+
+      // Update selection to first model of this provider
+      for (const option of modelSelect.options) {
+        if (models.includes(option.value)) {
+          modelSelect.value = option.value;
+          break;
+        }
+      }
+
+      // Load saved API key for this provider
+      const savedKey = localStorage.getItem(`llm-lib-${provider}-key`);
+      apiKeyInput.value = savedKey || '';
+    });
+
+    // Update provider when model changes
+    modelSelect.addEventListener('change', () => {
+      const model = modelSelect.value;
+      const provider = modelToProvider[model];
+      if (provider && provider !== providerSelect.value) {
+        providerSelect.value = provider;
+        // Load saved API key for new provider
+        const savedKey = localStorage.getItem(`llm-lib-${provider}-key`);
+        apiKeyInput.value = savedKey || '';
+      }
+    });
+
+    // Save API key when changed
+    apiKeyInput.addEventListener('change', () => {
+      const provider = providerSelect.value;
+      if (apiKeyInput.value) {
+        localStorage.setItem(`llm-lib-${provider}-key`, apiKeyInput.value);
+      }
+    });
+
+    // Load initial API key
+    const initialKey = localStorage.getItem(`llm-lib-${providerSelect.value}-key`);
+    if (initialKey) apiKeyInput.value = initialKey;
+
+    function setStatus(state, text) {
+      statusDot.className = 'status-dot ' + state;
+      statusText.textContent = text;
+      output.className = state === 'error' ? 'error' : (state === 'streaming' ? 'streaming' : '');
+    }
+
+    function getLLM() {
+      const provider = providerSelect.value;
+      const apiKey = apiKeyInput.value.trim();
+
+      if (!apiKey) {
+        throw new Error('Please enter an API key');
+      }
+
+      return new LLM({
+        provider,
+        apiKey,
+        model: modelSelect.value,
+        systemPrompt: systemPromptInput.value.trim() || undefined
+      });
+    }
+
+    // Non-streaming send
+    sendBtn.addEventListener('click', async () => {
+      try {
+        setStatus('streaming', 'Sending...');
+        sendBtn.disabled = true;
+        streamBtn.disabled = true;
+
+        const llm = getLLM();
+        providerInfo.textContent = `${llm.provider} / ${llm.model}`;
+
+        const message = userMessageInput.value.trim();
+        if (!message) {
+          throw new Error('Please enter a message');
+        }
+
+        output.textContent = '';
+        const response = await llm.prompt(message);
+        output.textContent = response;
+        setStatus('ready', 'Complete');
+
+      } catch (err) {
+        output.textContent = 'Error: ' + err.message;
+        setStatus('error', 'Error');
+      } finally {
+        sendBtn.disabled = false;
+        streamBtn.disabled = false;
+      }
+    });
+
+    // Streaming send
+    streamBtn.addEventListener('click', async () => {
+      try {
+        setStatus('streaming', 'Streaming...');
+        sendBtn.disabled = true;
+        streamBtn.disabled = true;
+
+        const llm = getLLM();
+        providerInfo.textContent = `${llm.provider} / ${llm.model}`;
+
+        const message = userMessageInput.value.trim();
+        if (!message) {
+          throw new Error('Please enter a message');
+        }
+
+        output.textContent = '';
+
+        for await (const chunk of llm.stream(message)) {
+          output.textContent += chunk;
+        }
+
+        setStatus('ready', 'Complete');
+
+      } catch (err) {
+        output.textContent = 'Error: ' + err.message;
+        setStatus('error', 'Error');
+      } finally {
+        sendBtn.disabled = false;
+        streamBtn.disabled = false;
+      }
+    });
+
+    // Clear output
+    clearBtn.addEventListener('click', () => {
+      output.textContent = 'Response will appear here...';
+      setStatus('ready', 'Ready');
+      providerInfo.textContent = '';
+    });
+  </script>
+</body>
+</html>
