@@ -186,6 +186,34 @@
             font-size: 14px;
             color: #856404;
         }
+        .wasm-selector {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .wasm-selector label {
+            display: inline;
+            margin-bottom: 0;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .wasm-selector select {
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+        }
+        .wasm-selector select:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        .wasm-selector .wasm-size {
+            font-size: 12px;
+            color: #666;
+        }
         @media (max-width: 600px) {
             body {
                 padding: 10px;
@@ -208,6 +236,15 @@
 
     <div class="note">
         <strong>Note:</strong> MicroQuickJS is a minimal ES5-like JavaScript engine. No console.log, async/await, Promises, or modern APIs. Code should return a value to see output.
+    </div>
+
+    <div class="wasm-selector">
+        <label for="wasm-version">WASM version:</label>
+        <select id="wasm-version">
+            <option value="optimized">Optimized (smaller)</option>
+            <option value="original">Original</option>
+        </select>
+        <span class="wasm-size" id="wasm-size"></span>
     </div>
 
     <div class="examples-section">
@@ -237,9 +274,21 @@
         <div class="execution-time" id="execution-time"></div>
     </div>
 
-    <!-- Load MicroQuickJS -->
-    <script src="mquickjs.js"></script>
     <script>
+        // WASM version configurations
+        const wasmVersions = {
+            optimized: {
+                js: 'mquickjs_optimized.js',
+                wasm: 'mquickjs_optimized.wasm',
+                size: '148 KB'
+            },
+            original: {
+                js: 'mquickjs.js',
+                wasm: 'mquickjs.wasm',
+                size: '223 KB'
+            }
+        };
+
         // Example code snippets (adapted for MicroQuickJS - no console.log)
         const examples = [
             {
@@ -373,13 +422,34 @@ JSON.stringify({
         const outputEl = document.getElementById('output');
         const executionTimeEl = document.getElementById('execution-time');
         const examplesList = document.getElementById('examples-list');
+        const wasmVersionSelect = document.getElementById('wasm-version');
+        const wasmSizeEl = document.getElementById('wasm-size');
 
-        let Module = null;
+        let currentModule = null;
         let sandbox_init = null;
         let sandbox_free = null;
         let sandbox_eval = null;
         let sandbox_get_error = null;
         let sandboxReady = false;
+        let currentVersion = 'optimized';
+
+        // Get version from URL parameter
+        function getVersionFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const version = params.get('wasm');
+            return (version === 'original') ? 'original' : 'optimized';
+        }
+
+        // Update URL with version
+        function setVersionInUrl(version) {
+            const url = new URL(window.location);
+            if (version === 'original') {
+                url.searchParams.set('wasm', 'original');
+            } else {
+                url.searchParams.delete('wasm');
+            }
+            window.history.replaceState(null, null, url);
+        }
 
         // Populate examples
         examples.forEach((example, index) => {
@@ -420,7 +490,9 @@ JSON.stringify({
         // URL hash management
         function updateUrlHash(code) {
             const encoded = encodeURIComponent(code);
-            window.history.replaceState(null, null, '#' + encoded);
+            const url = new URL(window.location);
+            url.hash = encoded;
+            window.history.replaceState(null, null, url);
         }
 
         function loadFromHash() {
@@ -490,19 +562,50 @@ JSON.stringify({
             }
         }
 
-        // Initialize MicroQuickJS
-        async function initialize() {
-            try {
-                showStatus('Loading MicroQuickJS WebAssembly runtime...', 'info');
+        // Dynamically load a script
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
 
-                // Create the module
-                Module = await createMQuickJS();
+        // Initialize MicroQuickJS with specified version
+        async function initialize(version) {
+            const config = wasmVersions[version];
+            currentVersion = version;
+
+            // Update selector and size display
+            wasmVersionSelect.value = version;
+            wasmSizeEl.textContent = `(${config.size})`;
+
+            try {
+                sandboxReady = false;
+                runBtn.disabled = true;
+                runBtn.textContent = 'Initializing...';
+                showStatus(`Loading MicroQuickJS (${version}) WebAssembly runtime...`, 'info');
+
+                // Load the JS file
+                await loadScript(config.js);
+
+                // Create the module with locateFile to point to correct WASM
+                currentModule = await createMQuickJS({
+                    locateFile: function(path) {
+                        if (path.endsWith('.wasm')) {
+                            return config.wasm;
+                        }
+                        return path;
+                    }
+                });
 
                 // Get function wrappers
-                sandbox_init = Module.cwrap('sandbox_init', 'number', ['number']);
-                sandbox_free = Module.cwrap('sandbox_free', null, []);
-                sandbox_eval = Module.cwrap('sandbox_eval', 'string', ['string']);
-                sandbox_get_error = Module.cwrap('sandbox_get_error', 'string', []);
+                sandbox_init = currentModule.cwrap('sandbox_init', 'number', ['number']);
+                sandbox_free = currentModule.cwrap('sandbox_free', null, []);
+                sandbox_eval = currentModule.cwrap('sandbox_eval', 'string', ['string']);
+                sandbox_get_error = currentModule.cwrap('sandbox_get_error', 'string', []);
 
                 // Initialize sandbox
                 const initResult = sandbox_init(1024 * 1024);
@@ -538,7 +641,9 @@ JSON.stringify({
             codeInput.value = '';
             hideOutput();
             hideStatus();
-            window.history.replaceState(null, null, window.location.pathname);
+            const url = new URL(window.location);
+            url.hash = '';
+            window.history.replaceState(null, null, url);
         });
 
         copyBtn.addEventListener('click', async () => {
@@ -550,6 +655,16 @@ JSON.stringify({
                 }, 1500);
             } catch (e) {
                 showStatus('Failed to copy to clipboard', 'error');
+            }
+        });
+
+        // WASM version selector
+        wasmVersionSelect.addEventListener('change', () => {
+            const newVersion = wasmVersionSelect.value;
+            if (newVersion !== currentVersion) {
+                setVersionInUrl(newVersion);
+                // Reload page to load new WASM (cleanest approach)
+                window.location.reload();
             }
         });
 
@@ -582,8 +697,8 @@ JSON.stringify({
             }
         });
 
-        // Initialize on page load
-        initialize();
+        // Initialize on page load with version from URL
+        initialize(getVersionFromUrl());
     </script>
 </body>
 </html>
