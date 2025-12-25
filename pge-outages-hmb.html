@@ -31,10 +31,47 @@
             max-height: 90vh;
             overflow-y: auto;
         }
-        .info-panel h2 {
+        .info-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 10px;
+        }
+        .info-panel h2 {
+            margin: 0;
             color: #333;
             font-size: 16px;
+        }
+        .toggle-btn {
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #666;
+            flex-shrink: 0;
+            margin-left: 10px;
+        }
+        .toggle-btn:hover {
+            background: #e0e0e0;
+        }
+        .info-panel-content {
+            transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
+            overflow: hidden;
+        }
+        .info-panel-content.collapsed {
+            max-height: 0 !important;
+            opacity: 0;
+            margin: 0;
+            padding: 0;
+        }
+        .info-panel.collapsed {
+            max-height: none;
         }
         .info-panel p {
             margin: 5px 0;
@@ -121,8 +158,12 @@
         <div>Loading outage data...</div>
     </div>
 
-    <div class="info-panel">
-        <h2>PG&E Outage Map</h2>
+    <div class="info-panel" id="info-panel">
+        <div class="info-panel-header">
+            <h2>PG&E Outage Map</h2>
+            <button class="toggle-btn" id="toggle-btn" onclick="togglePanel()" title="Toggle panel">-</button>
+        </div>
+        <div class="info-panel-content" id="info-panel-content">
         <p>Half Moon Bay Area (15 mile radius)</p>
 
         <div class="stats">
@@ -162,10 +203,37 @@
 
         <button class="refresh-btn" onclick="loadOutageData()">Refresh Data</button>
         <div class="last-update" id="last-update">Last update: --</div>
+        </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // Panel toggle state
+        const PANEL_STORAGE_KEY = 'pge-outages-hmb-panel-collapsed';
+
+        function togglePanel() {
+            const content = document.getElementById('info-panel-content');
+            const btn = document.getElementById('toggle-btn');
+            const isCollapsed = content.classList.toggle('collapsed');
+            btn.textContent = isCollapsed ? '+' : '-';
+            btn.title = isCollapsed ? 'Expand panel' : 'Collapse panel';
+            localStorage.setItem(PANEL_STORAGE_KEY, isCollapsed ? 'true' : 'false');
+        }
+
+        function initPanelState() {
+            const collapsed = localStorage.getItem(PANEL_STORAGE_KEY) === 'true';
+            if (collapsed) {
+                const content = document.getElementById('info-panel-content');
+                const btn = document.getElementById('toggle-btn');
+                content.classList.add('collapsed');
+                btn.textContent = '+';
+                btn.title = 'Expand panel';
+            }
+        }
+
+        // Initialize panel state from localStorage
+        initPanelState();
+
         // Half Moon Bay coordinates
         const HMB_LAT = 37.4636;
         const HMB_LNG = -122.4286;
