@@ -1,3 +1,3 @@
-Track power outages across the Half Moon Bay area with this interactive map that displays real-time PG&E outage data within a 15-mile radius. The map visualizes both individual outage points and affected geographic areas, providing detailed information such as customer impact, estimated restoration times, and outage causes for each incident. Custom location markers can be added by passing a data URL in the page hash, allowing users to overlay additional points of interest on the outage map.
+Track power outages affecting the Half Moon Bay area with this interactive map displaying real-time PG&E outage data within a 15-mile radius. The application visualizes outage locations as point markers and affected areas as polygons, while displaying key statistics including the number of outages, impacted customers, and affected regions. Custom markers can be added by providing a URL parameter, and the map automatically refreshes every five minutes to ensure current outage information.
 
-<!-- Generated from commit: 60b75c4549ea1f644e5dcc6968b3e864441cfc33 -->
+<!-- Generated from commit: e16c9e2b9a22af490321366dc98282a4915107d6 -->
