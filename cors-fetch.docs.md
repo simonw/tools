@@ -1,3 +1,5 @@
-Test HTTP requests directly in your browser while examining what response data CORS policies permit you to access. This tool lets you construct requests with custom methods, headers, and body content, then displays the headers and body that the browser actually allows you to read from the response. You can also import requests from curl commands and save your configuration in the URL for sharing or bookmarking.
+# Documentation
 
-<!-- Generated from commit: f009d6730db1ebe83ba0995055b6ea1fe35fd1d0 -->
+Test HTTP requests directly from your browser and inspect what response data CORS rules allow you to access. This tool lets you configure custom headers, request bodies, and HTTP methods while showing exactly which response headers and data the browser permits you to read. It's useful for debugging CORS issues, testing API endpoints, and understanding how browser security policies affect your requests.
+
+<!-- Generated from commit: f691271469987680e60e799dafb6f0e3a5ec6c4c -->
