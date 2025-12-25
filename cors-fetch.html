@@ -444,6 +444,53 @@
       font-weight: 600;
     }
 
+    /* JSON format toggle */
+    .format-toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .format-toggle-row label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 400;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      background: #d1d5db;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle-switch.active {
+      background: #2563eb;
+    }
+
+    .toggle-switch::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle-switch.active::after {
+      transform: translateX(16px);
+    }
+
     @media (max-width: 640px) {
       .card {
         padding: 14px 14px 16px;
@@ -617,6 +664,12 @@ curl -X POST 'https://api.example.com/data' \
         Body
         <small>Shown as text (UTF-8)</small>
       </div>
+      <div id="format-toggle-container" class="format-toggle-row hidden">
+        <label>
+          <span id="format-toggle" class="toggle-switch active"></span>
+          <span>Format JSON</span>
+        </label>
+      </div>
       <pre id="body-output">// Response body will appear here</pre>
     </div>
   </div>
@@ -655,15 +708,66 @@ curl -X POST 'https://api.example.com/data' \
     const headersContainer = document.getElementById("headers-container");
     const bodyOutput = document.getElementById("body-output");
 
+    // JSON format toggle
+    const formatToggleContainer = document.getElementById("format-toggle-container");
+    const formatToggle = document.getElementById("format-toggle");
+
     // State
     let kvPairs = [];
     let headerPairs = [];
+    let responseBodyRaw = "";
+    let responseBodyFormatted = "";
+    let responseIsJson = false;
+    let showFormatted = true;
 
     // Headers collapsible
     headersToggle.addEventListener("click", () => {
       headersToggle.classList.toggle("collapsed");
       headersEditorContainer.classList.toggle("collapsed");
     });
+
+    // JSON format toggle
+    formatToggle.addEventListener("click", () => {
+      showFormatted = !showFormatted;
+      formatToggle.classList.toggle("active", showFormatted);
+      updateBodyDisplay();
+    });
+
+    function updateBodyDisplay() {
+      if (responseIsJson) {
+        bodyOutput.textContent = showFormatted ? responseBodyFormatted : responseBodyRaw;
+      } else {
+        bodyOutput.textContent = responseBodyRaw;
+      }
+    }
+
+    function setResponseBody(text) {
+      responseBodyRaw = text;
+      responseIsJson = false;
+      responseBodyFormatted = "";
+
+      // Try to parse as JSON
+      if (text) {
+        try {
+          const parsed = JSON.parse(text);
+          responseBodyFormatted = JSON.stringify(parsed, null, 2);
+          responseIsJson = true;
+        } catch {
+          // Not valid JSON
+        }
+      }
+
+      // Show/hide toggle based on whether response is JSON
+      formatToggleContainer.classList.toggle("hidden", !responseIsJson);
+
+      // Reset to formatted view when new JSON response comes in
+      if (responseIsJson) {
+        showFormatted = true;
+        formatToggle.classList.add("active");
+      }
+
+      updateBodyDisplay();
+    }
 
     function updateHeadersCount() {
       const count = headerPairs.filter(h => h.key.trim()).length;
@@ -1214,6 +1318,7 @@ curl -X POST 'https://api.example.com/data' \
       setStatus("Pending request…", null);
       effectiveUrlEl.textContent = "";
       headersContainer.innerHTML = '<div class="hint">Awaiting response…</div>';
+      formatToggleContainer.classList.add("hidden");
       bodyOutput.textContent = "";
 
       updateFragmentFromState();
@@ -1249,6 +1354,7 @@ curl -X POST 'https://api.example.com/data' \
         renderResponseHeaders(response.headers);
 
         if (method === "HEAD") {
+          formatToggleContainer.classList.add("hidden");
           bodyOutput.textContent = "// HEAD requests do not return a body.";
         } else {
           let bodyText;
@@ -1259,9 +1365,10 @@ curl -X POST 'https://api.example.com/data' \
           }
 
           if (!bodyText) {
+            formatToggleContainer.classList.add("hidden");
             bodyOutput.textContent = "// Empty response body (or body already consumed).";
           } else {
-            bodyOutput.textContent = bodyText;
+            setResponseBody(bodyText);
           }
         }
       } catch (err) {
@@ -1273,6 +1380,7 @@ curl -X POST 'https://api.example.com/data' \
           String(err);
         headersContainer.innerHTML =
           '<div class="hint">No headers: the browser blocked access to the response.</div>';
+        formatToggleContainer.classList.add("hidden");
         bodyOutput.textContent =
           "// No body: the browser blocked access to the response.\n" +
           "// This usually means the server has not enabled CORS for this origin.";
