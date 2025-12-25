@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PG&E Outage Map - Half Moon Bay Area</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            max-width: 300px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .info-panel h2 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 16px;
+        }
+        .info-panel p {
+            margin: 5px 0;
+            font-size: 13px;
+            color: #666;
+        }
+        .stats {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .stats .stat {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        .stats .stat-value {
+            font-weight: bold;
+            color: #d32f2f;
+        }
+        .legend {
+            margin-top: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 8px;
+            border: 1px solid #ccc;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            background: white;
+            padding: 20px 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        .loading.hidden {
+            display: none;
+        }
+        .refresh-btn {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 10px;
+            width: 100%;
+        }
+        .refresh-btn:hover {
+            background: #1565c0;
+        }
+        .last-update {
+            font-size: 11px;
+            color: #999;
+            margin-top: 10px;
+        }
+        .custom-marker-icon {
+            background: #4caf50;
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="loading" id="loading">
+        <div>Loading outage data...</div>
+    </div>
+
+    <div class="info-panel">
+        <h2>PG&E Outage Map</h2>
+        <p>Half Moon Bay Area (15 mile radius)</p>
+
+        <div class="stats">
+            <div class="stat">
+                <span>Outages in area:</span>
+                <span class="stat-value" id="outage-count">--</span>
+            </div>
+            <div class="stat">
+                <span>Customers affected:</span>
+                <span class="stat-value" id="customer-count">--</span>
+            </div>
+            <div class="stat">
+                <span>Polygon areas:</span>
+                <span class="stat-value" id="polygon-count">--</span>
+            </div>
+        </div>
+
+        <div class="legend">
+            <h3 style="font-size: 14px; margin-bottom: 8px;">Legend</h3>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgba(255, 170, 0, 0.4); border-color: #ff6600;"></div>
+                <span>Outage Area (Polygon)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #d32f2f; border-radius: 50%;"></div>
+                <span>Outage Point</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4caf50; border-radius: 50%;"></div>
+                <span>Custom Marker</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgba(33, 150, 243, 0.1); border: 2px dashed #2196f3;"></div>
+                <span>15 Mile Radius</span>
+            </div>
+        </div>
+
+        <button class="refresh-btn" onclick="loadOutageData()">Refresh Data</button>
+        <div class="last-update" id="last-update">Last update: --</div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Half Moon Bay coordinates
+        const HMB_LAT = 37.4636;
+        const HMB_LNG = -122.4286;
+        const RADIUS_MILES = 15;
+        const RADIUS_METERS = RADIUS_MILES * 1609.34;
+
+        // API endpoints
+        const INCIDENTS_URL = 'https://services.arcgis.com/BLN4oKB0N1YSgvY8/arcgis/rest/services/Power_Outages_(View)/FeatureServer/0/query?where=1%3D1&outFields=*&f=geojson';
+        const AREAS_URL = 'https://services.arcgis.com/BLN4oKB0N1YSgvY8/arcgis/rest/services/Power_Outages_(View)/FeatureServer/1/query?where=1%3D1&outFields=*&f=geojson&geometryType=esriGeometryPoint&geometry=%7B%22x%22%3A-122.4286%2C%22y%22%3A37.4636%2C%22spatialReference%22%3A%7B%22wkid%22%3A4326%7D%7D&distance=24140&units=esriSRUnit_Meter';
+
+        // Initialize map
+        const map = L.map('map').setView([HMB_LAT, HMB_LNG], 11);
+
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Draw 15 mile radius circle
+        const radiusCircle = L.circle([HMB_LAT, HMB_LNG], {
+            radius: RADIUS_METERS,
+            color: '#2196f3',
+            fillColor: '#2196f3',
+            fillOpacity: 0.05,
+            weight: 2,
+            dashArray: '10, 10'
+        }).addTo(map);
+
+        // Add center marker for Half Moon Bay
+        const centerMarker = L.marker([HMB_LAT, HMB_LNG], {
+            icon: L.divIcon({
+                className: 'center-marker',
+                html: '<div style="background:#2196f3;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>',
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            })
+        }).addTo(map);
+        centerMarker.bindPopup('<b>Half Moon Bay</b><br>Center of search area');
+
+        // Layer groups
+        let outageAreasLayer = L.layerGroup().addTo(map);
+        let outagePointsLayer = L.layerGroup().addTo(map);
+        let customMarkersLayer = L.layerGroup().addTo(map);
+
+        // Parse URL hash for custom pins URL
+        function getCustomPinsUrl() {
+            const hash = window.location.hash;
+            const match = hash.match(/[#&]url=([^&]+)/);
+            return match ? decodeURIComponent(match[1]) : null;
+        }
+
+        // Calculate distance between two points (Haversine formula)
+        function getDistanceMiles(lat1, lon1, lat2, lon2) {
+            const R = 3959; // Earth's radius in miles
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // Check if a point is within radius
+        function isWithinRadius(lat, lng) {
+            return getDistanceMiles(HMB_LAT, HMB_LNG, lat, lng) <= RADIUS_MILES;
+        }
+
+        // Check if any part of a polygon is within radius
+        function polygonIntersectsRadius(coordinates) {
+            // Flatten multi-polygon coordinates
+            const flatCoords = [];
+            const flatten = (arr) => {
+                if (Array.isArray(arr[0]) && Array.isArray(arr[0][0])) {
+                    arr.forEach(flatten);
+                } else if (Array.isArray(arr[0])) {
+                    arr.forEach(coord => flatCoords.push(coord));
+                }
+            };
+            flatten(coordinates);
+
+            // Check if any vertex is within radius
+            return flatCoords.some(coord => isWithinRadius(coord[1], coord[0]));
+        }
+
+        // Format date from timestamp
+        function formatDate(timestamp) {
+            if (!timestamp) return 'Unknown';
+            return new Date(timestamp).toLocaleString();
+        }
+
+        // Load and display outage data
+        async function loadOutageData() {
+            const loading = document.getElementById('loading');
+            loading.classList.remove('hidden');
+
+            // Clear existing layers
+            outageAreasLayer.clearLayers();
+            outagePointsLayer.clearLayers();
+
+            let outageCount = 0;
+            let customerCount = 0;
+            let polygonCount = 0;
+
+            try {
+                // Fetch polygon areas (PG&E only)
+                const areasResponse = await fetch(AREAS_URL);
+                const areasData = await areasResponse.json();
+
+                if (areasData.features) {
+                    areasData.features.forEach(feature => {
+                        if (feature.geometry && feature.geometry.coordinates) {
+                            if (polygonIntersectsRadius(feature.geometry.coordinates)) {
+                                const props = feature.properties;
+
+                                const layer = L.geoJSON(feature, {
+                                    style: {
+                                        color: '#ff6600',
+                                        weight: 2,
+                                        fillColor: '#ffaa00',
+                                        fillOpacity: 0.4
+                                    }
+                                });
+
+                                layer.bindPopup(`
+                                    <b>Power Outage Area</b><br>
+                                    <b>Utility:</b> ${props.UtilityCompany || 'PG&E'}<br>
+                                    <b>Cause:</b> ${props.Cause || 'Unknown'}<br>
+                                    <b>Customers:</b> ${props.ImpactedCustomers || 'N/A'}<br>
+                                    <b>Status:</b> ${props.OutageStatus || 'Active'}<br>
+                                    <b>Started:</b> ${formatDate(props.StartDate)}<br>
+                                    <b>Est. Restore:</b> ${formatDate(props.EstimatedRestoreDate)}<br>
+                                    <b>County:</b> ${props.County || 'N/A'}
+                                `);
+
+                                outageAreasLayer.addLayer(layer);
+                                polygonCount++;
+                                customerCount += props.ImpactedCustomers || 0;
+                            }
+                        }
+                    });
+                }
+
+                // Fetch point incidents
+                const incidentsResponse = await fetch(INCIDENTS_URL);
+                const incidentsData = await incidentsResponse.json();
+
+                if (incidentsData.features) {
+                    incidentsData.features.forEach(feature => {
+                        if (feature.geometry && feature.geometry.coordinates) {
+                            const [lng, lat] = feature.geometry.coordinates;
+
+                            if (isWithinRadius(lat, lng)) {
+                                const props = feature.properties;
+
+                                const marker = L.circleMarker([lat, lng], {
+                                    radius: 8,
+                                    fillColor: '#d32f2f',
+                                    color: '#fff',
+                                    weight: 2,
+                                    fillOpacity: 0.8
+                                });
+
+                                marker.bindPopup(`
+                                    <b>Power Outage</b><br>
+                                    <b>Utility:</b> ${props.UtilityCompany || 'Unknown'}<br>
+                                    <b>Cause:</b> ${props.Cause || 'Unknown'}<br>
+                                    <b>Customers:</b> ${props.ImpactedCustomers || 'N/A'}<br>
+                                    <b>Status:</b> ${props.OutageStatus || 'Active'}<br>
+                                    <b>Type:</b> ${props.OutageType || 'Unknown'}<br>
+                                    <b>Started:</b> ${formatDate(props.StartDate)}<br>
+                                    <b>Est. Restore:</b> ${formatDate(props.EstimatedRestoreDate)}<br>
+                                    <b>County:</b> ${props.County || 'N/A'}
+                                `);
+
+                                outagePointsLayer.addLayer(marker);
+                                outageCount++;
+                                // Don't double count customers from polygons
+                            }
+                        }
+                    });
+                }
+
+                // Update stats
+                document.getElementById('outage-count').textContent = outageCount;
+                document.getElementById('customer-count').textContent = customerCount.toLocaleString();
+                document.getElementById('polygon-count').textContent = polygonCount;
+                document.getElementById('last-update').textContent = 'Last update: ' + new Date().toLocaleTimeString();
+
+            } catch (error) {
+                console.error('Error loading outage data:', error);
+                alert('Error loading outage data. Check console for details.');
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        // Add custom markers from URL
+        async function addCustomMarkers() {
+            const pinsUrl = getCustomPinsUrl();
+            if (!pinsUrl) return;
+
+            try {
+                const response = await fetch(pinsUrl);
+                const data = await response.json();
+
+                if (data.pins && Array.isArray(data.pins)) {
+                    data.pins.forEach(pin => {
+                        const marker = L.marker([pin.latitude, pin.longitude], {
+                            icon: L.divIcon({
+                                className: 'custom-marker',
+                                html: `<div style="background:#4caf50;width:16px;height:16px;border-radius:50%;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>`,
+                                iconSize: [16, 16],
+                                iconAnchor: [8, 8]
+                            })
+                        });
+
+                        marker.bindPopup(`
+                            <b>${pin.label}</b><br>
+                            <small>${pin.latitude.toFixed(4)}, ${pin.longitude.toFixed(4)}</small>
+                        `);
+
+                        customMarkersLayer.addLayer(marker);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading custom pins:', error);
+            }
+        }
+
+        // Initialize
+        addCustomMarkers();
+        loadOutageData();
+
+        // Auto-refresh every 5 minutes
+        setInterval(loadOutageData, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
