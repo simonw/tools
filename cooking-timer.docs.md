@@ -1,5 +1,3 @@
-# Cooking Timer
+View and manage cooking timers for recipes organized by sequential steps with precise timing. This web application allows users to load recipes in JSON format either by pasting directly or providing a URL, then displays an interactive timeline that tracks elapsed time and highlights the current and upcoming cooking steps. The timer supports multi-recipe cooking mode to coordinate multiple dishes simultaneously, with local storage to save recipe history and preserve timer state across sessions.
 
-Set up interactive cooking timers by loading recipe instructions in JSON format, either by pasting directly or providing a URL to a remote recipe file. The timer displays the current step with elapsed time, upcoming tasks with countdowns, and a complete timeline of all cooking instructions that update as you progress through the recipe.
-
-<!-- Generated from commit: be128b350d508c3fd458902206f8d8217790af38 -->
+<!-- Generated from commit: 904763dd9a6bc93786525c705f8b1363a5359c90 -->
