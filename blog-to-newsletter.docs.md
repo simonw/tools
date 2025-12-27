@@ -1,3 +1,3 @@
-Generate a newsletter from Simon Willison's blog content by selecting a time range, filtering existing links, and customizing the story order through an intuitive drag-and-drop interface. The tool fetches blog entries, links, quotations, and other content from a Datasette backup, allowing you to preview the formatted newsletter before copying it to Substack. URL length warnings help identify problematic links that may need shortening for email compatibility.
+Create a newsletter from Simon Willison's blog posts, links, and other content by selecting content from the past several days and arranging it in your preferred order. The tool fetches data from a Datasette backup and integrates with Substack by comparing against previous newsletter RSS feeds to avoid duplicating content. Generate and copy the formatted HTML directly to your clipboard for pasting into Substack, with options to include or exclude various content types and preview the final newsletter layout.
 
-<!-- Generated from commit: 7c21d2121fcf77bcfb8af2666c2c4d4a7b98fb6c -->
+<!-- Generated from commit: db7b5027dc970d4479426f5b674759c8bcbc8629 -->
