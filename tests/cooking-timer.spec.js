@@ -95,18 +95,18 @@ test.describe('Cooking Timer Transfer Feature', () => {
     await page.getByRole('button', { name: 'START COOKING' }).click();
     await page.waitForTimeout(500);
 
-    // Generate URL via JavaScript evaluation
-    const transferUrl = await page.evaluate(() => {
-      return window.generateTransferUrl();
+    // Generate URL via JavaScript evaluation (async)
+    const transferUrl = await page.evaluate(async () => {
+      return await window.generateTransferUrl();
     });
 
     // Should contain #transfer=
     expect(transferUrl).toContain('#transfer=');
 
-    // Extract and decode the state
+    // Extract and decode the state (async)
     const fragment = transferUrl.split('#transfer=')[1];
-    const state = await page.evaluate((frag) => {
-      return window.deserializeState(frag);
+    const state = await page.evaluate(async (frag) => {
+      return await window.deserializeState(frag);
     }, fragment);
 
     // State should have expected structure
@@ -135,9 +135,9 @@ test.describe('Cooking Timer Transfer Feature', () => {
     await page.getByRole('button', { name: 'START COOKING' }).click();
     await page.waitForTimeout(500);
 
-    // Get the transfer URL
-    const transferUrl = await page.evaluate(() => {
-      return window.generateTransferUrl();
+    // Get the transfer URL (async)
+    const transferUrl = await page.evaluate(async () => {
+      return await window.generateTransferUrl();
     });
 
     // Open a new page with the transfer URL
@@ -182,8 +182,8 @@ test.describe('Cooking Timer Transfer Feature', () => {
     await page.getByRole('button', { name: 'START COOKING' }).click();
     await page.waitForTimeout(500);
 
-    // Get transfer URL
-    const transferUrl = await page.evaluate(() => window.generateTransferUrl());
+    // Get transfer URL (async)
+    const transferUrl = await page.evaluate(async () => await window.generateTransferUrl());
 
     // Open new page with transfer URL (first time)
     const newPage = await context.newPage();
@@ -225,8 +225,8 @@ test.describe('Cooking Timer Transfer Feature', () => {
     // Wait 2 seconds
     await page.waitForTimeout(2000);
 
-    // Get the transfer URL
-    const transferUrl = await page.evaluate(() => window.generateTransferUrl());
+    // Get the transfer URL (async)
+    const transferUrl = await page.evaluate(async () => await window.generateTransferUrl());
 
     // Record start time from original page
     const originalStartTime = await page.evaluate(() => window.startTime);

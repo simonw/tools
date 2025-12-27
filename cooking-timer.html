@@ -1798,14 +1798,75 @@ Output this format for the following recipe:`;
     // ============================================
 
     /**
-     * Serialize current timer state to a URL fragment string.
-     * Format: base64-encoded JSON containing:
+     * Base64url encoding/decoding helpers (URL-safe base64)
+     */
+    function uint8ArrayToBase64url(uint8Array) {
+      // Use native toBase64 if available, otherwise fallback
+      if (uint8Array.toBase64) {
+        return uint8Array.toBase64({ alphabet: 'base64url' });
+      }
+      // Fallback: convert to regular base64 and make URL-safe
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+
+    function base64urlToUint8Array(base64url) {
+      // Use native fromBase64 if available, otherwise fallback
+      if (Uint8Array.fromBase64) {
+        return Uint8Array.fromBase64(base64url, { alphabet: 'base64url' });
+      }
+      // Fallback: convert URL-safe base64 to regular and decode
+      let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+      // Add padding if needed
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    /**
+     * Compress a string using deflate-raw algorithm.
+     * Returns base64url-encoded compressed data.
+     */
+    async function compressString(string) {
+      const byteArray = new TextEncoder().encode(string);
+      const stream = new CompressionStream('deflate-raw');
+      const writer = stream.writable.getWriter();
+      writer.write(byteArray);
+      writer.close();
+      const buffer = await new Response(stream.readable).arrayBuffer();
+      return uint8ArrayToBase64url(new Uint8Array(buffer));
+    }
+
+    /**
+     * Decompress a base64url-encoded deflate-raw compressed string.
+     */
+    async function decompressString(base64url) {
+      const byteArray = base64urlToUint8Array(base64url);
+      const stream = new DecompressionStream('deflate-raw');
+      const writer = stream.writable.getWriter();
+      writer.write(byteArray);
+      writer.close();
+      const buffer = await new Response(stream.readable).arrayBuffer();
+      return new TextDecoder().decode(buffer);
+    }
+
+    /**
+     * Serialize current timer state to a compressed URL fragment string.
+     * Format: deflate-raw compressed, base64url-encoded JSON containing:
      * - startTime: timestamp when timer started
-     * - servingTime: timestamp when serving (if set via serving time input)
      * - recipeUrls: array of URLs for URL-sourced recipes
      * - recipeJsons: array of full recipe JSON objects for JSON-pasted recipes
      */
-    function serializeState() {
+    async function serializeState() {
       const savedRecipes = getSavedRecipes();
       const state = {
         startTime: startTime,
@@ -1837,16 +1898,16 @@ Output this format for the following recipe:`;
         }
       }
 
-      return btoa(encodeURIComponent(JSON.stringify(state)));
+      return await compressString(JSON.stringify(state));
     }
 
     /**
-     * Deserialize state from URL fragment string.
+     * Deserialize state from compressed URL fragment string.
      */
-    function deserializeState(fragment) {
+    async function deserializeState(fragment) {
       try {
-        const decoded = decodeURIComponent(atob(fragment));
-        return JSON.parse(decoded);
+        const decompressed = await decompressString(fragment);
+        return JSON.parse(decompressed);
       } catch (e) {
         console.error('Failed to deserialize state:', e);
         return null;
@@ -1856,9 +1917,9 @@ Output this format for the following recipe:`;
     /**
      * Generate transfer URL with current state in fragment.
      */
-    function generateTransferUrl() {
+    async function generateTransferUrl() {
       const baseUrl = window.location.origin + window.location.pathname;
-      const stateFragment = serializeState();
+      const stateFragment = await serializeState();
       return `${baseUrl}#transfer=${stateFragment}`;
     }
 
@@ -1875,8 +1936,8 @@ Output this format for the following recipe:`;
     /**
      * Show transfer modal with QR code.
      */
-    function showTransferModal() {
-      const url = generateTransferUrl();
+    async function showTransferModal() {
+      const url = await generateTransferUrl();
       const canvas = document.getElementById('qrCanvas');
 
       try {
@@ -2010,7 +2071,7 @@ Output this format for the following recipe:`;
       if (!hash.startsWith('#transfer=')) return false;
 
       const stateStr = hash.substring('#transfer='.length);
-      const state = deserializeState(stateStr);
+      const state = await deserializeState(stateStr);
 
       if (!state) {
         showError('Failed to load transfer data. Please try scanning the QR code again.');
@@ -2077,9 +2138,9 @@ Output this format for the following recipe:`;
     };
     const testResults = window.testResults;
 
-    function runTest(name, testFn) {
+    async function runTest(name, testFn) {
       try {
-        testFn();
+        await testFn();
         testResults.passed.push(name);
       } catch (e) {
         testResults.failed.push({ name, error: e.message || String(e) });
@@ -2098,9 +2159,30 @@ Output this format for the following recipe:`;
       }
     }
 
-    function runAllTests() {
+    async function runAllTests() {
+      // Test compression/decompression
+      await runTest('compression roundtrip works', async () => {
+        const original = 'Hello, World! This is a test string for compression.';
+        const compressed = await compressString(original);
+        const decompressed = await decompressString(compressed);
+        assertEqual(decompressed, original, 'Decompressed should match original');
+      });
+
+      await runTest('compressed data is smaller', async () => {
+        const original = JSON.stringify({
+          name: 'Test Recipe with a very long name',
+          steps: [
+            { time: 0, title: 'Step 1', detail: 'This is a detailed description of step 1' },
+            { time: 60, title: 'Step 2', detail: 'This is a detailed description of step 2' },
+            { time: 120, title: 'Step 3', detail: 'This is a detailed description of step 3' }
+          ]
+        });
+        const compressed = await compressString(original);
+        assertTrue(compressed.length < original.length, 'Compressed should be smaller than original');
+      });
+
       // Test state serialization/deserialization
-      runTest('serializeState creates valid base64', () => {
+      await runTest('serializeState creates compressed data', async () => {
         // Temporarily set up state for testing
         const oldRecipe = currentRecipe;
         const oldRecipes = currentRecipes;
@@ -2110,12 +2192,8 @@ Output this format for the following recipe:`;
         currentRecipes = [currentRecipe];
         startTime = 1700000000000;
 
-        const serialized = serializeState();
+        const serialized = await serializeState();
         assertTrue(serialized.length > 0, 'Serialized state should not be empty');
-
-        // Should be valid base64
-        const decoded = atob(serialized);
-        assertTrue(decoded.length > 0, 'Should decode from base64');
 
         // Restore
         currentRecipe = oldRecipe;
@@ -2123,15 +2201,15 @@ Output this format for the following recipe:`;
         startTime = oldStartTime;
       });
 
-      runTest('deserializeState roundtrip works', () => {
+      await runTest('deserializeState roundtrip works', async () => {
         const originalState = {
           startTime: 1700000000000,
           recipeUrls: ['https://example.com/recipe.json'],
           recipeJsons: [{ name: 'Test', steps: [{ time: 0, title: 'Step' }] }]
         };
 
-        const encoded = btoa(encodeURIComponent(JSON.stringify(originalState)));
-        const decoded = deserializeState(encoded);
+        const compressed = await compressString(JSON.stringify(originalState));
+        const decoded = await deserializeState(compressed);
 
         assertEqual(decoded.startTime, originalState.startTime, 'startTime should match');
         assertEqual(decoded.recipeUrls, originalState.recipeUrls, 'recipeUrls should match');
@@ -2139,16 +2217,16 @@ Output this format for the following recipe:`;
         assertEqual(decoded.recipeJsons[0].name, 'Test', 'recipe name should match');
       });
 
-      runTest('deserializeState handles invalid input', () => {
+      await runTest('deserializeState handles invalid input', async () => {
         // Temporarily suppress console.error for this test
         const originalError = console.error;
         console.error = () => {};
-        const result = deserializeState('not-valid-base64!!!');
+        const result = await deserializeState('not-valid-base64!!!');
         console.error = originalError;
         assertEqual(result, null, 'Should return null for invalid input');
       });
 
-      runTest('findDuplicateRecipe finds URL duplicates', () => {
+      await runTest('findDuplicateRecipe finds URL duplicates', async () => {
         const recipes = [
           { id: '1', source: 'url', url: 'https://example.com/a.json', name: 'A' },
           { id: '2', source: 'json', recipe: { name: 'B', steps: [] }, name: 'B' }
@@ -2161,7 +2239,7 @@ Output this format for the following recipe:`;
         assertEqual(notFound, undefined, 'Should not find non-existent URL');
       });
 
-      runTest('findDuplicateRecipe finds JSON duplicates', () => {
+      await runTest('findDuplicateRecipe finds JSON duplicates', async () => {
         const recipeJson = { name: 'B', steps: [{ time: 0, title: 'X' }] };
         const recipes = [
           { id: '1', source: 'url', url: 'https://example.com/a.json', name: 'A' },
@@ -2175,7 +2253,7 @@ Output this format for the following recipe:`;
         assertEqual(notFound, undefined, 'Should not find non-existent JSON');
       });
 
-      runTest('validateRecipe rejects invalid recipes', () => {
+      await runTest('validateRecipe rejects invalid recipes', async () => {
         assertEqual(validateRecipe(null), false, 'null should be invalid');
         assertEqual(validateRecipe({}), false, 'empty object should be invalid');
         assertEqual(validateRecipe({ name: 'X' }), false, 'missing steps should be invalid');
@@ -2183,7 +2261,7 @@ Output this format for the following recipe:`;
         assertEqual(validateRecipe({ name: 'X', steps: [{ title: 'Y' }] }), false, 'missing time should be invalid');
       });
 
-      runTest('validateRecipe accepts valid recipes', () => {
+      await runTest('validateRecipe accepts valid recipes', async () => {
         const valid = { name: 'Test', steps: [{ time: 0, title: 'Step 1' }] };
         assertEqual(validateRecipe(valid), true, 'Valid recipe should pass');
 
@@ -2197,7 +2275,7 @@ Output this format for the following recipe:`;
         assertEqual(validateRecipe(validWithDetails), true, 'Recipe with details should pass');
       });
 
-      runTest('generateTransferUrl includes correct format', () => {
+      await runTest('generateTransferUrl includes correct format', async () => {
         const oldRecipe = currentRecipe;
         const oldRecipes = currentRecipes;
         const oldStartTime = startTime;
@@ -2206,7 +2284,7 @@ Output this format for the following recipe:`;
         currentRecipes = [currentRecipe];
         startTime = 1700000000000;
 
-        const url = generateTransferUrl();
+        const url = await generateTransferUrl();
         assertTrue(url.includes('#transfer='), 'URL should contain #transfer=');
         assertTrue(url.startsWith(window.location.origin), 'URL should start with origin');
 
@@ -2215,7 +2293,7 @@ Output this format for the following recipe:`;
         startTime = oldStartTime;
       });
 
-      runTest('mergeRecipeSteps sorts by time', () => {
+      await runTest('mergeRecipeSteps sorts by time', async () => {
         const recipesToMerge = [
           { id: '1', recipe: { name: 'A', steps: [{ time: 60, title: 'A1' }, { time: 180, title: 'A2' }] }, name: 'A' },
           { id: '2', recipe: { name: 'B', steps: [{ time: 0, title: 'B1' }, { time: 120, title: 'B2' }] }, name: 'B' }
@@ -2231,7 +2309,7 @@ Output this format for the following recipe:`;
         assertEqual(merged[3].time, 180, 'Fourth step should be at time 180');
       });
 
-      runTest('mergeRecipeSteps adds recipe metadata', () => {
+      await runTest('mergeRecipeSteps adds recipe metadata', async () => {
         const recipesToMerge = [
           { id: '1', recipe: { name: 'Recipe A', steps: [{ time: 0, title: 'Step' }] }, name: 'Recipe A' }
         ];
@@ -2243,7 +2321,7 @@ Output this format for the following recipe:`;
         assertTrue(merged[0].recipeColor !== undefined, 'Should have recipeColor');
       });
 
-      runTest('formatTime handles various inputs', () => {
+      await runTest('formatTime handles various inputs', async () => {
         assertEqual(formatTime(0), '00:00', 'Zero seconds');
         assertEqual(formatTime(59), '00:59', '59 seconds');
         assertEqual(formatTime(60), '01:00', '1 minute');
@@ -2251,7 +2329,7 @@ Output this format for the following recipe:`;
         assertEqual(formatTime(3599), '59:59', '59 minutes 59 seconds');
       });
 
-      runTest('escapeHtml escapes special characters', () => {
+      await runTest('escapeHtml escapes special characters', async () => {
         const escaped = escapeHtml('<div onclick="alert()">test</div>');
         assertTrue(!escaped.includes('<div'), 'Should escape HTML tags');
         assertTrue(escaped.includes('&lt;'), 'Should use HTML entities');
@@ -2291,13 +2369,13 @@ Output this format for the following recipe:`;
       // Check for transfer state first
       if (window.location.hash.startsWith('#transfer=')) {
         await handleTransferState();
-        runAllTests();
+        await runAllTests();
         return;
       }
 
       // Continue with original init
       init();
-      runAllTests();
+      await runAllTests();
     }
 
     // Initialize on load
