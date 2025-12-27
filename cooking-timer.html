@@ -393,6 +393,91 @@
       flex-wrap: wrap;
     }
 
+    .serving-time-container {
+      margin-top: 16px;
+    }
+
+    .serving-time-btn {
+      background: transparent;
+      border: 2px solid rgba(255,255,255,0.5);
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .serving-time-btn:hover {
+      border-color: #fff;
+      background: rgba(255,255,255,0.1);
+    }
+
+    .serving-time-input-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: rgba(0,0,0,0.2);
+      padding: 12px 16px;
+      border-radius: 12px;
+    }
+
+    .serving-time-input-wrapper label {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+
+    .serving-time-input-wrapper input[type="time"] {
+      padding: 8px 12px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .serving-time-input-wrapper input[type="time"]:focus {
+      outline: none;
+      border-color: #fff;
+    }
+
+    .serving-time-set {
+      background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+      border: none;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .serving-time-set:hover {
+      transform: scale(1.05);
+      box-shadow: 0 2px 10px rgba(0, 184, 148, 0.3);
+    }
+
+    .serving-time-cancel {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 1.4rem;
+      cursor: pointer;
+      opacity: 0.6;
+      padding: 4px 8px;
+    }
+
+    .serving-time-cancel:hover {
+      opacity: 1;
+    }
+
+    .elapsed-label.countdown {
+      color: #f39c12;
+    }
+
     .current-step {
       background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
       border-radius: 16px;
@@ -680,9 +765,18 @@
 
     <div class="start-section" id="startSection">
       <button class="start-btn" id="startBtn" onclick="startCooking()">START COOKING</button>
+      <div class="serving-time-container" id="servingTimeContainer">
+        <button class="serving-time-btn" id="servingTimeBtn" onclick="showServingTimeInput()">Set Serving Time</button>
+        <div class="serving-time-input-wrapper hidden" id="servingTimeInputWrapper">
+          <label for="servingTimeInput">Serve at:</label>
+          <input type="time" id="servingTimeInput">
+          <button class="serving-time-set" onclick="onServingTimeSelected()">Set</button>
+          <button class="serving-time-cancel" onclick="hideServingTimeInput()">×</button>
+        </div>
+      </div>
       <div class="hidden" id="timerDisplay">
         <div class="elapsed-time" id="elapsedTime">00:00</div>
-        <div class="elapsed-label">Elapsed Time</div>
+        <div class="elapsed-label" id="elapsedLabel">Elapsed Time</div>
         <div class="timer-controls">
           <button class="reset-btn" onclick="resetTimer()">Reset Timer</button>
         </div>
@@ -1301,6 +1395,9 @@ Output this format for the following recipe:`;
 
       // Reset timer display
       document.getElementById('startBtn').classList.remove('hidden');
+      document.getElementById('servingTimeContainer').classList.remove('hidden');
+      document.getElementById('servingTimeBtn').classList.remove('hidden');
+      document.getElementById('servingTimeInputWrapper').classList.add('hidden');
       document.getElementById('timerDisplay').classList.add('hidden');
       document.getElementById('startSection').classList.remove('running');
       document.getElementById('currentStepSection').classList.add('hidden');
@@ -1331,8 +1428,58 @@ Output this format for the following recipe:`;
       startTimer();
     }
 
+    function showServingTimeInput() {
+      document.getElementById('servingTimeBtn').classList.add('hidden');
+      document.getElementById('servingTimeInputWrapper').classList.remove('hidden');
+
+      // Set default value to a reasonable time (1 hour from now, rounded to nearest 5 min)
+      const now = new Date();
+      const steps = isMultiRecipeMode ? mergedSteps : currentRecipe.steps;
+      const lastStepTime = steps[steps.length - 1].time;
+      const suggestedServing = new Date(now.getTime() + lastStepTime * 1000 + 5 * 60 * 1000);
+
+      // Round to nearest 5 minutes
+      suggestedServing.setMinutes(Math.ceil(suggestedServing.getMinutes() / 5) * 5);
+      suggestedServing.setSeconds(0);
+
+      const hours = suggestedServing.getHours().toString().padStart(2, '0');
+      const mins = suggestedServing.getMinutes().toString().padStart(2, '0');
+      document.getElementById('servingTimeInput').value = `${hours}:${mins}`;
+    }
+
+    function hideServingTimeInput() {
+      document.getElementById('servingTimeBtn').classList.remove('hidden');
+      document.getElementById('servingTimeInputWrapper').classList.add('hidden');
+    }
+
+    function onServingTimeSelected() {
+      const timeInput = document.getElementById('servingTimeInput').value;
+      if (!timeInput) return;
+
+      const [hours, minutes] = timeInput.split(':').map(Number);
+      const steps = isMultiRecipeMode ? mergedSteps : currentRecipe.steps;
+      const lastStepTime = steps[steps.length - 1].time;
+
+      // Create the serving time for today
+      const now = new Date();
+      let servingTime = new Date(now);
+      servingTime.setHours(hours, minutes, 0, 0);
+
+      // If the serving time is in the past, assume it's for tomorrow
+      if (servingTime.getTime() < now.getTime()) {
+        servingTime.setDate(servingTime.getDate() + 1);
+      }
+
+      // Calculate the start time by subtracting the total cooking time
+      startTime = servingTime.getTime() - (lastStepTime * 1000);
+
+      saveTimerState();
+      startTimer();
+    }
+
     function startTimer() {
       document.getElementById('startBtn').classList.add('hidden');
+      document.getElementById('servingTimeContainer').classList.add('hidden');
       document.getElementById('timerDisplay').classList.remove('hidden');
       document.getElementById('startSection').classList.add('running');
       document.getElementById('notStartedMsg').classList.add('hidden');
@@ -1348,6 +1495,9 @@ Output this format for the following recipe:`;
         saveTimerState();
 
         document.getElementById('startBtn').classList.remove('hidden');
+        document.getElementById('servingTimeContainer').classList.remove('hidden');
+        document.getElementById('servingTimeBtn').classList.remove('hidden');
+        document.getElementById('servingTimeInputWrapper').classList.add('hidden');
         document.getElementById('timerDisplay').classList.add('hidden');
         document.getElementById('startSection').classList.remove('running');
         document.getElementById('currentStepSection').classList.add('hidden');
@@ -1382,7 +1532,18 @@ Output this format for the following recipe:`;
     function updateDisplay() {
       const steps = isMultiRecipeMode ? mergedSteps : currentRecipe.steps;
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      document.getElementById('elapsedTime').textContent = formatTimeWithHours(elapsed);
+      const elapsedLabel = document.getElementById('elapsedLabel');
+
+      // Handle negative elapsed time (waiting to start based on serving time)
+      if (elapsed < 0) {
+        document.getElementById('elapsedTime').textContent = formatTimeWithHours(Math.abs(elapsed));
+        elapsedLabel.textContent = 'Starts in';
+        elapsedLabel.classList.add('countdown');
+      } else {
+        document.getElementById('elapsedTime').textContent = formatTimeWithHours(elapsed);
+        elapsedLabel.textContent = 'Elapsed Time';
+        elapsedLabel.classList.remove('countdown');
+      }
 
       // Find current and upcoming steps
       let currentStep = null;
@@ -1403,7 +1564,7 @@ Output this format for the following recipe:`;
       }
 
       // If no "just started" step, find the most recent active step
-      if (!currentStep) {
+      if (!currentStep && elapsed >= 0) {
         for (let i = steps.length - 1; i >= 0; i--) {
           if (steps[i].time <= elapsed) {
             currentStep = steps[i];
@@ -1439,6 +1600,9 @@ Output this format for the following recipe:`;
             categoryEl.style.display = currentStep.category ? 'inline-block' : 'none';
             categoryEl.style.background = 'rgba(0,0,0,0.2)';
           }
+        } else {
+          // Hide current step section when waiting to start or between steps
+          document.getElementById('currentStepSection').classList.add('hidden');
         }
 
         // Update upcoming steps
