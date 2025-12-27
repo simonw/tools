@@ -252,6 +252,80 @@
       opacity: 1;
     }
 
+    .recipe-item-checkbox {
+      width: 20px;
+      height: 20px;
+      margin-right: 12px;
+      accent-color: #00cec9;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .recipe-item.selected {
+      background: rgba(0, 206, 201, 0.15);
+      border: 1px solid rgba(0, 206, 201, 0.3);
+    }
+
+    .multi-cook-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .multi-cook-btn {
+      width: 100%;
+      background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+      color: #fff;
+      border: none;
+      padding: 14px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .multi-cook-btn:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 20px rgba(155, 89, 182, 0.3);
+    }
+
+    .multi-cook-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .selection-count {
+      font-size: 0.85rem;
+      opacity: 0.8;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .recipe-tag {
+      display: inline-block;
+      font-size: 0.65rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-top: 6px;
+    }
+
+    .multi-recipe-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .multi-recipe-badge {
+      background: rgba(155, 89, 182, 0.3);
+      border: 1px solid rgba(155, 89, 182, 0.5);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+    }
+
     .start-section {
       background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
       border-radius: 16px;
@@ -589,6 +663,10 @@
     <div id="savedRecipesSection" class="setup-section saved-recipes hidden">
       <h3>Previous Recipes</h3>
       <div class="recipe-list" id="recipeList"></div>
+      <div id="multiCookSection" class="multi-cook-section hidden">
+        <div class="selection-count" id="selectionCount">0 recipes selected</div>
+        <button class="multi-cook-btn" id="multiCookBtn" onclick="startMultiRecipeCook()" disabled>Cook these at the same time</button>
+      </div>
     </div>
   </div>
 
@@ -598,6 +676,7 @@
       <h1 id="recipeName">Cooking Timer</h1>
       <button class="btn btn-secondary" onclick="chooseNewRecipe()">Choose Different Recipe</button>
     </div>
+    <div id="multiRecipeHeader" class="multi-recipe-header hidden"></div>
 
     <div class="start-section" id="startSection">
       <button class="start-btn" id="startBtn" onclick="startCooking()">START COOKING</button>
@@ -641,6 +720,14 @@
     const ACTIVE_RECIPE_KEY = 'cookingTimerActiveRecipe';
     const TIMER_STATE_KEY = 'cookingTimerState';
 
+    // Color palette for multi-recipe tags
+    const RECIPE_COLORS = [
+      '#9b59b6', '#e67e22', '#3498db', '#1abc9c', '#e74c3c', '#f39c12'
+    ];
+
+    // Track selected recipes for multi-cook
+    let selectedRecipeIds = new Set();
+
     // Example recipe
     const exampleRecipe = {
       name: "Fresh Guacamole",
@@ -656,8 +743,11 @@
     };
 
     let currentRecipe = null;
+    let currentRecipes = []; // For multi-recipe mode
+    let mergedSteps = []; // Combined steps from all recipes
     let startTime = null;
     let timerInterval = null;
+    let isMultiRecipeMode = false;
 
     function init() {
       // Set up example JSON display
@@ -673,9 +763,16 @@ Output this format for the following recipe:`;
       const encodedPrompt = encodeURIComponent(claudePrompt);
       document.getElementById('claudeLink').href = `https://claude.ai/new?q=${encodedPrompt}`;
 
-      // Check for URL parameter
+      // Check for URL parameters
       const urlParams = new URLSearchParams(window.location.search);
       const recipeUrl = urlParams.get('url');
+      const recipeIds = urlParams.get('recipes'); // Multi-recipe IDs
+
+      if (recipeIds) {
+        // Multi-recipe mode from URL
+        loadMultiRecipesFromIds(recipeIds.split(','));
+        return;
+      }
 
       if (recipeUrl) {
         loadRecipeFromUrl(recipeUrl);
@@ -684,8 +781,28 @@ Output this format for the following recipe:`;
 
       // Check for active recipe in localStorage
       const timerState = getTimerState();
-      if (timerState && timerState.recipe) {
+      if (timerState && timerState.recipes && timerState.recipes.length > 0) {
+        // Multi-recipe session
+        currentRecipes = timerState.recipes;
+        isMultiRecipeMode = timerState.recipes.length > 1;
+        mergedSteps = timerState.mergedSteps || [];
+        startTime = timerState.startTime;
+
+        if (isMultiRecipeMode) {
+          showMultiRecipeTimerScreen();
+        } else {
+          currentRecipe = currentRecipes[0];
+          showTimerScreen();
+        }
+
+        if (startTime) {
+          startTimer();
+        }
+        return;
+      } else if (timerState && timerState.recipe) {
+        // Legacy single-recipe session
         currentRecipe = timerState.recipe;
+        currentRecipes = [timerState.recipe];
         startTime = timerState.startTime;
         showTimerScreen();
         if (startTime) {
@@ -710,7 +827,10 @@ Output this format for the following recipe:`;
     function saveTimerState() {
       const state = {
         recipe: currentRecipe,
-        startTime: startTime
+        recipes: currentRecipes,
+        mergedSteps: mergedSteps,
+        startTime: startTime,
+        isMultiRecipeMode: isMultiRecipeMode
       };
       localStorage.setItem(TIMER_STATE_KEY, JSON.stringify(state));
     }
@@ -768,6 +888,7 @@ Output this format for the following recipe:`;
       const recipes = getSavedRecipes();
       const section = document.getElementById('savedRecipesSection');
       const list = document.getElementById('recipeList');
+      const multiCookSection = document.getElementById('multiCookSection');
 
       if (recipes.length === 0) {
         section.classList.add('hidden');
@@ -776,13 +897,22 @@ Output this format for the following recipe:`;
 
       section.classList.remove('hidden');
 
+      // Show multi-cook section if there are 2+ recipes
+      if (recipes.length >= 2) {
+        multiCookSection.classList.remove('hidden');
+      } else {
+        multiCookSection.classList.add('hidden');
+      }
+
       list.innerHTML = recipes.map(r => {
         const date = new Date(r.createdAt).toLocaleDateString();
         const sourceLabel = r.source === 'url' ? `URL: ${r.url}` : 'Pasted JSON';
+        const isSelected = selectedRecipeIds.has(r.id);
 
         return `
-          <div class="recipe-item" onclick="loadSavedRecipe('${r.id}')">
-            <div class="recipe-item-info">
+          <div class="recipe-item ${isSelected ? 'selected' : ''}" data-recipe-id="${r.id}">
+            <input type="checkbox" class="recipe-item-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleRecipeSelection('${r.id}')" />
+            <div class="recipe-item-info" onclick="loadSavedRecipe('${r.id}')">
               <div class="recipe-item-name">${escapeHtml(r.name)}</div>
               <div class="recipe-item-date">Added: ${date}</div>
               <div class="recipe-item-source">${escapeHtml(sourceLabel)}</div>
@@ -791,6 +921,35 @@ Output this format for the following recipe:`;
           </div>
         `;
       }).join('');
+
+      updateMultiCookButton();
+    }
+
+    function toggleRecipeSelection(id) {
+      if (selectedRecipeIds.has(id)) {
+        selectedRecipeIds.delete(id);
+      } else {
+        selectedRecipeIds.add(id);
+      }
+
+      // Update UI for this item
+      const item = document.querySelector(`.recipe-item[data-recipe-id="${id}"]`);
+      if (item) {
+        item.classList.toggle('selected', selectedRecipeIds.has(id));
+        const checkbox = item.querySelector('.recipe-item-checkbox');
+        if (checkbox) checkbox.checked = selectedRecipeIds.has(id);
+      }
+
+      updateMultiCookButton();
+    }
+
+    function updateMultiCookButton() {
+      const count = selectedRecipeIds.size;
+      const btn = document.getElementById('multiCookBtn');
+      const countDisplay = document.getElementById('selectionCount');
+
+      countDisplay.textContent = count === 1 ? '1 recipe selected' : `${count} recipes selected`;
+      btn.disabled = count < 2;
     }
 
     function escapeHtml(text) {
@@ -843,6 +1002,8 @@ Output this format for the following recipe:`;
         }
 
         currentRecipe = recipe;
+        currentRecipes = [recipe];
+        isMultiRecipeMode = false;
         saveRecipeToHistory(recipe, 'url', url);
         saveTimerState();
         showTimerScreen();
@@ -872,6 +1033,8 @@ Output this format for the following recipe:`;
         }
 
         currentRecipe = recipe;
+        currentRecipes = [recipe];
+        isMultiRecipeMode = false;
         saveRecipeToHistory(recipe, 'json');
         saveTimerState();
         showTimerScreen();
@@ -894,6 +1057,198 @@ Output this format for the following recipe:`;
       return true;
     }
 
+    // Multi-recipe functions
+    async function startMultiRecipeCook() {
+      const savedRecipes = getSavedRecipes();
+      const selectedIds = Array.from(selectedRecipeIds);
+      const recipesToLoad = [];
+      const urlsToFetch = [];
+
+      // Gather recipes to load
+      for (const id of selectedIds) {
+        const saved = savedRecipes.find(r => r.id === id);
+        if (!saved) continue;
+
+        if (saved.source === 'url' && saved.url) {
+          urlsToFetch.push({ id, url: saved.url, name: saved.name });
+        } else if (saved.recipe) {
+          recipesToLoad.push({ id, recipe: saved.recipe, name: saved.name });
+        }
+      }
+
+      // Fetch URL-based recipes
+      hideError();
+      for (const item of urlsToFetch) {
+        try {
+          const response = await fetch(item.url);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch ${item.name}`);
+          }
+          const recipe = await response.json();
+          if (validateRecipe(recipe)) {
+            recipesToLoad.push({ id: item.id, recipe, name: recipe.name });
+          }
+        } catch (e) {
+          showError(`Failed to load recipe "${item.name}": ${e.message}`);
+          return;
+        }
+      }
+
+      if (recipesToLoad.length < 2) {
+        showError('Need at least 2 valid recipes to cook together');
+        return;
+      }
+
+      // Set up multi-recipe mode
+      currentRecipes = recipesToLoad.map(r => r.recipe);
+      isMultiRecipeMode = true;
+      mergedSteps = mergeRecipeSteps(recipesToLoad);
+
+      // Update URL
+      const ids = recipesToLoad.map(r => r.id).join(',');
+      window.history.replaceState({}, '', `?recipes=${ids}`);
+
+      saveTimerState();
+      showMultiRecipeTimerScreen();
+    }
+
+    async function loadMultiRecipesFromIds(ids) {
+      const savedRecipes = getSavedRecipes();
+      const recipesToLoad = [];
+      const urlsToFetch = [];
+
+      for (const id of ids) {
+        const saved = savedRecipes.find(r => r.id === id);
+        if (!saved) continue;
+
+        if (saved.source === 'url' && saved.url) {
+          urlsToFetch.push({ id, url: saved.url, name: saved.name });
+        } else if (saved.recipe) {
+          recipesToLoad.push({ id, recipe: saved.recipe, name: saved.name });
+        }
+      }
+
+      // Fetch URL-based recipes
+      for (const item of urlsToFetch) {
+        try {
+          const response = await fetch(item.url);
+          if (!response.ok) throw new Error(`Failed to fetch`);
+          const recipe = await response.json();
+          if (validateRecipe(recipe)) {
+            recipesToLoad.push({ id: item.id, recipe, name: recipe.name });
+          }
+        } catch (e) {
+          showError(`Failed to load recipe "${item.name}"`);
+          document.getElementById('setupScreen').classList.remove('hidden');
+          renderSavedRecipes();
+          return;
+        }
+      }
+
+      if (recipesToLoad.length < 1) {
+        document.getElementById('setupScreen').classList.remove('hidden');
+        renderSavedRecipes();
+        return;
+      }
+
+      if (recipesToLoad.length === 1) {
+        // Single recipe mode
+        currentRecipe = recipesToLoad[0].recipe;
+        currentRecipes = [currentRecipe];
+        isMultiRecipeMode = false;
+        saveTimerState();
+        showTimerScreen();
+        return;
+      }
+
+      // Multi-recipe mode
+      currentRecipes = recipesToLoad.map(r => r.recipe);
+      isMultiRecipeMode = true;
+      mergedSteps = mergeRecipeSteps(recipesToLoad);
+      saveTimerState();
+      showMultiRecipeTimerScreen();
+    }
+
+    function mergeRecipeSteps(recipesToLoad) {
+      const allSteps = [];
+
+      recipesToLoad.forEach((item, recipeIndex) => {
+        const recipe = item.recipe;
+        const color = RECIPE_COLORS[recipeIndex % RECIPE_COLORS.length];
+
+        recipe.steps.forEach(step => {
+          allSteps.push({
+            ...step,
+            recipeName: recipe.name,
+            recipeIndex: recipeIndex,
+            recipeColor: color
+          });
+        });
+      });
+
+      // Sort by time
+      allSteps.sort((a, b) => a.time - b.time);
+
+      return allSteps;
+    }
+
+    function showMultiRecipeTimerScreen() {
+      document.getElementById('setupScreen').classList.add('hidden');
+      document.getElementById('timerScreen').classList.remove('hidden');
+      document.getElementById('recipeName').textContent = 'Multi-Recipe Cook';
+
+      // Show recipe badges
+      const headerEl = document.getElementById('multiRecipeHeader');
+      headerEl.classList.remove('hidden');
+      headerEl.innerHTML = currentRecipes.map((r, i) => {
+        const color = RECIPE_COLORS[i % RECIPE_COLORS.length];
+        return `<span class="multi-recipe-badge" style="border-color: ${color}; background: ${color}33;">${escapeHtml(r.name)}</span>`;
+      }).join('');
+
+      renderMultiRecipeTimeline();
+    }
+
+    function renderMultiRecipeTimeline(elapsed = null, currentIndex = -1) {
+      const steps = mergedSteps;
+      let html = '';
+
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        let statusClass = '';
+        let timeDisplay = formatTime(step.time);
+
+        if (elapsed !== null) {
+          if (step.time < elapsed - 60) {
+            statusClass = 'completed';
+          } else if (i === currentIndex) {
+            statusClass = 'active';
+          }
+
+          // Calculate actual clock time
+          const stepDate = new Date(startTime + step.time * 1000);
+          timeDisplay = stepDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        const recipeTag = `<span class="timeline-tag" style="background: ${step.recipeColor}">${escapeHtml(step.recipeName)}</span>`;
+        const categoryTag = step.category
+          ? `<span class="timeline-tag" style="background: #3498db">${escapeHtml(step.category)}</span>`
+          : '';
+
+        html += `
+          <div class="timeline-item ${statusClass}">
+            <div class="timeline-time">${timeDisplay}</div>
+            <div class="timeline-content">
+              <div class="timeline-title">${escapeHtml(step.title)}</div>
+              <div class="timeline-detail">${escapeHtml(step.detail || '').replace(/\n/g, '<br>')}</div>
+              ${recipeTag}${categoryTag}
+            </div>
+          </div>
+        `;
+      }
+
+      document.getElementById('timeline').innerHTML = html;
+    }
+
     function loadSavedRecipe(id) {
       const recipes = getSavedRecipes();
       const saved = recipes.find(r => r.id === id);
@@ -907,6 +1262,8 @@ Output this format for the following recipe:`;
         window.location.href = `?url=${encodeURIComponent(saved.url)}`;
       } else if (saved.recipe) {
         currentRecipe = saved.recipe;
+        currentRecipes = [saved.recipe];
+        isMultiRecipeMode = false;
         saveTimerState();
         showTimerScreen();
       } else {
@@ -918,6 +1275,7 @@ Output this format for the following recipe:`;
       document.getElementById('setupScreen').classList.add('hidden');
       document.getElementById('timerScreen').classList.remove('hidden');
       document.getElementById('recipeName').textContent = currentRecipe.name;
+      document.getElementById('multiRecipeHeader').classList.add('hidden');
       renderTimeline();
     }
 
@@ -929,7 +1287,11 @@ Output this format for the following recipe:`;
       clearTimerState();
       clearInterval(timerInterval);
       currentRecipe = null;
+      currentRecipes = [];
+      mergedSteps = [];
+      isMultiRecipeMode = false;
       startTime = null;
+      selectedRecipeIds.clear();
 
       // Clear URL parameter
       window.history.replaceState({}, '', window.location.pathname);
@@ -945,6 +1307,7 @@ Output this format for the following recipe:`;
       document.getElementById('nextStepsSection').classList.add('hidden');
       document.getElementById('completedSection').classList.add('hidden');
       document.getElementById('notStartedMsg').classList.remove('hidden');
+      document.getElementById('multiRecipeHeader').classList.add('hidden');
 
       renderSavedRecipes();
     }
@@ -991,7 +1354,12 @@ Output this format for the following recipe:`;
         document.getElementById('nextStepsSection').classList.add('hidden');
         document.getElementById('completedSection').classList.add('hidden');
         document.getElementById('notStartedMsg').classList.remove('hidden');
-        renderTimeline();
+
+        if (isMultiRecipeMode) {
+          renderMultiRecipeTimeline();
+        } else {
+          renderTimeline();
+        }
       }
     }
 
@@ -1012,7 +1380,7 @@ Output this format for the following recipe:`;
     }
 
     function updateDisplay() {
-      const steps = currentRecipe.steps;
+      const steps = isMultiRecipeMode ? mergedSteps : currentRecipe.steps;
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
       document.getElementById('elapsedTime').textContent = formatTimeWithHours(elapsed);
 
@@ -1059,8 +1427,18 @@ Output this format for the following recipe:`;
           document.getElementById('currentStepSection').classList.remove('hidden');
           document.getElementById('currentStepTitle').textContent = currentStep.title;
           document.getElementById('currentStepDetail').textContent = currentStep.detail || '';
-          document.getElementById('currentStepCategory').textContent = currentStep.category || '';
-          document.getElementById('currentStepCategory').style.display = currentStep.category ? 'inline-block' : 'none';
+
+          // Show recipe name in multi-recipe mode, category otherwise
+          const categoryEl = document.getElementById('currentStepCategory');
+          if (isMultiRecipeMode && currentStep.recipeName) {
+            categoryEl.textContent = currentStep.recipeName;
+            categoryEl.style.display = 'inline-block';
+            categoryEl.style.background = currentStep.recipeColor || 'rgba(0,0,0,0.2)';
+          } else {
+            categoryEl.textContent = currentStep.category || '';
+            categoryEl.style.display = currentStep.category ? 'inline-block' : 'none';
+            categoryEl.style.background = 'rgba(0,0,0,0.2)';
+          }
         }
 
         // Update upcoming steps
@@ -1069,11 +1447,12 @@ Output this format for the following recipe:`;
           let html = '';
           for (const step of upcomingSteps) {
             const countdownClass = step.timeUntil <= 30 ? 'now' : step.timeUntil <= 60 ? 'soon' : '';
+            const tagText = isMultiRecipeMode ? step.recipeName : (step.category || '');
             html += `
               <div class="next-step-item">
                 <div class="next-step-info">
                   <div class="next-step-title">${escapeHtml(step.title)}</div>
-                  <div class="next-step-category-tag">${escapeHtml(step.category || '')}</div>
+                  <div class="next-step-category-tag">${escapeHtml(tagText)}</div>
                 </div>
                 <div class="next-step-countdown ${countdownClass}">
                   ${step.timeUntil <= 0 ? 'NOW' : 'in ' + formatTime(step.timeUntil)}
@@ -1088,7 +1467,11 @@ Output this format for the following recipe:`;
       }
 
       // Update timeline
-      renderTimeline(elapsed, currentStepIndex);
+      if (isMultiRecipeMode) {
+        renderMultiRecipeTimeline(elapsed, currentStepIndex);
+      } else {
+        renderTimeline(elapsed, currentStepIndex);
+      }
     }
 
     function renderTimeline(elapsed = null, currentIndex = -1) {
