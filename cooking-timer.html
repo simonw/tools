@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="robots" content="noindex, nofollow">
   <title>Cooking Timer</title>
+  <script src="lib/qrcode.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -691,6 +692,20 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .recipe-header > div {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .recipe-header .btn {
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      border-radius: 6px;
     }
 
     .recipe-name {
@@ -706,6 +721,102 @@
       padding: 12px;
       margin-bottom: 16px;
       font-size: 0.9rem;
+    }
+
+    .transfer-btn {
+      background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .transfer-btn:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 20px rgba(108, 92, 231, 0.3);
+    }
+
+    .qr-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .qr-modal {
+      background: #1e3a5f;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .qr-modal h2 {
+      margin-bottom: 8px;
+      color: #fff;
+      font-size: 1.3rem;
+    }
+
+    .qr-modal p {
+      margin-bottom: 20px;
+      opacity: 0.8;
+      font-size: 0.9rem;
+    }
+
+    .qr-modal canvas {
+      max-width: 100%;
+      border-radius: 8px;
+      background: #fff;
+      padding: 16px;
+    }
+
+    .qr-modal-close {
+      margin-top: 20px;
+      background: transparent;
+      border: 2px solid rgba(255,255,255,0.3);
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .qr-modal-close:hover {
+      border-color: #fff;
+    }
+
+    .test-results {
+      margin-top: 20px;
+      padding: 16px;
+      background: rgba(233, 69, 96, 0.2);
+      border: 1px solid #e94560;
+      border-radius: 8px;
+    }
+
+    .test-results summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #e94560;
+    }
+
+    .test-results pre {
+      margin-top: 12px;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      text-align: left;
     }
   </style>
 </head>
@@ -759,7 +870,10 @@
   <div id="timerScreen" class="hidden">
     <div class="recipe-header">
       <h1 id="recipeName">Cooking Timer</h1>
-      <button class="btn btn-secondary" onclick="chooseNewRecipe()">Choose Different Recipe</button>
+      <div>
+        <button class="transfer-btn" onclick="showTransferModal()">Transfer to Phone</button>
+        <button class="btn btn-secondary" onclick="chooseNewRecipe()">Choose Different Recipe</button>
+      </div>
     </div>
     <div id="multiRecipeHeader" class="multi-recipe-header hidden"></div>
 
@@ -808,6 +922,20 @@
       </div>
     </div>
   </div>
+
+  <!-- QR Transfer Modal -->
+  <div id="qrModalOverlay" class="qr-modal-overlay hidden" onclick="hideTransferModal(event)">
+    <div class="qr-modal" onclick="event.stopPropagation()">
+      <h2>Transfer to Phone</h2>
+      <p>Scan this QR code with your phone camera to continue cooking on your mobile device</p>
+      <canvas id="qrCanvas"></canvas>
+      <br>
+      <button class="qr-modal-close" onclick="hideTransferModal()">Close</button>
+    </div>
+  </div>
+
+  <!-- Test Results Container -->
+  <div id="testResultsContainer"></div>
 
   <script>
     const RECIPES_KEY = 'cookingTimerRecipes';
@@ -1678,8 +1806,593 @@ Output this format for the following recipe:`;
       document.getElementById('timeline').innerHTML = html;
     }
 
+    // ============================================
+    // Transfer State Functions
+    // ============================================
+
+    /**
+     * Base64url encoding/decoding helpers (URL-safe base64)
+     */
+    function uint8ArrayToBase64url(uint8Array) {
+      // Use native toBase64 if available, otherwise fallback
+      if (uint8Array.toBase64) {
+        return uint8Array.toBase64({ alphabet: 'base64url' });
+      }
+      // Fallback: convert to regular base64 and make URL-safe
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+
+    function base64urlToUint8Array(base64url) {
+      // Use native fromBase64 if available, otherwise fallback
+      if (Uint8Array.fromBase64) {
+        return Uint8Array.fromBase64(base64url, { alphabet: 'base64url' });
+      }
+      // Fallback: convert URL-safe base64 to regular and decode
+      let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+      // Add padding if needed
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    /**
+     * Compress a string using deflate-raw algorithm.
+     * Returns base64url-encoded compressed data.
+     */
+    async function compressString(string) {
+      const byteArray = new TextEncoder().encode(string);
+      const stream = new CompressionStream('deflate-raw');
+      const writer = stream.writable.getWriter();
+      writer.write(byteArray);
+      writer.close();
+      const buffer = await new Response(stream.readable).arrayBuffer();
+      return uint8ArrayToBase64url(new Uint8Array(buffer));
+    }
+
+    /**
+     * Decompress a base64url-encoded deflate-raw compressed string.
+     */
+    async function decompressString(base64url) {
+      const byteArray = base64urlToUint8Array(base64url);
+      const stream = new DecompressionStream('deflate-raw');
+      const writer = stream.writable.getWriter();
+      writer.write(byteArray);
+      writer.close();
+      const buffer = await new Response(stream.readable).arrayBuffer();
+      return new TextDecoder().decode(buffer);
+    }
+
+    /**
+     * Serialize current timer state to a compressed URL fragment string.
+     * Format: deflate-raw compressed, base64url-encoded JSON containing:
+     * - startTime: timestamp when timer started
+     * - recipeUrls: array of URLs for URL-sourced recipes
+     * - recipeJsons: array of full recipe JSON objects for JSON-pasted recipes
+     */
+    async function serializeState() {
+      const savedRecipes = getSavedRecipes();
+      const state = {
+        startTime: startTime,
+        recipeUrls: [],
+        recipeJsons: []
+      };
+
+      // Get serving time if set
+      const timerState = getTimerState();
+      if (timerState && timerState.startTime) {
+        state.startTime = timerState.startTime;
+      }
+
+      // Collect recipes being used
+      const recipesToInclude = isMultiRecipeMode ? currentRecipes : (currentRecipe ? [currentRecipe] : []);
+
+      for (const recipe of recipesToInclude) {
+        // Find if this recipe was loaded from URL or JSON
+        const savedRecipe = savedRecipes.find(r =>
+          r.name === recipe.name &&
+          (r.recipe && JSON.stringify(r.recipe) === JSON.stringify(recipe)) ||
+          (r.url && r.source === 'url')
+        );
+
+        if (savedRecipe && savedRecipe.source === 'url' && savedRecipe.url) {
+          state.recipeUrls.push(savedRecipe.url);
+        } else {
+          state.recipeJsons.push(recipe);
+        }
+      }
+
+      return await compressString(JSON.stringify(state));
+    }
+
+    /**
+     * Deserialize state from compressed URL fragment string.
+     */
+    async function deserializeState(fragment) {
+      try {
+        const decompressed = await decompressString(fragment);
+        return JSON.parse(decompressed);
+      } catch (e) {
+        console.error('Failed to deserialize state:', e);
+        return null;
+      }
+    }
+
+    /**
+     * Generate transfer URL with current state in fragment.
+     */
+    async function generateTransferUrl() {
+      const baseUrl = window.location.origin + window.location.pathname;
+      const stateFragment = await serializeState();
+      return `${baseUrl}#transfer=${stateFragment}`;
+    }
+
+    // Expose for Playwright testing
+    window.generateTransferUrl = generateTransferUrl;
+    window.deserializeState = deserializeState;
+    window.serializeState = serializeState;
+
+    // Expose startTime getter for testing
+    Object.defineProperty(window, 'startTime', {
+      get: function() { return startTime; }
+    });
+
+    /**
+     * Show transfer modal with QR code.
+     */
+    async function showTransferModal() {
+      const url = await generateTransferUrl();
+      const canvas = document.getElementById('qrCanvas');
+
+      try {
+        // Use qrcode-generator library
+        // Type 0 = auto-detect size based on data
+        const qr = qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+
+        const ctx = canvas.getContext('2d');
+        const moduleCount = qr.getModuleCount();
+        const cellSize = 8;
+        const margin = 16;
+        const size = moduleCount * cellSize + margin * 2;
+
+        canvas.width = size;
+        canvas.height = size;
+
+        // White background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+
+        // Draw QR modules
+        ctx.fillStyle = '#000000';
+        for (let row = 0; row < moduleCount; row++) {
+          for (let col = 0; col < moduleCount; col++) {
+            if (qr.isDark(row, col)) {
+              ctx.fillRect(
+                col * cellSize + margin,
+                row * cellSize + margin,
+                cellSize,
+                cellSize
+              );
+            }
+          }
+        }
+
+        document.getElementById('qrModalOverlay').classList.remove('hidden');
+      } catch (error) {
+        console.error('QR code generation error:', error);
+        alert('Failed to generate QR code');
+      }
+    }
+
+    /**
+     * Hide transfer modal.
+     */
+    function hideTransferModal(event) {
+      if (event && event.target !== event.currentTarget) return;
+      document.getElementById('qrModalOverlay').classList.add('hidden');
+    }
+
+    /**
+     * Check if a recipe already exists in saved recipes (by URL or JSON content).
+     */
+    function findDuplicateRecipe(recipes, url, recipeJson) {
+      if (url) {
+        return recipes.find(r => r.source === 'url' && r.url === url);
+      }
+      if (recipeJson) {
+        const jsonStr = JSON.stringify(recipeJson);
+        return recipes.find(r =>
+          r.source === 'json' &&
+          r.recipe &&
+          JSON.stringify(r.recipe) === jsonStr
+        );
+      }
+      return null;
+    }
+
+    /**
+     * Import recipes from transfer state, deduplicating as needed.
+     * Returns array of recipe objects ready to cook.
+     */
+    async function importRecipesFromState(state) {
+      const savedRecipes = getSavedRecipes();
+      const recipesToCook = [];
+
+      // Import URL-based recipes
+      for (const url of (state.recipeUrls || [])) {
+        // Check for duplicate
+        const existing = findDuplicateRecipe(savedRecipes, url, null);
+
+        if (existing && existing.recipe) {
+          // Use cached recipe data if available
+          recipesToCook.push(existing.recipe);
+        } else {
+          // Fetch the recipe
+          try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
+            const recipe = await response.json();
+
+            if (validateRecipe(recipe)) {
+              recipesToCook.push(recipe);
+
+              // Save if not duplicate
+              if (!existing) {
+                saveRecipeToHistory(recipe, 'url', url);
+              }
+            }
+          } catch (e) {
+            console.error(`Failed to fetch recipe from ${url}:`, e);
+          }
+        }
+      }
+
+      // Import JSON-based recipes
+      for (const recipeJson of (state.recipeJsons || [])) {
+        if (!validateRecipe(recipeJson)) continue;
+
+        // Check for duplicate
+        const existing = findDuplicateRecipe(savedRecipes, null, recipeJson);
+
+        recipesToCook.push(recipeJson);
+
+        // Save if not duplicate
+        if (!existing) {
+          saveRecipeToHistory(recipeJson, 'json');
+        }
+      }
+
+      return recipesToCook;
+    }
+
+    /**
+     * Handle transfer state from URL fragment.
+     */
+    async function handleTransferState() {
+      const hash = window.location.hash;
+      if (!hash.startsWith('#transfer=')) return false;
+
+      const stateStr = hash.substring('#transfer='.length);
+      const state = await deserializeState(stateStr);
+
+      if (!state) {
+        showError('Failed to load transfer data. Please try scanning the QR code again.');
+        return false;
+      }
+
+      // Import recipes
+      const recipes = await importRecipesFromState(state);
+
+      if (recipes.length === 0) {
+        showError('No valid recipes found in transfer data.');
+        return false;
+      }
+
+      // Set up cooking state
+      if (recipes.length === 1) {
+        currentRecipe = recipes[0];
+        currentRecipes = [recipes[0]];
+        isMultiRecipeMode = false;
+      } else {
+        currentRecipes = recipes;
+        isMultiRecipeMode = true;
+        mergedSteps = mergeRecipeSteps(recipes.map((r, i) => ({
+          id: Date.now().toString() + i,
+          recipe: r,
+          name: r.name
+        })));
+      }
+
+      // Restore timing state
+      if (state.startTime) {
+        startTime = state.startTime;
+      }
+
+      // Save state to localStorage
+      saveTimerState();
+
+      // Clear the hash to avoid re-processing on reload
+      window.history.replaceState({}, '', window.location.pathname);
+
+      // Show timer screen
+      if (isMultiRecipeMode) {
+        showMultiRecipeTimerScreen();
+      } else {
+        showTimerScreen();
+      }
+
+      // Start the timer if it was already running
+      if (startTime) {
+        startTimer();
+      }
+
+      return true;
+    }
+
+    // ============================================
+    // Test Framework
+    // ============================================
+
+    // Expose testResults globally for Playwright tests
+    window.testResults = {
+      passed: [],
+      failed: []
+    };
+    const testResults = window.testResults;
+
+    async function runTest(name, testFn) {
+      try {
+        await testFn();
+        testResults.passed.push(name);
+      } catch (e) {
+        testResults.failed.push({ name, error: e.message || String(e) });
+      }
+    }
+
+    function assertEqual(actual, expected, message) {
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        throw new Error(`${message || 'Assertion failed'}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+      }
+    }
+
+    function assertTrue(condition, message) {
+      if (!condition) {
+        throw new Error(message || 'Assertion failed: expected true');
+      }
+    }
+
+    async function runAllTests() {
+      // Test compression/decompression
+      await runTest('compression roundtrip works', async () => {
+        const original = 'Hello, World! This is a test string for compression.';
+        const compressed = await compressString(original);
+        const decompressed = await decompressString(compressed);
+        assertEqual(decompressed, original, 'Decompressed should match original');
+      });
+
+      await runTest('compressed data is smaller', async () => {
+        const original = JSON.stringify({
+          name: 'Test Recipe with a very long name',
+          steps: [
+            { time: 0, title: 'Step 1', detail: 'This is a detailed description of step 1' },
+            { time: 60, title: 'Step 2', detail: 'This is a detailed description of step 2' },
+            { time: 120, title: 'Step 3', detail: 'This is a detailed description of step 3' }
+          ]
+        });
+        const compressed = await compressString(original);
+        assertTrue(compressed.length < original.length, 'Compressed should be smaller than original');
+      });
+
+      // Test state serialization/deserialization
+      await runTest('serializeState creates compressed data', async () => {
+        // Temporarily set up state for testing
+        const oldRecipe = currentRecipe;
+        const oldRecipes = currentRecipes;
+        const oldStartTime = startTime;
+
+        currentRecipe = { name: 'Test Recipe', steps: [{ time: 0, title: 'Step 1' }] };
+        currentRecipes = [currentRecipe];
+        startTime = 1700000000000;
+
+        const serialized = await serializeState();
+        assertTrue(serialized.length > 0, 'Serialized state should not be empty');
+
+        // Restore
+        currentRecipe = oldRecipe;
+        currentRecipes = oldRecipes;
+        startTime = oldStartTime;
+      });
+
+      await runTest('deserializeState roundtrip works', async () => {
+        const originalState = {
+          startTime: 1700000000000,
+          recipeUrls: ['https://example.com/recipe.json'],
+          recipeJsons: [{ name: 'Test', steps: [{ time: 0, title: 'Step' }] }]
+        };
+
+        const compressed = await compressString(JSON.stringify(originalState));
+        const decoded = await deserializeState(compressed);
+
+        assertEqual(decoded.startTime, originalState.startTime, 'startTime should match');
+        assertEqual(decoded.recipeUrls, originalState.recipeUrls, 'recipeUrls should match');
+        assertEqual(decoded.recipeJsons.length, 1, 'recipeJsons should have one item');
+        assertEqual(decoded.recipeJsons[0].name, 'Test', 'recipe name should match');
+      });
+
+      await runTest('deserializeState handles invalid input', async () => {
+        // Temporarily suppress console.error for this test
+        const originalError = console.error;
+        console.error = () => {};
+        const result = await deserializeState('not-valid-base64!!!');
+        console.error = originalError;
+        assertEqual(result, null, 'Should return null for invalid input');
+      });
+
+      await runTest('findDuplicateRecipe finds URL duplicates', async () => {
+        const recipes = [
+          { id: '1', source: 'url', url: 'https://example.com/a.json', name: 'A' },
+          { id: '2', source: 'json', recipe: { name: 'B', steps: [] }, name: 'B' }
+        ];
+
+        const found = findDuplicateRecipe(recipes, 'https://example.com/a.json', null);
+        assertEqual(found.id, '1', 'Should find URL-based recipe');
+
+        const notFound = findDuplicateRecipe(recipes, 'https://example.com/c.json', null);
+        assertEqual(notFound, undefined, 'Should not find non-existent URL');
+      });
+
+      await runTest('findDuplicateRecipe finds JSON duplicates', async () => {
+        const recipeJson = { name: 'B', steps: [{ time: 0, title: 'X' }] };
+        const recipes = [
+          { id: '1', source: 'url', url: 'https://example.com/a.json', name: 'A' },
+          { id: '2', source: 'json', recipe: recipeJson, name: 'B' }
+        ];
+
+        const found = findDuplicateRecipe(recipes, null, recipeJson);
+        assertEqual(found.id, '2', 'Should find JSON-based recipe');
+
+        const notFound = findDuplicateRecipe(recipes, null, { name: 'C', steps: [] });
+        assertEqual(notFound, undefined, 'Should not find non-existent JSON');
+      });
+
+      await runTest('validateRecipe rejects invalid recipes', async () => {
+        assertEqual(validateRecipe(null), false, 'null should be invalid');
+        assertEqual(validateRecipe({}), false, 'empty object should be invalid');
+        assertEqual(validateRecipe({ name: 'X' }), false, 'missing steps should be invalid');
+        assertEqual(validateRecipe({ name: 'X', steps: [] }), false, 'empty steps should be invalid');
+        assertEqual(validateRecipe({ name: 'X', steps: [{ title: 'Y' }] }), false, 'missing time should be invalid');
+      });
+
+      await runTest('validateRecipe accepts valid recipes', async () => {
+        const valid = { name: 'Test', steps: [{ time: 0, title: 'Step 1' }] };
+        assertEqual(validateRecipe(valid), true, 'Valid recipe should pass');
+
+        const validWithDetails = {
+          name: 'Test',
+          steps: [
+            { time: 0, title: 'Step 1', detail: 'Details', category: 'prep' },
+            { time: 60, title: 'Step 2' }
+          ]
+        };
+        assertEqual(validateRecipe(validWithDetails), true, 'Recipe with details should pass');
+      });
+
+      await runTest('generateTransferUrl includes correct format', async () => {
+        const oldRecipe = currentRecipe;
+        const oldRecipes = currentRecipes;
+        const oldStartTime = startTime;
+
+        currentRecipe = { name: 'Test', steps: [{ time: 0, title: 'Step' }] };
+        currentRecipes = [currentRecipe];
+        startTime = 1700000000000;
+
+        const url = await generateTransferUrl();
+        assertTrue(url.includes('#transfer='), 'URL should contain #transfer=');
+        assertTrue(url.startsWith(window.location.origin), 'URL should start with origin');
+
+        currentRecipe = oldRecipe;
+        currentRecipes = oldRecipes;
+        startTime = oldStartTime;
+      });
+
+      await runTest('mergeRecipeSteps sorts by time', async () => {
+        const recipesToMerge = [
+          { id: '1', recipe: { name: 'A', steps: [{ time: 60, title: 'A1' }, { time: 180, title: 'A2' }] }, name: 'A' },
+          { id: '2', recipe: { name: 'B', steps: [{ time: 0, title: 'B1' }, { time: 120, title: 'B2' }] }, name: 'B' }
+        ];
+
+        const merged = mergeRecipeSteps(recipesToMerge);
+
+        assertEqual(merged.length, 4, 'Should have 4 merged steps');
+        assertEqual(merged[0].time, 0, 'First step should be at time 0');
+        assertEqual(merged[0].title, 'B1', 'First step should be B1');
+        assertEqual(merged[1].time, 60, 'Second step should be at time 60');
+        assertEqual(merged[2].time, 120, 'Third step should be at time 120');
+        assertEqual(merged[3].time, 180, 'Fourth step should be at time 180');
+      });
+
+      await runTest('mergeRecipeSteps adds recipe metadata', async () => {
+        const recipesToMerge = [
+          { id: '1', recipe: { name: 'Recipe A', steps: [{ time: 0, title: 'Step' }] }, name: 'Recipe A' }
+        ];
+
+        const merged = mergeRecipeSteps(recipesToMerge);
+
+        assertEqual(merged[0].recipeName, 'Recipe A', 'Should have recipeName');
+        assertEqual(merged[0].recipeIndex, 0, 'Should have recipeIndex');
+        assertTrue(merged[0].recipeColor !== undefined, 'Should have recipeColor');
+      });
+
+      await runTest('formatTime handles various inputs', async () => {
+        assertEqual(formatTime(0), '00:00', 'Zero seconds');
+        assertEqual(formatTime(59), '00:59', '59 seconds');
+        assertEqual(formatTime(60), '01:00', '1 minute');
+        assertEqual(formatTime(125), '02:05', '2 minutes 5 seconds');
+        assertEqual(formatTime(3599), '59:59', '59 minutes 59 seconds');
+      });
+
+      await runTest('escapeHtml escapes special characters', async () => {
+        const escaped = escapeHtml('<div onclick="alert()">test</div>');
+        assertTrue(!escaped.includes('<div'), 'Should escape HTML tags');
+        assertTrue(escaped.includes('&lt;'), 'Should use HTML entities');
+      });
+
+      // Display test results
+      displayTestResults();
+    }
+
+    function displayTestResults() {
+      const container = document.getElementById('testResultsContainer');
+
+      if (testResults.failed.length === 0) {
+        // All tests passed - show nothing
+        container.innerHTML = '';
+        return;
+      }
+
+      // Some tests failed - show error summary
+      const failedList = testResults.failed.map(f =>
+        `FAILED: ${f.name}\n  Error: ${f.error}`
+      ).join('\n\n');
+
+      container.innerHTML = `
+        <details class="test-results">
+          <summary>${testResults.failed.length} test(s) failed</summary>
+          <pre>${escapeHtml(failedList)}</pre>
+        </details>
+      `;
+    }
+
+    // ============================================
+    // Modified init function
+    // ============================================
+
+    async function initWithTransfer() {
+      // Check for transfer state first
+      if (window.location.hash.startsWith('#transfer=')) {
+        await handleTransferState();
+        await runAllTests();
+        return;
+      }
+
+      // Continue with original init
+      init();
+      await runAllTests();
+    }
+
     // Initialize on load
-    init();
+    initWithTransfer();
   </script>
 </body>
 </html>
