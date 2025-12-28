@@ -1,3 +1,3 @@
-Track your browsing activity across this site with personal analytics that remain private and stored locally in your browser. View statistics including total visits, unique pages, and visit trends over time with customizable daily or hourly charts, plus a ranked list of your most-visited pages. All data is kept exclusively on your device and is never transmitted to any server or shared with anyone else.
+Track your browsing activity and viewing patterns with this personal analytics dashboard that stores all data locally in your browser. The tool displays comprehensive statistics including total visits, unique pages visited, and time-based breakdowns through interactive charts showing visits by day or hour. A detailed table view shows your most visited pages and recent activity, with options to export your analytics data as JSON or clear all stored information at any time.
 
-<!-- Generated from commit: c7f98ffd578d835267f7e9c3d0884a6cc8e38479 -->
+<!-- Generated from commit: 41099d1fcf99cf91a2d2be88e96597abc776ef21 -->
