@@ -275,9 +275,10 @@ fetch('/dates.json')
     const update = () => {
       const data = this.getResourceData();
       this.updateBadge(data);
+      this.updateModalIfOpen(data);
     };
     update();
-    setInterval(update, 3000);
+    setInterval(update, 500);
   }
 
   updateBadge(data) {
@@ -288,10 +289,15 @@ fetch('/dates.json')
     this.currentData = data;
   }
 
-  showModal() {
+  updateModalIfOpen(data) {
     const dialog = this.shadowRoot.getElementById('dialog');
+    if (dialog && dialog.open) {
+      this.renderModalContent(data);
+    }
+  }
+
+  renderModalContent(data) {
     const content = this.shadowRoot.getElementById('details');
-    const data = this.currentData;
 
     if (!data) return;
 
@@ -362,6 +368,15 @@ fetch('/dates.json')
     }
 
     content.innerHTML = html;
+  }
+
+  showModal() {
+    const dialog = this.shadowRoot.getElementById('dialog');
+    const data = this.currentData;
+
+    if (!data) return;
+
+    this.renderModalContent(data);
     dialog.showModal();
   }
 
