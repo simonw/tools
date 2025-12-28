@@ -301,6 +301,15 @@ fetch('/dates.json')
 
     if (!data) return;
 
+    // Save the open state of details elements before updating
+    const openDetails = new Set();
+    content.querySelectorAll('details[open]').forEach(details => {
+      const identifier = details.dataset.type;
+      if (identifier) {
+        openDetails.add(identifier);
+      }
+    });
+
     let html = `
       <div class="summary-grid">
         <div class="summary-card">
@@ -324,7 +333,7 @@ fetch('/dates.json')
 
     if (data.unmeasuredCount > 0) {
       html += `
-        <details class="warning-details">
+        <details class="warning-details" data-type="warning">
           <summary class="warning">⚠️ ${data.unmeasuredCount} cross-origin resource${data.unmeasuredCount !== 1 ? 's' : ''} couldn't be measured (missing Timing-Allow-Origin header)</summary>
           <ul class="unmeasured-list">
             ${data.unmeasuredUrls.map(url => `<li title="${url}">${this.truncateUrl(url)}</li>`).join('')}
@@ -350,7 +359,7 @@ fetch('/dates.json')
     for (const [type, info] of Object.entries(data.byType).sort((a, b) => b[1].transferSize - a[1].transferSize)) {
       const label = typeLabels[type] || `📦 ${type}`;
       html += `
-        <details class="type-group">
+        <details class="type-group" data-type="${type}">
           <summary>
             <span class="type-label">${label}</span>
             <span class="type-stats">${info.count} file${info.count !== 1 ? 's' : ''} · ${this.formatBytes(info.transferSize)}</span>
@@ -368,6 +377,14 @@ fetch('/dates.json')
     }
 
     content.innerHTML = html;
+
+    // Restore the open state of details elements after updating
+    content.querySelectorAll('details').forEach(details => {
+      const identifier = details.dataset.type;
+      if (identifier && openDetails.has(identifier)) {
+        details.open = true;
+      }
+    });
   }
 
   showModal() {
