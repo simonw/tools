@@ -41,7 +41,7 @@ for file in *.html; do
     # Check if footer.js is not already included
     if ! grep -q 'src="footer.js' "$file"; then
       # Insert script tag before the LAST </body> tag using awk
-      awk -v script="<script src=\"footer.js?${FOOTER_SHORT_HASH}\"></script>" '
+      awk -v script="<script type=\"module\" src=\"footer.js?${FOOTER_SHORT_HASH}\"></script>" '
         { lines[NR] = $0 }
         /<\/body>/ { last_body = NR }
         END {
