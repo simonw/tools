@@ -1,3 +1,3 @@
-Browse and explore the contents of Python packages and archive files directly in your browser. Enter a PyPI package name or provide a direct URL to a .whl or .zip file, and the tool will download and display all files contained within the archive. Click on any file to view its contents in a formatted preview.
+Browse and view the contents of Python packages and compressed files directly in your browser. Enter a PyPI package name or provide a direct URL to a .whl or .zip file to instantly unpack and explore its structure. Click on individual files to view their contents with line numbers, and use the URL fragment to link directly to specific lines within files.
 
-<!-- Generated from commit: 5a26f717c6b652e030ef248d754eb776b2fffb06 -->
+<!-- Generated from commit: c934e96b5712fff708363e07837a4007f5d33d04 -->
