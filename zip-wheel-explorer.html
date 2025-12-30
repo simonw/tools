@@ -101,12 +101,52 @@ pre {
   white-space: pre-wrap;
   word-wrap: break-word;
   background-color: #fafafa;
-  padding: 1rem;
+  padding: 0;
   margin: 0;
   max-height: 60vh;
   overflow-y: auto;
   font-size: 0.8125rem;
   line-height: 1.4;
+}
+.line-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.line-table td {
+  padding: 0;
+  vertical-align: top;
+}
+.line-num {
+  width: 1%;
+  min-width: 3em;
+  padding: 0 1rem 0 0.5rem;
+  text-align: right;
+  user-select: none;
+  font-size: 0.75rem;
+  color: #999;
+  border-right: 1px solid #e0e0e0;
+  background: #f5f5f5;
+}
+.line-num a {
+  color: inherit;
+  text-decoration: none;
+  display: block;
+  padding-right: 4px;
+}
+.line-num a:hover {
+  color: #007aff;
+}
+.line-code {
+  padding-left: 0.75rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.line-row.highlighted {
+  background: #fffbdd;
+}
+.line-row.highlighted .line-num {
+  background: #f5efaa;
+  color: #666;
 }
 .status {
   padding: 1rem;
@@ -135,15 +175,138 @@ pre {
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
-function updateUrl(input) {
+function updateUrl(input, fragment = null) {
     const params = new URLSearchParams();
     if (input.startsWith('http://') || input.startsWith('https://')) {
         params.set('url', input);
     } else {
         params.set('package', input);
     }
-    history.replaceState(null, '', '?' + params.toString());
+    const hash = fragment ? '#' + fragment : '';
+    history.replaceState(null, '', '?' + params.toString() + hash);
 }
+
+function encodeFragment(filename, lineNum = null) {
+    // Encode filename for use in URL fragment
+    const encoded = encodeURIComponent(filename).replace(/%2F/g, '/');
+    if (lineNum !== null) {
+        return encoded + '--L' + lineNum;
+    }
+    return encoded;
+}
+
+function parseFragment(fragment) {
+    if (!fragment) return { filename: null, lineNum: null };
+    // Check for line number suffix
+    const match = fragment.match(/^(.+)--L(\d+)$/);
+    if (match) {
+        return {
+            filename: decodeURIComponent(match[1]),
+            lineNum: parseInt(match[2], 10)
+        };
+    }
+    return {
+        filename: decodeURIComponent(fragment),
+        lineNum: null
+    };
+}
+
+function formatContentWithLineNumbers(content, filename) {
+    const lines = content.split('\n');
+    let html = '<table class="line-table"><tbody>';
+    lines.forEach((line, index) => {
+        const lineNum = index + 1;
+        const fragment = encodeFragment(filename, lineNum);
+        const rowId = `${encodeURIComponent(filename)}--L${lineNum}`;
+        html += `<tr class="line-row" id="${escapeHtml(rowId)}">`;
+        html += `<td class="line-num"><a href="#${escapeHtml(fragment)}" data-line="${lineNum}">${lineNum}</a></td>`;
+        html += `<td class="line-code">${escapeHtml(line) || ' '}</td>`;
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+}
+
+function highlightLine(filename, lineNum) {
+    // Remove any existing highlight
+    document.querySelectorAll('.line-row.highlighted').forEach(el => el.classList.remove('highlighted'));
+    // Find and highlight the specified line
+    const rowId = `${encodeURIComponent(filename)}--L${lineNum}`;
+    const row = document.getElementById(rowId);
+    if (row) {
+        row.classList.add('highlighted');
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function selectFile(filename, lineNum, updateHash = true) {
+    const files = window.loadedFiles || [];
+    const file = files.find(f => f.name === filename);
+    if (!file) return;
+
+    const fileEl = document.querySelector(`.file-item[data-filename="${CSS.escape(filename)}"]`);
+    if (!fileEl) return;
+
+    const wasSelected = fileEl.classList.contains('selected');
+
+    // Remove any existing content and selection
+    document.querySelectorAll('.file-content').forEach(el => el.remove());
+    document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
+
+    // Toggle off if clicking the same file (only when not opening via line number)
+    if (wasSelected && lineNum === null) {
+        if (updateHash) {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+        return;
+    }
+
+    fileEl.classList.add('selected');
+
+    // Insert content right after the clicked file
+    const contentEl = document.createElement('div');
+    contentEl.className = 'file-content';
+    contentEl.innerHTML = `<pre>${formatContentWithLineNumbers(file.content, file.name)}</pre>`;
+    fileEl.after(contentEl);
+
+    // Add click handlers to line number links
+    contentEl.querySelectorAll('.line-num a').forEach(a => {
+        a.onclick = (e) => {
+            e.preventDefault();
+            const ln = parseInt(a.dataset.line, 10);
+            const input = document.getElementById('urlInput').value.trim();
+            updateUrl(input, encodeFragment(file.name, ln));
+            highlightLine(file.name, ln);
+        };
+    });
+
+    // Update URL fragment
+    if (updateHash) {
+        const input = document.getElementById('urlInput').value.trim();
+        updateUrl(input, encodeFragment(filename, lineNum));
+    }
+
+    // Scroll to file element so it's visible
+    fileEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Highlight line if specified
+    if (lineNum !== null) {
+        setTimeout(() => highlightLine(filename, lineNum), 100);
+    }
+}
+
+function handleFragment() {
+    const fragment = window.location.hash.slice(1);
+    if (!fragment) return;
+
+    const { filename, lineNum } = parseFragment(fragment);
+    if (filename) {
+        selectFile(filename, lineNum, false);
+    }
+}
+
+// Listen for hash changes
+window.addEventListener('hashchange', handleFragment);
 
 async function fetchAndUnpackFile() {
     let input = document.getElementById('urlInput').value.trim();
@@ -179,8 +342,9 @@ async function fetchAndUnpackFile() {
         }
     }
 
-    // Update URL bar
-    updateUrl(input);
+    // Update URL bar (preserve existing fragment)
+    const existingFragment = window.location.hash.slice(1);
+    updateUrl(input, existingFragment || null);
 
     fileListEl.innerHTML = '<div class="status">Downloading file...</div>';
 
@@ -189,32 +353,18 @@ async function fetchAndUnpackFile() {
         const arrayBuffer = await response.arrayBuffer();
         const files = await extractFiles(arrayBuffer, url);
         fileListEl.innerHTML = '<h3>Files in package</h3>';
+        window.loadedFiles = files; // Store for fragment handling
         files.forEach((file, index) => {
             const fileEl = document.createElement('div');
             fileEl.className = 'file-item';
             fileEl.textContent = file.name;
-            fileEl.onclick = () => {
-                const wasSelected = fileEl.classList.contains('selected');
-
-                // Remove any existing content and selection
-                document.querySelectorAll('.file-content').forEach(el => el.remove());
-                document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
-
-                // Toggle off if clicking the same file
-                if (wasSelected) {
-                    return;
-                }
-
-                fileEl.classList.add('selected');
-
-                // Insert content right after the clicked file
-                const contentEl = document.createElement('div');
-                contentEl.className = 'file-content';
-                contentEl.innerHTML = `<pre>${escapeHtml(file.content)}</pre>`;
-                fileEl.after(contentEl);
-            };
+            fileEl.dataset.filename = file.name;
+            fileEl.onclick = () => selectFile(file.name, null);
             fileListEl.appendChild(fileEl);
         });
+
+        // Handle fragment after files are loaded
+        handleFragment();
     } catch (error) {
         fileListEl.innerHTML = `<div class="status">Error: ${escapeHtml(error.message)}</div>`;
         console.error(error);
