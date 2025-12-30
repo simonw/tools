@@ -67,29 +67,16 @@ def extract_urls(text):
     return re.findall(url_pattern, text)
 
 
-def extract_description(docs_path: Path) -> str:
-    """Extract the first paragraph of the generated docs markdown file."""
-    if not docs_path.exists():
+def extract_description(meta_path: Path) -> str:
+    """Extract the description from the meta JSON file."""
+    if not meta_path.exists():
         return ""
 
     try:
-        content = docs_path.read_text("utf-8").strip()
-    except OSError:
+        data = json.load(meta_path.open("r", encoding="utf-8"))
+        return data.get("description", "")
+    except (OSError, json.JSONDecodeError):
         return ""
-
-    if "<!--" in content:
-        content = content.split("<!--", 1)[0]
-
-    lines = []
-    for line in content.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            if lines:
-                break
-            continue
-        lines.append(stripped)
-
-    return " ".join(lines)
 
 
 def extract_title(html_path: Path) -> str:
@@ -147,8 +134,8 @@ def main():
         if not commits:
             continue
 
-        docs_path = html_file.with_suffix(".docs.md")
-        description = extract_description(docs_path)
+        meta_path = Path("meta") / f"{html_file.stem}.json"
+        description = extract_description(meta_path)
 
         created_date = commits[-1]["date"] if commits else None
         updated_date = commits[0]["date"] if commits else None

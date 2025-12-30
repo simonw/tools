@@ -31,43 +31,18 @@ def _get_first_n_words(text: str, n: int = 15) -> str:
     return " ".join(words[:n]) + "..."
 
 
-def _extract_summary(docs_path: Path, word_limit: int = 30) -> str:
-    """Extract the first paragraph of the docs file, limited to word_limit words."""
-    if not docs_path.exists():
+def _extract_summary(meta_path: Path, word_limit: int = 30) -> str:
+    """Extract the description from the meta JSON file, limited to word_limit words."""
+    if not meta_path.exists():
         return ""
 
     try:
-        content = docs_path.read_text("utf-8").strip()
-    except OSError:
+        import json
+        data = json.load(meta_path.open("r", encoding="utf-8"))
+        description = data.get("description", "")
+        return _get_first_n_words(description, word_limit)
+    except (OSError, json.JSONDecodeError):
         return ""
-
-    # Remove HTML comments
-    if "<!--" in content:
-        content = content.split("<!--", 1)[0]
-
-    # Strip any markdown heading lines first
-    content_lines = [
-        line for line in content.splitlines()
-        if not line.lstrip().startswith("# ")
-        and not line.lstrip().startswith("## ")
-        and not line.lstrip().startswith("### ")
-        and not line.lstrip().startswith("#### ")
-        and not line.lstrip().startswith("##### ")
-        and not line.lstrip().startswith("###### ")
-    ]
-
-    # Get first paragraph
-    lines = []
-    for line in content_lines:
-        stripped = line.strip()
-        if not stripped:
-            if lines:
-                break
-            continue
-        lines.append(stripped)
-
-    paragraph = " ".join(lines)
-    return _get_first_n_words(paragraph, word_limit)
 
 
 def _load_gathered_links() -> dict:
@@ -105,8 +80,8 @@ def build_by_month() -> None:
 
         # Get the docs summary
         slug = page_name.replace(".html", "")
-        docs_path = Path(f"{slug}.docs.md")
-        summary = _extract_summary(docs_path)
+        meta_path = Path("meta") / f"{slug}.json"
+        summary = _extract_summary(meta_path)
 
         tools_by_month[month_key].append({
             "filename": page_name,
