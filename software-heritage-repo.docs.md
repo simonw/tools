@@ -1,1 +1,3 @@
-Retrieve and download Git repositories archived on Software Heritage. Enter a repository URL (e.g., GitHub) to look up its archived snapshot and get a download link for the git bare repository.
+Download archived Git repositories from Software Heritage, the universal archive of software source code. This tool queries the Software Heritage GraphQL API to locate repositories and creates downloadable bare Git archives through the vault service. Enter a repository URL to retrieve the latest snapshot and access detailed archive information including the Software Heritage identifier (SWHID) for future reference.
+
+<!-- Generated from commit: dc4748ca4471e30f9fd8b108c99d918fb5f65a43 -->
