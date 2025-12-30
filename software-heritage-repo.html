@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Software Heritage Repository Retriever</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1 {
+            margin-bottom: 10px;
+        }
+        .intro {
+            color: #666;
+            margin-bottom: 24px;
+        }
+        .intro a {
+            color: #0066cc;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        input[type="text"] {
+            width: 100%;
+            font-size: 16px;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-family: inherit;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #0066cc;
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.15);
+        }
+        button {
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover {
+            background-color: #0052a3;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button:disabled {
+            background-color: #999;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 6px;
+            display: none;
+        }
+        .status.visible {
+            display: block;
+        }
+        .status.loading {
+            background-color: #f0f7ff;
+            border: 1px solid #b3d4fc;
+            color: #0066cc;
+        }
+        .status.error {
+            background-color: #fef5f5;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .status.success {
+            background-color: #f0fff4;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .result {
+            margin-top: 24px;
+            display: none;
+        }
+        .result.visible {
+            display: block;
+        }
+        .download-section {
+            text-align: center;
+            padding: 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+        .download-link {
+            display: inline-block;
+            background-color: white;
+            color: #667eea;
+            text-decoration: none;
+            padding: 16px 48px;
+            font-size: 20px;
+            font-weight: 600;
+            border-radius: 8px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .download-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+        }
+        .download-link:active {
+            transform: translateY(0);
+        }
+        .download-note {
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 12px;
+            font-size: 14px;
+        }
+        .details {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .details h3 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+        .detail-row {
+            display: flex;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .detail-label {
+            font-weight: 500;
+            min-width: 80px;
+            color: #666;
+        }
+        .detail-value {
+            font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
+            word-break: break-all;
+        }
+        .detail-value a {
+            color: #0066cc;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #b3d4fc;
+            border-top-color: #0066cc;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 16px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .download-link {
+                padding: 14px 32px;
+                font-size: 18px;
+            }
+            .detail-row {
+                flex-direction: column;
+            }
+            .detail-label {
+                margin-bottom: 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Software Heritage Repository Retriever</h1>
+    <p class="intro">
+        Download archived Git repositories from <a href="https://www.softwareheritage.org/" target="_blank" rel="noopener">Software Heritage</a>,
+        the universal archive of software source code.
+    </p>
+
+    <div class="form-group">
+        <label for="repoUrl">Repository URL</label>
+        <input type="text" id="repoUrl" placeholder="https://github.com/username/repository" autofocus>
+    </div>
+
+    <button id="fetchBtn">Retrieve Archive</button>
+
+    <div id="status" class="status"></div>
+
+    <div id="result" class="result">
+        <div class="download-section">
+            <a id="downloadLink" class="download-link" href="#" target="_blank" rel="noopener">
+                Download Repository
+            </a>
+            <p class="download-note">Git bare repository (.tar.gz)</p>
+        </div>
+
+        <div class="details">
+            <h3>Archive Details</h3>
+            <div class="detail-row">
+                <span class="detail-label">Origin:</span>
+                <span class="detail-value" id="originUrl"></span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">SWHID:</span>
+                <span class="detail-value" id="swhid"></span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Browse:</span>
+                <span class="detail-value"><a id="browseLink" href="#" target="_blank" rel="noopener">View on Software Heritage</a></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GRAPHQL_ENDPOINT = 'https://archive.softwareheritage.org/graphql/';
+        const VAULT_API_BASE = 'https://archive.softwareheritage.org/api/1/vault/git-bare/';
+        const BROWSE_BASE = 'https://archive.softwareheritage.org/browse/snapshot/';
+
+        const repoUrlInput = document.getElementById('repoUrl');
+        const fetchBtn = document.getElementById('fetchBtn');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+        const downloadLink = document.getElementById('downloadLink');
+        const originUrlSpan = document.getElementById('originUrl');
+        const swhidSpan = document.getElementById('swhid');
+        const browseLink = document.getElementById('browseLink');
+
+        function showStatus(message, type) {
+            statusDiv.className = 'status visible ' + type;
+            if (type === 'loading') {
+                statusDiv.innerHTML = '<span class="spinner"></span>' + message;
+            } else {
+                statusDiv.textContent = message;
+            }
+        }
+
+        function hideStatus() {
+            statusDiv.className = 'status';
+        }
+
+        function showResult(fetchUrl, originUrl, swhid) {
+            downloadLink.href = fetchUrl;
+            originUrlSpan.textContent = originUrl;
+            swhidSpan.textContent = swhid;
+
+            // Extract snapshot ID from SWHID for browse link
+            const snapshotId = swhid.replace('swh:1:snp:', '');
+            browseLink.href = BROWSE_BASE + snapshotId + '/';
+
+            resultDiv.classList.add('visible');
+        }
+
+        function hideResult() {
+            resultDiv.classList.remove('visible');
+        }
+
+        async function fetchOriginSnapshot(repoUrl) {
+            const query = `
+                query {
+                    origin(url: "${repoUrl}") {
+                        url
+                        latestSnapshot {
+                            swhid
+                        }
+                    }
+                }
+            `;
+
+            const response = await fetch(GRAPHQL_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            if (data.errors) {
+                throw new Error(data.errors.map(e => e.message).join(', '));
+            }
+
+            if (!data.data.origin) {
+                throw new Error('Repository not found in Software Heritage archive');
+            }
+
+            if (!data.data.origin.latestSnapshot) {
+                throw new Error('No snapshots available for this repository');
+            }
+
+            return {
+                url: data.data.origin.url,
+                swhid: data.data.origin.latestSnapshot.swhid,
+            };
+        }
+
+        async function requestVaultArchive(swhid) {
+            const vaultUrl = VAULT_API_BASE + swhid + '/';
+
+            const response = await fetch(vaultUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`Vault API request failed: ${response.status} ${response.statusText}`);
+            }
+
+            return await response.json();
+        }
+
+        async function pollVaultStatus(swhid, maxAttempts = 60) {
+            const vaultUrl = VAULT_API_BASE + swhid + '/';
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                const response = await fetch(vaultUrl);
+
+                if (!response.ok) {
+                    throw new Error(`Vault status check failed: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (data.status === 'done') {
+                    return data;
+                }
+
+                if (data.status === 'failed') {
+                    throw new Error('Archive creation failed: ' + (data.progress_message || 'Unknown error'));
+                }
+
+                // Update status with progress
+                const progressMsg = data.progress_message || 'Processing...';
+                showStatus(`Preparing archive: ${progressMsg}`, 'loading');
+
+                // Wait before next poll (2 seconds)
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+            throw new Error('Timeout waiting for archive to be ready');
+        }
+
+        async function retrieveArchive() {
+            const repoUrl = repoUrlInput.value.trim();
+
+            if (!repoUrl) {
+                showStatus('Please enter a repository URL', 'error');
+                return;
+            }
+
+            // Basic URL validation
+            try {
+                new URL(repoUrl);
+            } catch {
+                showStatus('Please enter a valid URL', 'error');
+                return;
+            }
+
+            hideResult();
+            fetchBtn.disabled = true;
+
+            try {
+                // Step 1: Get SWHID from GraphQL
+                showStatus('Looking up repository in Software Heritage...', 'loading');
+                const origin = await fetchOriginSnapshot(repoUrl);
+
+                // Step 2: Request vault archive
+                showStatus('Requesting archive from vault...', 'loading');
+                const vaultResponse = await requestVaultArchive(origin.swhid);
+
+                let archiveData;
+                if (vaultResponse.status === 'done') {
+                    archiveData = vaultResponse;
+                } else {
+                    // Step 3: Poll for completion
+                    showStatus('Archive is being prepared...', 'loading');
+                    archiveData = await pollVaultStatus(origin.swhid);
+                }
+
+                // Success!
+                showStatus('Archive ready for download!', 'success');
+                showResult(archiveData.fetch_url, origin.url, origin.swhid);
+
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus(error.message, 'error');
+            } finally {
+                fetchBtn.disabled = false;
+            }
+        }
+
+        // Event listeners
+        fetchBtn.addEventListener('click', retrieveArchive);
+
+        repoUrlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                retrieveArchive();
+            }
+        });
+
+        // Handle URL fragment for bookmarking/sharing
+        function loadFromFragment() {
+            const hash = window.location.hash.slice(1);
+            if (hash) {
+                try {
+                    const url = decodeURIComponent(hash);
+                    repoUrlInput.value = url;
+                } catch (e) {
+                    // Ignore invalid fragments
+                }
+            }
+        }
+
+        function updateFragment() {
+            const url = repoUrlInput.value.trim();
+            if (url) {
+                history.replaceState(null, '', '#' + encodeURIComponent(url));
+            } else {
+                history.replaceState(null, '', window.location.pathname);
+            }
+        }
+
+        repoUrlInput.addEventListener('input', updateFragment);
+        loadFromFragment();
+    </script>
+</body>
+</html>
