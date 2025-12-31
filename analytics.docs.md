@@ -1,3 +1,5 @@
-Track your browsing activity and viewing patterns with this personal analytics dashboard that stores all data locally in your browser. The tool displays comprehensive statistics including total visits, unique pages visited, and time-based breakdowns through interactive charts showing visits by day or hour. A detailed table view shows your most visited pages and recent activity, with options to export your analytics data as JSON or clear all stored information at any time.
+# Site Analytics Documentation
 
-<!-- Generated from commit: 41099d1fcf99cf91a2d2be88e96597abc776ef21 -->
+Track your personal browsing activity across tools.simonwillison.net with real-time analytics stored locally in your browser. View detailed statistics including total visits, unique pages accessed, hourly and daily visit trends, top pages, and recent activity history. All data remains completely private—it is stored only in your browser's localStorage and is never transmitted to any server or shared with others.
+
+<!-- Generated from commit: 36ac6466348fcb0d256f861d3b1e9d05c0facdc4 -->
