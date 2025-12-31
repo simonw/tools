@@ -1,3 +1,3 @@
-Run Python code directly in your browser using MicroPython compiled to WebAssembly. Enter Python code in the editor and click Run to execute it instantly, or use the Tests button to verify core functionality including arithmetic, state persistence, exception handling, and standard library features. The entire MicroPython runtime is loaded from a CDN, requiring no local installation or server-side processing.
+Execute Python code directly in your browser using a WebAssembly-based MicroPython environment with support for the standard library, async/await, and JavaScript interop via the `fetch()` function. Code is automatically saved in the URL hash for easy sharing and persistence across browser sessions. The interface includes example snippets, real-time output capture, execution timing, and a built-in test suite to verify runtime functionality.
 
-<!-- Generated from commit: d7412e708920e03a0ee40c49a78fb7126b9d56f4 -->
+<!-- Generated from commit: 33c23096cccffcd7ed77a7443c52c407db0f4e0d -->
