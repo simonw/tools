@@ -1,3 +1,3 @@
-Execute JavaScript code in a minimal MicroQuickJS sandbox running via WebAssembly, with results displayed directly in your browser. The code editor supports URL-based sharing through hash fragments and includes ten example programs demonstrating common JavaScript patterns like recursion, array methods, and string manipulation. MicroQuickJS is an ES5-like engine without modern features like async/await or console.log, requiring code to return a value to produce output, though a custom fetch function is available for retrieving external text content.
+Execute JavaScript code in a lightweight MicroQuickJS sandbox environment running via WebAssembly, with results displayed directly on the page. The sandbox supports ES5-like JavaScript features and automatically saves your code in the URL for easy sharing and recovery. Choose between optimized and original WebAssembly versions, try built-in examples, and use Ctrl+Enter to quickly run your code.
 
-<!-- Generated from commit: b370357e1e5522b147385ffeb223c6dfee4b5345 -->
+<!-- Generated from commit: a226383c7fc2643d4087fdfe9e52c780849bb270 -->

@@ -1,3 +1,3 @@
-Execute JavaScript code in a sandboxed QuickJS environment that runs via WebAssembly, enabling secure and fast script execution directly in the browser. Code is automatically saved to the URL hash, making it easy to share executable snippets with others. The interface includes ten built-in examples ranging from basic algorithms to practical string and array manipulation, along with keyboard shortcuts and real-time execution timing.
+Execute JavaScript code in a sandboxed QuickJS WebAssembly environment with a built-in synchronous `fetch()` function for retrieving remote content. Code is automatically encoded in the URL hash, allowing you to easily share executable snippets with others. The interface provides a collection of ready-to-run examples covering common programming tasks and JavaScript features, making it useful for learning, testing, and demonstrating code behavior.
 
-<!-- Generated from commit: ca48e2496d347b1cee2a6d6ab9ff0926046909f1 -->
+<!-- Generated from commit: a226383c7fc2643d4087fdfe9e52c780849bb270 -->
