@@ -1,195 +1,705 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MicroPython WASM (ESM) — minimal demo</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 2rem; }
-    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
-    textarea { width: 100%; height: 10rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-    pre { background: #0b0b0c; color: #e6e6e6; padding: 1rem; border-radius: 8px; overflow:auto; }
-    .row { display: flex; gap: .5rem; align-items: center; margin: .5rem 0 1rem; }
-    button { padding: .5rem .9rem; border-radius: 8px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
-    button[disabled] { opacity: .6; cursor: wait; }
-    small { color: #666; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroPython Code Executor</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .description {
+            margin-top: 0;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            min-height: 200px;
+            resize: vertical;
+            tab-size: 2;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: wait;
+            opacity: 0.7;
+        }
+        button.secondary {
+            background-color: #6c757d;
+        }
+        button.secondary:hover:not(:disabled) {
+            background-color: #545b62;
+        }
+        #status {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+        #status.visible {
+            display: block;
+        }
+        #status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        #status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        #output-section {
+            display: none;
+        }
+        #output-section.visible {
+            display: block;
+        }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .output-header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        #copy-btn {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        #output {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: 100px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        #output.error-output {
+            background-color: #2d1f1f;
+            color: #f8d7da;
+        }
+        .execution-time {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+        }
+        .examples-section {
+            margin-bottom: 20px;
+        }
+        .examples-section h3 {
+            font-size: 14px;
+            color: #666;
+            margin: 0 0 10px 0;
+            font-weight: 500;
+        }
+        .examples-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .example-btn {
+            padding: 6px 12px;
+            font-size: 13px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 20px;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .example-btn:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+            color: #212529;
+        }
+        .example-btn:active {
+            background: #dee2e6;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            .button-group button {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
 <body>
-  <h1>MicroPython from CDN (WASM) — super simple</h1>
-  <p>This page loads the <code>@micropython/micropython-webassembly-pyscript</code> ESM build and executes Python in your browser via WebAssembly.</p>
+    <h1>MicroPython Code Executor</h1>
+    <p class="description">Execute Python code in a sandboxed MicroPython environment running via WebAssembly. Code is saved in the URL for easy sharing. Includes <code>fetch(url)</code> via JavaScript interop.</p>
 
-  <ol>
-    <li>Type some Python below (defaults to <code>print('hello world')</code>).</li>
-    <li>Click <strong>Run</strong> or run the built‑in <strong>Tests</strong>.</li>
-  </ol>
+    <div class="examples-section">
+        <h3>Try an example:</h3>
+        <div class="examples-list" id="examples-list"></div>
+    </div>
 
-  <textarea id="code">print('hello world')
-</textarea>
-  <div class="row">
-    <button id="run" disabled>Initializing…</button>
-    <button id="tests" disabled>Run tests</button>
-    <small id="status">Loading MicroPython (WASM)…</small>
-  </div>
-  <pre id="out" aria-live="polite"></pre>
+    <div class="input-group">
+        <label for="code-input">Python Code:</label>
+        <textarea id="code-input" placeholder="# Enter your Python code here, or click an example above"></textarea>
+    </div>
 
-  <script type="module">
-    // Use the official browser-first ESM loader. It fetches the sibling .wasm automatically.
-    import * as mpjs from 'https://cdn.jsdelivr.net/npm/@micropython/micropython-webassembly-pyscript@1.26.0/micropython.mjs';
+    <div class="button-group">
+        <button id="run-btn" disabled>Initializing...</button>
+        <button id="tests-btn" class="secondary" disabled>Run Tests</button>
+        <button id="clear-btn" class="secondary">Clear</button>
+    </div>
 
-    const runBtn = document.getElementById('run');
-    const testBtn = document.getElementById('tests');
-    const out = document.getElementById('out');
-    const status = document.getElementById('status');
-    const codeEl = document.getElementById('code');
+    <div id="status"></div>
 
-    function log(line = "") { out.textContent += line + "\n"; }
+    <div id="output-section">
+        <div class="output-header">
+            <h2>Output</h2>
+            <button id="copy-btn" class="secondary">Copy</button>
+        </div>
+        <div id="output"></div>
+        <div class="execution-time" id="execution-time"></div>
+    </div>
 
-    let mp;
-    let activeCapture = null;
+    <script type="module">
+        // Use the official browser-first ESM loader
+        import * as mpjs from 'https://cdn.jsdelivr.net/npm/@micropython/micropython-webassembly-pyscript@1.26.0/micropython.mjs';
 
-    function pushOutput(kind, text) {
-      if (!text) return;
-      if (activeCapture) {
-        activeCapture[kind] += text;
-      } else {
-        (kind === 'stderr' ? console.error : console.log)(text);
-      }
+        // Example code snippets
+        const examples = [
+            {
+                name: 'Hello World',
+                code: `print('Hello, World!')`
+            },
+            {
+                name: 'Factorial',
+                code: `def factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+print('5! =', factorial(5))
+print('10! =', factorial(10))`
+            },
+            {
+                name: 'Fibonacci',
+                code: `def fibonacci(n):
+    seq = [0, 1]
+    for i in range(2, n):
+        seq.append(seq[i-1] + seq[i-2])
+    return seq
+
+print('First 15 Fibonacci numbers:')
+print(', '.join(str(x) for x in fibonacci(15)))`
+            },
+            {
+                name: 'List Comprehensions',
+                code: `numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+doubled = [n * 2 for n in numbers]
+print('Doubled:', doubled)
+
+evens = [n for n in numbers if n % 2 == 0]
+print('Evens:', evens)
+
+total = sum(numbers)
+print('Sum:', total)`
+            },
+            {
+                name: 'Dictionaries & JSON',
+                code: `import json
+
+person = {
+    'name': 'Alice',
+    'age': 30,
+    'hobbies': ['reading', 'coding', 'hiking'],
+    'address': {
+        'city': 'San Francisco',
+        'country': 'USA'
     }
+}
 
-    async function runWithCapture(src) {
-      activeCapture = { stdout: '', stderr: '' };
-      let error;
-      try {
-        await mp.runPythonAsync(src.endsWith('\n') ? src : `${src}\n`);
-      } catch (err) {
-        error = err;
-      }
-      const result = activeCapture;
-      activeCapture = null;
-      if (error && typeof error === 'object') {
-        error.stdout = result.stdout;
-        error.stderr = result.stderr;
-      }
-      if (error) throw error;
-      return result;
-    }
+print(json.dumps(person, indent=2))
+print('\\nName:', person['name'])
+print('First hobby:', person['hobbies'][0])`
+            },
+            {
+                name: 'Prime Numbers',
+                code: `import math
 
-    try {
-      mp = await mpjs.loadMicroPython({
-        linebuffer: true,
-        stdout: (text) => pushOutput('stdout', text),
-        stderr: (text) => pushOutput('stderr', text),
-      });
-      status.textContent = 'Ready.';
-      runBtn.textContent = 'Run Python';
-      runBtn.disabled = false;
-      testBtn.disabled = false;
-    } catch (e) {
-      status.textContent = 'Failed to initialize MicroPython';
-      log(String(e && e.message ? e.message : e));
-      throw e;
-    }
+def is_prime(n):
+    if n < 2:
+        return False
+    for i in range(2, int(math.sqrt(n)) + 1):
+        if n % i == 0:
+            return False
+    return True
 
-    async function runAndCapture(pySrc) {
-      const src = pySrc.endsWith('\n') ? pySrc : pySrc + '\n';
-      const current = {
-        stdout: attachCapture(),
-        stderr: attachCapture(),
-      };
-      streamCapture.stdout = current.stdout;
-      streamCapture.stderr = current.stderr;
-      let error;
-      try {
-        await mp.runPythonAsync(src);
-      } catch (err) {
-        error = err;
-      } finally {
-        streamCapture.stdout = null;
-        streamCapture.stderr = null;
-      }
+primes = [i for i in range(2, 101) if is_prime(i)]
 
-      const result = mergeResult(current);
-      if (error && typeof error === 'object') {
-        error.stdout = result.stdout;
-        error.stderr = result.stderr;
-      }
-      if (error) throw error;
-      return result;
-    }
+print('Primes up to 100:')
+print(', '.join(str(p) for p in primes))`
+            },
+            {
+                name: 'String Fun',
+                code: `text = 'Python is awesome!'
 
-    runBtn.addEventListener('click', async () => {
-      runBtn.disabled = true;
-      status.textContent = 'Running…';
-      out.textContent = '';
-      try {
-        const { stdout, stderr } = await runWithCapture(codeEl.value);
-        if (stdout) log(stdout.trimEnd());
-        if (stderr) log(stderr.trimEnd());
-      } catch (err) {
-        if (err?.stdout) log(String(err.stdout).trimEnd());
-        if (err?.stderr) log(String(err.stderr).trimEnd());
-        log(String(err?.message ?? err));
-      } finally {
-        status.textContent = 'Ready.';
-        runBtn.disabled = false;
-      }
-    });
+print('Original:', text)
+print('Uppercase:', text.upper())
+print('Reversed:', text[::-1])
+print('Word count:', len(text.split()))
+print('Contains "awesome":', 'awesome' in text)`
+            },
+            {
+                name: 'FizzBuzz',
+                code: `for i in range(1, 31):
+    if i % 15 == 0:
+        print('FizzBuzz')
+    elif i % 3 == 0:
+        print('Fizz')
+    elif i % 5 == 0:
+        print('Buzz')
+    else:
+        print(i)`
+            },
+            {
+                name: 'Sorting',
+                code: `fruits = ['banana', 'apple', 'orange', 'mango', 'kiwi']
+print('Original:', fruits)
+print('Sorted:', sorted(fruits))
 
-    // --- Tests (existing preserved semantics; extra tests appended earlier) ---
-    testBtn.addEventListener('click', async () => {
-      testBtn.disabled = true;
-      out.textContent = '';
-      status.textContent = 'Running tests…';
+nums = [42, 8, 15, 23, 4, 16]
+print('\\nNumbers:', nums)
+print('Ascending:', sorted(nums))
+print('Descending:', sorted(nums, reverse=True))`
+            },
+            {
+                name: 'Classes',
+                code: `class Dog:
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
 
-      const results = [];
-      const record = (name, pass, info = '') => {
-        results.push({ name, pass, info });
-        log(`${pass ? '✔' : '✖'} ${name}${info ? ' — ' + info : ''}`);
-      };
+    def bark(self):
+        return f'{self.name} says woof!'
 
-      try {
-        // (1) prints hello world — DO NOT MODIFY (existing test)
-        {
-          const { stdout } = await runWithCapture("print('hello world')\n");
-          record('prints hello world', stdout.trim() === 'hello world', `got: ${JSON.stringify(stdout.trim())}`);
+    def describe(self):
+        return f'{self.name} is {self.age} years old'
+
+buddy = Dog('Buddy', 3)
+print(buddy.describe())
+print(buddy.bark())
+
+max_dog = Dog('Max', 5)
+print(max_dog.describe())
+print(max_dog.bark())`
+            },
+            {
+                name: 'Fetch Data',
+                code: `import js
+import json
+
+# fetch() works via JavaScript interop!
+base_url = "https://api.github.com"
+
+# Fetch GitHub zen (random quote)
+response = await js.fetch(base_url + "/zen")
+zen = await response.text()
+print("GitHub Zen:", zen)
+
+# Build URL dynamically and fetch repo info
+owner = "simonw"
+repo = "tools"
+repo_url = f"{base_url}/repos/{owner}/{repo}"
+
+response = await js.fetch(repo_url)
+data = json.loads(await response.text())
+print("\\nRepo:", data['full_name'])
+print("Stars:", data['stargazers_count'])
+print("Description:", data['description'])`
+            }
+        ];
+
+        const codeInput = document.getElementById('code-input');
+        const runBtn = document.getElementById('run-btn');
+        const testsBtn = document.getElementById('tests-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const statusEl = document.getElementById('status');
+        const outputSection = document.getElementById('output-section');
+        const outputEl = document.getElementById('output');
+        const executionTimeEl = document.getElementById('execution-time');
+        const examplesList = document.getElementById('examples-list');
+
+        let mp = null;
+        let activeCapture = null;
+
+        // Populate examples
+        examples.forEach((example, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'example-btn';
+            btn.textContent = example.name;
+            btn.addEventListener('click', () => {
+                codeInput.value = example.code;
+                codeInput.focus();
+                // Auto-run if MicroPython is ready
+                if (mp && !runBtn.disabled) {
+                    executeCode(example.code);
+                }
+            });
+            examplesList.appendChild(btn);
+        });
+
+        // Status helpers
+        function showStatus(message, type = 'info') {
+            statusEl.textContent = message;
+            statusEl.className = `visible ${type}`;
         }
-        // (2) arithmetic — DO NOT MODIFY (existing test)
-        {
-          const { stdout } = await runWithCapture('print(1+2)\n');
-          record('arithmetic 1+2 == 3', stdout.trim() === '3', `got: ${JSON.stringify(stdout.trim())}`);
+
+        function hideStatus() {
+            statusEl.className = '';
         }
-        // (3) state persists — DO NOT MODIFY (existing test)
-        {
-          await mp.runPythonAsync('x=41\n');
-          const { stdout } = await runWithCapture('print(x+1)\n');
-          record('state persists across runs', stdout.trim() === '42', `got: ${JSON.stringify(stdout.trim())}`);
+
+        function showOutput(text, isError = false) {
+            outputEl.textContent = text || '(no output)';
+            outputEl.className = isError ? 'error-output' : '';
+            outputSection.classList.add('visible');
         }
-        // (4) exceptions propagate — DO NOT MODIFY (existing test)
-        {
-          let raised = false;
-          try { await mp.runPythonAsync("raise ValueError('boom')\n"); } catch (_) { raised = true; }
-          record('exceptions propagate to JS', raised, raised ? '' : 'expected rejection');
+
+        function hideOutput() {
+            outputSection.classList.remove('visible');
         }
-        // (5) NEW — stdlib math sanity
-        {
-          const { stdout } = await runWithCapture('import math\nprint(math.sqrt(9))\n');
-          record('math.sqrt works', stdout.trim().split(/\s+/).pop() === '3.0', `got: ${JSON.stringify(stdout.trim())}`);
+
+        // URL hash management
+        function updateUrlHash(code) {
+            const encoded = encodeURIComponent(code);
+            window.history.replaceState(null, null, '#' + encoded);
         }
-        // (6) NEW — unicode output
-        {
-          const { stdout } = await runWithCapture("print('μPython')\n");
-          record('unicode print', stdout.trim().endsWith('μPython'), `got: ${JSON.stringify(stdout.trim())}`);
+
+        function loadFromHash() {
+            if (!window.location.hash) return null;
+            try {
+                const hash = window.location.hash.substring(1);
+                return decodeURIComponent(hash);
+            } catch (e) {
+                console.error('Error decoding hash:', e);
+                return null;
+            }
         }
-      } catch (e) {
-        record('test harness crashed', false, String(e));
-      } finally {
-        const passed = results.filter(r => r.pass).length;
-        const total = results.length;
-        status.textContent = `Tests complete — ${passed}/${total} passed`;
-        testBtn.disabled = false;
-      }
-    });
-  </script>
+
+        // Output capture
+        function pushOutput(kind, text) {
+            if (!text) return;
+            if (activeCapture) {
+                activeCapture[kind] += text;
+            } else {
+                (kind === 'stderr' ? console.error : console.log)(text);
+            }
+        }
+
+        async function runWithCapture(src) {
+            activeCapture = { stdout: '', stderr: '' };
+            let error;
+            try {
+                await mp.runPythonAsync(src.endsWith('\n') ? src : `${src}\n`);
+            } catch (err) {
+                error = err;
+            }
+            const result = activeCapture;
+            activeCapture = null;
+            if (error && typeof error === 'object') {
+                error.stdout = result.stdout;
+                error.stderr = result.stderr;
+            }
+            if (error) throw error;
+            return result;
+        }
+
+        // Execute code
+        async function executeCode(code) {
+            if (!mp) {
+                showStatus('MicroPython not initialized', 'error');
+                return;
+            }
+
+            if (!code.trim()) {
+                showStatus('Please enter some code to execute', 'error');
+                return;
+            }
+
+            runBtn.disabled = true;
+            testsBtn.disabled = true;
+            runBtn.textContent = 'Running...';
+            hideStatus();
+
+            const startTime = performance.now();
+
+            try {
+                const { stdout, stderr } = await runWithCapture(code);
+                const endTime = performance.now();
+                const executionTime = (endTime - startTime).toFixed(2);
+
+                let output = '';
+                if (stdout) output += stdout.trimEnd();
+                if (stderr) {
+                    if (output) output += '\n';
+                    output += stderr.trimEnd();
+                }
+
+                showOutput(output || '(no output)');
+                executionTimeEl.textContent = `Execution time: ${executionTime}ms`;
+
+                // Update URL with the code
+                updateUrlHash(code);
+
+            } catch (err) {
+                const endTime = performance.now();
+                const executionTime = (endTime - startTime).toFixed(2);
+
+                let output = '';
+                if (err?.stdout) output += String(err.stdout).trimEnd();
+                if (err?.stderr) {
+                    if (output) output += '\n';
+                    output += String(err.stderr).trimEnd();
+                }
+                if (output) output += '\n';
+                output += String(err?.message ?? err);
+
+                showOutput(output, true);
+                executionTimeEl.textContent = `Execution time: ${executionTime}ms`;
+            } finally {
+                runBtn.disabled = false;
+                testsBtn.disabled = false;
+                runBtn.textContent = 'Run Code';
+            }
+        }
+
+        // Run tests
+        async function runTests() {
+            testsBtn.disabled = true;
+            runBtn.disabled = true;
+            hideStatus();
+            outputEl.textContent = '';
+            outputSection.classList.add('visible');
+
+            const results = [];
+            const log = (line = '') => { outputEl.textContent += line + '\n'; };
+            const record = (name, pass, info = '') => {
+                results.push({ name, pass, info });
+                log(`${pass ? '✔' : '✖'} ${name}${info ? ' — ' + info : ''}`);
+            };
+
+            try {
+                // (1) prints hello world
+                {
+                    const { stdout } = await runWithCapture("print('hello world')\n");
+                    record('prints hello world', stdout.trim() === 'hello world', `got: ${JSON.stringify(stdout.trim())}`);
+                }
+                // (2) arithmetic
+                {
+                    const { stdout } = await runWithCapture('print(1+2)\n');
+                    record('arithmetic 1+2 == 3', stdout.trim() === '3', `got: ${JSON.stringify(stdout.trim())}`);
+                }
+                // (3) state persists
+                {
+                    await mp.runPythonAsync('x=41\n');
+                    const { stdout } = await runWithCapture('print(x+1)\n');
+                    record('state persists across runs', stdout.trim() === '42', `got: ${JSON.stringify(stdout.trim())}`);
+                }
+                // (4) exceptions propagate
+                {
+                    let raised = false;
+                    try { await mp.runPythonAsync("raise ValueError('boom')\n"); } catch (_) { raised = true; }
+                    record('exceptions propagate to JS', raised, raised ? '' : 'expected rejection');
+                }
+                // (5) stdlib math sanity
+                {
+                    const { stdout } = await runWithCapture('import math\nprint(math.sqrt(9))\n');
+                    record('math.sqrt works', stdout.trim().split(/\s+/).pop() === '3.0', `got: ${JSON.stringify(stdout.trim())}`);
+                }
+                // (6) unicode output
+                {
+                    const { stdout } = await runWithCapture("print('μPython')\n");
+                    record('unicode print', stdout.trim().endsWith('μPython'), `got: ${JSON.stringify(stdout.trim())}`);
+                }
+                // (7) fetch via js module
+                {
+                    let fetchWorks = false;
+                    try {
+                        const { stdout } = await runWithCapture(`
+import js
+response = await js.fetch("https://api.github.com/zen")
+text = await response.text()
+print(text)
+`);
+                        fetchWorks = stdout.trim().length > 0;
+                        record('fetch via js module', fetchWorks, fetchWorks ? 'fetched GitHub zen' : 'empty response');
+                    } catch (e) {
+                        record('fetch via js module', false, String(e?.message ?? e));
+                    }
+                }
+            } catch (e) {
+                record('test harness crashed', false, String(e));
+            } finally {
+                const passed = results.filter(r => r.pass).length;
+                const total = results.length;
+                log(`\n${passed}/${total} tests passed`);
+                executionTimeEl.textContent = '';
+                testsBtn.disabled = false;
+                runBtn.disabled = false;
+            }
+        }
+
+        // Initialize MicroPython
+        async function initialize() {
+            try {
+                showStatus('Loading MicroPython WebAssembly runtime...', 'info');
+
+                mp = await mpjs.loadMicroPython({
+                    linebuffer: true,
+                    stdout: (text) => pushOutput('stdout', text),
+                    stderr: (text) => pushOutput('stderr', text),
+                });
+
+                runBtn.textContent = 'Run Code';
+                runBtn.disabled = false;
+                testsBtn.disabled = false;
+
+                showStatus('Ready!', 'success');
+                setTimeout(hideStatus, 1500);
+
+                // Check for code in URL hash and execute
+                const hashCode = loadFromHash();
+                if (hashCode) {
+                    codeInput.value = hashCode;
+                    executeCode(hashCode);
+                }
+            } catch (e) {
+                showStatus('Failed to initialize MicroPython: ' + e.message, 'error');
+                console.error('Initialization error:', e);
+            }
+        }
+
+        // Event listeners
+        runBtn.addEventListener('click', () => {
+            executeCode(codeInput.value);
+        });
+
+        testsBtn.addEventListener('click', runTests);
+
+        clearBtn.addEventListener('click', () => {
+            codeInput.value = '';
+            hideOutput();
+            hideStatus();
+            window.history.replaceState(null, null, window.location.pathname);
+        });
+
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(outputEl.textContent);
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy';
+                }, 1500);
+            } catch (e) {
+                showStatus('Failed to copy to clipboard', 'error');
+            }
+        });
+
+        // Keyboard shortcut: Ctrl/Cmd + Enter to run
+        codeInput.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (!runBtn.disabled) {
+                    executeCode(codeInput.value);
+                }
+            }
+            // Handle Tab key for indentation
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = codeInput.selectionStart;
+                const end = codeInput.selectionEnd;
+                codeInput.value = codeInput.value.substring(0, start) + '  ' + codeInput.value.substring(end);
+                codeInput.selectionStart = codeInput.selectionEnd = start + 2;
+            }
+        });
+
+        // Handle hash changes (e.g., browser back/forward)
+        window.addEventListener('hashchange', () => {
+            const hashCode = loadFromHash();
+            if (hashCode && hashCode !== codeInput.value) {
+                codeInput.value = hashCode;
+                if (mp) {
+                    executeCode(hashCode);
+                }
+            }
+        });
+
+        // Initialize on page load
+        initialize();
+    </script>
 </body>
 </html>
