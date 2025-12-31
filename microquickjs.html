@@ -235,7 +235,7 @@
     <p class="description">Execute JavaScript code in a minimal <a href="https://github.com/bellard/mquickjs">MicroQuickJS</a> sandbox running via WebAssembly. Returns the result of the last expression. Code is saved in the URL for easy sharing. See <a href="https://github.com/simonw/research/blob/main/mquickjs-sandbox/README.md">research notes</a>.</p>
 
     <div class="note">
-        <strong>Note:</strong> MicroQuickJS is a minimal ES5-like JavaScript engine. No console.log, async/await, Promises, or modern APIs. Code should return a value to see output. A custom <code>fetch(url)</code> function is available that returns text content (URLs must be literal strings).
+        <strong>Note:</strong> MicroQuickJS is a minimal ES5-like JavaScript engine. No console.log, async/await, Promises, or modern APIs. Code should return a value to see output.
     </div>
 
     <div class="wasm-selector">
@@ -410,13 +410,6 @@ JSON.stringify({
   max: Math.max(1, 5, 3, 9, 2),
   min: Math.min(1, 5, 3, 9, 2)
 }, null, 2)`
-            },
-            {
-                name: 'Fetch Data',
-                code: `// fetch() returns text content from URLs
-// URLs must be literal strings (not variables)
-var data = fetch("https://api.github.com/zen");
-"GitHub Zen: " + data`
             }
         ];
 
@@ -513,36 +506,6 @@ var data = fetch("https://api.github.com/zen");
             }
         }
 
-        // Extract fetch URLs from code (handles string literals)
-        function extractFetchUrls(code) {
-            const urls = new Set();
-            // Match fetch("url"), fetch('url'), fetch(`url`)
-            const fetchRegex = /fetch\s*\(\s*(['"`])([^'"`]+)\1\s*\)/g;
-            let match;
-            while ((match = fetchRegex.exec(code)) !== null) {
-                urls.add(match[2]);
-            }
-            return Array.from(urls);
-        }
-
-        // Perform actual fetches and return results map
-        async function performFetches(urls) {
-            const results = {};
-            await Promise.all(urls.map(async (url) => {
-                try {
-                    const response = await fetch(url);
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status} ${response.statusText}`);
-                    }
-                    results[url] = await response.text();
-                } catch (e) {
-                    // Store error as a special object that we can detect
-                    results[url] = { __fetchError: e.message };
-                }
-            }));
-            return results;
-        }
-
         // Execute code using MicroQuickJS
         async function executeCode(code) {
             if (!sandboxReady) {
@@ -562,15 +525,6 @@ var data = fetch("https://api.github.com/zen");
             const startTime = performance.now();
 
             try {
-                // Extract and perform any fetch calls first
-                const fetchUrls = extractFetchUrls(code);
-                let fetchResults = {};
-
-                if (fetchUrls.length > 0) {
-                    showStatus(`Fetching ${fetchUrls.length} URL(s)...`, 'info');
-                    fetchResults = await performFetches(fetchUrls);
-                }
-
                 // Re-initialize sandbox for each execution (clean state)
                 sandbox_free();
                 const initResult = sandbox_init(1024 * 1024);
@@ -578,33 +532,7 @@ var data = fetch("https://api.github.com/zen");
                     throw new Error('Failed to initialize sandbox');
                 }
 
-                // If we have fetch URLs, set up the fetch function with cached results
-                if (fetchUrls.length > 0) {
-                    const setupCode = `
-var __fetchCache = ${JSON.stringify(fetchResults)};
-function fetch(url) {
-    if (url in __fetchCache) {
-        var result = __fetchCache[url];
-        if (result && typeof result === 'object' && result.__fetchError) {
-            throw new Error('Fetch error: ' + result.__fetchError);
-        }
-        return result;
-    }
-    throw new Error('URL not pre-fetched: ' + url + '. Only literal string URLs in fetch() calls are supported.');
-}
-`;
-                    sandbox_eval(setupCode);
-                } else {
-                    // Set up fetch function that explains the limitation
-                    const defaultFetchCode = `
-function fetch(url) {
-    throw new Error('fetch() requires a literal string URL. Dynamic URLs are not supported.');
-}
-`;
-                    sandbox_eval(defaultFetchCode);
-                }
-
-                // Execute the user's code
+                // Execute the code
                 const result = sandbox_eval(code);
 
                 const endTime = performance.now();

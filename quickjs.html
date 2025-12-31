@@ -195,7 +195,7 @@
 </head>
 <body>
     <h1>QuickJS Code Executor</h1>
-    <p class="description">Execute JavaScript code in a sandboxed QuickJS environment running via WebAssembly. Code is saved in the URL for easy sharing.</p>
+    <p class="description">Execute JavaScript code in a sandboxed QuickJS environment running via WebAssembly. Code is saved in the URL for easy sharing. Includes a synchronous <code>fetch(url)</code> function that returns text content.</p>
 
     <div class="examples-section">
         <h3>Try an example:</h3>
@@ -341,6 +341,26 @@ console.log('Year:', now.getFullYear());
 console.log('Month:', now.getMonth() + 1);
 console.log('Day:', now.getDate());
 console.log('Day of week:', ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()]);`
+            },
+            {
+                name: 'Fetch Data',
+                code: `// fetch() works with dynamic URLs!
+const baseUrl = "https://api.github.com";
+
+// Fetch GitHub zen (random quote)
+const zen = fetch(baseUrl + "/zen");
+console.log("GitHub Zen:", zen);
+
+// Build URL dynamically and fetch repo info
+const owner = "simonw";
+const repo = "tools";
+const repoUrl = baseUrl + "/repos/" + owner + "/" + repo;
+
+const data = fetch(repoUrl);
+const info = JSON.parse(data);
+console.log("\\nRepo:", info.full_name);
+console.log("Stars:", info.stargazers_count);
+console.log("Description:", info.description);`
             }
         ];
 
@@ -454,8 +474,25 @@ console.log('Day of week:', ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getD
                 consoleHandle.dispose();
                 logHandle.dispose();
 
-                // Execute the code
-                const result = vm.evalCode(code);
+                // Create fetch function using newAsyncifiedFunction for true async support
+                const fetchHandle = vm.newAsyncifiedFunction('fetch', async (urlHandle) => {
+                    const url = vm.getString(urlHandle);
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                        }
+                        const text = await response.text();
+                        return vm.newString(text);
+                    } catch (e) {
+                        throw vm.newError(`Fetch error: ${e.message}`);
+                    }
+                });
+                vm.setProp(vm.global, 'fetch', fetchHandle);
+                fetchHandle.dispose();
+
+                // Execute the code (use evalCodeAsync to support async functions)
+                const result = await vm.evalCodeAsync(code);
 
                 const endTime = performance.now();
                 const executionTime = (endTime - startTime).toFixed(2);
@@ -510,13 +547,13 @@ console.log('Day of week:', ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getD
             }
         }
 
-        // Initialize QuickJS
+        // Initialize QuickJS with async support for fetch
         async function initialize() {
             try {
-                showStatus('Loading QuickJS WebAssembly runtime...', 'info');
+                showStatus('Loading QuickJS WebAssembly runtime (with async support)...', 'info');
 
-                // Use the QJS global from the IIFE build
-                QuickJS = await QJS.getQuickJS();
+                // Use the async variant for newAsyncifiedFunction support
+                QuickJS = await QJS.newQuickJSAsyncWASMModule();
 
                 runBtn.textContent = 'Run Code';
                 runBtn.disabled = false;
