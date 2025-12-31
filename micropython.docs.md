@@ -1,3 +1,3 @@
-Execute Python code directly in your browser using a WebAssembly-based MicroPython environment with support for the standard library, async/await, and JavaScript interop via the `fetch()` function. Code is automatically saved in the URL hash for easy sharing and persistence across browser sessions. The interface includes example snippets, real-time output capture, execution timing, and a built-in test suite to verify runtime functionality.
+Execute Python code in a sandboxed MicroPython WebAssembly environment with output displayed in real-time. Code is automatically saved to the URL for convenient sharing and persistence, and the environment supports JavaScript interoperability including the `fetch()` API for making HTTP requests. Built-in examples demonstrate common programming patterns from basic operations to working with APIs.
 
-<!-- Generated from commit: 33c23096cccffcd7ed77a7443c52c407db0f4e0d -->
+<!-- Generated from commit: 425e8773f146b1678787bd972744fc309317849c -->
