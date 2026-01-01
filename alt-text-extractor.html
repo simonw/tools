@@ -284,10 +284,56 @@ function createImageItem(src, altText, index) {
   urlSection.appendChild(urlLabel);
   urlSection.appendChild(urlDisplay);
   urlSection.appendChild(urlCopyButton);
-  
+
+  // Create Markdown section
+  const markdownSection = document.createElement('div');
+  markdownSection.className = 'url-section';
+
+  const markdownLabel = document.createElement('div');
+  markdownLabel.className = 'url-label';
+  markdownLabel.textContent = 'Markdown:';
+
+  const markdownCode = `![${altText}](${src})`;
+  const markdownDisplay = document.createElement('div');
+  markdownDisplay.className = 'url-display';
+  markdownDisplay.textContent = markdownCode;
+
+  const markdownCopyButton = document.createElement('button');
+  markdownCopyButton.className = 'copy-button';
+  markdownCopyButton.textContent = 'Copy Markdown';
+  markdownCopyButton.addEventListener('click', () => copyToClipboard(markdownCode, markdownCopyButton, 'Copy Markdown'));
+
+  markdownSection.appendChild(markdownLabel);
+  markdownSection.appendChild(markdownDisplay);
+  markdownSection.appendChild(markdownCopyButton);
+
+  // Create HTML section
+  const htmlSection = document.createElement('div');
+  htmlSection.className = 'url-section';
+
+  const htmlLabel = document.createElement('div');
+  htmlLabel.className = 'url-label';
+  htmlLabel.textContent = 'HTML:';
+
+  const htmlCode = `<img src="${src}" alt="${altText.replace(/"/g, '&quot;')}">`;
+  const htmlDisplay = document.createElement('div');
+  htmlDisplay.className = 'url-display';
+  htmlDisplay.textContent = htmlCode;
+
+  const htmlCopyButton = document.createElement('button');
+  htmlCopyButton.className = 'copy-button';
+  htmlCopyButton.textContent = 'Copy HTML';
+  htmlCopyButton.addEventListener('click', () => copyToClipboard(htmlCode, htmlCopyButton, 'Copy HTML'));
+
+  htmlSection.appendChild(htmlLabel);
+  htmlSection.appendChild(htmlDisplay);
+  htmlSection.appendChild(htmlCopyButton);
+
   itemDiv.appendChild(imageContainer);
   itemDiv.appendChild(altSection);
   itemDiv.appendChild(urlSection);
+  itemDiv.appendChild(markdownSection);
+  itemDiv.appendChild(htmlSection);
   
   results.appendChild(itemDiv);
 }
@@ -334,19 +380,19 @@ async function copyAltText(text, button) {
 async function copyUrl(url, button) {
   try {
     await navigator.clipboard.writeText(url);
-    
+
     const originalText = button.textContent;
     button.textContent = 'Copied!';
     button.classList.add('copy-success');
-    
+
     setTimeout(() => {
       button.textContent = originalText;
       button.classList.remove('copy-success');
     }, 2000);
-    
+
   } catch (err) {
     console.error('Failed to copy URL: ', err);
-    
+
     // Fallback for older browsers
     const textArea = document.createElement('textarea');
     textArea.value = url;
@@ -356,9 +402,45 @@ async function copyUrl(url, button) {
       document.execCommand('copy');
       button.textContent = 'Copied!';
       button.classList.add('copy-success');
-      
+
       setTimeout(() => {
         button.textContent = 'Copy URL';
+        button.classList.remove('copy-success');
+      }, 2000);
+    } catch (fallbackErr) {
+      console.error('Fallback copy failed: ', fallbackErr);
+    }
+    document.body.removeChild(textArea);
+  }
+}
+
+async function copyToClipboard(text, button, originalLabel) {
+  try {
+    await navigator.clipboard.writeText(text);
+
+    button.textContent = 'Copied!';
+    button.classList.add('copy-success');
+
+    setTimeout(() => {
+      button.textContent = originalLabel;
+      button.classList.remove('copy-success');
+    }, 2000);
+
+  } catch (err) {
+    console.error('Failed to copy: ', err);
+
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      button.textContent = 'Copied!';
+      button.classList.add('copy-success');
+
+      setTimeout(() => {
+        button.textContent = originalLabel;
         button.classList.remove('copy-success');
       }, 2000);
     } catch (fallbackErr) {
