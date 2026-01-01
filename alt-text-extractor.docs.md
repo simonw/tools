@@ -1,3 +1,3 @@
-Extract alternative text and image URLs from rich text content pasted into this tool. Simply paste content from web pages, and the tool automatically detects embedded images, displays them alongside their alt text descriptions, and provides copy buttons for convenient access to both the alt text and image URLs. This utility is particularly useful for accessibility audits, content analysis, and archiving image metadata.
+Extract images and their associated metadata from pasted web content with this tool. When you paste rich text containing images, the application automatically retrieves each image's alt text, URL, and generates ready-to-use Markdown and HTML code snippets. Each extracted element can be individually copied to your clipboard for use in documentation, accessibility audits, or content management.
 
-<!-- Generated from commit: e468d4b9566e27850d234e609f9d99cafbd9c78b -->
+<!-- Generated from commit: 4f97126825cbfa22d001b5b81b6a4c4dd0e43094 -->
