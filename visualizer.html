@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyperviz</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+        }
+        #visualizer {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 95vw;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border: 1px solid #333;
+            border-radius: 4px;
+        }
+        button {
+            background: linear-gradient(180deg, #2a2a3a 0%, #1a1a2a 100%);
+            border: 1px solid #444;
+            color: #0f0;
+            padding: 5px 10px;
+            font-size: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            text-transform: uppercase;
+        }
+        button:hover { background: #3a3a4a; }
+        button.active { color: #0ff; border-color: #0ff; }
+        .status {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #444;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            z-index: 100;
+        }
+        .status.active { color: #0f0; }
+    </style>
+</head>
+<body>
+    <canvas id="visualizer"></canvas>
+    <div class="controls">
+        <button id="startBtn">Start</button>
+        <button id="fullscreenBtn">Fullscreen</button>
+        <button id="sequenceBtn">Sequence</button>
+        <button class="mode-btn active" data-mode="plasma">Plasma</button>
+        <button class="mode-btn" data-mode="particles">Particles</button>
+        <button class="mode-btn" data-mode="tunnel">Tunnel</button>
+        <button class="mode-btn" data-mode="kaleidoscope">Kaleido</button>
+        <button class="mode-btn" data-mode="matrix">Matrix</button>
+        <button class="mode-btn" data-mode="terrain">Terrain</button>
+        <button class="mode-btn" data-mode="fire">Fire</button>
+        <button class="mode-btn" data-mode="starfield">Stars</button>
+    </div>
+    <div class="status" id="status">Click Start</div>
+
+    <script>
+        const canvas = document.getElementById('visualizer');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const sequenceBtn = document.getElementById('sequenceBtn');
+        const statusEl = document.getElementById('status');
+        const modeBtns = document.querySelectorAll('.mode-btn');
+
+        let audioContext, analyser, microphone, dataArray, bufferLength;
+        let isRunning = false;
+        let currentMode = 'plasma';
+        let animationId;
+        let time = 0;
+        let beatDetected = false;
+        let lastBeatTime = 0;
+        let bassAvg = 0;
+        let midAvg = 0;
+        let highAvg = 0;
+
+        // Sequence mode
+        const modes = ['plasma', 'particles', 'tunnel', 'kaleidoscope', 'matrix', 'terrain', 'fire', 'starfield'];
+        let sequenceMode = false;
+        let sequenceIndex = 0;
+        let sequenceTimer = 0;
+        const SEQUENCE_DURATION = 600; // frames (~10 seconds at 60fps)
+        const FADE_DURATION = 15; // frames for fade transition
+        let fadeAlpha = 0;
+        let isFading = false;
+
+        const PIXEL_SCALE = 3;
+        let W, H;
+
+        // Particle system
+        let particles = [];
+        const MAX_PARTICLES = 500;
+
+        // Matrix rain
+        let matrixDrops = [];
+
+        // Starfield
+        let stars = [];
+
+        // Fire buffer
+        let fireBuffer = [];
+
+        function resize() {
+            W = Math.floor(window.innerWidth / PIXEL_SCALE);
+            H = Math.floor(window.innerHeight / PIXEL_SCALE);
+            canvas.width = W;
+            canvas.height = H;
+            ctx.imageSmoothingEnabled = false;
+            initEffects();
+        }
+
+        function initEffects() {
+            // Matrix
+            matrixDrops = [];
+            for (let x = 0; x < W; x += 8) {
+                matrixDrops.push({ x, y: Math.random() * H, speed: 2 + Math.random() * 5 });
+            }
+            // Stars
+            stars = [];
+            for (let i = 0; i < 300; i++) {
+                stars.push({
+                    x: Math.random() * W - W/2,
+                    y: Math.random() * H - H/2,
+                    z: Math.random() * W,
+                    pz: 0
+                });
+            }
+            // Fire
+            fireBuffer = new Array(W * H).fill(0);
+        }
+
+        resize();
+        window.addEventListener('resize', resize);
+
+        async function startAudio() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 512;
+                analyser.smoothingTimeConstant = 0.8;
+                bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+
+                isRunning = true;
+                startBtn.textContent = 'Stop';
+                startBtn.classList.add('active');
+                statusEl.textContent = 'Listening';
+                statusEl.classList.add('active');
+                draw();
+            } catch (err) {
+                statusEl.textContent = 'Error: ' + err.message;
+            }
+        }
+
+        function stopAudio() {
+            cancelAnimationFrame(animationId);
+            microphone?.disconnect();
+            audioContext?.close();
+            isRunning = false;
+            startBtn.textContent = 'Start';
+            startBtn.classList.remove('active');
+            statusEl.textContent = 'Click Start';
+            statusEl.classList.remove('active');
+        }
+
+        function analyzeAudio() {
+            analyser.getByteFrequencyData(dataArray);
+
+            // Split into frequency bands
+            const bassEnd = Math.floor(bufferLength * 0.1);
+            const midEnd = Math.floor(bufferLength * 0.5);
+
+            let bassSum = 0, midSum = 0, highSum = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                if (i < bassEnd) bassSum += dataArray[i];
+                else if (i < midEnd) midSum += dataArray[i];
+                else highSum += dataArray[i];
+            }
+
+            bassAvg = bassSum / bassEnd / 255;
+            midAvg = midSum / (midEnd - bassEnd) / 255;
+            highAvg = highSum / (bufferLength - midEnd) / 255;
+
+            // Beat detection
+            if (bassAvg > 0.7 && time - lastBeatTime > 10) {
+                beatDetected = true;
+                lastBeatTime = time;
+            } else {
+                beatDetected = false;
+            }
+        }
+
+        function draw() {
+            animationId = requestAnimationFrame(draw);
+            time++;
+            analyzeAudio();
+
+            // Sequence mode logic
+            if (sequenceMode) {
+                sequenceTimer++;
+                if (sequenceTimer >= SEQUENCE_DURATION) {
+                    isFading = true;
+                }
+                if (isFading) {
+                    fadeAlpha += 1 / FADE_DURATION;
+                    if (fadeAlpha >= 1) {
+                        fadeAlpha = 1;
+                        sequenceIndex = (sequenceIndex + 1) % modes.length;
+                        currentMode = modes[sequenceIndex];
+                        initEffects();
+                        updateModeButtons();
+                        isFading = false;
+                        sequenceTimer = 0;
+                    }
+                } else if (fadeAlpha > 0) {
+                    fadeAlpha -= 1 / FADE_DURATION;
+                    if (fadeAlpha < 0) fadeAlpha = 0;
+                }
+            }
+
+            switch (currentMode) {
+                case 'plasma': drawPlasma(); break;
+                case 'particles': drawParticles(); break;
+                case 'tunnel': drawTunnel(); break;
+                case 'kaleidoscope': drawKaleidoscope(); break;
+                case 'matrix': drawMatrix(); break;
+                case 'terrain': drawTerrain(); break;
+                case 'fire': drawFire(); break;
+                case 'starfield': drawStarfield(); break;
+            }
+
+            // Fade overlay for transitions
+            if (fadeAlpha > 0) {
+                ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
+                ctx.fillRect(0, 0, W, H);
+            }
+
+            // Beat flash
+            if (beatDetected && !isFading) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${bassAvg * 0.3})`;
+                ctx.fillRect(0, 0, W, H);
+            }
+        }
+
+        function updateModeButtons() {
+            modeBtns.forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === currentMode);
+            });
+        }
+
+        function drawPlasma() {
+            const imageData = ctx.createImageData(W, H);
+            const data = imageData.data;
+            const t = time * 0.05;
+            const audioMod = 1 + bassAvg;
+
+            for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) {
+                    const v1 = Math.sin(x * 0.03 + t);
+                    const v2 = Math.sin(y * 0.04 + t * 1.3);
+                    const v3 = Math.sin((x * 0.02 + y * 0.02) * audioMod + t * 0.7);
+                    const v4 = Math.sin(Math.sqrt((x - W/2) ** 2 + (y - H/2) ** 2) * 0.08 - t * 1.5);
+                    const v5 = Math.sin(x * 0.01 * audioMod + y * 0.02 + t * 2);
+
+                    const v = (v1 + v2 + v3 + v4 + v5) / 5;
+
+                    const i = (y * W + x) * 4;
+                    const hue = (v + 1) * 180 + time * 2;
+                    // Higher base lightness (0.5) ensures visibility, audio adds brightness
+                    const lightness = 0.5 + v * 0.2 + (bassAvg + midAvg) * 0.15;
+                    const [r, g, b] = hslToRgb((hue % 360) / 360, 0.9, Math.min(0.75, lightness));
+                    data[i] = r;
+                    data[i + 1] = g;
+                    data[i + 2] = b;
+                    data[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function drawParticles() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, W, H);
+
+            // Spawn particles on beat or continuously
+            const spawnRate = beatDetected ? 50 : Math.floor(bassAvg * 20);
+            for (let i = 0; i < spawnRate && particles.length < MAX_PARTICLES; i++) {
+                particles.push({
+                    x: W / 2,
+                    y: H / 2,
+                    vx: (Math.random() - 0.5) * 10 * (1 + bassAvg * 3),
+                    vy: (Math.random() - 0.5) * 10 * (1 + bassAvg * 3),
+                    life: 100,
+                    hue: Math.random() * 360,
+                    size: 1 + Math.random() * 3
+                });
+            }
+
+            // Update and draw
+            particles = particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.05; // gravity
+                p.life--;
+                p.hue += 2;
+
+                const alpha = p.life / 100;
+                const [r, g, b] = hslToRgb(p.hue / 360, 1, 0.5);
+                ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
+
+                return p.life > 0 && p.x > 0 && p.x < W && p.y < H;
+            });
+        }
+
+        function drawTunnel() {
+            const imageData = ctx.createImageData(W, H);
+            const data = imageData.data;
+            const t = time * 0.03;
+            const zoom = 1 + bassAvg * 0.5;
+
+            for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) {
+                    const dx = x - W / 2;
+                    const dy = y - H / 2;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const angle = Math.atan2(dy, dx);
+
+                    const u = angle / Math.PI;
+                    const v = 30 / (dist + 1) + t * zoom;
+
+                    const pattern = Math.sin(u * 8 + t) * Math.cos(v * 8);
+                    const brightness = (pattern + 1) / 2;
+
+                    const hue = (v * 50 + time) % 360;
+                    const [r, g, b] = hslToRgb(hue / 360, 0.8, brightness * 0.6 * (1 + midAvg));
+
+                    const i = (y * W + x) * 4;
+                    data[i] = r;
+                    data[i + 1] = g;
+                    data[i + 2] = b;
+                    data[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function drawKaleidoscope() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, W, H);
+
+            const segments = 8;
+            const cx = W / 2;
+            const cy = H / 2;
+            const numShapes = 32;
+
+            for (let i = 0; i < numShapes; i++) {
+                const dataIdx = Math.floor(i * bufferLength / numShapes);
+                const amp = dataArray[dataIdx] / 255;
+                const dist = 20 + amp * 80;
+                const baseAngle = time * 0.02 + (i / numShapes) * Math.PI * 2;
+                const size = 2 + amp * 8;
+                const hue = (i * 10 + time * 3) % 360;
+                const [r, g, b] = hslToRgb(hue / 360, 1, 0.5 + amp * 0.3);
+
+                for (let s = 0; s < segments; s++) {
+                    const angle = baseAngle + (s / segments) * Math.PI * 2;
+                    const x = cx + Math.cos(angle) * dist;
+                    const y = cy + Math.sin(angle) * dist;
+
+                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.8})`;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, W, H);
+
+            ctx.font = '8px monospace';
+            const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789';
+
+            matrixDrops.forEach(drop => {
+                const amp = dataArray[Math.floor(Math.random() * bufferLength)] / 255;
+                const brightness = 0.5 + amp * 0.5;
+                const green = Math.floor(100 + brightness * 155);
+
+                ctx.fillStyle = `rgb(0, ${green}, 0)`;
+                const char = chars[Math.floor(Math.random() * chars.length)];
+                ctx.fillText(char, drop.x, drop.y);
+
+                // Leading bright character
+                ctx.fillStyle = '#fff';
+                ctx.fillText(chars[Math.floor(Math.random() * chars.length)], drop.x, drop.y);
+
+                drop.y += drop.speed * (1 + bassAvg);
+                if (drop.y > H) {
+                    drop.y = 0;
+                    drop.speed = 2 + Math.random() * 5;
+                }
+            });
+        }
+
+        function drawTerrain() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, W, H);
+
+            const horizon = H * 0.4;
+            const rows = 40;
+            const cols = 60;
+
+            for (let z = rows; z > 0; z--) {
+                const zRatio = z / rows;
+                const screenY = horizon + (H - horizon) * (1 - zRatio);
+                const scale = 1 / zRatio;
+
+                ctx.beginPath();
+                for (let x = 0; x <= cols; x++) {
+                    const xRatio = x / cols;
+                    const screenX = (xRatio - 0.5) * W * scale + W / 2;
+
+                    const freqIdx = Math.floor(x * bufferLength / cols);
+                    const amp = dataArray[freqIdx] / 255;
+                    const heightOffset = amp * 50 * zRatio;
+                    const wave = Math.sin(x * 0.3 + time * 0.1 + z * 0.2) * 10 * zRatio;
+
+                    const finalY = screenY - heightOffset - wave;
+
+                    if (x === 0) ctx.moveTo(screenX, finalY);
+                    else ctx.lineTo(screenX, finalY);
+                }
+
+                const hue = (z * 5 + time) % 360;
+                ctx.strokeStyle = `hsla(${hue}, 80%, ${50 + zRatio * 30}%, ${zRatio})`;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        function drawFire() {
+            // Cool down and propagate
+            for (let x = 0; x < W; x++) {
+                for (let y = 0; y < H - 1; y++) {
+                    const src = (y + 1) * W + x;
+                    const dst = y * W + x;
+                    const rand = Math.random() * 3;
+                    const xOffset = Math.floor(Math.random() * 3) - 1;
+                    const srcX = Math.max(0, Math.min(W - 1, x + xOffset));
+                    fireBuffer[dst] = Math.max(0, fireBuffer[(y + 1) * W + srcX] - rand);
+                }
+            }
+
+            // Add heat at bottom based on audio
+            for (let x = 0; x < W; x++) {
+                const freqIdx = Math.floor(x * bufferLength / W);
+                const amp = dataArray[freqIdx] / 255;
+                fireBuffer[(H - 1) * W + x] = amp * 255 + Math.random() * 100;
+            }
+
+            // Render
+            const imageData = ctx.createImageData(W, H);
+            const data = imageData.data;
+
+            for (let i = 0; i < fireBuffer.length; i++) {
+                const v = Math.min(255, fireBuffer[i]);
+                const idx = i * 4;
+                // Fire palette
+                data[idx] = Math.min(255, v * 1.5);     // R
+                data[idx + 1] = v * 0.4;                 // G
+                data[idx + 2] = v * 0.1;                 // B
+                data[idx + 3] = 255;
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function drawStarfield() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, W, H);
+
+            const speed = 2 + bassAvg * 15;
+            const cx = W / 2;
+            const cy = H / 2;
+
+            stars.forEach(star => {
+                star.pz = star.z;
+                star.z -= speed;
+
+                if (star.z <= 0) {
+                    star.x = Math.random() * W - cx;
+                    star.y = Math.random() * H - cy;
+                    star.z = W;
+                    star.pz = W;
+                }
+
+                const sx = (star.x / star.z) * W + cx;
+                const sy = (star.y / star.z) * H + cy;
+                const px = (star.x / star.pz) * W + cx;
+                const py = (star.y / star.pz) * H + cy;
+
+                const size = Math.max(0.5, (1 - star.z / W) * 4);
+                const brightness = 1 - star.z / W;
+                const hue = (star.z * 0.5 + time) % 360;
+                const [r, g, b] = hslToRgb(hue / 360, 0.5, brightness);
+
+                ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${brightness})`;
+                ctx.lineWidth = size;
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(sx, sy);
+                ctx.stroke();
+            });
+        }
+
+        function hslToRgb(h, s, l) {
+            let r, g, b;
+            if (s === 0) {
+                r = g = b = l;
+            } else {
+                const hue2rgb = (p, q, t) => {
+                    if (t < 0) t += 1;
+                    if (t > 1) t -= 1;
+                    if (t < 1/6) return p + (q - p) * 6 * t;
+                    if (t < 1/2) return q;
+                    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                    return p;
+                };
+                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                const p = 2 * l - q;
+                r = hue2rgb(p, q, h + 1/3);
+                g = hue2rgb(p, q, h);
+                b = hue2rgb(p, q, h - 1/3);
+            }
+            return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+        }
+
+        startBtn.addEventListener('click', () => isRunning ? stopAudio() : startAudio());
+
+        // Fullscreen toggle
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log('Fullscreen error:', err);
+                });
+                fullscreenBtn.textContent = 'Exit FS';
+                fullscreenBtn.classList.add('active');
+            } else {
+                document.exitFullscreen();
+                fullscreenBtn.textContent = 'Fullscreen';
+                fullscreenBtn.classList.remove('active');
+            }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                fullscreenBtn.textContent = 'Fullscreen';
+                fullscreenBtn.classList.remove('active');
+            }
+        });
+
+        // Sequence mode toggle
+        sequenceBtn.addEventListener('click', () => {
+            sequenceMode = !sequenceMode;
+            sequenceBtn.classList.toggle('active', sequenceMode);
+            if (sequenceMode) {
+                sequenceTimer = 0;
+                sequenceIndex = modes.indexOf(currentMode);
+                if (sequenceIndex === -1) sequenceIndex = 0;
+            }
+        });
+
+        modeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                sequenceMode = false;
+                sequenceBtn.classList.remove('active');
+                modeBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMode = btn.dataset.mode;
+                initEffects();
+            });
+        });
+
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+    </script>
+</body>
+</html>
