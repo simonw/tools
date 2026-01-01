@@ -12,6 +12,7 @@ Instead of starting with something like "This Bugzilla Bug Viewer is a web appli
 start with "View Mozilla Bugzilla bug reports..." or similar
 """.strip()
 
+import json
 import os
 import shlex
 import subprocess
@@ -48,6 +49,52 @@ def extract_commit_hash_from_docs(docs_file_path):
         return hash_match.group(1)
 
     return None
+
+
+def extract_description_from_content(content: str) -> str:
+    """Extract the first paragraph (description) from docs content."""
+    # Remove HTML comments
+    if "<!--" in content:
+        content = content.split("<!--", 1)[0]
+
+    # Strip any markdown heading lines
+    content_lines = [
+        line for line in content.splitlines()
+        if not line.lstrip().startswith("# ")
+        and not line.lstrip().startswith("## ")
+        and not line.lstrip().startswith("### ")
+        and not line.lstrip().startswith("#### ")
+        and not line.lstrip().startswith("##### ")
+        and not line.lstrip().startswith("###### ")
+    ]
+
+    # Get first paragraph
+    lines = []
+    for line in content_lines:
+        stripped = line.strip()
+        if not stripped:
+            if lines:
+                break
+            continue
+        lines.append(stripped)
+
+    return " ".join(lines)
+
+
+def write_meta_json(slug: str, description: str, commit_hash: str, path: str = "."):
+    """Write the meta JSON file for a tool."""
+    meta_dir = Path(path) / "meta"
+    meta_dir.mkdir(exist_ok=True)
+
+    meta_file = meta_dir / f"{slug}.json"
+    data = {
+        "description": description,
+        "commit": commit_hash,
+    }
+
+    with open(meta_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
 
 
 def generate_documentation(html_file_path):
@@ -142,6 +189,14 @@ def main():
 
         if args.verbose:
             print(f"  Documentation written to {docs_file}")
+
+        # Also write the meta JSON file
+        slug = html_path.stem
+        description = extract_description_from_content(doc_content)
+        write_meta_json(slug, description, current_hash, args.path)
+
+        if args.verbose:
+            print(f"  Meta JSON written to meta/{slug}.json")
 
         updated_count += 1
 

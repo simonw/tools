@@ -260,29 +260,21 @@ def build_colophon():
             </h2>
         </div>
 """
-        # Check for corresponding docs.md file
-        docs_file = page_name.replace(".html", ".docs.md")
-        if Path(docs_file).exists():
+        # Check for corresponding meta JSON file
+        slug = page_name.replace(".html", "")
+        meta_file = Path("meta") / f"{slug}.json"
+        if meta_file.exists():
             try:
-                with open(docs_file, "r") as f:
-                    docs_content = f.read()
-                    # Strip any markdown heading lines first
-                    docs_lines = [
-                        line for line in docs_content.splitlines()
-                        if not line.lstrip().startswith("# ")
-                        and not line.lstrip().startswith("## ")
-                        and not line.lstrip().startswith("### ")
-                        and not line.lstrip().startswith("#### ")
-                        and not line.lstrip().startswith("##### ")
-                        and not line.lstrip().startswith("###### ")
-                    ]
-                    docs_content = "\n".join(docs_lines)
-                    # Render markdown to HTML
-                    docs_html = markdown.markdown(docs_content)
-                    # Add docs above commits
-                    html_content += '<div class="docs">' + docs_html + "</div>"
+                with open(meta_file, "r") as f:
+                    meta_data = json.load(f)
+                    description = meta_data.get("description", "")
+                    if description:
+                        # Render markdown to HTML
+                        docs_html = markdown.markdown(description)
+                        # Add docs above commits
+                        html_content += '<div class="docs">' + docs_html + "</div>"
             except Exception as e:
-                print(f"Error reading {docs_file}: {e}")
+                print(f"Error reading {meta_file}: {e}")
 
         # Wrap commits in details/summary tags
         html_content += f"""
