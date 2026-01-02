@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Red Annotation Extractor</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f9fafb;
+  color: #1f2937;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+h1 {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 8px;
+  color: #111827;
+}
+
+.subtitle {
+  text-align: center;
+  color: #6b7280;
+  margin-bottom: 32px;
+}
+
+.step {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.step-number {
+  background: #dc2626;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.step-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.drop-zone {
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 48px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+  background: #fafafa;
+}
+
+.drop-zone:hover {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.drop-zone.dragover {
+  border-color: #dc2626;
+  background: #fee2e2;
+}
+
+.drop-zone svg {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  color: #9ca3af;
+}
+
+.drop-zone p {
+  color: #6b7280;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.slider-container {
+  margin: 20px 0;
+}
+
+.slider-container label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: #e5e7eb;
+  appearance: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #dc2626;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+@media (max-width: 640px) {
+  .image-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.image-box h3 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+  color: #374151;
+}
+
+.image-preview {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-preview.checkerboard {
+  background-image: 
+    linear-gradient(45deg, #d1d5db 25%, transparent 25%), 
+    linear-gradient(-45deg, #d1d5db 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #d1d5db 75%), 
+    linear-gradient(-45deg, transparent 75%, #d1d5db 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  background-color: #f3f4f6;
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+}
+
+.btn {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn:hover {
+  background: #b91c1c;
+}
+
+.btn-container {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.final-result {
+  margin-top: 20px;
+}
+
+.final-result h3 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+  color: #374151;
+}
+
+.final-result .image-preview {
+  min-height: 300px;
+}
+
+.info-box {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 24px;
+  margin-top: 32px;
+}
+
+.info-box h2 {
+  color: #1d4ed8;
+  font-size: 1.25rem;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.info-box p {
+  color: #1e40af;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.info-box p:last-child {
+  margin-bottom: 0;
+}
+
+.info-box strong {
+  color: #1e3a8a;
+}
+
+.info-box ol {
+  color: #1e40af;
+  margin-left: 24px;
+  line-height: 1.8;
+}
+
+.info-box li {
+  margin-bottom: 8px;
+}
+
+canvas {
+  display: none;
+}
+
+input[type="file"] {
+  display: none;
+}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔴 Red Annotation Extractor</h1>
+    <p class="subtitle">Extract red annotations and overlay them on any image</p>
+
+<!-- Step 1: Upload annotated image -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-number">1</div>
+    <div class="step-title">Upload Image with Red Annotations</div>
+  </div>
+  
+  <div class="drop-zone" id="dropZone1">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+    <p>Drop an annotated image here or click to upload</p>
+  </div>
+  <input type="file" id="fileInput1" accept="image/*">
+
+  <div id="step1Results" class="hidden">
+    <div class="slider-container">
+      <label>Red Sensitivity: <span id="thresholdValue">30</span></label>
+      <input type="range" id="threshold" min="10" max="150" value="30">
+      <div class="slider-labels">
+        <span>More inclusive</span>
+        <span>More selective</span>
+      </div>
+    </div>
+
+    <div class="image-grid">
+      <div class="image-box">
+        <h3>Original</h3>
+        <div class="image-preview">
+          <img id="originalImage" alt="Original">
+        </div>
+      </div>
+      <div class="image-box">
+        <h3>Extracted Red (Transparent)</h3>
+        <div class="image-preview checkerboard">
+          <img id="processedImage" alt="Processed">
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-container">
+      <button class="btn" id="downloadBtn">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Download Transparent PNG
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Step 2: Overlay on another image -->
+<div class="step hidden" id="step2">
+  <div class="step-header">
+    <div class="step-number">2</div>
+    <div class="step-title">Overlay on Original Image (Optional)</div>
+  </div>
+  
+  <div class="drop-zone" id="dropZone2">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+    <p>Drop the original (unannotated) image here to overlay the red annotations</p>
+  </div>
+  <input type="file" id="fileInput2" accept="image/*">
+
+  <div id="step2Results" class="hidden">
+    <div class="final-result">
+      <h3>Final Result: Annotations Overlaid</h3>
+      <div class="image-preview">
+        <img id="finalImage" alt="Final overlay">
+      </div>
+    </div>
+
+    <div class="btn-container">
+      <button class="btn" id="downloadFinalBtn">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Download Final Image
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Info box -->
+<div class="info-box">
+  <h2>
+    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    How to Use This Tool
+  </h2>
+  <p>
+    This tool is designed to work with <strong>AI image models</strong> like <strong>Nano Banana Pro</strong>, <strong>ChatGPT Images</strong>, <strong>Gemini</strong>, or similar services that can annotate images.
+  </p>
+  <p><strong>Workflow:</strong></p>
+  <ol>
+    <li>Take your original image and ask an AI image model to add <strong>red annotations</strong> — circles, arrows, highlights, text, or drawings marking areas of interest.</li>
+    <li>Upload that annotated image here (Step 1). This tool will extract <strong>only the red markings</strong> and make everything else transparent.</li>
+    <li>Optionally, upload your <strong>original unannotated image</strong> (Step 2) to overlay the extracted red annotations on top — giving you clean annotations without any AI artifacts or changes to the original image.</li>
+  </ol>
+  <p>
+    This is especially useful when AI models slightly alter the underlying image while adding annotations. By extracting just the red marks and overlaying them on your pristine original, you get the best of both worlds: <strong>AI-generated annotations</strong> on your <strong>unmodified original image</strong>.
+  </p>
+</div>
+
+  </div>
+
+<canvas id="canvas"></canvas>
+<canvas id="overlayCanvas"></canvas>
+
+  <script>
+    // State
+    let originalImageElement = null;
+    let processedDataUrl = null;
+    let threshold = 30;
+
+    // Elements
+    const dropZone1 = document.getElementById('dropZone1');
+    const dropZone2 = document.getElementById('dropZone2');
+    const fileInput1 = document.getElementById('fileInput1');
+    const fileInput2 = document.getElementById('fileInput2');
+    const step1Results = document.getElementById('step1Results');
+    const step2 = document.getElementById('step2');
+    const step2Results = document.getElementById('step2Results');
+    const originalImage = document.getElementById('originalImage');
+    const processedImage = document.getElementById('processedImage');
+    const finalImage = document.getElementById('finalImage');
+    const thresholdSlider = document.getElementById('threshold');
+    const thresholdValue = document.getElementById('thresholdValue');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const downloadFinalBtn = document.getElementById('downloadFinalBtn');
+    const canvas = document.getElementById('canvas');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const ctx = canvas.getContext('2d');
+    const overlayCtx = overlayCanvas.getContext('2d');
+
+    // Process image to extract red
+    function processImage(img, redThreshold) {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      ctx.drawImage(img, 0, 0);
+      
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        // Check if pixel is "red-ish"
+        const isRed = r > redThreshold && 
+                      r > g * 1.2 && 
+                      r > b * 1.2 &&
+                      (r - g > 20 || r - b > 20);
+        
+        if (!isRed) {
+          data[i + 3] = 0; // Make transparent
+        }
+      }
+      
+      ctx.putImageData(imageData, 0, 0);
+      
+      return canvas.toDataURL('image/png');
+    }
+
+    // Create overlay of red annotations on base image
+    function createOverlay(baseImg, overlayDataUrl) {
+      return new Promise((resolve) => {
+        const overlayImg = new Image();
+        overlayImg.onload = () => {
+          overlayCanvas.width = baseImg.width;
+          overlayCanvas.height = baseImg.height;
+          
+          // Draw base image
+          overlayCtx.drawImage(baseImg, 0, 0);
+          
+          // Draw overlay (scaled to fit)
+          overlayCtx.drawImage(overlayImg, 0, 0, baseImg.width, baseImg.height);
+          
+          resolve(overlayCanvas.toDataURL('image/png'));
+        };
+        overlayImg.src = overlayDataUrl;
+      });
+    }
+
+    // Handle file upload for step 1
+    function handleFile1(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          originalImageElement = img;
+          originalImage.src = e.target.result;
+          
+          processedDataUrl = processImage(img, threshold);
+          processedImage.src = processedDataUrl;
+          
+          step1Results.classList.remove('hidden');
+          step2.classList.remove('hidden');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Handle file upload for step 2
+    function handleFile2(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = async () => {
+          const finalDataUrl = await createOverlay(img, processedDataUrl);
+          finalImage.src = finalDataUrl;
+          step2Results.classList.remove('hidden');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Setup drop zone
+    function setupDropZone(dropZone, fileInput, handler) {
+      dropZone.addEventListener('click', () => fileInput.click());
+      
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+      });
+      
+      dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+      });
+      
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        handler(file);
+      });
+      
+      fileInput.addEventListener('change', (e) => {
+        handler(e.target.files[0]);
+      });
+    }
+
+    // Initialize drop zones
+    setupDropZone(dropZone1, fileInput1, handleFile1);
+    setupDropZone(dropZone2, fileInput2, handleFile2);
+
+    // Threshold slider
+    thresholdSlider.addEventListener('input', (e) => {
+      threshold = parseInt(e.target.value);
+      thresholdValue.textContent = threshold;
+      
+      if (originalImageElement) {
+        processedDataUrl = processImage(originalImageElement, threshold);
+        processedImage.src = processedDataUrl;
+        
+        // Update overlay if it exists
+        if (!step2Results.classList.contains('hidden') && finalImage.src) {
+          // Re-overlay with new processed image
+          const baseImg = new Image();
+          baseImg.onload = async () => {
+            const finalDataUrl = await createOverlay(baseImg, processedDataUrl);
+            finalImage.src = finalDataUrl;
+          };
+          // Get the base image from step 2
+          baseImg.src = fileInput2.files[0] ? URL.createObjectURL(fileInput2.files[0]) : '';
+        }
+      }
+    });
+
+    // Download buttons
+    downloadBtn.addEventListener('click', () => {
+      if (!processedDataUrl) return;
+      const link = document.createElement('a');
+      link.download = 'red-annotations.png';
+      link.href = processedDataUrl;
+      link.click();
+    });
+
+    downloadFinalBtn.addEventListener('click', () => {
+      if (!finalImage.src) return;
+      const link = document.createElement('a');
+      link.download = 'annotated-image.png';
+      link.href = finalImage.src;
+      link.click();
+    });
+  </script>
+
+</body>
+</html>
