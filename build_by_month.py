@@ -23,23 +23,31 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
         return None
 
 
-def _get_first_n_words(text: str, n: int = 15) -> str:
-    """Extract the first n words from text."""
+def _get_first_n_words(text: str, n: int = 15) -> tuple[str, bool]:
+    """Extract the first n words from text.
+
+    Returns:
+        Tuple of (text, was_truncated)
+    """
     words = text.split()
     if len(words) <= n:
-        return text
-    return " ".join(words[:n]) + "..."
+        return text, False
+    return " ".join(words[:n]), True
 
 
-def _extract_summary(docs_path: Path, word_limit: int = 30) -> str:
-    """Extract the first paragraph of the docs file, limited to word_limit words."""
+def _extract_summary(docs_path: Path, word_limit: int = 30) -> tuple[str, bool]:
+    """Extract the first paragraph of the docs file, limited to word_limit words.
+
+    Returns:
+        Tuple of (summary_text, was_truncated)
+    """
     if not docs_path.exists():
-        return ""
+        return "", False
 
     try:
         content = docs_path.read_text("utf-8").strip()
     except OSError:
-        return ""
+        return "", False
 
     # Remove HTML comments
     if "<!--" in content:
@@ -106,13 +114,14 @@ def build_by_month() -> None:
         # Get the docs summary
         slug = page_name.replace(".html", "")
         docs_path = Path(f"{slug}.docs.md")
-        summary = _extract_summary(docs_path)
+        summary, truncated = _extract_summary(docs_path)
 
         tools_by_month[month_key].append({
             "filename": page_name,
             "slug": slug,
             "created": created_date,
             "summary": summary,
+            "truncated": truncated,
         })
 
     # Sort months in reverse chronological order
@@ -243,6 +252,7 @@ def build_by_month() -> None:
             slug = tool["slug"]
             filename = tool["filename"]
             summary = tool["summary"]
+            truncated = tool["truncated"]
             tool_url = f"https://tools.simonwillison.net/{slug}"
             colophon_url = f"https://tools.simonwillison.net/colophon#{filename}"
 
@@ -250,7 +260,10 @@ def build_by_month() -> None:
             html_content += f'            <span class="tool-name"><a href="{tool_url}">{slug}</a></span>\n'
             html_content += f'            <span class="tool-links">(<a href="{colophon_url}">colophon</a>)</span>\n'
             if summary:
-                html_content += f'            <div class="tool-summary">{summary}</div>\n'
+                if truncated:
+                    html_content += f'            <div class="tool-summary">{summary} <a href="{colophon_url}">...</a></div>\n'
+                else:
+                    html_content += f'            <div class="tool-summary">{summary}</div>\n'
             html_content += '        </li>\n'
 
         html_content += '    </ul>\n'
