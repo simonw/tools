@@ -258,7 +258,7 @@ def build_by_month() -> None:
 
             html_content += f'        <li class="tool-item">\n'
             html_content += f'            <span class="tool-name"><a href="{tool_url}">{slug}</a></span>\n'
-            html_content += f'            <span class="tool-links">(<a href="{colophon_url}">colophon</a>)</span>\n'
+            html_content += f'            <span class="tool-links">(<a href="{colophon_url}">about</a>)</span>\n'
             if summary:
                 if truncated:
                     html_content += f'            <div class="tool-summary">{summary} <a href="{colophon_url}">...</a></div>\n'
