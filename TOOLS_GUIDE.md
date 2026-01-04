@@ -4,7 +4,7 @@
 
 **Location**: `/home/user/tools/`  
 **Type**: Static HTML/JavaScript web tools (200+ tools)  
-**Hosting**: GitHub Pages (tools.simonwillison.net)  
+**Hosting**: GitHub Pages (tools.joostvanderlaan.nl)  
 **Build**: Python scripts generate docs and indices  
 **Testing**: Playwright + pytest for automated testing  
 

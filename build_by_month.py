@@ -140,7 +140,7 @@ def build_by_month() -> None:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tools by month - tools.simonwillison.net</title>
+    <title>Tools by month - tools.joostvanderlaan.nl</title>
     <style>
         body {
             font-family: "Helvetica Neue", helvetica, sans-serif;
@@ -230,7 +230,7 @@ def build_by_month() -> None:
 </head>
 <body>
 <nav>
-    <p><a href="/">Simon Willison's Tools</a> <a href="https://simonwillison.net/">My blog</a></p>
+    <p><a href="/">Joost van der Laan's Tools</a> <a href="https://joostvanderlaan.nl/">My blog</a></p>
 </nav>
 <section class="body">
     <h1>Tools by month</h1>
@@ -253,8 +253,8 @@ def build_by_month() -> None:
             filename = tool["filename"]
             summary = tool["summary"]
             truncated = tool["truncated"]
-            tool_url = f"https://tools.simonwillison.net/{slug}"
-            colophon_url = f"https://tools.simonwillison.net/colophon#{filename}"
+            tool_url = f"https://tools.joostvanderlaan.nl/{slug}"
+            colophon_url = f"https://tools.joostvanderlaan.nl/colophon#{filename}"
 
             html_content += f'        <li class="tool-item">\n'
             html_content += f'            <span class="tool-name"><a href="{tool_url}">{slug}</a></span>\n'

@@ -2,7 +2,7 @@
 
 These Python scripts can be run directly from their URLs using `uv run`.
 
-Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
+Their source code is [available on GitHub](https://github.com/javdl/tools/tree/main/python).
 
 ## list_llm_model_ids.py
 
@@ -11,7 +11,7 @@ List available model IDs from OpenAI, Anthropic, and Gemini.
 You must have [LLM](https://llm.datasette.io/) installed and have configured the API keys for one or more of `anthorpic`, `openai`, or `gemini` using `llm keys set`.
 
 ```bash
-uv run https://tools.simonwillison.net/python/list_llm_model_ids.py
+uv run https://tools.joostvanderlaan.nl/python/list_llm_model_ids.py
 ```
 Output starts:
 ```
@@ -29,7 +29,7 @@ chatgpt-image-latest
 Serve a local Git repository over HTTP in read-only mode.
 
 ```bash
-uv run https://tools.simonwillison.net/python/git_read_only_http.py \
+uv run https://tools.joostvanderlaan.nl/python/git_read_only_http.py \
   /path/to/repo
 ```
 Defaults to serving on `localhost:8000`. Use `-H/--host` and `-p/--port` to change that.
@@ -44,24 +44,24 @@ git clone http://localhost:8000/ directory_name
 ## claude_code_to_gist.py
 
 ```bash
-uv run https://tools.simonwillison.net/python/claude_code_to_gist.py
+uv run https://tools.joostvanderlaan.nl/python/claude_code_to_gist.py
 ```
-Shows an interactive list where you can select a recent Claude Code conversation, then publishes that conversation to a GitHub Gist using the `gh` CLI tool and returns a URL to the [claude-code-timeline viewer](https://tools.simonwillison.net/claude-code-timeline) for that Gist.
+Shows an interactive list where you can select a recent Claude Code conversation, then publishes that conversation to a GitHub Gist using the `gh` CLI tool and returns a URL to the [claude-code-timeline viewer](https://tools.joostvanderlaan.nl/claude-code-timeline) for that Gist.
 
 ## extract_issues.py
 
 ```bash
 cd datasette
-uv run https://tools.simonwillison.net/python/extract_issues.py 1.0a19
+uv run https://tools.joostvanderlaan.nl/python/extract_issues.py 1.0a19
 # or
-uv run https://tools.simonwillison.net/python/extract_issues.py 1.0a19..1.0a20
+uv run https://tools.joostvanderlaan.nl/python/extract_issues.py 1.0a19..1.0a20
 ```
 Extract GitHub issues referenced in commits between two versions (or from a single version to HEAD) and print them as `#123, #124`.
 
 ## openai_background_prompt.py
 
 ```bash
-OPENAI_API_KEY=$(llm keys get openai) uv run https://tools.simonwillison.net/python/openai_background_prompt.py \
+OPENAI_API_KEY=$(llm keys get openai) uv run https://tools.joostvanderlaan.nl/python/openai_background_prompt.py \
   o4-mini-deep-research 'Describe a research task here'
 ```
 Runs a prompt against an OpenAI model using the background option, then polls for completion and shows the JSON result when it finishes.
@@ -75,7 +75,7 @@ Add `--code-interpreter` to enable the code interpreter tool and `--web-search` 
 Convert a Claude `.jsonl` conversation log to readable Markdown.
 
 ```bash
-uv run https://tools.simonwillison.net/python/claude_to_markdown.py \
+uv run https://tools.joostvanderlaan.nl/python/claude_to_markdown.py \
   aed89565-d168-4ff9-bb03-13ea532969ea.jsonl
 ```
 Add a second filename to write to that file instead of a `.md` next to the `.jsonl`.
@@ -87,7 +87,7 @@ Add a second filename to write to that file instead of a `.md` next to the `.jso
 Generate an image from a text prompt using OpenAI's image models.
 
 ```bash
-uv run https://tools.simonwillison.net/python/openai_image.py \
+uv run https://tools.joostvanderlaan.nl/python/openai_image.py \
   'A racoon eating cheese wearing an inappropriate hat'
 ```
 Use `--help` to see all available options:
@@ -120,7 +120,7 @@ Options:
 Convert a Codex CLI session JSONL log into Markdown.
 
 ```bash
-uv run https://tools.simonwillison.net/python/codex_to_markdown.py \
+uv run https://tools.joostvanderlaan.nl/python/codex_to_markdown.py \
   ~/.codex/sessions/2025/09/24/rollout-2025-09-24T15-33-49-01997ddc-88f4-7e40-8dac-d558f31dd3ca.jsonl
 ```
 [Example output](https://gist.github.com/simonw/9745deeb0a318a0fc1cf9beb89fbec8a), showing the session that built this tool.
@@ -130,7 +130,7 @@ uv run https://tools.simonwillison.net/python/codex_to_markdown.py \
 Inspect Wasmer WebC archives (.webc) and print useful summary information. These are files that live in `~/.wasmer/cache/checkouts` and end in `.bin`.
 
 ```bash
-uv run https://tools.simonwillison.net/python/webc_inspect.py \
+uv run https://tools.joostvanderlaan.nl/python/webc_inspect.py \
   ~/.wasmer/cache/checkout/47ff83d2d205df14e7f057a1f0a1c1da70c565d2e32c052f2970a150f5a9b407.bin
 ```
 [Example output](https://gist.github.com/simonw/c4193a44938b80bbaad64299fe892a2d).
@@ -140,7 +140,7 @@ uv run https://tools.simonwillison.net/python/webc_inspect.py \
 Display an image in the terminal using [rich-pixels](https://pypi.org/project/rich-pixels/):
 
 ```bash
-uv run https://tools.simonwillison.net/python/show_image.py \
+uv run https://tools.joostvanderlaan.nl/python/show_image.py \
   image.jpg
 ```
 Add `--lanczos` to use Lanczos scaling, default is NEAREST (crisp pixel art).
@@ -152,7 +152,7 @@ Calculate the size of a model on [ModelScope](https://modelscope.cn/).
 Example:
 
 ```bash
-uv run https://tools.simonwillison.net/python/modelscope_size.py \
+uv run https://tools.joostvanderlaan.nl/python/modelscope_size.py \
   https://modelscope.cn/models/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8
 ```
 Outputs:
@@ -165,7 +165,7 @@ Outputs:
 Stream the Markdown result of an LLM prompt using Textual's streaming Markdown feature.
 
 ```bash
-uv run https://tools.simonwillison.net/python/streaming_textual_markdown.py \
+uv run https://tools.joostvanderlaan.nl/python/streaming_textual_markdown.py \
   'Epic saga of a pelican and a wolf becoming friends over their love for welding'
 ```
 ## check_invisible_text.py
@@ -173,7 +173,7 @@ uv run https://tools.simonwillison.net/python/streaming_textual_markdown.py \
 Check a PDF file for possibly instances of invisible text. [Claude transcript](https://claude.ai/share/0d82324d-d575-40d9-ba85-732ab234197a).
 
 ```bash
-uv run https://tools.simonwillison.net/python/check_invisible_text.py \
+uv run https://tools.joostvanderlaan.nl/python/check_invisible_text.py \
   my-file.pdf
 ```
 Example output:
@@ -215,7 +215,7 @@ Page 0: White text (invisible on white background)
 Inspect a GGUF file (a format used by [llama.cpp](https://github.com/ggml-org/llama.cpp)) and print out the key/value pairs. No dependencies.
 
 ```bash
-uv run https://tools.simonwillison.net/python/gguf_inspect.py \
+uv run https://tools.joostvanderlaan.nl/python/gguf_inspect.py \
   ~/.ollama/models/blobs/sha256-b158411543050d042608cef16fdfeec0d9bc1cf2e63a3625f3887fc0c4249521 \
   --json --exclude tokenizer.ggml.
 ```
@@ -225,13 +225,13 @@ uv run https://tools.simonwillison.net/python/gguf_inspect.py \
 Given a text file that includes JSON syntax but is not valid JSON - a Markdown README file for example - this tool finds all valid JSON objects within that text and returns the largest, or all of them if you specify `-a`.
 
 ```bash
-uv run https://tools.simonwillison.net/python/json_extractor.py \
+uv run https://tools.joostvanderlaan.nl/python/json_extractor.py \
   README.md
 ```
 You can also pipe data into it:
 ```bash
 curl 'https://raw.githubusercontent.com/simonw/json-flatten/refs/heads/main/README.md' \
-  | uv run https://tools.simonwillison.net/python/json_extractor.py
+  | uv run https://tools.joostvanderlaan.nl/python/json_extractor.py
 ```
 
 ## http_check.py
@@ -239,7 +239,7 @@ curl 'https://raw.githubusercontent.com/simonw/json-flatten/refs/heads/main/READ
 Check if a given URL supports gzip, ETags and Last-modified conditional GET requests.
 
 ```bash
-uv run https://tools.simonwillison.net/python/http_check.py \
+uv run https://tools.joostvanderlaan.nl/python/http_check.py \
   https://simonw.github.io/ollama-models-atom-feed/atom.xml
 ```
 
@@ -248,7 +248,7 @@ uv run https://tools.simonwillison.net/python/http_check.py \
 Replace any lines that are entirely whitespace with blank lines in specified files or folders:
 
 ```bash
-uv run https://tools.simonwillison.net/python/whitespace_cleaner.py \
+uv run https://tools.joostvanderlaan.nl/python/whitespace_cleaner.py \
   my-file.txt my-folder
 ```
 Has a `--dry-run` option for seeing how many files it would modify.
@@ -258,7 +258,7 @@ Has a `--dry-run` option for seeing how many files it would modify.
 View the size of the files in all of your Google Cloud buckets. You'll need to have [gcloud installed](https://cloud.google.com/sdk/docs/install) and do the `gcloud auth` dance first.
 
 ```bash
-uv run https://tools.simonwillison.net/python/all_gcp_buckets.py
+uv run https://tools.joostvanderlaan.nl/python/all_gcp_buckets.py
 ```
 This will leave `.txt` files for each bucket containing a file listing, in a directory called `bucket_listings_DATE`.
 
@@ -267,19 +267,19 @@ This will leave `.txt` files for each bucket containing a file listing, in a dir
 Run PDF files through the [Mistral OCR](https://mistral.ai/fr/news/mistral-ocr) API:
 
 ```bash
-uv run https://tools.simonwillison.net/python/mistral_ocr.py \
+uv run https://tools.joostvanderlaan.nl/python/mistral_ocr.py \
   my-file.pdf > output.md
 ```
 Or to generate HTML and save images and HTML to a directory:
 ```bash
-uv run https://tools.simonwillison.net/python/mistral_ocr.py \
+uv run https://tools.joostvanderlaan.nl/python/mistral_ocr.py \
   my-file.pdf -d output-dir -he
 ```
 `-he` is short for `--html --extract-images`.
 
 Or to create HTML with images inlined as base64 URIs:
 ```bash
-uv run https://tools.simonwillison.net/python/mistral_ocr.py \
+uv run https://tools.joostvanderlaan.nl/python/mistral_ocr.py \
   my-file.pdf -hi > output.html
 ```
 `-hi` is short for `--html --inline-images`.
@@ -335,7 +335,7 @@ Given input text to stdin and search/highlight terms, outputs matches plus conte
 
 Example usage:
 ```bash
-cat myfile.py | uv run https://tools.simonwillison.net/python/highlight.py re search
+cat myfile.py | uv run https://tools.joostvanderlaan.nl/python/highlight.py re search
 ```
 
 ## debug_s3_access.py
@@ -345,7 +345,7 @@ Use this with a URL to an object in an S3 bucket to try and debug why that objec
 Example usage:
 
 ```bash
-uv run https://tools.simonwillison.net/python/debug_s3_access.py \
+uv run https://tools.joostvanderlaan.nl/python/debug_s3_access.py \
   https://test-public-bucket-simonw.s3.us-east-1.amazonaws.com/0f550b7b28264d7ea2b3d360e3381a95.jpg
 ```
 Output:

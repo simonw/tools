@@ -4,7 +4,7 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
 
-app.use(cors({origin: 'https://tools.simonwillison.net'}));
+app.use(cors({origin: 'https://tools.joostvanderlaan.nl'}));
 
 // Proxy middleware
 const apiProxy = createProxyMiddleware({
