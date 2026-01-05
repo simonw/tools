@@ -26,7 +26,7 @@ const formatDate = (value) => {
 
 ready(() => {
   const heading = Array.from(document.querySelectorAll('h1')).find((element) =>
-    element.textContent?.trim().toLowerCase().includes('tools.simonwillison.net'),
+    element.textContent?.trim().toLowerCase().includes('tools.joostvanderlaan.nl'),
   );
 
   if (!heading) {

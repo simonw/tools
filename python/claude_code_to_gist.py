@@ -359,7 +359,7 @@ def main():
 
     # Build the timeline URL
     encoded_url = quote(raw_url, safe="")
-    timeline_url = f"https://tools.simonwillison.net/claude-code-timeline?url={encoded_url}"
+    timeline_url = f"https://tools.joostvanderlaan.nl/claude-code-timeline?url={encoded_url}"
 
     print(f"\nTimeline URL:")
     print(timeline_url)
