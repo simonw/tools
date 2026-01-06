@@ -120,6 +120,30 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+        .cancel-btn {
+            background: #dc2626;
+        }
+        .cancel-btn:hover:not(:disabled) {
+            background: #b91c1c;
+        }
+        .danger-btn {
+            background: #7f1d1d;
+        }
+        .danger-btn:hover:not(:disabled) {
+            background: #991b1b;
+        }
+        .timer-container {
+            width: 70px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .timer {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            color: #6b7280;
+        }
         .terminal {
             background: var(--terminal-bg);
             border-radius: 8px;
@@ -231,6 +255,10 @@
     <div class="command-section">
         <input type="text" id="command-input" placeholder="Enter a command (e.g., ls, uname -a, cat /etc/os-release)" disabled>
         <button id="run-btn" disabled>Run</button>
+        <button id="cancel-btn" class="cancel-btn" style="display: none;">Cancel</button>
+        <div class="timer-container">
+            <span id="timer" class="timer"></span>
+        </div>
     </div>
 
     <div class="terminal">
@@ -245,6 +273,7 @@
 
     <div class="button-row">
         <button id="clear-btn" class="secondary-btn">Clear Output</button>
+        <button id="restart-btn" class="secondary-btn danger-btn">Restart Linux</button>
         <button id="toggle-screen" class="toggle-screen">Show VGA Screen</button>
     </div>
 
@@ -265,7 +294,10 @@
         const statusText = document.getElementById('status-text');
         const commandInput = document.getElementById('command-input');
         const runBtn = document.getElementById('run-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const timerEl = document.getElementById('timer');
         const clearBtn = document.getElementById('clear-btn');
+        const restartBtn = document.getElementById('restart-btn');
         const output = document.getElementById('output');
         const toggleScreenBtn = document.getElementById('toggle-screen');
         const screenContainer = document.getElementById('screen-container');
@@ -273,24 +305,137 @@
         let emulator = null;
         let isReady = false;
         let outputBuffer = '';
-        let commandEndMarker = '___CMD_END___';
         let waitingForOutput = false;
         let currentCommand = '';
         let commandOutput = '';
+        let timerInterval = null;
+        let timerStart = 0;
+        let outputTruncated = false;
+        let drainingOutput = false; // When true, discard output until we see a prompt
+        // Prompt ends with "% " - could be "~% ", "~/dir% ", "/path% ", etc.
+        const promptPattern = /% $/;
+        const maxOutputSize = 50000; // Truncate output after 50KB
 
         function updateStatus(state, text) {
             statusIndicator.className = 'status-indicator ' + state;
             statusText.textContent = text;
         }
 
+        // Convert ANSI color codes to HTML spans
+        function ansiToHtml(text) {
+            // Escape HTML first
+            text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            // ANSI color map (foreground colors)
+            const colors = {
+                '30': '#000', '31': '#c23621', '32': '#25bc24', '33': '#adad27',
+                '34': '#492ee1', '35': '#d338d3', '36': '#33bbc8', '37': '#cbcccd',
+                '90': '#818383', '91': '#fc391f', '92': '#31e722', '93': '#eaec23',
+                '94': '#5833ff', '95': '#f935f8', '96': '#14f0f0', '97': '#e9ebeb'
+            };
+
+            // Process ANSI escape sequences
+            let result = '';
+            let currentSpan = false;
+
+            // Match ESC[ followed by params and ending with 'm'
+            const parts = text.split(/\x1b\[([0-9;]*)m|\[([0-9;]*)m/);
+
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                if (part === undefined) continue;
+
+                // Check if this is a code segment (every 3rd element after split with 2 capture groups)
+                if (i % 3 === 1 || i % 3 === 2) {
+                    // This is an ANSI code
+                    if (currentSpan) {
+                        result += '</span>';
+                        currentSpan = false;
+                    }
+
+                    if (part && part !== '0' && part !== '0;0') {
+                        const codes = part.split(';');
+                        let color = null;
+                        let bold = false;
+
+                        for (const code of codes) {
+                            if (code === '1') bold = true;
+                            if (colors[code]) color = colors[code];
+                        }
+
+                        if (color) {
+                            const style = bold ? `color:${color};font-weight:bold` : `color:${color}`;
+                            result += `<span style="${style}">`;
+                            currentSpan = true;
+                        }
+                    }
+                } else {
+                    // This is regular text
+                    result += part;
+                }
+            }
+
+            if (currentSpan) result += '</span>';
+            return result;
+        }
+
         function appendOutput(text) {
-            output.textContent += text;
+            output.innerHTML += ansiToHtml(text);
             output.scrollTop = output.scrollHeight;
         }
 
         function setOutput(text) {
-            output.textContent = text;
+            output.innerHTML = ansiToHtml(text);
             output.scrollTop = output.scrollHeight;
+        }
+
+        function startTimer() {
+            timerStart = performance.now();
+            timerEl.textContent = '0.00s';
+            cancelBtn.style.display = 'inline-block';
+            timerInterval = setInterval(() => {
+                const elapsed = (performance.now() - timerStart) / 1000;
+                timerEl.textContent = elapsed.toFixed(2) + 's';
+            }, 50);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            cancelBtn.style.display = 'none';
+            // Keep timer visible showing final time
+        }
+
+        function cancelCommand() {
+            if (!emulator || !waitingForOutput) return;
+
+            // Send Ctrl+C (ASCII 3) multiple times, then Ctrl+\ (SIGQUIT) as backup
+            emulator.serial0_send('\x03');
+            setTimeout(() => emulator.serial0_send('\x03'), 100);
+            setTimeout(() => emulator.serial0_send('\x03'), 200);
+            setTimeout(() => emulator.serial0_send('\x1c'), 300); // Ctrl+\ = SIGQUIT
+
+            appendOutput('^C\n');
+
+            // Enter draining mode - discard output until we see a fresh prompt
+            drainingOutput = true;
+            outputBuffer = '';
+
+            // Forcefully reset UI state after a short delay
+            // (in case the command is blocked on I/O and can't process signals)
+            setTimeout(() => {
+                if (waitingForOutput) {
+                    waitingForOutput = false;
+                    commandOutput = '';
+                    stopTimer();
+                    commandInput.disabled = false;
+                    runBtn.disabled = false;
+                    appendOutput('[cancelled]\n');
+                    commandInput.focus();
+                }
+            }, 500);
         }
 
         async function initEmulator() {
@@ -320,44 +465,63 @@
 
                 emulator.add_listener('serial0-output-byte', function(byte) {
                     const char = String.fromCharCode(byte);
+                    if (char === '\r') return; // Ignore carriage returns
+
+                    // In draining mode, just watch for prompt to know system is ready again
+                    if (drainingOutput) {
+                        outputBuffer += char;
+                        // Keep buffer small while draining
+                        if (outputBuffer.length > 20) {
+                            outputBuffer = outputBuffer.slice(-20);
+                        }
+                        if (promptPattern.test(outputBuffer)) {
+                            drainingOutput = false;
+                            outputBuffer = '';
+                        }
+                        return;
+                    }
+
                     outputBuffer += char;
 
                     if (waitingForOutput) {
-                        commandOutput += char;
+                        // Check for output truncation
+                        if (!outputTruncated && commandOutput.length >= maxOutputSize) {
+                            outputTruncated = true;
+                            appendOutput('\n[output truncated after ' + Math.round(maxOutputSize/1000) + 'KB]\n');
+                        }
 
-                        if (commandOutput.includes(commandEndMarker)) {
+                        if (!outputTruncated) {
+                            commandOutput += char;
+                        }
+
+                        // Wait for shell prompt to reappear (command completed)
+                        // Prompt can be "~% ", "~/subdir% ", "/path% ", etc.
+                        // Check the full buffer for prompt even if truncated
+                        if (promptPattern.test(outputBuffer)) {
                             waitingForOutput = false;
 
-                            // The output contains:
-                            // 1. Echoed command line: "cmd; echo ___CMD_END___\n"
-                            // 2. Actual command output
-                            // 3. The end marker: "___CMD_END___\n"
-                            // 4. Next prompt: "~% "
-
+                            // Parse output: skip echoed command, capture until prompt
+                            // Format: "command\noutput line 1\noutput line 2\nprompt% "
                             let lines = commandOutput.split('\n');
-                            let resultLines = [];
-                            let foundEcho = false;
 
-                            for (let line of lines) {
-                                // Skip the echoed command line
-                                if (!foundEcho && line.includes(commandEndMarker)) {
-                                    foundEcho = true;
-                                    continue;
-                                }
-                                // Skip the end marker output and prompt
-                                if (foundEcho) {
-                                    if (line === commandEndMarker || line.startsWith('~%')) {
-                                        continue;
-                                    }
-                                    resultLines.push(line);
+                            // Remove the echoed command (first line) and prompt (last element)
+                            let resultLines = lines.slice(1); // Skip echoed command
+                            // Remove trailing prompt remnants (any line ending with "% " or empty)
+                            while (resultLines.length > 0) {
+                                const last = resultLines[resultLines.length - 1];
+                                if (last === '' || promptPattern.test(last)) {
+                                    resultLines.pop();
+                                } else {
+                                    break;
                                 }
                             }
 
-                            let result = resultLines.join('\n').trim();
+                            let result = resultLines.join('\n');
                             if (result) {
                                 appendOutput(result + '\n');
                             }
 
+                            stopTimer();
                             commandInput.disabled = false;
                             runBtn.disabled = false;
                             commandInput.focus();
@@ -365,7 +529,7 @@
                     }
 
                     // Detect when boot is complete (shell prompt appears)
-                    if (!isReady && outputBuffer.includes('~%')) {
+                    if (!isReady && promptPattern.test(outputBuffer)) {
                         isReady = true;
                         updateStatus('ready', 'Linux is ready');
                         commandInput.disabled = false;
@@ -390,16 +554,19 @@
 
             currentCommand = cmd;
             commandOutput = '';
+            outputTruncated = false;
             waitingForOutput = true;
+            // Reset outputBuffer so prompt detection doesn't trigger on stale data
+            outputBuffer = '';
 
             appendOutput('$ ' + cmd + '\n');
 
             commandInput.disabled = true;
             runBtn.disabled = true;
+            startTimer();
 
-            // Send command with an end marker to detect completion
-            const fullCommand = cmd + '; echo ' + commandEndMarker + '\n';
-            emulator.serial0_send(fullCommand);
+            // Send command - completion detected when shell prompt reappears
+            emulator.serial0_send(cmd + '\n');
         }
 
         runBtn.addEventListener('click', function() {
@@ -424,9 +591,16 @@
             setOutput('');
         });
 
+        cancelBtn.addEventListener('click', cancelCommand);
+
         toggleScreenBtn.addEventListener('click', function() {
             const isVisible = screenContainer.classList.toggle('visible');
             toggleScreenBtn.textContent = isVisible ? 'Hide VGA Screen' : 'Show VGA Screen';
+        });
+
+        restartBtn.addEventListener('click', function() {
+            // Full page reload is the most reliable way to restart
+            location.reload();
         });
 
         // Start the emulator
