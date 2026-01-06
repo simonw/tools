@@ -327,13 +327,34 @@
 
                         if (commandOutput.includes(commandEndMarker)) {
                             waitingForOutput = false;
-                            let result = commandOutput
-                                .replace(currentCommand + '\n', '')
-                                .replace(commandEndMarker + '\n', '')
-                                .replace('echo ' + commandEndMarker + '\n', '')
-                                .replace(/\n$/, '');
 
-                            if (result.trim()) {
+                            // The output contains:
+                            // 1. Echoed command line: "cmd; echo ___CMD_END___\n"
+                            // 2. Actual command output
+                            // 3. The end marker: "___CMD_END___\n"
+                            // 4. Next prompt: "~% "
+
+                            let lines = commandOutput.split('\n');
+                            let resultLines = [];
+                            let foundEcho = false;
+
+                            for (let line of lines) {
+                                // Skip the echoed command line
+                                if (!foundEcho && line.includes(commandEndMarker)) {
+                                    foundEcho = true;
+                                    continue;
+                                }
+                                // Skip the end marker output and prompt
+                                if (foundEcho) {
+                                    if (line === commandEndMarker || line.startsWith('~%')) {
+                                        continue;
+                                    }
+                                    resultLines.push(line);
+                                }
+                            }
+
+                            let result = resultLines.join('\n').trim();
+                            if (result) {
                                 appendOutput(result + '\n');
                             }
 
