@@ -702,5 +702,7 @@ fetch('/dates.json')
 
 customElements.define('page-weight-monitor', PageWeightMonitor);
 
-// Auto-insert the component when this module is imported
-document.body.appendChild(document.createElement('page-weight-monitor'));
+// Auto-insert the component when this module is imported, if PAGE_WEIGHT is set in localStorage
+if (localStorage.getItem('PAGE_WEIGHT') !== null) {
+    document.body.appendChild(document.createElement('page-weight-monitor'));
+}
