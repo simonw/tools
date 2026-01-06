@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v86 Linux Emulator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: var(--bg);
+            color: var(--text);
+        }
+        :root {
+            --bg: #f9fafb;
+            --text: #1f2937;
+            --surface: #fff;
+            --border: #e5e7eb;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --terminal-bg: #1a1a2e;
+            --terminal-text: #00ff00;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #111;
+                --text: #e5e7eb;
+                --surface: #1f1f1f;
+                --border: #374151;
+            }
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.5rem;
+        }
+        .description {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        @media (prefers-color-scheme: dark) {
+            .description {
+                color: #9ca3af;
+            }
+        }
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+        .status-indicator.booting {
+            background: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+        .status-indicator.ready {
+            background: #22c55e;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .status-text {
+            font-size: 0.9rem;
+        }
+        .command-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        #command-input {
+            flex: 1;
+            padding: 10px 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            color: var(--text);
+        }
+        #command-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+        #command-input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        button {
+            padding: 10px 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background: var(--primary-hover);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .cancel-btn {
+            background: #dc2626;
+        }
+        .cancel-btn:hover:not(:disabled) {
+            background: #b91c1c;
+        }
+        .danger-btn {
+            background: #7f1d1d;
+        }
+        .danger-btn:hover:not(:disabled) {
+            background: #991b1b;
+        }
+        .timer-container {
+            width: 70px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .timer {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .terminal {
+            background: var(--terminal-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        .terminal-header {
+            background: #16162a;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .terminal-dot.red { background: #ff5f56; }
+        .terminal-dot.yellow { background: #ffbd2e; }
+        .terminal-dot.green { background: #27c93f; }
+        .terminal-title {
+            color: #888;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        #output {
+            padding: 15px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            color: var(--terminal-text);
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .button-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .secondary-btn {
+            background: #6b7280;
+        }
+        .secondary-btn:hover:not(:disabled) {
+            background: #4b5563;
+        }
+        .screen-container {
+            display: none;
+        }
+        .toggle-screen {
+            font-size: 12px;
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .toggle-screen:hover:not(:disabled) {
+            background: var(--surface);
+        }
+        .screen-container.visible {
+            display: block;
+            margin-top: 15px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .screen-container canvas {
+            display: block;
+        }
+        .info {
+            margin-top: 20px;
+            padding: 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        @media (prefers-color-scheme: dark) {
+            .info {
+                color: #9ca3af;
+            }
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .command-section {
+                flex-direction: column;
+            }
+            #output {
+                min-height: 200px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>v86 Linux Emulator</h1>
+    <p class="description">Run Linux commands in your browser using x86 emulation</p>
+
+    <div class="status-bar">
+        <div class="status-indicator" id="status-indicator"></div>
+        <span class="status-text" id="status-text">Initializing...</span>
+    </div>
+
+    <div class="command-section">
+        <input type="text" id="command-input" placeholder="Enter a command (e.g., ls, uname -a, cat /etc/os-release)" disabled>
+        <button id="run-btn" disabled>Run</button>
+        <button id="cancel-btn" class="cancel-btn" style="display: none;">Cancel</button>
+        <div class="timer-container">
+            <span id="timer" class="timer"></span>
+        </div>
+    </div>
+
+    <div class="terminal">
+        <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">Linux Terminal Output</span>
+        </div>
+        <div id="output">Waiting for Linux to boot...</div>
+    </div>
+
+    <div class="button-row">
+        <button id="clear-btn" class="secondary-btn">Clear Output</button>
+        <button id="restart-btn" class="secondary-btn danger-btn">Restart Linux</button>
+        <button id="toggle-screen" class="toggle-screen">Show VGA Screen</button>
+    </div>
+
+    <div class="screen-container" id="screen-container">
+        <canvas></canvas>
+        <div style="white-space: pre; font: 14px monospace;"></div>
+    </div>
+
+    <div class="info">
+        <strong>About:</strong> This tool runs a minimal Linux distribution (Buildroot) inside your browser using
+        <a href="https://github.com/copy/v86" target="_blank">v86</a>, an x86 emulator written in JavaScript/WebAssembly.
+        Boot time is typically 10-30 seconds depending on your connection and device.
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
+    <script>
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        const commandInput = document.getElementById('command-input');
+        const runBtn = document.getElementById('run-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const timerEl = document.getElementById('timer');
+        const clearBtn = document.getElementById('clear-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const output = document.getElementById('output');
+        const toggleScreenBtn = document.getElementById('toggle-screen');
+        const screenContainer = document.getElementById('screen-container');
+
+        let emulator = null;
+        let isReady = false;
+        let outputBuffer = '';
+        let waitingForOutput = false;
+        let currentCommand = '';
+        let commandOutput = '';
+        let timerInterval = null;
+        let timerStart = 0;
+        let outputTruncated = false;
+        let drainingOutput = false; // When true, discard output until we see a prompt
+        // Prompt ends with "% " - could be "~% ", "~/dir% ", "/path% ", etc.
+        const promptPattern = /% $/;
+        const maxOutputSize = 50000; // Truncate output after 50KB
+
+        function updateStatus(state, text) {
+            statusIndicator.className = 'status-indicator ' + state;
+            statusText.textContent = text;
+        }
+
+        // Convert ANSI color codes to HTML spans
+        function ansiToHtml(text) {
+            // Escape HTML first
+            text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            // ANSI color map (foreground colors)
+            const colors = {
+                '30': '#000', '31': '#c23621', '32': '#25bc24', '33': '#adad27',
+                '34': '#492ee1', '35': '#d338d3', '36': '#33bbc8', '37': '#cbcccd',
+                '90': '#818383', '91': '#fc391f', '92': '#31e722', '93': '#eaec23',
+                '94': '#5833ff', '95': '#f935f8', '96': '#14f0f0', '97': '#e9ebeb'
+            };
+
+            // Process ANSI escape sequences
+            let result = '';
+            let currentSpan = false;
+
+            // Match ESC[ followed by params and ending with 'm'
+            const parts = text.split(/\x1b\[([0-9;]*)m|\[([0-9;]*)m/);
+
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                if (part === undefined) continue;
+
+                // Check if this is a code segment (every 3rd element after split with 2 capture groups)
+                if (i % 3 === 1 || i % 3 === 2) {
+                    // This is an ANSI code
+                    if (currentSpan) {
+                        result += '</span>';
+                        currentSpan = false;
+                    }
+
+                    if (part && part !== '0' && part !== '0;0') {
+                        const codes = part.split(';');
+                        let color = null;
+                        let bold = false;
+
+                        for (const code of codes) {
+                            if (code === '1') bold = true;
+                            if (colors[code]) color = colors[code];
+                        }
+
+                        if (color) {
+                            const style = bold ? `color:${color};font-weight:bold` : `color:${color}`;
+                            result += `<span style="${style}">`;
+                            currentSpan = true;
+                        }
+                    }
+                } else {
+                    // This is regular text
+                    result += part;
+                }
+            }
+
+            if (currentSpan) result += '</span>';
+            return result;
+        }
+
+        function appendOutput(text) {
+            output.innerHTML += ansiToHtml(text);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function setOutput(text) {
+            output.innerHTML = ansiToHtml(text);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function startTimer() {
+            timerStart = performance.now();
+            timerEl.textContent = '0.00s';
+            cancelBtn.style.display = 'inline-block';
+            timerInterval = setInterval(() => {
+                const elapsed = (performance.now() - timerStart) / 1000;
+                timerEl.textContent = elapsed.toFixed(2) + 's';
+            }, 50);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            cancelBtn.style.display = 'none';
+            // Keep timer visible showing final time
+        }
+
+        function cancelCommand() {
+            if (!emulator || !waitingForOutput) return;
+
+            // Send Ctrl+C (ASCII 3) multiple times, then Ctrl+\ (SIGQUIT) as backup
+            emulator.serial0_send('\x03');
+            setTimeout(() => emulator.serial0_send('\x03'), 100);
+            setTimeout(() => emulator.serial0_send('\x03'), 200);
+            setTimeout(() => emulator.serial0_send('\x1c'), 300); // Ctrl+\ = SIGQUIT
+
+            appendOutput('^C\n');
+
+            // Enter draining mode - discard output until we see a fresh prompt
+            drainingOutput = true;
+            outputBuffer = '';
+
+            // Forcefully reset UI state after a short delay
+            // (in case the command is blocked on I/O and can't process signals)
+            setTimeout(() => {
+                if (waitingForOutput) {
+                    waitingForOutput = false;
+                    commandOutput = '';
+                    stopTimer();
+                    commandInput.disabled = false;
+                    runBtn.disabled = false;
+                    appendOutput('[cancelled]\n');
+                    commandInput.focus();
+                }
+            }, 500);
+        }
+
+        async function initEmulator() {
+            updateStatus('booting', 'Loading emulator...');
+
+            try {
+                emulator = new V86({
+                    wasm_path: 'https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm',
+                    memory_size: 64 * 1024 * 1024,
+                    vga_memory_size: 2 * 1024 * 1024,
+                    screen_container: screenContainer,
+                    bios: {
+                        url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin'
+                    },
+                    vga_bios: {
+                        url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin'
+                    },
+                    bzimage: {
+                        url: 'https://static.simonwillison.net/static/cors-allow/2026/buildroot-bzimage68.bin'
+                    },
+                    autostart: true,
+                    disable_keyboard: true,
+                    disable_mouse: true
+                });
+
+                updateStatus('booting', 'Booting Linux...');
+
+                emulator.add_listener('serial0-output-byte', function(byte) {
+                    const char = String.fromCharCode(byte);
+                    if (char === '\r') return; // Ignore carriage returns
+
+                    // In draining mode, just watch for prompt to know system is ready again
+                    if (drainingOutput) {
+                        outputBuffer += char;
+                        // Keep buffer small while draining
+                        if (outputBuffer.length > 20) {
+                            outputBuffer = outputBuffer.slice(-20);
+                        }
+                        if (promptPattern.test(outputBuffer)) {
+                            drainingOutput = false;
+                            outputBuffer = '';
+                        }
+                        return;
+                    }
+
+                    outputBuffer += char;
+
+                    if (waitingForOutput) {
+                        // Check for output truncation
+                        if (!outputTruncated && commandOutput.length >= maxOutputSize) {
+                            outputTruncated = true;
+                            appendOutput('\n[output truncated after ' + Math.round(maxOutputSize/1000) + 'KB]\n');
+                        }
+
+                        if (!outputTruncated) {
+                            commandOutput += char;
+                        }
+
+                        // Wait for shell prompt to reappear (command completed)
+                        // Prompt can be "~% ", "~/subdir% ", "/path% ", etc.
+                        // Check the full buffer for prompt even if truncated
+                        if (promptPattern.test(outputBuffer)) {
+                            waitingForOutput = false;
+
+                            // Parse output: skip echoed command, capture until prompt
+                            // Format: "command\noutput line 1\noutput line 2\nprompt% "
+                            let lines = commandOutput.split('\n');
+
+                            // Remove the echoed command (first line) and prompt (last element)
+                            let resultLines = lines.slice(1); // Skip echoed command
+                            // Remove trailing prompt remnants (any line ending with "% " or empty)
+                            while (resultLines.length > 0) {
+                                const last = resultLines[resultLines.length - 1];
+                                if (last === '' || promptPattern.test(last)) {
+                                    resultLines.pop();
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            let result = resultLines.join('\n');
+                            if (result) {
+                                appendOutput(result + '\n');
+                            }
+
+                            stopTimer();
+                            commandInput.disabled = false;
+                            runBtn.disabled = false;
+                            commandInput.focus();
+                        }
+                    }
+
+                    // Detect when boot is complete (shell prompt appears)
+                    if (!isReady && promptPattern.test(outputBuffer)) {
+                        isReady = true;
+                        updateStatus('ready', 'Linux is ready');
+                        commandInput.disabled = false;
+                        runBtn.disabled = false;
+                        setOutput('Linux booted successfully. Enter a command above.\n\n');
+                        commandInput.focus();
+                    }
+                });
+
+                emulator.add_listener('emulator-started', function() {
+                    updateStatus('booting', 'Emulator started, booting Linux...');
+                });
+
+            } catch (error) {
+                updateStatus('', 'Error: ' + error.message);
+                console.error('Failed to initialize emulator:', error);
+            }
+        }
+
+        function sendCommand(cmd) {
+            if (!emulator || !isReady) return;
+
+            currentCommand = cmd;
+            commandOutput = '';
+            outputTruncated = false;
+            waitingForOutput = true;
+            // Reset outputBuffer so prompt detection doesn't trigger on stale data
+            outputBuffer = '';
+
+            appendOutput('$ ' + cmd + '\n');
+
+            commandInput.disabled = true;
+            runBtn.disabled = true;
+            startTimer();
+
+            // Send command - completion detected when shell prompt reappears
+            emulator.serial0_send(cmd + '\n');
+        }
+
+        runBtn.addEventListener('click', function() {
+            const cmd = commandInput.value.trim();
+            if (cmd) {
+                sendCommand(cmd);
+                commandInput.value = '';
+            }
+        });
+
+        commandInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const cmd = commandInput.value.trim();
+                if (cmd) {
+                    sendCommand(cmd);
+                    commandInput.value = '';
+                }
+            }
+        });
+
+        clearBtn.addEventListener('click', function() {
+            setOutput('');
+        });
+
+        cancelBtn.addEventListener('click', cancelCommand);
+
+        toggleScreenBtn.addEventListener('click', function() {
+            const isVisible = screenContainer.classList.toggle('visible');
+            toggleScreenBtn.textContent = isVisible ? 'Hide VGA Screen' : 'Show VGA Screen';
+        });
+
+        restartBtn.addEventListener('click', function() {
+            // Full page reload is the most reliable way to restart
+            location.reload();
+        });
+
+        // Start the emulator
+        initEmulator();
+    </script>
+</body>
+</html>
