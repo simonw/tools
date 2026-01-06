@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v86 Linux Emulator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: var(--bg);
+            color: var(--text);
+        }
+        :root {
+            --bg: #f9fafb;
+            --text: #1f2937;
+            --surface: #fff;
+            --border: #e5e7eb;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --terminal-bg: #1a1a2e;
+            --terminal-text: #00ff00;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #111;
+                --text: #e5e7eb;
+                --surface: #1f1f1f;
+                --border: #374151;
+            }
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.5rem;
+        }
+        .description {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        @media (prefers-color-scheme: dark) {
+            .description {
+                color: #9ca3af;
+            }
+        }
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+        .status-indicator.booting {
+            background: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+        .status-indicator.ready {
+            background: #22c55e;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .status-text {
+            font-size: 0.9rem;
+        }
+        .command-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        #command-input {
+            flex: 1;
+            padding: 10px 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            color: var(--text);
+        }
+        #command-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+        #command-input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        button {
+            padding: 10px 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background: var(--primary-hover);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .terminal {
+            background: var(--terminal-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        .terminal-header {
+            background: #16162a;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .terminal-dot.red { background: #ff5f56; }
+        .terminal-dot.yellow { background: #ffbd2e; }
+        .terminal-dot.green { background: #27c93f; }
+        .terminal-title {
+            color: #888;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        #output {
+            padding: 15px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            color: var(--terminal-text);
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .button-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .secondary-btn {
+            background: #6b7280;
+        }
+        .secondary-btn:hover:not(:disabled) {
+            background: #4b5563;
+        }
+        .screen-container {
+            display: none;
+        }
+        .toggle-screen {
+            font-size: 12px;
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .toggle-screen:hover:not(:disabled) {
+            background: var(--surface);
+        }
+        .screen-container.visible {
+            display: block;
+            margin-top: 15px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .screen-container canvas {
+            display: block;
+        }
+        .info {
+            margin-top: 20px;
+            padding: 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        @media (prefers-color-scheme: dark) {
+            .info {
+                color: #9ca3af;
+            }
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .command-section {
+                flex-direction: column;
+            }
+            #output {
+                min-height: 200px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>v86 Linux Emulator</h1>
+    <p class="description">Run Linux commands in your browser using x86 emulation</p>
+
+    <div class="status-bar">
+        <div class="status-indicator" id="status-indicator"></div>
+        <span class="status-text" id="status-text">Initializing...</span>
+    </div>
+
+    <div class="command-section">
+        <input type="text" id="command-input" placeholder="Enter a command (e.g., ls, uname -a, cat /etc/os-release)" disabled>
+        <button id="run-btn" disabled>Run</button>
+    </div>
+
+    <div class="terminal">
+        <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">Linux Terminal Output</span>
+        </div>
+        <div id="output">Waiting for Linux to boot...</div>
+    </div>
+
+    <div class="button-row">
+        <button id="clear-btn" class="secondary-btn">Clear Output</button>
+        <button id="toggle-screen" class="toggle-screen">Show VGA Screen</button>
+    </div>
+
+    <div class="screen-container" id="screen-container">
+        <canvas></canvas>
+        <div style="white-space: pre; font: 14px monospace;"></div>
+    </div>
+
+    <div class="info">
+        <strong>About:</strong> This tool runs a minimal Linux distribution (Buildroot) inside your browser using
+        <a href="https://github.com/copy/v86" target="_blank">v86</a>, an x86 emulator written in JavaScript/WebAssembly.
+        Boot time is typically 10-30 seconds depending on your connection and device.
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
+    <script>
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        const commandInput = document.getElementById('command-input');
+        const runBtn = document.getElementById('run-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const output = document.getElementById('output');
+        const toggleScreenBtn = document.getElementById('toggle-screen');
+        const screenContainer = document.getElementById('screen-container');
+
+        let emulator = null;
+        let isReady = false;
+        let outputBuffer = '';
+        let commandEndMarker = '___CMD_END___';
+        let waitingForOutput = false;
+        let currentCommand = '';
+        let commandOutput = '';
+
+        function updateStatus(state, text) {
+            statusIndicator.className = 'status-indicator ' + state;
+            statusText.textContent = text;
+        }
+
+        function appendOutput(text) {
+            output.textContent += text;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function setOutput(text) {
+            output.textContent = text;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function initEmulator() {
+            updateStatus('booting', 'Loading emulator...');
+
+            try {
+                emulator = new V86({
+                    wasm_path: 'https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm',
+                    memory_size: 64 * 1024 * 1024,
+                    vga_memory_size: 2 * 1024 * 1024,
+                    screen_container: screenContainer,
+                    bios: {
+                        url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin'
+                    },
+                    vga_bios: {
+                        url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin'
+                    },
+                    bzimage: {
+                        url: 'https://i.copy.sh/buildroot-bzimage68.bin'
+                    },
+                    autostart: true,
+                    disable_keyboard: true,
+                    disable_mouse: true
+                });
+
+                updateStatus('booting', 'Booting Linux...');
+
+                emulator.add_listener('serial0-output-byte', function(byte) {
+                    const char = String.fromCharCode(byte);
+                    outputBuffer += char;
+
+                    if (waitingForOutput) {
+                        commandOutput += char;
+
+                        if (commandOutput.includes(commandEndMarker)) {
+                            waitingForOutput = false;
+                            let result = commandOutput
+                                .replace(currentCommand + '\n', '')
+                                .replace(commandEndMarker + '\n', '')
+                                .replace('echo ' + commandEndMarker + '\n', '')
+                                .replace(/\n$/, '');
+
+                            if (result.trim()) {
+                                appendOutput(result + '\n');
+                            }
+
+                            commandInput.disabled = false;
+                            runBtn.disabled = false;
+                            commandInput.focus();
+                        }
+                    }
+
+                    // Detect when boot is complete (shell prompt appears)
+                    if (!isReady && outputBuffer.includes('~ #')) {
+                        isReady = true;
+                        updateStatus('ready', 'Linux is ready');
+                        commandInput.disabled = false;
+                        runBtn.disabled = false;
+                        setOutput('Linux booted successfully. Enter a command above.\n\n');
+                        commandInput.focus();
+                    }
+                });
+
+                emulator.add_listener('emulator-started', function() {
+                    updateStatus('booting', 'Emulator started, booting Linux...');
+                });
+
+            } catch (error) {
+                updateStatus('', 'Error: ' + error.message);
+                console.error('Failed to initialize emulator:', error);
+            }
+        }
+
+        function sendCommand(cmd) {
+            if (!emulator || !isReady) return;
+
+            currentCommand = cmd;
+            commandOutput = '';
+            waitingForOutput = true;
+
+            appendOutput('$ ' + cmd + '\n');
+
+            commandInput.disabled = true;
+            runBtn.disabled = true;
+
+            // Send command with an end marker to detect completion
+            const fullCommand = cmd + '; echo ' + commandEndMarker + '\n';
+            emulator.serial0_send(fullCommand);
+        }
+
+        runBtn.addEventListener('click', function() {
+            const cmd = commandInput.value.trim();
+            if (cmd) {
+                sendCommand(cmd);
+                commandInput.value = '';
+            }
+        });
+
+        commandInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const cmd = commandInput.value.trim();
+                if (cmd) {
+                    sendCommand(cmd);
+                    commandInput.value = '';
+                }
+            }
+        });
+
+        clearBtn.addEventListener('click', function() {
+            setOutput('');
+        });
+
+        toggleScreenBtn.addEventListener('click', function() {
+            const isVisible = screenContainer.classList.toggle('visible');
+            toggleScreenBtn.textContent = isVisible ? 'Hide VGA Screen' : 'Show VGA Screen';
+        });
+
+        // Start the emulator
+        initEmulator();
+    </script>
+</body>
+</html>
