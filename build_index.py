@@ -272,6 +272,67 @@ def build_index() -> None:
             border-top: 1px solid #ccc;
             font-size: 0.9em;
         }}
+        .settings-section {{
+            margin-top: 2em;
+            padding-top: 1em;
+            border-top: 1px solid #ccc;
+        }}
+        .settings-section h2 {{
+            margin-top: 0;
+        }}
+        .toggle-container {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 1em 0;
+        }}
+        .toggle-switch {{
+            position: relative;
+            width: 50px;
+            height: 26px;
+            flex-shrink: 0;
+        }}
+        .toggle-switch input {{
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }}
+        .toggle-slider {{
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 26px;
+        }}
+        .toggle-slider:before {{
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }}
+        .toggle-switch input:checked + .toggle-slider {{
+            background-color: #0066cc;
+        }}
+        .toggle-switch input:checked + .toggle-slider:before {{
+            transform: translateX(24px);
+        }}
+        .toggle-label {{
+            font-weight: 500;
+        }}
+        .toggle-description {{
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 0.5em;
+        }}
     </style>
 </head>
 <body>
@@ -280,7 +341,39 @@ def build_index() -> None:
 </nav>
 <section class="body">
 {body_html}
+<div class="settings-section">
+    <h2>Settings</h2>
+    <div class="toggle-container">
+        <label class="toggle-switch">
+            <input type="checkbox" id="page-weight-toggle">
+            <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label">Show page weight badge</span>
+    </div>
+    <p class="toggle-description">
+        When enabled, a badge showing page weight and number of requests will appear
+        in the bottom-right corner of every page on this site. Click the badge to see
+        detailed information about resource sizes and load times.
+    </p>
+</div>
 </section>
+<script>
+(function() {{
+    const toggle = document.getElementById('page-weight-toggle');
+    const STORAGE_KEY = 'PAGE_WEIGHT';
+
+    // Initialize toggle state from localStorage
+    toggle.checked = localStorage.getItem(STORAGE_KEY) !== null;
+
+    toggle.addEventListener('change', function() {{
+        if (this.checked) {{
+            localStorage.setItem(STORAGE_KEY, '1');
+        }} else {{
+            localStorage.removeItem(STORAGE_KEY);
+        }}
+    }});
+}})();
+</script>
 </body>
 </html>
 """
