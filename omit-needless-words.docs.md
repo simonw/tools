@@ -1,5 +1,5 @@
 # Documentation
 
-Analyze written text to identify words and phrases that can be removed without changing meaning or grammatical correctness. This tool uses Claude to apply the editing principle "Omit needless words" from Strunk & White's classic style guide, marking removable content like filler words, redundant modifiers, and wordy phrases. Choose from multiple Claude models and customize the system prompt to refine the editing criteria for your specific needs.
+Analyze written text to identify unnecessary words and phrases that could be removed without changing meaning, following the principle from Strunk & White's "Elements of Style." The tool uses Claude to mark omissible words with strikethrough formatting while preserving grammar and intent. You can customize the analysis prompt, choose between different Claude models, and view detailed streaming statistics to understand how the API processes your text.
 
-<!-- Generated from commit: 47b07010e3459adb23e154dde653c4a7991f7e12 -->
+<!-- Generated from commit: cad13cd799f4ee2034fc7fdb7b6f4d087f0eeb65 -->
