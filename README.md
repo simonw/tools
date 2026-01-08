@@ -12,6 +12,7 @@ The code lives in [javdl/tools](https://github.com/javdl/tools).
 <!-- recently stops -->
 
 ## Image and media
+- [Image metadata stripper](https://tools.joostvanderlaan.nl/image-metadata-stripper) remove EXIF, GPS, and other metadata from images
 - [Social media cropper](https://tools.joostvanderlaan.nl/social-media-cropper) crop images to 2×1 for social sharing
 - [Image resize and quality comparison](https://tools.joostvanderlaan.nl/image-resize-quality) compare JPEG quality settings
 - [Image to JPEG](https://tools.joostvanderlaan.nl/image-to-jpeg) convert PNG or WebP files to JPEG
