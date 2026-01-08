@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Metadata Stripper - Remove EXIF Data</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 24px;
+        }
+        .dropzone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            background: #fff;
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        .dropzone:hover,
+        .dropzone.drag-over {
+            border-color: #007bff;
+            background: #f0f7ff;
+        }
+        .dropzone-text {
+            color: #666;
+            font-size: 16px;
+        }
+        .dropzone-text strong {
+            color: #007bff;
+        }
+        .file-input {
+            display: none;
+        }
+        .results {
+            margin-top: 24px;
+            display: none;
+        }
+        .results.visible {
+            display: block;
+        }
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .results-header h2 {
+            margin: 0;
+            color: #333;
+        }
+        .download-all-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .download-all-btn:hover {
+            background: #218838;
+        }
+        .download-all-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .image-list {
+            display: grid;
+            gap: 16px;
+        }
+        .image-item {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            display: grid;
+            grid-template-columns: 120px 1fr auto;
+            gap: 16px;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .image-preview {
+            width: 120px;
+            height: 80px;
+            object-fit: contain;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+        .image-info {
+            min-width: 0;
+        }
+        .image-name {
+            font-weight: 600;
+            color: #333;
+            word-break: break-all;
+            margin-bottom: 4px;
+        }
+        .image-sizes {
+            font-size: 13px;
+            color: #666;
+        }
+        .size-reduction {
+            color: #28a745;
+            font-weight: 500;
+        }
+        .size-increase {
+            color: #dc3545;
+            font-weight: 500;
+        }
+        .image-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .download-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        .download-btn:hover {
+            background: #0056b3;
+        }
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .remove-btn:hover {
+            background: #c82333;
+        }
+        .clear-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .clear-btn:hover {
+            background: #5a6268;
+        }
+        .processing {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .processing.visible {
+            display: block;
+        }
+        .error {
+            background: #fef5f5;
+            color: #e74c3c;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 16px;
+            display: none;
+        }
+        .error.visible {
+            display: block;
+        }
+        .format-options {
+            margin-top: 16px;
+            padding: 16px;
+            background: #fff;
+            border-radius: 8px;
+        }
+        .format-options label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        .format-row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .format-row select,
+        .format-row input {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .format-row select {
+            min-width: 120px;
+        }
+        .quality-input {
+            width: 80px;
+        }
+        .quality-label {
+            font-size: 13px;
+            color: #666;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .image-item {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+            .image-preview {
+                width: 100%;
+                height: 120px;
+            }
+            .image-actions {
+                flex-direction: row;
+                justify-content: center;
+            }
+            .results-header {
+                flex-direction: column;
+                gap: 12px;
+            }
+            .format-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Metadata Stripper</h1>
+    <p class="subtitle">Remove EXIF data, GPS location, camera info, and other metadata from images. All processing happens locally in your browser - no uploads to any server.</p>
+
+    <div class="format-options">
+        <label>Output Format & Quality</label>
+        <div class="format-row">
+            <select id="output-format">
+                <option value="original">Keep Original</option>
+                <option value="image/jpeg">JPEG</option>
+                <option value="image/png">PNG</option>
+                <option value="image/webp">WebP</option>
+            </select>
+            <input type="number" id="quality" class="quality-input" min="1" max="100" value="92">
+            <span class="quality-label">% quality (JPEG/WebP)</span>
+        </div>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+        <p class="dropzone-text">
+            <strong>Click to select images</strong> or drag and drop here<br>
+            <small>Supports JPEG, PNG, WebP, GIF, BMP</small>
+        </p>
+    </div>
+    <input type="file" id="file-input" class="file-input" accept="image/*" multiple>
+
+    <div class="processing" id="processing">
+        Processing images...
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <div class="results" id="results">
+        <div class="results-header">
+            <h2>Processed Images</h2>
+            <div>
+                <button class="clear-btn" id="clear-btn">Clear All</button>
+                <button class="download-all-btn" id="download-all-btn">Download All</button>
+            </div>
+        </div>
+        <div class="image-list" id="image-list"></div>
+    </div>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('file-input');
+        const results = document.getElementById('results');
+        const imageList = document.getElementById('image-list');
+        const processing = document.getElementById('processing');
+        const errorDiv = document.getElementById('error');
+        const downloadAllBtn = document.getElementById('download-all-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const outputFormat = document.getElementById('output-format');
+        const qualityInput = document.getElementById('quality');
+
+        let processedImages = [];
+
+        // Click to select files
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        // Drag and drop handlers
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('drag-over');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('drag-over');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+            fileInput.value = ''; // Reset to allow selecting same file again
+        });
+
+        // Download all button
+        downloadAllBtn.addEventListener('click', downloadAll);
+
+        // Clear all button
+        clearBtn.addEventListener('click', () => {
+            processedImages = [];
+            imageList.innerHTML = '';
+            results.classList.remove('visible');
+        });
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function getMimeType(file) {
+            const format = outputFormat.value;
+            if (format === 'original') {
+                // Keep original format, but default to JPEG for unknown types
+                if (file.type && file.type.startsWith('image/')) {
+                    return file.type;
+                }
+                return 'image/jpeg';
+            }
+            return format;
+        }
+
+        function getExtension(mimeType) {
+            const extensions = {
+                'image/jpeg': '.jpg',
+                'image/png': '.png',
+                'image/webp': '.webp',
+                'image/gif': '.png', // GIF loses animation, convert to PNG
+                'image/bmp': '.png'  // Convert BMP to PNG
+            };
+            return extensions[mimeType] || '.jpg';
+        }
+
+        function getNewFilename(originalName, mimeType) {
+            const baseName = originalName.replace(/\.[^/.]+$/, '');
+            const extension = getExtension(mimeType);
+            return baseName + '_clean' + extension;
+        }
+
+        async function handleFiles(files) {
+            const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+
+            if (imageFiles.length === 0) {
+                showError('Please select valid image files.');
+                return;
+            }
+
+            hideError();
+            processing.classList.add('visible');
+
+            for (const file of imageFiles) {
+                try {
+                    await processImage(file);
+                } catch (err) {
+                    console.error('Error processing', file.name, err);
+                    showError(`Error processing ${file.name}: ${err.message}`);
+                }
+            }
+
+            processing.classList.remove('visible');
+
+            if (processedImages.length > 0) {
+                results.classList.add('visible');
+            }
+        }
+
+        function processImage(file) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    img.onload = () => {
+                        try {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.naturalWidth;
+                            canvas.height = img.naturalHeight;
+
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
+
+                            const mimeType = getMimeType(file);
+                            const quality = parseInt(qualityInput.value) / 100;
+
+                            canvas.toBlob((blob) => {
+                                if (!blob) {
+                                    reject(new Error('Failed to process image'));
+                                    return;
+                                }
+
+                                const newFilename = getNewFilename(file.name, mimeType);
+                                const processedFile = new File([blob], newFilename, { type: mimeType });
+
+                                const imageData = {
+                                    original: {
+                                        name: file.name,
+                                        size: file.size
+                                    },
+                                    processed: {
+                                        file: processedFile,
+                                        name: newFilename,
+                                        size: blob.size,
+                                        url: URL.createObjectURL(blob)
+                                    }
+                                };
+
+                                processedImages.push(imageData);
+                                addImageToList(imageData);
+                                resolve();
+                            }, mimeType, quality);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+
+                    img.onerror = () => reject(new Error('Failed to load image'));
+                    img.src = e.target.result;
+                };
+
+                reader.onerror = () => reject(new Error('Failed to read file'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function addImageToList(imageData) {
+            const item = document.createElement('div');
+            item.className = 'image-item';
+
+            const sizeDiff = imageData.original.size - imageData.processed.size;
+            const percentChange = ((sizeDiff / imageData.original.size) * 100).toFixed(1);
+
+            let sizeChangeHtml;
+            if (sizeDiff > 0) {
+                sizeChangeHtml = `<span class="size-reduction">-${formatBytes(sizeDiff)} (${percentChange}% smaller)</span>`;
+            } else if (sizeDiff < 0) {
+                sizeChangeHtml = `<span class="size-increase">+${formatBytes(Math.abs(sizeDiff))} (${Math.abs(percentChange)}% larger)</span>`;
+            } else {
+                sizeChangeHtml = `<span>Same size</span>`;
+            }
+
+            item.innerHTML = `
+                <img src="${imageData.processed.url}" class="image-preview" alt="${imageData.processed.name}">
+                <div class="image-info">
+                    <div class="image-name">${imageData.processed.name}</div>
+                    <div class="image-sizes">
+                        Original: ${formatBytes(imageData.original.size)} &rarr;
+                        Clean: ${formatBytes(imageData.processed.size)}<br>
+                        ${sizeChangeHtml}
+                    </div>
+                </div>
+                <div class="image-actions">
+                    <button class="download-btn" data-index="${processedImages.length - 1}">Download</button>
+                    <button class="remove-btn" data-index="${processedImages.length - 1}">Remove</button>
+                </div>
+            `;
+
+            // Download button
+            item.querySelector('.download-btn').addEventListener('click', (e) => {
+                const index = parseInt(e.target.dataset.index);
+                downloadImage(processedImages[index]);
+            });
+
+            // Remove button
+            item.querySelector('.remove-btn').addEventListener('click', (e) => {
+                const index = parseInt(e.target.dataset.index);
+                URL.revokeObjectURL(processedImages[index].processed.url);
+                item.remove();
+                processedImages[index] = null;
+
+                // Check if all removed
+                if (processedImages.every(img => img === null)) {
+                    processedImages = [];
+                    results.classList.remove('visible');
+                }
+            });
+
+            imageList.appendChild(item);
+        }
+
+        function downloadImage(imageData) {
+            const a = document.createElement('a');
+            a.href = imageData.processed.url;
+            a.download = imageData.processed.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function downloadAll() {
+            const validImages = processedImages.filter(img => img !== null);
+            if (validImages.length === 0) return;
+
+            if (validImages.length === 1) {
+                downloadImage(validImages[0]);
+                return;
+            }
+
+            // Download each with a small delay to prevent browser blocking
+            validImages.forEach((img, index) => {
+                setTimeout(() => downloadImage(img), index * 200);
+            });
+        }
+
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.add('visible');
+        }
+
+        function hideError() {
+            errorDiv.classList.remove('visible');
+        }
+    </script>
+</body>
+</html>
