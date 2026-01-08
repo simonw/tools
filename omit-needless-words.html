@@ -802,7 +802,8 @@ analyzeBtn.addEventListener('click', async () => {
 async function analyzeTextStream(text, apiKey) {
   // Get the current prompt template and substitute the text
   const promptTemplate = getCurrentPrompt();
-  const prompt = promptTemplate.replace('${text}', text);
+  // Use a function to avoid special replacement patterns ($&, $', etc.) being interpreted
+  const prompt = promptTemplate.replace('${text}', () => text);
 
   // Get the selected model
   const selectedModel = modelSelect.value;
@@ -869,12 +870,12 @@ async function analyzeTextStream(text, apiKey) {
 
           if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
             streamStats.textDeltaEvents++;
-            const text = event.delta.text;
-            fullText += text;
+            const deltaText = event.delta.text;
+            fullText += deltaText;
             streamStats.totalTextLength = fullText.length;
             debugRawText.textContent = fullText;
             renderText(fullText);
-            log(`Text delta: +${text.length} chars`, 'data');
+            log(`Text delta: +${deltaText.length} chars`, 'data');
           }
         } catch (e) {
           streamStats.parseErrors++;
@@ -899,13 +900,18 @@ function renderText(text) {
 
 function updateStats(originalText) {
   const delElements = resultBox.querySelectorAll('del');
-  const omittedWords = delElements.length;
+  // Count actual words inside all <del> tags, not just the number of tags
+  let omittedWords = 0;
+  delElements.forEach(el => {
+    const words = el.textContent.split(/\s+/).filter(w => w.length > 0);
+    omittedWords += words.length;
+  });
   const originalWordCount = originalText.split(/\s+/).filter(w => w.length > 0).length;
   const percentage = originalWordCount > 0 ? ((omittedWords / originalWordCount) * 100).toFixed(1) : 0;
-  
+
   stats.innerHTML = `<strong>${omittedWords}</strong> word${omittedWords !== 1 ? 's' : ''} marked for omission out of <strong>${originalWordCount}</strong> total words (${percentage}% reduction)`;
   stats.classList.remove('hidden');
-  
+
   log(`Final stats: ${omittedWords} words marked for omission out of ${originalWordCount} total`, 'success');
 }
 
