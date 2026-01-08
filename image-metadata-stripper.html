@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Metadata Stripper - Remove EXIF Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -31,6 +32,7 @@
             background: #fff;
             cursor: pointer;
             transition: border-color 0.2s, background-color 0.2s;
+            margin-top: 16px;
         }
         .dropzone:hover,
         .dropzone.drag-over {
@@ -114,6 +116,17 @@
             font-size: 13px;
             color: #666;
         }
+        .image-method {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+        .method-lossless {
+            color: #28a745;
+        }
+        .method-reencoded {
+            color: #fd7e14;
+        }
         .size-reduction {
             color: #28a745;
             font-weight: 500;
@@ -184,40 +197,26 @@
         .error.visible {
             display: block;
         }
-        .format-options {
-            margin-top: 16px;
-            padding: 16px;
-            background: #fff;
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #b3d7ff;
             border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
         }
-        .format-options label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 500;
-        }
-        .format-row {
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .format-row select,
-        .format-row input {
-            padding: 8px 12px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+        .info-box h3 {
+            margin: 0 0 8px 0;
+            color: #0056b3;
             font-size: 14px;
         }
-        .format-row select {
-            min-width: 120px;
-        }
-        .quality-input {
-            width: 80px;
-        }
-        .quality-label {
+        .info-box ul {
+            margin: 0;
+            padding-left: 20px;
             font-size: 13px;
-            color: #666;
+            color: #333;
+        }
+        .info-box li {
+            margin-bottom: 4px;
         }
         @media (max-width: 600px) {
             body {
@@ -242,29 +241,20 @@
                 flex-direction: column;
                 gap: 12px;
             }
-            .format-row {
-                flex-direction: column;
-                align-items: stretch;
-            }
         }
     </style>
 </head>
 <body>
     <h1>Image Metadata Stripper</h1>
-    <p class="subtitle">Remove EXIF data, GPS location, camera info, and other metadata from images. All processing happens locally in your browser - no uploads to any server.</p>
+    <p class="subtitle">Remove EXIF data, GPS location, camera info, and other metadata from images. All processing happens locally in your browser.</p>
 
-    <div class="format-options">
-        <label>Output Format & Quality</label>
-        <div class="format-row">
-            <select id="output-format">
-                <option value="original">Keep Original</option>
-                <option value="image/jpeg">JPEG</option>
-                <option value="image/png">PNG</option>
-                <option value="image/webp">WebP</option>
-            </select>
-            <input type="number" id="quality" class="quality-input" min="1" max="100" value="92">
-            <span class="quality-label">% quality (JPEG/WebP)</span>
-        </div>
+    <div class="info-box">
+        <h3>How it works</h3>
+        <ul>
+            <li><strong>JPEG:</strong> Lossless removal using <a href="https://github.com/hMatoba/piexifjs">piexifjs</a> - strips EXIF without re-encoding</li>
+            <li><strong>PNG:</strong> Lossless chunk filtering - removes metadata chunks while preserving image data</li>
+            <li><strong>Other formats:</strong> Re-encoded via canvas (may affect quality)</li>
+        </ul>
     </div>
 
     <div class="dropzone" id="dropzone">
@@ -301,8 +291,6 @@
         const errorDiv = document.getElementById('error');
         const downloadAllBtn = document.getElementById('download-all-btn');
         const clearBtn = document.getElementById('clear-btn');
-        const outputFormat = document.getElementById('output-format');
-        const qualityInput = document.getElementById('quality');
 
         let processedImages = [];
 
@@ -328,7 +316,7 @@
         // File input change
         fileInput.addEventListener('change', (e) => {
             handleFiles(e.target.files);
-            fileInput.value = ''; // Reset to allow selecting same file again
+            fileInput.value = '';
         });
 
         // Download all button
@@ -336,6 +324,9 @@
 
         // Clear all button
         clearBtn.addEventListener('click', () => {
+            processedImages.forEach(img => {
+                if (img) URL.revokeObjectURL(img.processed.url);
+            });
             processedImages = [];
             imageList.innerHTML = '';
             results.classList.remove('visible');
@@ -349,33 +340,10 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        function getMimeType(file) {
-            const format = outputFormat.value;
-            if (format === 'original') {
-                // Keep original format, but default to JPEG for unknown types
-                if (file.type && file.type.startsWith('image/')) {
-                    return file.type;
-                }
-                return 'image/jpeg';
-            }
-            return format;
-        }
-
-        function getExtension(mimeType) {
-            const extensions = {
-                'image/jpeg': '.jpg',
-                'image/png': '.png',
-                'image/webp': '.webp',
-                'image/gif': '.png', // GIF loses animation, convert to PNG
-                'image/bmp': '.png'  // Convert BMP to PNG
-            };
-            return extensions[mimeType] || '.jpg';
-        }
-
-        function getNewFilename(originalName, mimeType) {
-            const baseName = originalName.replace(/\.[^/.]+$/, '');
-            const extension = getExtension(mimeType);
-            return baseName + '_clean' + extension;
+        function getNewFilename(originalName) {
+            const lastDot = originalName.lastIndexOf('.');
+            if (lastDot === -1) return originalName + '_clean';
+            return originalName.substring(0, lastDot) + '_clean' + originalName.substring(lastDot);
         }
 
         async function handleFiles(files) {
@@ -405,53 +373,103 @@
             }
         }
 
-        function processImage(file) {
+        // PNG chunk-based metadata removal (lossless)
+        function stripPngMetadata(arrayBuffer) {
+            const data = new Uint8Array(arrayBuffer);
+
+            // Verify PNG signature
+            const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
+            for (let i = 0; i < 8; i++) {
+                if (data[i] !== pngSignature[i]) {
+                    throw new Error('Invalid PNG file');
+                }
+            }
+
+            // Critical chunks that must be preserved
+            const criticalChunks = new Set(['IHDR', 'PLTE', 'IDAT', 'IEND', 'tRNS', 'cHRM', 'gAMA', 'iCCP', 'sBIT', 'sRGB', 'bKGD', 'hIST', 'pHYs', 'sPLT']);
+
+            // Metadata chunks to remove
+            const metadataChunks = new Set(['tEXt', 'zTXt', 'iTXt', 'eXIf', 'tIME']);
+
+            const outputChunks = [];
+            outputChunks.push(data.slice(0, 8)); // PNG signature
+
+            let offset = 8;
+            while (offset < data.length) {
+                // Read chunk length (4 bytes, big-endian)
+                const length = (data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3];
+
+                // Read chunk type (4 bytes)
+                const type = String.fromCharCode(data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]);
+
+                // Total chunk size: 4 (length) + 4 (type) + length (data) + 4 (CRC)
+                const chunkSize = 12 + length;
+
+                // Keep chunk if it's critical or not a known metadata chunk
+                if (criticalChunks.has(type) || !metadataChunks.has(type)) {
+                    // For unknown ancillary chunks (lowercase first letter), we could optionally remove them too
+                    // But we'll be conservative and only remove known metadata chunks
+                    const isAncillary = type.charCodeAt(0) >= 97; // lowercase = ancillary
+                    if (!isAncillary || !metadataChunks.has(type)) {
+                        outputChunks.push(data.slice(offset, offset + chunkSize));
+                    }
+                }
+
+                offset += chunkSize;
+
+                if (type === 'IEND') break;
+            }
+
+            // Concatenate all chunks
+            const totalLength = outputChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+            const result = new Uint8Array(totalLength);
+            let pos = 0;
+            for (const chunk of outputChunks) {
+                result.set(chunk, pos);
+                pos += chunk.length;
+            }
+
+            return result;
+        }
+
+        // JPEG metadata removal using piexifjs (lossless)
+        function stripJpegMetadata(dataUrl) {
+            try {
+                return piexif.remove(dataUrl);
+            } catch (e) {
+                console.warn('piexifjs failed, will use canvas fallback:', e);
+                return null;
+            }
+        }
+
+        // Canvas-based fallback (re-encodes image)
+        function stripViaCanvas(file) {
             return new Promise((resolve, reject) => {
                 const img = new Image();
                 const reader = new FileReader();
 
                 reader.onload = (e) => {
                     img.onload = () => {
-                        try {
-                            const canvas = document.createElement('canvas');
-                            canvas.width = img.naturalWidth;
-                            canvas.height = img.naturalHeight;
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth;
+                        canvas.height = img.naturalHeight;
 
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(img, 0, 0);
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
 
-                            const mimeType = getMimeType(file);
-                            const quality = parseInt(qualityInput.value) / 100;
-
-                            canvas.toBlob((blob) => {
-                                if (!blob) {
-                                    reject(new Error('Failed to process image'));
-                                    return;
-                                }
-
-                                const newFilename = getNewFilename(file.name, mimeType);
-                                const processedFile = new File([blob], newFilename, { type: mimeType });
-
-                                const imageData = {
-                                    original: {
-                                        name: file.name,
-                                        size: file.size
-                                    },
-                                    processed: {
-                                        file: processedFile,
-                                        name: newFilename,
-                                        size: blob.size,
-                                        url: URL.createObjectURL(blob)
-                                    }
-                                };
-
-                                processedImages.push(imageData);
-                                addImageToList(imageData);
-                                resolve();
-                            }, mimeType, quality);
-                        } catch (err) {
-                            reject(err);
+                        // Determine output type
+                        let mimeType = file.type;
+                        if (!mimeType || mimeType === 'image/gif' || mimeType === 'image/bmp') {
+                            mimeType = 'image/png';
                         }
+
+                        canvas.toBlob((blob) => {
+                            if (!blob) {
+                                reject(new Error('Failed to process image'));
+                                return;
+                            }
+                            resolve({ blob, method: 'reencoded' });
+                        }, mimeType, 0.92);
                     };
 
                     img.onerror = () => reject(new Error('Failed to load image'));
@@ -461,6 +479,79 @@
                 reader.onerror = () => reject(new Error('Failed to read file'));
                 reader.readAsDataURL(file);
             });
+        }
+
+        async function processImage(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            let resultBlob;
+            let method;
+
+            if (file.type === 'image/png') {
+                // PNG: lossless chunk filtering
+                try {
+                    const strippedData = stripPngMetadata(arrayBuffer);
+                    resultBlob = new Blob([strippedData], { type: 'image/png' });
+                    method = 'lossless';
+                } catch (e) {
+                    console.warn('PNG chunk filtering failed, using canvas:', e);
+                    const result = await stripViaCanvas(file);
+                    resultBlob = result.blob;
+                    method = 'reencoded';
+                }
+            } else if (file.type === 'image/jpeg') {
+                // JPEG: use piexifjs for lossless removal
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+
+                const strippedDataUrl = stripJpegMetadata(dataUrl);
+
+                if (strippedDataUrl) {
+                    // Convert data URL back to blob
+                    const base64 = strippedDataUrl.split(',')[1];
+                    const binary = atob(base64);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) {
+                        bytes[i] = binary.charCodeAt(i);
+                    }
+                    resultBlob = new Blob([bytes], { type: 'image/jpeg' });
+                    method = 'lossless';
+                } else {
+                    // Fallback to canvas
+                    const result = await stripViaCanvas(file);
+                    resultBlob = result.blob;
+                    method = 'reencoded';
+                }
+            } else {
+                // Other formats: canvas re-encoding
+                const result = await stripViaCanvas(file);
+                resultBlob = result.blob;
+                method = 'reencoded';
+            }
+
+            const newFilename = getNewFilename(file.name);
+            const url = URL.createObjectURL(resultBlob);
+
+            const imageData = {
+                original: {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type
+                },
+                processed: {
+                    blob: resultBlob,
+                    name: newFilename,
+                    size: resultBlob.size,
+                    url: url,
+                    method: method
+                }
+            };
+
+            processedImages.push(imageData);
+            addImageToList(imageData);
         }
 
         function addImageToList(imageData) {
@@ -479,6 +570,11 @@
                 sizeChangeHtml = `<span>Same size</span>`;
             }
 
+            const methodClass = imageData.processed.method === 'lossless' ? 'method-lossless' : 'method-reencoded';
+            const methodText = imageData.processed.method === 'lossless'
+                ? 'Lossless (metadata stripped without re-encoding)'
+                : 'Re-encoded via canvas (may affect quality)';
+
             item.innerHTML = `
                 <img src="${imageData.processed.url}" class="image-preview" alt="${imageData.processed.name}">
                 <div class="image-info">
@@ -488,6 +584,7 @@
                         Clean: ${formatBytes(imageData.processed.size)}<br>
                         ${sizeChangeHtml}
                     </div>
+                    <div class="image-method ${methodClass}">${methodText}</div>
                 </div>
                 <div class="image-actions">
                     <button class="download-btn" data-index="${processedImages.length - 1}">Download</button>
@@ -495,20 +592,17 @@
                 </div>
             `;
 
-            // Download button
             item.querySelector('.download-btn').addEventListener('click', (e) => {
                 const index = parseInt(e.target.dataset.index);
                 downloadImage(processedImages[index]);
             });
 
-            // Remove button
             item.querySelector('.remove-btn').addEventListener('click', (e) => {
                 const index = parseInt(e.target.dataset.index);
                 URL.revokeObjectURL(processedImages[index].processed.url);
                 item.remove();
                 processedImages[index] = null;
 
-                // Check if all removed
                 if (processedImages.every(img => img === null)) {
                     processedImages = [];
                     results.classList.remove('visible');
@@ -536,7 +630,6 @@
                 return;
             }
 
-            // Download each with a small delay to prevent browser blocking
             validImages.forEach((img, index) => {
                 setTimeout(() => downloadImage(img), index * 200);
             });
