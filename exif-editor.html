@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EXIF Editor - View and Edit Image Metadata</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 24px;
+        }
+        .dropzone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            background: #fff;
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        .dropzone:hover,
+        .dropzone.drag-over {
+            border-color: #007bff;
+            background: #f0f7ff;
+        }
+        .dropzone-text {
+            color: #666;
+            font-size: 16px;
+        }
+        .dropzone-text strong {
+            color: #007bff;
+        }
+        .file-input {
+            display: none;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .loading.visible {
+            display: block;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .error {
+            background: #fef5f5;
+            color: #e74c3c;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 16px;
+            display: none;
+        }
+        .error.visible {
+            display: block;
+        }
+        .editor {
+            display: none;
+            margin-top: 24px;
+        }
+        .editor.visible {
+            display: block;
+        }
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .editor-header h2 {
+            margin: 0;
+            color: #333;
+        }
+        .button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #218838;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        .content-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 24px;
+        }
+        .preview-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .preview-section h3 {
+            margin: 0 0 12px 0;
+            color: #333;
+            font-size: 14px;
+        }
+        .image-preview {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+        .file-info {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #666;
+        }
+        .metadata-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 8px 16px;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+            font-size: 13px;
+            color: #666;
+        }
+        .tab.active {
+            background: #007bff;
+            color: white;
+        }
+        .tab:hover:not(.active) {
+            background: #e0e0e0;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .metadata-group {
+            margin-bottom: 16px;
+        }
+        .metadata-group-header {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            cursor: pointer;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .metadata-group-header h4 {
+            margin: 0;
+            font-size: 14px;
+            color: #333;
+            flex: 1;
+        }
+        .metadata-group-header .toggle {
+            color: #666;
+            font-size: 12px;
+        }
+        .metadata-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+        .metadata-table th,
+        .metadata-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .metadata-table th {
+            width: 40%;
+            color: #666;
+            font-weight: 500;
+        }
+        .metadata-table td {
+            color: #333;
+            word-break: break-all;
+        }
+        .edit-form {
+            display: grid;
+            gap: 16px;
+        }
+        .form-group {
+            display: grid;
+            gap: 4px;
+        }
+        .form-group label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+        }
+        .form-group input,
+        .form-group textarea {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        .form-group small {
+            color: #888;
+            font-size: 12px;
+        }
+        .raw-json {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #b3d7ff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+        .info-box strong {
+            color: #0056b3;
+        }
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: #856404;
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+            .editor-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .button-group {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>EXIF Editor</h1>
+    <p class="subtitle">View and edit image metadata using ExifTool in WebAssembly. All processing happens locally in your browser.</p>
+
+    <div class="info-box">
+        <strong>Powered by ExifTool 13.42 via WebAssembly.</strong>
+        Supports JPEG, PNG, TIFF, WebP, HEIC, and many other formats.
+        First load may take a few seconds to initialize the WASM runtime.
+    </div>
+
+    <div class="dropzone" id="dropzone">
+        <p class="dropzone-text">
+            <strong>Click to select an image</strong> or drag and drop here<br>
+            <small>Supports JPEG, PNG, TIFF, WebP, HEIC, and more</small>
+        </p>
+    </div>
+    <input type="file" id="file-input" class="file-input" accept="image/*">
+
+    <div class="loading" id="loading">
+        <div class="loading-spinner"></div>
+        <div id="loading-text">Loading ExifTool WebAssembly...</div>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <div class="editor" id="editor">
+        <div class="editor-header">
+            <h2>Image Metadata</h2>
+            <div class="button-group">
+                <button class="btn btn-secondary" id="new-file-btn">Load New Image</button>
+                <button class="btn btn-success" id="save-btn">Save Changes</button>
+            </div>
+        </div>
+
+        <div class="content-grid">
+            <div class="preview-section">
+                <h3>Preview</h3>
+                <img id="image-preview" class="image-preview" alt="Preview">
+                <div class="file-info" id="file-info"></div>
+            </div>
+
+            <div class="metadata-section">
+                <div class="tabs">
+                    <button class="tab active" data-tab="edit">Edit</button>
+                    <button class="tab" data-tab="view">View All</button>
+                    <button class="tab" data-tab="raw">Raw JSON</button>
+                </div>
+
+                <div class="tab-content active" id="tab-edit">
+                    <div class="warning-box" id="edit-warning" style="display: none;">
+                        Note: Some metadata fields may not be writable for this file type.
+                    </div>
+                    <div class="edit-form" id="edit-form">
+                        <div class="form-group">
+                            <label for="edit-title">Title</label>
+                            <input type="text" id="edit-title" placeholder="Image title">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-author">Author / Artist</label>
+                            <input type="text" id="edit-author" placeholder="Creator name">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-copyright">Copyright</label>
+                            <input type="text" id="edit-copyright" placeholder="Copyright notice">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-description">Description</label>
+                            <textarea id="edit-description" placeholder="Image description"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-keywords">Keywords</label>
+                            <input type="text" id="edit-keywords" placeholder="Comma-separated keywords">
+                            <small>Separate multiple keywords with commas</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-comment">Comment</label>
+                            <textarea id="edit-comment" placeholder="Additional comments"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-view">
+                    <div id="metadata-view"></div>
+                </div>
+
+                <div class="tab-content" id="tab-raw">
+                    <pre class="raw-json" id="raw-json"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        let parseMetadata, writeMetadata;
+        let currentFile = null;
+        let currentMetadata = null;
+        let exiftoolReady = false;
+
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('file-input');
+        const loading = document.getElementById('loading');
+        const loadingText = document.getElementById('loading-text');
+        const errorDiv = document.getElementById('error');
+        const editor = document.getElementById('editor');
+        const imagePreview = document.getElementById('image-preview');
+        const fileInfo = document.getElementById('file-info');
+        const metadataView = document.getElementById('metadata-view');
+        const rawJson = document.getElementById('raw-json');
+        const saveBtn = document.getElementById('save-btn');
+        const newFileBtn = document.getElementById('new-file-btn');
+
+        // Tab handling
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Initialize ExifTool
+        async function initExifTool() {
+            try {
+                loading.classList.add('visible');
+                loadingText.textContent = 'Loading ExifTool WebAssembly...';
+
+                const module = await import('https://esm.sh/@uswriting/exiftool@0.3.1');
+                parseMetadata = module.parseMetadata;
+                writeMetadata = module.writeMetadata;
+
+                exiftoolReady = true;
+                loading.classList.remove('visible');
+            } catch (err) {
+                console.error('Failed to load ExifTool:', err);
+                showError('Failed to load ExifTool WebAssembly: ' + err.message);
+                loading.classList.remove('visible');
+            }
+        }
+
+        // Start loading ExifTool immediately
+        initExifTool();
+
+        // Drag and drop handlers
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('drag-over');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('drag-over');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+            fileInput.value = '';
+        });
+
+        newFileBtn.addEventListener('click', () => {
+            editor.classList.remove('visible');
+            dropzone.style.display = 'block';
+            currentFile = null;
+            currentMetadata = null;
+        });
+
+        saveBtn.addEventListener('click', saveChanges);
+
+        async function handleFile(file) {
+            if (!file.type.startsWith('image/') && !file.name.match(/\.(heic|heif|tiff?|webp|raw|cr2|nef|arw|dng)$/i)) {
+                showError('Please select a valid image file.');
+                return;
+            }
+
+            if (!exiftoolReady) {
+                showError('ExifTool is still loading. Please wait a moment and try again.');
+                return;
+            }
+
+            hideError();
+            dropzone.style.display = 'none';
+            loading.classList.add('visible');
+            loadingText.textContent = 'Reading metadata...';
+
+            try {
+                currentFile = file;
+
+                // Show preview
+                const previewUrl = URL.createObjectURL(file);
+                imagePreview.src = previewUrl;
+
+                // Show file info
+                fileInfo.innerHTML = `
+                    <strong>${file.name}</strong><br>
+                    ${formatBytes(file.size)} &middot; ${file.type || 'Unknown type'}
+                `;
+
+                // Parse metadata
+                const result = await parseMetadata(file, {
+                    args: ['-json', '-G', '-a', '-u'],
+                    transform: (output) => {
+                        try {
+                            return JSON.parse(output);
+                        } catch {
+                            return output;
+                        }
+                    }
+                });
+
+                if (result.success && result.data) {
+                    currentMetadata = Array.isArray(result.data) ? result.data[0] : result.data;
+                    displayMetadata(currentMetadata);
+                    populateEditForm(currentMetadata);
+                } else {
+                    throw new Error(result.error || 'Failed to parse metadata');
+                }
+
+                loading.classList.remove('visible');
+                editor.classList.add('visible');
+
+            } catch (err) {
+                console.error('Error reading metadata:', err);
+                loading.classList.remove('visible');
+                dropzone.style.display = 'block';
+                showError('Failed to read metadata: ' + err.message);
+            }
+        }
+
+        function displayMetadata(metadata) {
+            // Group metadata by category
+            const groups = {};
+
+            for (const [key, value] of Object.entries(metadata)) {
+                if (key === 'SourceFile') continue;
+
+                let category = 'Other';
+                if (key.startsWith('EXIF:')) category = 'EXIF';
+                else if (key.startsWith('IPTC:')) category = 'IPTC';
+                else if (key.startsWith('XMP:') || key.startsWith('XMP-')) category = 'XMP';
+                else if (key.startsWith('File:')) category = 'File';
+                else if (key.startsWith('Composite:')) category = 'Composite';
+                else if (key.startsWith('ICC')) category = 'ICC Profile';
+                else if (key.startsWith('JFIF:')) category = 'JFIF';
+                else if (key.startsWith('PNG:')) category = 'PNG';
+
+                if (!groups[category]) groups[category] = {};
+                groups[category][key] = value;
+            }
+
+            // Build HTML
+            let html = '';
+            const order = ['File', 'EXIF', 'IPTC', 'XMP', 'Composite', 'JFIF', 'PNG', 'ICC Profile', 'Other'];
+
+            for (const category of order) {
+                if (!groups[category]) continue;
+                const entries = Object.entries(groups[category]);
+                if (entries.length === 0) continue;
+
+                html += `
+                    <div class="metadata-group">
+                        <div class="metadata-group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                            <h4>${category} (${entries.length})</h4>
+                            <span class="toggle">▼</span>
+                        </div>
+                        <table class="metadata-table">
+                            ${entries.map(([key, value]) => `
+                                <tr>
+                                    <th>${key.replace(/^[^:]+:/, '')}</th>
+                                    <td>${formatValue(value)}</td>
+                                </tr>
+                            `).join('')}
+                        </table>
+                    </div>
+                `;
+            }
+
+            metadataView.innerHTML = html || '<p>No metadata found.</p>';
+
+            // Raw JSON
+            rawJson.textContent = JSON.stringify(metadata, null, 2);
+        }
+
+        function formatValue(value) {
+            if (value === null || value === undefined) return '<em>empty</em>';
+            if (typeof value === 'object') return JSON.stringify(value);
+            if (typeof value === 'string' && value.length > 200) {
+                return value.substring(0, 200) + '...';
+            }
+            return String(value).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function populateEditForm(metadata) {
+            // Try to find values from various possible tag names
+            const getValue = (...keys) => {
+                for (const key of keys) {
+                    for (const [k, v] of Object.entries(metadata)) {
+                        if (k.toLowerCase().endsWith(':' + key.toLowerCase()) || k.toLowerCase() === key.toLowerCase()) {
+                            return v;
+                        }
+                    }
+                }
+                return '';
+            };
+
+            document.getElementById('edit-title').value = getValue('Title', 'ObjectName', 'Headline') || '';
+            document.getElementById('edit-author').value = getValue('Author', 'Artist', 'Creator', 'By-line') || '';
+            document.getElementById('edit-copyright').value = getValue('Copyright', 'CopyrightNotice', 'Rights') || '';
+            document.getElementById('edit-description').value = getValue('Description', 'ImageDescription', 'Caption-Abstract') || '';
+            document.getElementById('edit-comment').value = getValue('Comment', 'UserComment') || '';
+
+            const keywords = getValue('Keywords', 'Subject');
+            document.getElementById('edit-keywords').value = Array.isArray(keywords) ? keywords.join(', ') : (keywords || '');
+        }
+
+        async function saveChanges() {
+            if (!currentFile || !exiftoolReady) return;
+
+            const tags = {};
+
+            const title = document.getElementById('edit-title').value.trim();
+            const author = document.getElementById('edit-author').value.trim();
+            const copyright = document.getElementById('edit-copyright').value.trim();
+            const description = document.getElementById('edit-description').value.trim();
+            const keywords = document.getElementById('edit-keywords').value.trim();
+            const comment = document.getElementById('edit-comment').value.trim();
+
+            if (title) tags.Title = title;
+            if (author) {
+                tags.Author = author;
+                tags.Artist = author;
+            }
+            if (copyright) tags.Copyright = copyright;
+            if (description) {
+                tags.Description = description;
+                tags.ImageDescription = description;
+            }
+            if (keywords) {
+                tags.Keywords = keywords.split(',').map(k => k.trim()).filter(k => k);
+            }
+            if (comment) tags.Comment = comment;
+
+            if (Object.keys(tags).length === 0) {
+                showError('No changes to save.');
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+
+            try {
+                const result = await writeMetadata(currentFile, tags);
+
+                if (result.success && result.data) {
+                    // Download the modified file
+                    const blob = new Blob([result.data], { type: currentFile.type || 'image/jpeg' });
+                    const url = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = currentFile.name.replace(/(\.[^.]+)$/, '_edited$1');
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    saveBtn.textContent = 'Saved!';
+                    setTimeout(() => {
+                        saveBtn.textContent = 'Save Changes';
+                        saveBtn.disabled = false;
+                    }, 2000);
+                } else {
+                    throw new Error(result.error || 'Failed to write metadata');
+                }
+
+            } catch (err) {
+                console.error('Error saving metadata:', err);
+                showError('Failed to save metadata: ' + err.message);
+                saveBtn.textContent = 'Save Changes';
+                saveBtn.disabled = false;
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.add('visible');
+        }
+
+        function hideError() {
+            errorDiv.classList.remove('visible');
+        }
+    </script>
+</body>
+</html>
