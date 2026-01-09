@@ -1425,11 +1425,37 @@
                 return;
             }
 
-            for (const exp of functionExports) {
-                const div = document.createElement('div');
-                div.className = 'function-executor';
+            // Add educational explanation
+            const explainer = document.createElement('div');
+            explainer.className = 'executor-explainer';
+            explainer.innerHTML = `
+                <details style="margin-bottom: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border: 1px solid #ffc107;">
+                    <summary style="cursor: pointer; font-weight: 600; color: #856404;">How does this work? (click to expand)</summary>
+                    <div style="margin-top: 10px; font-size: 14px; color: #856404; line-height: 1.6;">
+                        <p><strong>WASM only understands numbers!</strong> There are 4 types:</p>
+                        <ul style="margin: 10px 0;">
+                            <li><strong>i32</strong> = 32-bit integer (whole numbers like 42, -7, 1000000)</li>
+                            <li><strong>i64</strong> = 64-bit integer (bigger whole numbers)</li>
+                            <li><strong>f32</strong> = 32-bit float (decimals like 3.14, -0.5)</li>
+                            <li><strong>f64</strong> = 64-bit float (more precise decimals)</li>
+                        </ul>
+                        <p><strong>What about strings?</strong> WASM has no concept of text! Functions that need strings actually expect:</p>
+                        <ul style="margin: 10px 0;">
+                            <li>A <em>memory address</em> (pointer) - where the text is stored in memory</li>
+                            <li>The <em>length</em> of the text in bytes</li>
+                        </ul>
+                        <p>Functions with names like <code>eval</code>, <code>parse</code>, or taking 2+ i32 params often expect pointer+length pairs.</p>
+                        <p style="margin-top: 10px;"><strong>Simple functions</strong> (taking 0-1 number params) work great here. <strong>Complex functions</strong> needing strings/memory won't work without extra setup.</p>
+                    </div>
+                </details>
+            `;
+            container.appendChild(explainer);
 
-                // Get function signature
+            // Categorize functions
+            const simpleFuncs = [];
+            const complexFuncs = [];
+
+            for (const exp of functionExports) {
                 let params = [];
                 let results = [];
                 const binaryExp = binaryInfo.exports.find(e => e.name === exp.name);
@@ -1446,35 +1472,126 @@
                     }
                 }
 
-                const signature = `(${params.join(', ') || 'void'}) -> ${results.join(', ') || 'void'}`;
+                const funcInfo = { exp, params, results };
 
-                div.innerHTML = `
-                    <h4><span class="mono">${exp.name}</span> <small style="color: #666; font-weight: normal;">${signature}</small></h4>
-                    <div class="param-inputs" id="params-${exp.name}">
-                        ${params.length === 0 ? '<span style="color: #666; font-size: 13px;">No parameters</span>' : ''}
-                    </div>
-                    <button class="exec-btn" onclick="executeFunction('${exp.name}')">Execute</button>
-                    <div class="result-output" id="result-${exp.name}" style="display: none;"></div>
-                `;
+                // Heuristic: simple functions have 0-1 params or are named things like "add", "mul", etc.
+                const isSimple = params.length <= 1 ||
+                    /^(add|sub|mul|div|mod|pow|sqrt|abs|min|max|floor|ceil|round|get_|is_|has_)/i.test(exp.name);
 
-                // Add parameter inputs
-                const paramsDiv = div.querySelector(`#params-${exp.name}`);
-                params.forEach((param, i) => {
-                    const inputDiv = document.createElement('div');
-                    inputDiv.className = 'param-input';
-                    inputDiv.innerHTML = `
-                        <label>arg${i} (${param})</label>
-                        <input type="text" id="arg-${exp.name}-${i}" placeholder="0" data-type="${param}">
-                    `;
-                    paramsDiv.appendChild(inputDiv);
-                });
+                if (isSimple) {
+                    simpleFuncs.push(funcInfo);
+                } else {
+                    complexFuncs.push(funcInfo);
+                }
+            }
 
-                container.appendChild(div);
+            // Render simple functions first
+            if (simpleFuncs.length > 0) {
+                const simpleHeader = document.createElement('h4');
+                simpleHeader.style.cssText = 'margin: 15px 0 10px; color: #28a745; font-size: 14px;';
+                simpleHeader.innerHTML = '&#10003; Simple Functions (easy to use)';
+                container.appendChild(simpleHeader);
+
+                for (const { exp, params, results } of simpleFuncs) {
+                    container.appendChild(createFunctionUI(exp, params, results, false));
+                }
+            }
+
+            // Render complex functions
+            if (complexFuncs.length > 0) {
+                const complexHeader = document.createElement('h4');
+                complexHeader.style.cssText = 'margin: 20px 0 10px; color: #dc3545; font-size: 14px;';
+                complexHeader.innerHTML = '&#9888; Complex Functions (may need memory pointers)';
+                container.appendChild(complexHeader);
+
+                for (const { exp, params, results } of complexFuncs) {
+                    container.appendChild(createFunctionUI(exp, params, results, true));
+                }
             }
         }
 
+        function createFunctionUI(exp, params, results, isComplex) {
+            const div = document.createElement('div');
+            div.className = 'function-executor';
+            if (isComplex) {
+                div.style.borderLeft = '3px solid #ffc107';
+            } else {
+                div.style.borderLeft = '3px solid #28a745';
+            }
+
+            const signature = `(${params.join(', ') || 'void'}) -> ${results.join(', ') || 'void'}`;
+            const safeName = exp.name.replace(/[^a-zA-Z0-9_]/g, '_');
+
+            // Detect if this looks like a string function (2 i32 params often = ptr + len)
+            const looksLikeString = params.length === 2 && params.every(p => p === 'i32');
+            const looksLikeEval = /eval|exec|run|parse|compile/i.test(exp.name);
+
+            let stringModeHtml = '';
+            if (looksLikeString && looksLikeEval) {
+                stringModeHtml = `
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: normal; font-size: 13px;">
+                            <input type="checkbox" id="string-mode-${safeName}" onchange="toggleStringMode('${safeName}', this.checked)">
+                            <span>String mode (auto-write text to memory)</span>
+                        </label>
+                        <div id="string-input-${safeName}" style="display: none; margin-top: 8px;">
+                            <textarea id="string-value-${safeName}" placeholder="Enter text to pass to function..." style="width: 100%; height: 80px; font-family: monospace; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+                        </div>
+                    </div>
+                `;
+            }
+
+            div.innerHTML = `
+                <h4><span class="mono">${exp.name}</span> <small style="color: #666; font-weight: normal;">${signature}</small></h4>
+                ${isComplex ? '<p style="font-size: 12px; color: #856404; margin: 5px 0;">Multiple params may indicate pointer+length pairs for strings</p>' : ''}
+                ${stringModeHtml}
+                <div class="param-inputs" id="params-${safeName}">
+                    ${params.length === 0 ? '<span style="color: #666; font-size: 13px;">No parameters needed</span>' : ''}
+                </div>
+                <button class="exec-btn" onclick="executeFunction('${exp.name}', '${safeName}')">Execute</button>
+                <div class="result-output" id="result-${safeName}" style="display: none;"></div>
+            `;
+
+            // Add parameter inputs with helpful tooltips
+            const paramsDiv = div.querySelector(`#params-${safeName}`);
+            const typeDescriptions = {
+                'i32': 'Integer (-2B to 2B)',
+                'i64': 'Big integer',
+                'f32': 'Decimal number',
+                'f64': 'Precise decimal'
+            };
+
+            params.forEach((param, i) => {
+                const inputDiv = document.createElement('div');
+                inputDiv.className = 'param-input';
+                const desc = typeDescriptions[param] || param;
+                inputDiv.innerHTML = `
+                    <label title="${desc}">arg${i} <span class="type-tag type-${param}">${param}</span></label>
+                    <input type="text" id="arg-${safeName}-${i}" placeholder="0" data-type="${param}" title="${desc}">
+                `;
+                paramsDiv.appendChild(inputDiv);
+            });
+
+            return div;
+        }
+
+        // Toggle string mode for functions
+        window.toggleStringMode = function(safeName, enabled) {
+            const stringInput = document.getElementById(`string-input-${safeName}`);
+            const paramsDiv = document.getElementById(`params-${safeName}`);
+
+            stringInput.style.display = enabled ? 'block' : 'none';
+
+            // Disable/enable raw param inputs
+            const inputs = paramsDiv.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.disabled = enabled;
+                input.style.opacity = enabled ? '0.5' : '1';
+            });
+        };
+
         // Execute a function
-        window.executeFunction = function(name) {
+        window.executeFunction = function(name, safeName) {
             if (!wasmInstance) {
                 alert('Module not instantiated');
                 return;
@@ -1486,42 +1603,117 @@
                 return;
             }
 
-            const resultDiv = document.getElementById(`result-${name}`);
+            const resultDiv = document.getElementById(`result-${safeName}`);
             resultDiv.style.display = 'block';
 
             try {
-                // Collect arguments
-                const args = [];
-                let i = 0;
-                while (true) {
-                    const input = document.getElementById(`arg-${name}-${i}`);
-                    if (!input) break;
+                // Check for string mode
+                const stringModeCheckbox = document.getElementById(`string-mode-${safeName}`);
+                const useStringMode = stringModeCheckbox && stringModeCheckbox.checked;
 
-                    const type = input.dataset.type;
-                    let value = input.value || '0';
+                let args = [];
 
-                    // Parse based on type
-                    if (type === 'i32' || type === 'i64') {
-                        args.push(parseInt(value));
-                    } else if (type === 'f32' || type === 'f64') {
-                        args.push(parseFloat(value));
-                    } else {
-                        args.push(parseInt(value));
+                if (useStringMode) {
+                    // Write string to WASM memory and pass pointer + length
+                    const stringValue = document.getElementById(`string-value-${safeName}`).value;
+                    const memory = getWasmMemory();
+
+                    if (!memory) {
+                        throw new Error('No memory export found - cannot write string');
                     }
-                    i++;
+
+                    // Find a safe place to write (use a simple offset for demo)
+                    const ptr = 1024; // Start at 1KB offset
+                    const encoder = new TextEncoder();
+                    const bytes = encoder.encode(stringValue);
+
+                    // Write to memory
+                    const memView = new Uint8Array(memory.buffer);
+                    memView.set(bytes, ptr);
+                    memView[ptr + bytes.length] = 0; // null terminate just in case
+
+                    args = [ptr, bytes.length];
+
+                    resultDiv.innerHTML = `<span style="color: #6c757d;">Writing "${stringValue.substring(0, 50)}${stringValue.length > 50 ? '...' : ''}" to memory at address ${ptr}...</span>\n`;
+                } else {
+                    // Collect arguments normally
+                    let i = 0;
+                    while (true) {
+                        const input = document.getElementById(`arg-${safeName}-${i}`);
+                        if (!input) break;
+
+                        const type = input.dataset.type;
+                        let value = input.value || '0';
+
+                        // Parse based on type
+                        if (type === 'i32' || type === 'i64') {
+                            args.push(parseInt(value));
+                        } else if (type === 'f32' || type === 'f64') {
+                            args.push(parseFloat(value));
+                        } else {
+                            args.push(parseInt(value));
+                        }
+                        i++;
+                    }
                 }
 
                 const startTime = performance.now();
                 const result = func(...args);
                 const endTime = performance.now();
 
+                // Try to interpret result
+                let resultText = `Result: ${result}`;
+
+                // If result is a pointer, try to read string from memory
+                if (typeof result === 'number' && result > 0 && result < 1000000) {
+                    const memory = getWasmMemory();
+                    if (memory) {
+                        const str = readStringFromMemory(memory, result, 200);
+                        if (str && str.length > 0 && /^[\x20-\x7E\n\r\t]+$/.test(str)) {
+                            resultText += `\n\nAs string at address ${result}: "${str}"`;
+                        }
+                    }
+                }
+
+                resultText += `\n\nExecution time: ${(endTime - startTime).toFixed(3)}ms`;
+
                 resultDiv.className = 'result-output success';
-                resultDiv.textContent = `Result: ${result}\nExecution time: ${(endTime - startTime).toFixed(3)}ms`;
+                if (useStringMode) {
+                    resultDiv.innerHTML += resultText;
+                } else {
+                    resultDiv.textContent = resultText;
+                }
             } catch (e) {
                 resultDiv.className = 'result-output error';
                 resultDiv.textContent = `Error: ${e.message}`;
             }
         };
+
+        // Helper to get WASM memory
+        function getWasmMemory() {
+            if (!wasmInstance) return null;
+            for (const [key, val] of Object.entries(wasmInstance.exports)) {
+                if (val instanceof WebAssembly.Memory) {
+                    return val;
+                }
+            }
+            return null;
+        }
+
+        // Helper to read null-terminated string from memory
+        function readStringFromMemory(memory, ptr, maxLen = 100) {
+            const view = new Uint8Array(memory.buffer);
+            let end = ptr;
+            while (end < ptr + maxLen && view[end] !== 0) {
+                end++;
+            }
+            const bytes = view.slice(ptr, end);
+            try {
+                return new TextDecoder().decode(bytes);
+            } catch (e) {
+                return null;
+            }
+        }
 
         function displayImports(imports, binaryInfo) {
             document.getElementById('imports-count').textContent = imports.length;
