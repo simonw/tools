@@ -1,0 +1,1796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebAssembly Inspector</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background: #f5f5f5;
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 28px;
+            color: #333;
+        }
+        .description {
+            margin-top: 0;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .input-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"], input[type="url"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+        input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 12px 24px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: wait;
+            opacity: 0.7;
+        }
+        button.secondary {
+            background-color: #6c757d;
+        }
+        button.secondary:hover:not(:disabled) {
+            background-color: #545b62;
+        }
+        .examples-section {
+            margin-bottom: 15px;
+        }
+        .examples-section h3 {
+            font-size: 14px;
+            color: #666;
+            margin: 0 0 10px 0;
+            font-weight: 500;
+        }
+        .examples-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .example-btn {
+            padding: 8px 14px;
+            font-size: 13px;
+            background: #e9ecef;
+            border: 1px solid #dee2e6;
+            border-radius: 20px;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .example-btn:hover {
+            background: #dee2e6;
+            border-color: #adb5bd;
+            color: #212529;
+        }
+        .example-btn:active {
+            background: #ced4da;
+        }
+        #status {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+        #status.visible {
+            display: block;
+        }
+        #status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        #status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        #results {
+            display: none;
+        }
+        #results.visible {
+            display: block;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .card-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .card-header:hover {
+            background: #e9ecef;
+        }
+        .card-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .card-header .badge {
+            background: #007bff;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .card-header .badge.warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        .card-header .badge.success {
+            background: #28a745;
+        }
+        .card-body {
+            padding: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .card-body.collapsed {
+            display: none;
+        }
+        .toggle-icon {
+            font-size: 12px;
+            color: #666;
+            transition: transform 0.2s;
+        }
+        .card-header.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .summary-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .summary-item .label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .summary-item .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 13px;
+        }
+        .type-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .type-function { background: #e3f2fd; color: #1565c0; }
+        .type-memory { background: #fce4ec; color: #c2185b; }
+        .type-table { background: #f3e5f5; color: #7b1fa2; }
+        .type-global { background: #e8f5e9; color: #2e7d32; }
+        .type-i32 { background: #fff3e0; color: #e65100; }
+        .type-i64 { background: #fff8e1; color: #f57f17; }
+        .type-f32 { background: #e0f7fa; color: #00838f; }
+        .type-f64 { background: #e0f2f1; color: #00695c; }
+        .type-v128 { background: #fbe9e7; color: #bf360c; }
+        .type-funcref { background: #ede7f6; color: #512da8; }
+        .type-externref { background: #efebe9; color: #4e342e; }
+        .hex-view {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre;
+            line-height: 1.5;
+        }
+        .hex-offset { color: #569cd6; }
+        .hex-byte { color: #ce9178; }
+        .hex-ascii { color: #6a9955; }
+        .function-executor {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .function-executor h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        .function-executor .mono {
+            color: #007bff;
+        }
+        .param-inputs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .param-input {
+            flex: 1;
+            min-width: 120px;
+        }
+        .param-input label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .param-input input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 13px;
+        }
+        .exec-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        .result-output {
+            margin-top: 10px;
+            padding: 10px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .result-output.error {
+            background: #2d1f1f;
+            color: #f8d7da;
+        }
+        .result-output.success {
+            background: #1e2d1f;
+            color: #d4edda;
+        }
+        .custom-section-content {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .section-info {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .file-upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 15px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .file-upload-area:hover, .file-upload-area.dragover {
+            border-color: #007bff;
+            background: #f8f9fa;
+        }
+        .file-upload-area input[type="file"] {
+            display: none;
+        }
+        .file-upload-area p {
+            margin: 0;
+            color: #666;
+        }
+        .or-divider {
+            text-align: center;
+            margin: 15px 0;
+            color: #999;
+            font-size: 14px;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            button {
+                width: 100%;
+            }
+            .summary-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>WebAssembly Inspector</h1>
+    <p class="description">Load a WASM file to inspect its structure, exports, imports, memory, and execute exported functions</p>
+
+    <div class="input-section">
+        <div class="examples-section">
+            <h3>Try an example from this repo:</h3>
+            <div class="examples-list" id="examples-list"></div>
+        </div>
+
+        <div class="file-upload-area" id="file-upload-area">
+            <p><strong>Drop a WASM file here</strong> or click to select</p>
+            <p style="font-size: 12px; margin-top: 10px;">Supports .wasm files</p>
+            <input type="file" id="file-input" accept=".wasm">
+        </div>
+
+        <div class="or-divider">- or -</div>
+
+        <div class="input-group">
+            <label for="url-input">Enter WASM URL:</label>
+            <input type="url" id="url-input" placeholder="https://example.com/module.wasm">
+        </div>
+
+        <div class="button-group">
+            <button id="load-btn">Load WASM</button>
+            <button id="clear-btn" class="secondary">Clear</button>
+        </div>
+    </div>
+
+    <div id="status"></div>
+
+    <div id="results">
+        <!-- Summary Card -->
+        <div class="card" id="summary-card">
+            <div class="card-header">
+                <h2>Module Summary</h2>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body">
+                <div class="summary-grid" id="summary-grid"></div>
+            </div>
+        </div>
+
+        <!-- Exports Card -->
+        <div class="card" id="exports-card">
+            <div class="card-header">
+                <h2>Exports</h2>
+                <span class="badge" id="exports-count">0</span>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body">
+                <table id="exports-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Kind</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="exports-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Function Executor Card -->
+        <div class="card" id="executor-card">
+            <div class="card-header">
+                <h2>Function Executor</h2>
+                <span class="badge success">Interactive</span>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body" id="executor-body">
+                <p class="section-info">Select an exported function to execute it with custom arguments</p>
+                <div id="executor-functions"></div>
+            </div>
+        </div>
+
+        <!-- Imports Card -->
+        <div class="card" id="imports-card">
+            <div class="card-header">
+                <h2>Imports</h2>
+                <span class="badge" id="imports-count">0</span>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body">
+                <table id="imports-table">
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th>Name</th>
+                            <th>Kind</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="imports-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Type Section Card -->
+        <div class="card" id="types-card">
+            <div class="card-header">
+                <h2>Type Section (Function Signatures)</h2>
+                <span class="badge" id="types-count">0</span>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body">
+                <table id="types-table">
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            <th>Parameters</th>
+                            <th>Results</th>
+                            <th>Signature</th>
+                        </tr>
+                    </thead>
+                    <tbody id="types-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Memory Card -->
+        <div class="card" id="memory-card">
+            <div class="card-header">
+                <h2>Memory</h2>
+                <span class="badge" id="memory-count">0</span>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body" id="memory-body">
+                <div id="memory-info"></div>
+            </div>
+        </div>
+
+        <!-- Tables Card -->
+        <div class="card" id="tables-card">
+            <div class="card-header">
+                <h2>Tables</h2>
+                <span class="badge" id="tables-count">0</span>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body" id="tables-body">
+                <div id="tables-info"></div>
+            </div>
+        </div>
+
+        <!-- Globals Card -->
+        <div class="card" id="globals-card">
+            <div class="card-header">
+                <h2>Globals</h2>
+                <span class="badge" id="globals-count">0</span>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body">
+                <table id="globals-table">
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            <th>Type</th>
+                            <th>Mutable</th>
+                            <th>Initial Value</th>
+                        </tr>
+                    </thead>
+                    <tbody id="globals-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Data Sections Card -->
+        <div class="card" id="data-card">
+            <div class="card-header">
+                <h2>Data Sections</h2>
+                <span class="badge" id="data-count">0</span>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body" id="data-body">
+                <div id="data-info"></div>
+            </div>
+        </div>
+
+        <!-- Custom Sections Card -->
+        <div class="card" id="custom-card">
+            <div class="card-header">
+                <h2>Custom Sections</h2>
+                <span class="badge" id="custom-count">0</span>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body" id="custom-body">
+                <div id="custom-info"></div>
+            </div>
+        </div>
+
+        <!-- Raw Binary Card -->
+        <div class="card" id="binary-card">
+            <div class="card-header collapsed">
+                <h2>Raw Binary (First 512 bytes)</h2>
+                <span class="badge warning">Hex View</span>
+                <span class="toggle-icon">&#9660;</span>
+            </div>
+            <div class="card-body collapsed" id="binary-body">
+                <div class="hex-view" id="hex-view"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Example WASM files in this repo
+        const examples = [
+            { name: 'mquickjs.wasm', url: './mquickjs.wasm', desc: 'MicroQuickJS (228 KB)' },
+            { name: 'mquickjs_optimized.wasm', url: './mquickjs_optimized.wasm', desc: 'MicroQuickJS Optimized (147 KB)' },
+            { name: 'c_count.wasm', url: './lib/wasm/c_count.wasm', desc: 'C Code Counter (30 KB)' },
+            { name: 'php_count.wasm', url: './lib/wasm/php_count.wasm', desc: 'PHP Code Counter (31 KB)' },
+            { name: 'ml_count.wasm', url: './lib/wasm/ml_count.wasm', desc: 'ML Code Counter (29 KB)' },
+            { name: 'lexcount1.wasm', url: './lib/wasm/lexcount1.wasm', desc: 'Lexical Counter (17 KB)' },
+            { name: 'pig_count.wasm', url: './lib/wasm/pig_count.wasm', desc: 'Pig Code Counter (30 KB)' },
+            { name: 'emperl.wasm', url: './lib/webperl/emperl.wasm', desc: 'WebPerl Runtime (3.6 MB)' }
+        ];
+
+        // DOM elements
+        const urlInput = document.getElementById('url-input');
+        const fileInput = document.getElementById('file-input');
+        const fileUploadArea = document.getElementById('file-upload-area');
+        const loadBtn = document.getElementById('load-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const statusEl = document.getElementById('status');
+        const resultsEl = document.getElementById('results');
+        const examplesList = document.getElementById('examples-list');
+
+        // Current WASM module and instance
+        let wasmModule = null;
+        let wasmInstance = null;
+        let wasmBytes = null;
+
+        // Populate examples
+        examples.forEach(example => {
+            const btn = document.createElement('button');
+            btn.className = 'example-btn';
+            btn.textContent = example.desc;
+            btn.title = example.url;
+            btn.addEventListener('click', () => {
+                urlInput.value = example.url;
+                loadWasm(example.url);
+            });
+            examplesList.appendChild(btn);
+        });
+
+        // File upload handling
+        fileUploadArea.addEventListener('click', () => fileInput.click());
+        fileUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.add('dragover');
+        });
+        fileUploadArea.addEventListener('dragleave', () => {
+            fileUploadArea.classList.remove('dragover');
+        });
+        fileUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].name.endsWith('.wasm')) {
+                loadWasmFromFile(files[0]);
+            } else {
+                showStatus('Please drop a .wasm file', 'error');
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                loadWasmFromFile(e.target.files[0]);
+            }
+        });
+
+        // Status helpers
+        function showStatus(message, type = 'info') {
+            statusEl.textContent = message;
+            statusEl.className = `visible ${type}`;
+        }
+
+        function hideStatus() {
+            statusEl.className = '';
+        }
+
+        // Card collapse handling
+        document.querySelectorAll('.card-header').forEach(header => {
+            header.addEventListener('click', () => {
+                header.classList.toggle('collapsed');
+                const body = header.nextElementSibling;
+                body.classList.toggle('collapsed');
+            });
+        });
+
+        // WASM value type names
+        const valueTypes = {
+            0x7F: 'i32',
+            0x7E: 'i64',
+            0x7D: 'f32',
+            0x7C: 'f64',
+            0x7B: 'v128',
+            0x70: 'funcref',
+            0x6F: 'externref'
+        };
+
+        // WASM section names
+        const sectionNames = {
+            0: 'Custom',
+            1: 'Type',
+            2: 'Import',
+            3: 'Function',
+            4: 'Table',
+            5: 'Memory',
+            6: 'Global',
+            7: 'Export',
+            8: 'Start',
+            9: 'Element',
+            10: 'Code',
+            11: 'Data',
+            12: 'DataCount'
+        };
+
+        // Parse unsigned LEB128
+        function readLEB128(bytes, offset) {
+            let result = 0;
+            let shift = 0;
+            let byte;
+            let bytesRead = 0;
+            do {
+                byte = bytes[offset + bytesRead];
+                result |= (byte & 0x7F) << shift;
+                shift += 7;
+                bytesRead++;
+            } while (byte & 0x80);
+            return { value: result, bytesRead };
+        }
+
+        // Parse signed LEB128
+        function readSignedLEB128(bytes, offset) {
+            let result = 0;
+            let shift = 0;
+            let byte;
+            let bytesRead = 0;
+            const size = 32;
+            do {
+                byte = bytes[offset + bytesRead];
+                result |= (byte & 0x7F) << shift;
+                shift += 7;
+                bytesRead++;
+            } while (byte & 0x80);
+            if (shift < size && (byte & 0x40)) {
+                result |= (~0 << shift);
+            }
+            return { value: result, bytesRead };
+        }
+
+        // Parse WASM binary to extract detailed information
+        function parseWasmBinary(bytes) {
+            const info = {
+                magic: '',
+                version: 0,
+                sections: [],
+                types: [],
+                imports: [],
+                functions: [],
+                tables: [],
+                memories: [],
+                globals: [],
+                exports: [],
+                start: null,
+                elements: [],
+                code: [],
+                data: [],
+                customSections: []
+            };
+
+            const view = new DataView(bytes.buffer);
+
+            // Check magic number
+            info.magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
+            info.version = view.getUint32(4, true);
+
+            let offset = 8;
+
+            while (offset < bytes.length) {
+                const sectionId = bytes[offset];
+                offset++;
+
+                const { value: sectionSize, bytesRead: sizeBytes } = readLEB128(bytes, offset);
+                offset += sizeBytes;
+
+                const sectionEnd = offset + sectionSize;
+                const sectionData = bytes.slice(offset, sectionEnd);
+
+                info.sections.push({
+                    id: sectionId,
+                    name: sectionNames[sectionId] || `Unknown (${sectionId})`,
+                    size: sectionSize,
+                    offset: offset - sizeBytes - 1
+                });
+
+                try {
+                    switch (sectionId) {
+                        case 0: // Custom section
+                            parseCustomSection(sectionData, info);
+                            break;
+                        case 1: // Type section
+                            parseTypeSection(sectionData, info);
+                            break;
+                        case 2: // Import section
+                            parseImportSection(sectionData, info);
+                            break;
+                        case 3: // Function section
+                            parseFunctionSection(sectionData, info);
+                            break;
+                        case 4: // Table section
+                            parseTableSection(sectionData, info);
+                            break;
+                        case 5: // Memory section
+                            parseMemorySection(sectionData, info);
+                            break;
+                        case 6: // Global section
+                            parseGlobalSection(sectionData, info);
+                            break;
+                        case 7: // Export section
+                            parseExportSection(sectionData, info);
+                            break;
+                        case 8: // Start section
+                            const { value: startFunc } = readLEB128(sectionData, 0);
+                            info.start = startFunc;
+                            break;
+                        case 11: // Data section
+                            parseDataSection(sectionData, info);
+                            break;
+                    }
+                } catch (e) {
+                    console.warn(`Error parsing section ${sectionId}:`, e);
+                }
+
+                offset = sectionEnd;
+            }
+
+            return info;
+        }
+
+        function parseCustomSection(data, info) {
+            let offset = 0;
+            const { value: nameLen, bytesRead } = readLEB128(data, offset);
+            offset += bytesRead;
+            const name = new TextDecoder().decode(data.slice(offset, offset + nameLen));
+            offset += nameLen;
+            const content = data.slice(offset);
+
+            info.customSections.push({
+                name: name,
+                size: data.length,
+                contentSize: content.length,
+                content: content
+            });
+        }
+
+        function parseTypeSection(data, info) {
+            let offset = 0;
+            const { value: count, bytesRead } = readLEB128(data, offset);
+            offset += bytesRead;
+
+            for (let i = 0; i < count; i++) {
+                const form = data[offset];
+                offset++;
+
+                if (form !== 0x60) continue; // Only function types
+
+                const { value: paramCount, bytesRead: paramBytes } = readLEB128(data, offset);
+                offset += paramBytes;
+
+                const params = [];
+                for (let j = 0; j < paramCount; j++) {
+                    params.push(valueTypes[data[offset]] || `0x${data[offset].toString(16)}`);
+                    offset++;
+                }
+
+                const { value: resultCount, bytesRead: resultBytes } = readLEB128(data, offset);
+                offset += resultBytes;
+
+                const results = [];
+                for (let j = 0; j < resultCount; j++) {
+                    results.push(valueTypes[data[offset]] || `0x${data[offset].toString(16)}`);
+                    offset++;
+                }
+
+                info.types.push({ params, results });
+            }
+        }
+
+        function parseImportSection(data, info) {
+            let offset = 0;
+            const { value: count, bytesRead } = readLEB128(data, offset);
+            offset += bytesRead;
+
+            for (let i = 0; i < count; i++) {
+                const { value: moduleLen, bytesRead: modBytes } = readLEB128(data, offset);
+                offset += modBytes;
+                const module = new TextDecoder().decode(data.slice(offset, offset + moduleLen));
+                offset += moduleLen;
+
+                const { value: nameLen, bytesRead: nameBytes } = readLEB128(data, offset);
+                offset += nameBytes;
+                const name = new TextDecoder().decode(data.slice(offset, offset + nameLen));
+                offset += nameLen;
+
+                const kind = data[offset];
+                offset++;
+
+                const importInfo = { module, name, kind: '' };
+
+                switch (kind) {
+                    case 0: // Function
+                        const { value: typeIdx, bytesRead: typeBytes } = readLEB128(data, offset);
+                        offset += typeBytes;
+                        importInfo.kind = 'function';
+                        importInfo.typeIndex = typeIdx;
+                        break;
+                    case 1: // Table
+                        importInfo.kind = 'table';
+                        offset++; // element type
+                        const { value: hasMax, bytesRead: limitBytes } = readLEB128(data, offset);
+                        offset += limitBytes;
+                        const { value: min, bytesRead: minBytes } = readLEB128(data, offset);
+                        offset += minBytes;
+                        importInfo.min = min;
+                        if (hasMax) {
+                            const { value: max, bytesRead: maxBytes } = readLEB128(data, offset);
+                            offset += maxBytes;
+                            importInfo.max = max;
+                        }
+                        break;
+                    case 2: // Memory
+                        importInfo.kind = 'memory';
+                        const { value: memFlags, bytesRead: memFlagBytes } = readLEB128(data, offset);
+                        offset += memFlagBytes;
+                        const { value: memMin, bytesRead: memMinBytes } = readLEB128(data, offset);
+                        offset += memMinBytes;
+                        importInfo.min = memMin;
+                        if (memFlags & 1) {
+                            const { value: memMax, bytesRead: memMaxBytes } = readLEB128(data, offset);
+                            offset += memMaxBytes;
+                            importInfo.max = memMax;
+                        }
+                        break;
+                    case 3: // Global
+                        importInfo.kind = 'global';
+                        importInfo.type = valueTypes[data[offset]] || `0x${data[offset].toString(16)}`;
+                        offset++;
+                        importInfo.mutable = data[offset] === 1;
+                        offset++;
+                        break;
+                }
+
+                info.imports.push(importInfo);
+            }
+        }
+
+        function parseFunctionSection(data, info) {
+            let offset = 0;
+            const { value: count, bytesRead } = readLEB128(data, offset);
+            offset += bytesRead;
+
+            for (let i = 0; i < count; i++) {
+                const { value: typeIdx, bytesRead: typeBytes } = readLEB128(data, offset);
+                offset += typeBytes;
+                info.functions.push({ typeIndex: typeIdx });
+            }
+        }
+
+        function parseTableSection(data, info) {
+            let offset = 0;
+            const { value: count, bytesRead } = readLEB128(data, offset);
+            offset += bytesRead;
+
+            for (let i = 0; i < count; i++) {
+                const elemType = data[offset];
+                offset++;
+                const { value: flags, bytesRead: flagBytes } = readLEB128(data, offset);
+                offset += flagBytes;
+                const { value: min, bytesRead: minBytes } = readLEB128(data, offset);
+                offset += minBytes;
+
+                const table = {
+                    elementType: valueTypes[elemType] || `0x${elemType.toString(16)}`,
+                    min: min
+                };
+
+                if (flags & 1) {
+                    const { value: max, bytesRead: maxBytes } = readLEB128(data, offset);
+                    offset += maxBytes;
+                    table.max = max;
+                }
+
+                info.tables.push(table);
+            }
+        }
+
+        function parseMemorySection(data, info) {
+            let offset = 0;
+            const { value: count, bytesRead } = readLEB128(data, offset);
+            offset += bytesRead;
+
+            for (let i = 0; i < count; i++) {
+                const { value: flags, bytesRead: flagBytes } = readLEB128(data, offset);
+                offset += flagBytes;
+                const { value: min, bytesRead: minBytes } = readLEB128(data, offset);
+                offset += minBytes;
+
+                const memory = { min: min, pages: min, bytes: min * 65536 };
+
+                if (flags & 1) {
+                    const { value: max, bytesRead: maxBytes } = readLEB128(data, offset);
+                    offset += maxBytes;
+                    memory.max = max;
+                    memory.maxBytes = max * 65536;
+                }
+
+                info.memories.push(memory);
+            }
+        }
+
+        function parseGlobalSection(data, info) {
+            let offset = 0;
+            const { value: count, bytesRead } = readLEB128(data, offset);
+            offset += bytesRead;
+
+            for (let i = 0; i < count; i++) {
+                const type = data[offset];
+                offset++;
+                const mutable = data[offset] === 1;
+                offset++;
+
+                // Parse init expression (simplified)
+                let initValue = null;
+                const opcode = data[offset];
+                offset++;
+
+                switch (opcode) {
+                    case 0x41: // i32.const
+                        const { value: i32Val, bytesRead: i32Bytes } = readSignedLEB128(data, offset);
+                        offset += i32Bytes;
+                        initValue = i32Val;
+                        break;
+                    case 0x42: // i64.const
+                        const { value: i64Val, bytesRead: i64Bytes } = readSignedLEB128(data, offset);
+                        offset += i64Bytes;
+                        initValue = i64Val;
+                        break;
+                    case 0x43: // f32.const
+                        initValue = new DataView(data.buffer, data.byteOffset + offset).getFloat32(0, true);
+                        offset += 4;
+                        break;
+                    case 0x44: // f64.const
+                        initValue = new DataView(data.buffer, data.byteOffset + offset).getFloat64(0, true);
+                        offset += 8;
+                        break;
+                    default:
+                        // Skip to end opcode
+                        while (data[offset] !== 0x0B && offset < data.length) offset++;
+                }
+
+                // Skip end opcode
+                if (data[offset] === 0x0B) offset++;
+
+                info.globals.push({
+                    type: valueTypes[type] || `0x${type.toString(16)}`,
+                    mutable: mutable,
+                    initValue: initValue
+                });
+            }
+        }
+
+        function parseExportSection(data, info) {
+            let offset = 0;
+            const { value: count, bytesRead } = readLEB128(data, offset);
+            offset += bytesRead;
+
+            const kindNames = ['function', 'table', 'memory', 'global'];
+
+            for (let i = 0; i < count; i++) {
+                const { value: nameLen, bytesRead: nameBytes } = readLEB128(data, offset);
+                offset += nameBytes;
+                const name = new TextDecoder().decode(data.slice(offset, offset + nameLen));
+                offset += nameLen;
+
+                const kind = data[offset];
+                offset++;
+
+                const { value: index, bytesRead: indexBytes } = readLEB128(data, offset);
+                offset += indexBytes;
+
+                info.exports.push({
+                    name: name,
+                    kind: kindNames[kind] || `unknown(${kind})`,
+                    index: index
+                });
+            }
+        }
+
+        function parseDataSection(data, info) {
+            let offset = 0;
+            const { value: count, bytesRead } = readLEB128(data, offset);
+            offset += bytesRead;
+
+            for (let i = 0; i < count; i++) {
+                const flags = data[offset];
+                offset++;
+
+                const dataInfo = { flags: flags };
+
+                if (flags === 0) {
+                    // Active, memory 0, offset expression
+                    // Skip init expression
+                    while (data[offset] !== 0x0B && offset < data.length) offset++;
+                    offset++; // Skip end
+
+                    const { value: size, bytesRead: sizeBytes } = readLEB128(data, offset);
+                    offset += sizeBytes;
+                    dataInfo.size = size;
+                    dataInfo.preview = data.slice(offset, offset + Math.min(size, 64));
+                    offset += size;
+                } else if (flags === 1) {
+                    // Passive
+                    const { value: size, bytesRead: sizeBytes } = readLEB128(data, offset);
+                    offset += sizeBytes;
+                    dataInfo.size = size;
+                    dataInfo.preview = data.slice(offset, offset + Math.min(size, 64));
+                    offset += size;
+                } else if (flags === 2) {
+                    // Active, explicit memory index
+                    const { value: memIdx, bytesRead: memBytes } = readLEB128(data, offset);
+                    offset += memBytes;
+                    dataInfo.memoryIndex = memIdx;
+
+                    // Skip init expression
+                    while (data[offset] !== 0x0B && offset < data.length) offset++;
+                    offset++;
+
+                    const { value: size, bytesRead: sizeBytes } = readLEB128(data, offset);
+                    offset += sizeBytes;
+                    dataInfo.size = size;
+                    dataInfo.preview = data.slice(offset, offset + Math.min(size, 64));
+                    offset += size;
+                }
+
+                info.data.push(dataInfo);
+            }
+        }
+
+        // Format bytes as hex dump
+        function formatHexDump(bytes, maxBytes = 512) {
+            const lines = [];
+            const len = Math.min(bytes.length, maxBytes);
+
+            for (let i = 0; i < len; i += 16) {
+                const offset = i.toString(16).padStart(8, '0');
+                const hexParts = [];
+                const asciiParts = [];
+
+                for (let j = 0; j < 16; j++) {
+                    if (i + j < len) {
+                        const byte = bytes[i + j];
+                        hexParts.push(byte.toString(16).padStart(2, '0'));
+                        asciiParts.push(byte >= 32 && byte < 127 ? String.fromCharCode(byte) : '.');
+                    } else {
+                        hexParts.push('  ');
+                        asciiParts.push(' ');
+                    }
+                }
+
+                const hex1 = hexParts.slice(0, 8).join(' ');
+                const hex2 = hexParts.slice(8).join(' ');
+                const ascii = asciiParts.join('');
+
+                lines.push(`<span class="hex-offset">${offset}</span>  <span class="hex-byte">${hex1}  ${hex2}</span>  <span class="hex-ascii">|${ascii}|</span>`);
+            }
+
+            if (bytes.length > maxBytes) {
+                lines.push(`<span class="hex-offset">...</span>  (${bytes.length - maxBytes} more bytes)`);
+            }
+
+            return lines.join('\n');
+        }
+
+        // Format bytes as human readable
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' bytes';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // Create type tag HTML
+        function typeTag(type) {
+            const cls = `type-${type.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+            return `<span class="type-tag ${cls}">${type}</span>`;
+        }
+
+        // Load WASM from URL
+        async function loadWasm(url) {
+            try {
+                loadBtn.disabled = true;
+                showStatus(`Loading WASM from ${url}...`, 'info');
+
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const arrayBuffer = await response.arrayBuffer();
+                wasmBytes = new Uint8Array(arrayBuffer);
+
+                await processWasm(wasmBytes, url);
+            } catch (error) {
+                showStatus(`Failed to load: ${error.message}`, 'error');
+                console.error('Load error:', error);
+            } finally {
+                loadBtn.disabled = false;
+            }
+        }
+
+        // Load WASM from file
+        async function loadWasmFromFile(file) {
+            try {
+                loadBtn.disabled = true;
+                showStatus(`Loading ${file.name}...`, 'info');
+
+                const arrayBuffer = await file.arrayBuffer();
+                wasmBytes = new Uint8Array(arrayBuffer);
+
+                await processWasm(wasmBytes, file.name);
+            } catch (error) {
+                showStatus(`Failed to load: ${error.message}`, 'error');
+                console.error('Load error:', error);
+            } finally {
+                loadBtn.disabled = false;
+            }
+        }
+
+        // Process loaded WASM
+        async function processWasm(bytes, sourceName) {
+            showStatus('Parsing WASM binary...', 'info');
+
+            // Parse binary
+            const binaryInfo = parseWasmBinary(bytes);
+
+            // Compile module
+            showStatus('Compiling WASM module...', 'info');
+            wasmModule = await WebAssembly.compile(bytes);
+
+            // Get module info from WebAssembly API
+            const moduleExports = WebAssembly.Module.exports(wasmModule);
+            const moduleImports = WebAssembly.Module.imports(wasmModule);
+
+            // Try to instantiate (with minimal imports)
+            showStatus('Instantiating WASM module...', 'info');
+            try {
+                const importObject = createMinimalImports(moduleImports);
+                wasmInstance = await WebAssembly.instantiate(wasmModule, importObject);
+            } catch (e) {
+                console.warn('Could not instantiate:', e.message);
+                wasmInstance = null;
+            }
+
+            // Display results
+            displayResults(binaryInfo, moduleExports, moduleImports, bytes.length, sourceName);
+
+            showStatus('WASM loaded successfully!', 'success');
+            setTimeout(hideStatus, 2000);
+        }
+
+        // Create minimal import object for instantiation
+        function createMinimalImports(imports) {
+            const importObject = {};
+
+            for (const imp of imports) {
+                if (!importObject[imp.module]) {
+                    importObject[imp.module] = {};
+                }
+
+                switch (imp.kind) {
+                    case 'function':
+                        // Create a stub function that returns 0
+                        importObject[imp.module][imp.name] = function() { return 0; };
+                        break;
+                    case 'memory':
+                        importObject[imp.module][imp.name] = new WebAssembly.Memory({ initial: 1 });
+                        break;
+                    case 'table':
+                        importObject[imp.module][imp.name] = new WebAssembly.Table({ initial: 1, element: 'anyfunc' });
+                        break;
+                    case 'global':
+                        importObject[imp.module][imp.name] = new WebAssembly.Global({ value: 'i32', mutable: true }, 0);
+                        break;
+                }
+            }
+
+            return importObject;
+        }
+
+        // Display all results
+        function displayResults(binaryInfo, exports, imports, totalSize, sourceName) {
+            resultsEl.classList.add('visible');
+
+            // Summary
+            const summaryGrid = document.getElementById('summary-grid');
+            summaryGrid.innerHTML = `
+                <div class="summary-item">
+                    <div class="label">Total Size</div>
+                    <div class="value">${formatBytes(totalSize)}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Version</div>
+                    <div class="value">${binaryInfo.version}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Sections</div>
+                    <div class="value">${binaryInfo.sections.length}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Functions</div>
+                    <div class="value">${binaryInfo.functions.length + binaryInfo.imports.filter(i => i.kind === 'function').length}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Exports</div>
+                    <div class="value">${exports.length}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Imports</div>
+                    <div class="value">${imports.length}</div>
+                </div>
+            `;
+
+            // Exports
+            displayExports(exports, binaryInfo);
+
+            // Function executor
+            displayFunctionExecutor(exports, binaryInfo);
+
+            // Imports
+            displayImports(imports, binaryInfo);
+
+            // Types
+            displayTypes(binaryInfo);
+
+            // Memory
+            displayMemory(binaryInfo);
+
+            // Tables
+            displayTables(binaryInfo);
+
+            // Globals
+            displayGlobals(binaryInfo);
+
+            // Data sections
+            displayDataSections(binaryInfo);
+
+            // Custom sections
+            displayCustomSections(binaryInfo);
+
+            // Hex view
+            document.getElementById('hex-view').innerHTML = formatHexDump(wasmBytes);
+        }
+
+        function displayExports(exports, binaryInfo) {
+            document.getElementById('exports-count').textContent = exports.length;
+            const tbody = document.getElementById('exports-tbody');
+            tbody.innerHTML = '';
+
+            // Get function import count to adjust indices
+            const funcImportCount = binaryInfo.imports.filter(i => i.kind === 'function').length;
+
+            for (const exp of exports) {
+                const row = document.createElement('tr');
+
+                let details = '';
+                if (exp.kind === 'function') {
+                    // Find the matching export from binary info
+                    const binaryExp = binaryInfo.exports.find(e => e.name === exp.name);
+                    if (binaryExp) {
+                        const funcIdx = binaryExp.index;
+                        const localFuncIdx = funcIdx - funcImportCount;
+                        if (localFuncIdx >= 0 && localFuncIdx < binaryInfo.functions.length) {
+                            const typeIdx = binaryInfo.functions[localFuncIdx].typeIndex;
+                            if (typeIdx < binaryInfo.types.length) {
+                                const type = binaryInfo.types[typeIdx];
+                                const params = type.params.join(', ') || 'void';
+                                const results = type.results.join(', ') || 'void';
+                                details = `(${params}) -> ${results}`;
+                            }
+                        }
+                    }
+                } else if (exp.kind === 'memory') {
+                    if (wasmInstance && wasmInstance.exports[exp.name]) {
+                        const mem = wasmInstance.exports[exp.name];
+                        details = `${mem.buffer.byteLength / 65536} pages (${formatBytes(mem.buffer.byteLength)})`;
+                    }
+                } else if (exp.kind === 'global') {
+                    if (wasmInstance && wasmInstance.exports[exp.name]) {
+                        try {
+                            const val = wasmInstance.exports[exp.name].value;
+                            details = `value: ${val}`;
+                        } catch (e) {
+                            details = '(could not read)';
+                        }
+                    }
+                }
+
+                row.innerHTML = `
+                    <td class="mono">${exp.name}</td>
+                    <td>${typeTag(exp.kind)}</td>
+                    <td class="mono">${details}</td>
+                `;
+                tbody.appendChild(row);
+            }
+        }
+
+        function displayFunctionExecutor(exports, binaryInfo) {
+            const container = document.getElementById('executor-functions');
+            container.innerHTML = '';
+
+            const funcImportCount = binaryInfo.imports.filter(i => i.kind === 'function').length;
+            const functionExports = exports.filter(e => e.kind === 'function');
+
+            if (functionExports.length === 0) {
+                container.innerHTML = '<p>No executable functions exported</p>';
+                return;
+            }
+
+            if (!wasmInstance) {
+                container.innerHTML = '<p class="section-info">Module could not be instantiated (missing imports). Function execution unavailable.</p>';
+                return;
+            }
+
+            for (const exp of functionExports) {
+                const div = document.createElement('div');
+                div.className = 'function-executor';
+
+                // Get function signature
+                let params = [];
+                let results = [];
+                const binaryExp = binaryInfo.exports.find(e => e.name === exp.name);
+                if (binaryExp) {
+                    const funcIdx = binaryExp.index;
+                    const localFuncIdx = funcIdx - funcImportCount;
+                    if (localFuncIdx >= 0 && localFuncIdx < binaryInfo.functions.length) {
+                        const typeIdx = binaryInfo.functions[localFuncIdx].typeIndex;
+                        if (typeIdx < binaryInfo.types.length) {
+                            const type = binaryInfo.types[typeIdx];
+                            params = type.params;
+                            results = type.results;
+                        }
+                    }
+                }
+
+                const signature = `(${params.join(', ') || 'void'}) -> ${results.join(', ') || 'void'}`;
+
+                div.innerHTML = `
+                    <h4><span class="mono">${exp.name}</span> <small style="color: #666; font-weight: normal;">${signature}</small></h4>
+                    <div class="param-inputs" id="params-${exp.name}">
+                        ${params.length === 0 ? '<span style="color: #666; font-size: 13px;">No parameters</span>' : ''}
+                    </div>
+                    <button class="exec-btn" onclick="executeFunction('${exp.name}')">Execute</button>
+                    <div class="result-output" id="result-${exp.name}" style="display: none;"></div>
+                `;
+
+                // Add parameter inputs
+                const paramsDiv = div.querySelector(`#params-${exp.name}`);
+                params.forEach((param, i) => {
+                    const inputDiv = document.createElement('div');
+                    inputDiv.className = 'param-input';
+                    inputDiv.innerHTML = `
+                        <label>arg${i} (${param})</label>
+                        <input type="text" id="arg-${exp.name}-${i}" placeholder="0" data-type="${param}">
+                    `;
+                    paramsDiv.appendChild(inputDiv);
+                });
+
+                container.appendChild(div);
+            }
+        }
+
+        // Execute a function
+        window.executeFunction = function(name) {
+            if (!wasmInstance) {
+                alert('Module not instantiated');
+                return;
+            }
+
+            const func = wasmInstance.exports[name];
+            if (!func) {
+                alert('Function not found');
+                return;
+            }
+
+            const resultDiv = document.getElementById(`result-${name}`);
+            resultDiv.style.display = 'block';
+
+            try {
+                // Collect arguments
+                const args = [];
+                let i = 0;
+                while (true) {
+                    const input = document.getElementById(`arg-${name}-${i}`);
+                    if (!input) break;
+
+                    const type = input.dataset.type;
+                    let value = input.value || '0';
+
+                    // Parse based on type
+                    if (type === 'i32' || type === 'i64') {
+                        args.push(parseInt(value));
+                    } else if (type === 'f32' || type === 'f64') {
+                        args.push(parseFloat(value));
+                    } else {
+                        args.push(parseInt(value));
+                    }
+                    i++;
+                }
+
+                const startTime = performance.now();
+                const result = func(...args);
+                const endTime = performance.now();
+
+                resultDiv.className = 'result-output success';
+                resultDiv.textContent = `Result: ${result}\nExecution time: ${(endTime - startTime).toFixed(3)}ms`;
+            } catch (e) {
+                resultDiv.className = 'result-output error';
+                resultDiv.textContent = `Error: ${e.message}`;
+            }
+        };
+
+        function displayImports(imports, binaryInfo) {
+            document.getElementById('imports-count').textContent = imports.length;
+            const tbody = document.getElementById('imports-tbody');
+            tbody.innerHTML = '';
+
+            for (const imp of imports) {
+                const row = document.createElement('tr');
+
+                let details = '';
+                if (imp.kind === 'function') {
+                    const binaryImp = binaryInfo.imports.find(i => i.module === imp.module && i.name === imp.name);
+                    if (binaryImp && binaryImp.typeIndex !== undefined && binaryImp.typeIndex < binaryInfo.types.length) {
+                        const type = binaryInfo.types[binaryImp.typeIndex];
+                        const params = type.params.join(', ') || 'void';
+                        const results = type.results.join(', ') || 'void';
+                        details = `(${params}) -> ${results}`;
+                    }
+                } else if (imp.kind === 'memory') {
+                    const binaryImp = binaryInfo.imports.find(i => i.module === imp.module && i.name === imp.name);
+                    if (binaryImp) {
+                        details = `min: ${binaryImp.min} pages`;
+                        if (binaryImp.max !== undefined) {
+                            details += `, max: ${binaryImp.max} pages`;
+                        }
+                    }
+                } else if (imp.kind === 'global') {
+                    const binaryImp = binaryInfo.imports.find(i => i.module === imp.module && i.name === imp.name);
+                    if (binaryImp) {
+                        details = `${binaryImp.type}${binaryImp.mutable ? ' (mutable)' : ''}`;
+                    }
+                }
+
+                row.innerHTML = `
+                    <td class="mono">${imp.module}</td>
+                    <td class="mono">${imp.name}</td>
+                    <td>${typeTag(imp.kind)}</td>
+                    <td class="mono">${details}</td>
+                `;
+                tbody.appendChild(row);
+            }
+        }
+
+        function displayTypes(binaryInfo) {
+            document.getElementById('types-count').textContent = binaryInfo.types.length;
+            const tbody = document.getElementById('types-tbody');
+            tbody.innerHTML = '';
+
+            binaryInfo.types.forEach((type, i) => {
+                const row = document.createElement('tr');
+                const params = type.params.map(p => typeTag(p)).join(' ');
+                const results = type.results.map(r => typeTag(r)).join(' ');
+                const signature = `(${type.params.join(', ') || 'void'}) -> ${type.results.join(', ') || 'void'}`;
+
+                row.innerHTML = `
+                    <td>${i}</td>
+                    <td>${params || '<span style="color: #999;">none</span>'}</td>
+                    <td>${results || '<span style="color: #999;">none</span>'}</td>
+                    <td class="mono">${signature}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function displayMemory(binaryInfo) {
+            document.getElementById('memory-count').textContent = binaryInfo.memories.length;
+            const container = document.getElementById('memory-info');
+
+            if (binaryInfo.memories.length === 0) {
+                container.innerHTML = '<p>No memory sections defined</p>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>Index</th><th>Initial Pages</th><th>Max Pages</th><th>Initial Size</th><th>Max Size</th></tr></thead><tbody>';
+
+            binaryInfo.memories.forEach((mem, i) => {
+                html += `<tr>
+                    <td>${i}</td>
+                    <td>${mem.min}</td>
+                    <td>${mem.max !== undefined ? mem.max : 'unlimited'}</td>
+                    <td>${formatBytes(mem.bytes)}</td>
+                    <td>${mem.maxBytes !== undefined ? formatBytes(mem.maxBytes) : 'unlimited'}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+
+            // If instantiated, show current memory state
+            if (wasmInstance) {
+                const memExport = Object.entries(wasmInstance.exports).find(([k, v]) => v instanceof WebAssembly.Memory);
+                if (memExport) {
+                    const [name, mem] = memExport;
+                    html += `<p style="margin-top: 15px;"><strong>Current state (${name}):</strong> ${mem.buffer.byteLength / 65536} pages (${formatBytes(mem.buffer.byteLength)})</p>`;
+                }
+            }
+
+            container.innerHTML = html;
+        }
+
+        function displayTables(binaryInfo) {
+            document.getElementById('tables-count').textContent = binaryInfo.tables.length;
+            const container = document.getElementById('tables-info');
+
+            if (binaryInfo.tables.length === 0) {
+                container.innerHTML = '<p>No table sections defined</p>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>Index</th><th>Element Type</th><th>Min Size</th><th>Max Size</th></tr></thead><tbody>';
+
+            binaryInfo.tables.forEach((table, i) => {
+                html += `<tr>
+                    <td>${i}</td>
+                    <td>${typeTag(table.elementType)}</td>
+                    <td>${table.min}</td>
+                    <td>${table.max !== undefined ? table.max : 'unlimited'}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function displayGlobals(binaryInfo) {
+            document.getElementById('globals-count').textContent = binaryInfo.globals.length;
+            const tbody = document.getElementById('globals-tbody');
+            tbody.innerHTML = '';
+
+            binaryInfo.globals.forEach((global, i) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${i}</td>
+                    <td>${typeTag(global.type)}</td>
+                    <td>${global.mutable ? 'Yes' : 'No'}</td>
+                    <td class="mono">${global.initValue !== null ? global.initValue : '(expression)'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function displayDataSections(binaryInfo) {
+            document.getElementById('data-count').textContent = binaryInfo.data.length;
+            const container = document.getElementById('data-info');
+
+            if (binaryInfo.data.length === 0) {
+                container.innerHTML = '<p>No data sections</p>';
+                return;
+            }
+
+            let html = '';
+            binaryInfo.data.forEach((data, i) => {
+                html += `<div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">`;
+                html += `<strong>Data Segment ${i}</strong> (${formatBytes(data.size || 0)})<br>`;
+                html += `<span style="color: #666; font-size: 12px;">Flags: ${data.flags}`;
+                if (data.memoryIndex !== undefined) {
+                    html += `, Memory Index: ${data.memoryIndex}`;
+                }
+                html += `</span>`;
+
+                if (data.preview && data.preview.length > 0) {
+                    // Try to show as text if it looks like text
+                    let previewText = '';
+                    let isText = true;
+                    for (let j = 0; j < data.preview.length && j < 64; j++) {
+                        const byte = data.preview[j];
+                        if (byte >= 32 && byte < 127) {
+                            previewText += String.fromCharCode(byte);
+                        } else if (byte === 0 || byte === 10 || byte === 13 || byte === 9) {
+                            previewText += byte === 0 ? '\\0' : byte === 10 ? '\\n' : byte === 13 ? '\\r' : '\\t';
+                        } else {
+                            isText = false;
+                            break;
+                        }
+                    }
+
+                    html += `<div class="hex-view" style="margin-top: 8px; font-size: 11px; max-height: 100px;">`;
+                    if (isText && previewText.length > 10) {
+                        html += `Text preview: "${previewText.substring(0, 100)}${data.preview.length > 100 ? '...' : ''}"`;
+                    } else {
+                        html += formatHexDump(data.preview, 64);
+                    }
+                    html += `</div>`;
+                }
+
+                html += `</div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function displayCustomSections(binaryInfo) {
+            document.getElementById('custom-count').textContent = binaryInfo.customSections.length;
+            const container = document.getElementById('custom-info');
+
+            if (binaryInfo.customSections.length === 0) {
+                container.innerHTML = '<p>No custom sections</p>';
+                return;
+            }
+
+            let html = '';
+            binaryInfo.customSections.forEach((section, i) => {
+                html += `<div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">`;
+                html += `<strong>"${section.name}"</strong> (${formatBytes(section.contentSize)})<br>`;
+
+                // Special handling for known custom sections
+                if (section.name === 'name') {
+                    html += `<span style="color: #666; font-size: 12px;">WASM name section (debug names)</span>`;
+                } else if (section.name === 'producers') {
+                    html += `<span style="color: #666; font-size: 12px;">Producer metadata</span>`;
+                    // Try to parse producers section
+                    try {
+                        const text = new TextDecoder().decode(section.content);
+                        if (text.includes('clang') || text.includes('emscripten') || text.includes('rust')) {
+                            html += `<div class="hex-view" style="margin-top: 8px; font-size: 11px;">${text.replace(/[^\x20-\x7E\n]/g, '.')}</div>`;
+                        }
+                    } catch (e) {}
+                } else if (section.name.startsWith('.debug')) {
+                    html += `<span style="color: #666; font-size: 12px;">DWARF debug information</span>`;
+                } else if (section.name === 'sourceMappingURL') {
+                    try {
+                        const url = new TextDecoder().decode(section.content);
+                        html += `<span style="color: #666; font-size: 12px;">Source map: ${url}</span>`;
+                    } catch (e) {}
+                }
+
+                if (section.contentSize > 0 && section.contentSize < 500) {
+                    html += `<div class="custom-section-content hex-view" style="margin-top: 8px; font-size: 11px;">${formatHexDump(section.content, 200)}</div>`;
+                }
+
+                html += `</div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Event listeners
+        loadBtn.addEventListener('click', () => {
+            const url = urlInput.value.trim();
+            if (url) {
+                loadWasm(url);
+            } else {
+                showStatus('Please enter a WASM URL or select a file', 'error');
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            urlInput.value = '';
+            fileInput.value = '';
+            resultsEl.classList.remove('visible');
+            hideStatus();
+            wasmModule = null;
+            wasmInstance = null;
+            wasmBytes = null;
+        });
+
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loadBtn.click();
+            }
+        });
+
+        // Load from URL hash if present
+        if (window.location.hash) {
+            const hashUrl = decodeURIComponent(window.location.hash.substring(1));
+            if (hashUrl) {
+                urlInput.value = hashUrl;
+                loadWasm(hashUrl);
+            }
+        }
+    </script>
+</body>
+</html>
