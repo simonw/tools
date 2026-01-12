@@ -161,9 +161,9 @@
     <div class="instructions">
         <h3>Mobile Safari (iPhone/iPad)</h3>
         <ol>
-            <li><strong>Copy the bookmarklet code</strong> below (tap and hold, then "Select All" and "Copy"):</li>
+            <li><strong>Copy the bookmarklet code</strong> using the button below:</li>
         </ol>
-        <div class="code-block" id="bookmarklet-code">javascript:(function(){if(document.querySelector('#comment-view-tabs'))return;const commentsLabel=document.querySelector('.comments_label');const commentsContainer=document.querySelector('ol.comments');if(!commentsLabel||!commentsContainer){alert('This bookmarklet only works on Lobste.rs comment pages');return}const originalCommentsHTML=commentsContainer.innerHTML;function getAuthor(element){const links=element.querySelectorAll('a[href^="/~"]');for(const link of links){const text=link.textContent?.trim();if(text)return text}return null}function extractComments(){const comments=[];document.querySelectorAll('.comments_subtree').forEach(subtree=>{const comment=subtree.querySelector(':scope > .comment[id^="c_"]');if(!comment)return;const timeEl=comment.querySelector('time');const parentSubtree=subtree.parentElement?.closest('.comments_subtree');const parentComment=parentSubtree?.querySelector(':scope > .comment[id^="c_"]');comments.push({id:comment.id,element:comment.cloneNode(true),author:getAuthor(comment),timestamp:parseInt(timeEl?.getAttribute('data-at-unix')||'0'),parentId:parentComment?.id||null,parentAuthor:parentComment?getAuthor(parentComment):null})});return comments}const tabsContainer=document.createElement('div');tabsContainer.id='comment-view-tabs';tabsContainer.innerHTML=`<style>#comment-view-tabs{margin:10px 0}#comment-view-tabs .tab-buttons{display:flex;gap:0}#comment-view-tabs .tab-btn{padding:8px 16px;border:1px solid #ac0000;background:white;cursor:pointer;font-size:14px;color:#ac0000}#comment-view-tabs .tab-btn:first-child{border-radius:4px 0 0 4px}#comment-view-tabs .tab-btn:last-child{border-radius:0 4px 4px 0;border-left:none}#comment-view-tabs .tab-btn.active{background:#ac0000;color:white}#comment-view-tabs .tab-btn:hover:not(.active){background:#f0f0f0}.flat-comment{margin:0 0 15px 0!important;padding:10px!important;border-left:3px solid #ddd!important}.reply-to-link{font-size:12px;color:#666;margin-left:10px}.reply-to-link a{color:#ac0000;text-decoration:none}.reply-to-link a:hover{text-decoration:underline}</style><div class="tab-buttons"><button class="tab-btn active" data-view="default">Default</button><button class="tab-btn" data-view="latest">Latest</button></div>`;const byline=commentsLabel.closest('.byline');byline.parentNode.insertBefore(tabsContainer,byline.nextSibling);function switchToDefault(scrollToId){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelector('.tab-btn[data-view="default"]').classList.add('active');commentsContainer.innerHTML=originalCommentsHTML;if(scrollToId){setTimeout(()=>{const el=document.getElementById(scrollToId);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.transition='background 0.3s';el.style.background='#ffffd0';setTimeout(()=>el.style.background='',2000)}},100)}}function buildFlatView(){const comments=extractComments();comments.sort((a,b)=>b.timestamp-a.timestamp);const flatContainer=document.createElement('div');comments.forEach(c=>{const wrapper=document.createElement('div');wrapper.className='flat-comment-wrapper';const commentEl=c.element;commentEl.classList.add('flat-comment');commentEl.style.marginLeft='0';if(c.parentId&&c.parentAuthor){const byline=commentEl.querySelector('.byline');if(byline){const replySpan=document.createElement('span');replySpan.className='reply-to-link';replySpan.innerHTML=` ↩ reply to <a href="#${c.parentId}">@${c.parentAuthor}</a>`;byline.appendChild(replySpan)}}const timeLink=commentEl.querySelector('a[href^="/c/"]');if(timeLink){const commentId=c.id;timeLink.addEventListener('click',function(e){e.preventDefault();switchToDefault(commentId)})}wrapper.appendChild(commentEl);flatContainer.appendChild(wrapper)});return flatContainer}let flatViewCache=null;const tabButtons=tabsContainer.querySelectorAll('.tab-btn');tabButtons.forEach(btn=>{btn.addEventListener('click',()=>{tabButtons.forEach(b=>b.classList.remove('active'));btn.classList.add('active');const view=btn.dataset.view;if(view==='default'){commentsContainer.innerHTML=originalCommentsHTML}else if(view==='latest'){if(!flatViewCache){flatViewCache=buildFlatView()}commentsContainer.innerHTML='';commentsContainer.appendChild(flatViewCache.cloneNode(true));commentsContainer.querySelectorAll('a[href^="/c/"]').forEach(link=>{const wrapper=link.closest('.flat-comment-wrapper');const commentEl=wrapper?.querySelector('.comment');const commentId=commentEl?.id;if(commentId){link.addEventListener('click',function(e){e.preventDefault();switchToDefault(commentId)})}})}})})})()</div>
+        <button id="copy-bookmarklet-btn" style="display:block;margin:10px 0;padding:12px 24px;background:#ac0000;color:white;border:none;border-radius:4px;cursor:pointer;font-size:14px;font-weight:bold;">Copy Bookmarklet Code</button>
         <ol start="2">
             <li><strong>Create a new bookmark:</strong>
                 <ul>
@@ -400,20 +400,28 @@
     </footer>
 
     <script>
-        // Add copy button for mobile
-        const codeBlock = document.getElementById('bookmarklet-code');
-        if (navigator.clipboard) {
-            const copyBtn = document.createElement('button');
-            copyBtn.textContent = 'Copy to Clipboard';
-            copyBtn.style.cssText = 'display:block;margin:10px 0;padding:8px 16px;background:#ac0000;color:white;border:none;border-radius:4px;cursor:pointer;';
-            copyBtn.onclick = () => {
-                navigator.clipboard.writeText(codeBlock.textContent).then(() => {
-                    copyBtn.textContent = 'Copied!';
-                    setTimeout(() => copyBtn.textContent = 'Copy to Clipboard', 2000);
-                });
-            };
-            codeBlock.parentNode.insertBefore(copyBtn, codeBlock.nextSibling);
-        }
+        // Copy button extracts code from the bookmarklet link's href
+        const copyBtn = document.getElementById('copy-bookmarklet-btn');
+        const bookmarkletLink = document.querySelector('.bookmarklet-link');
+
+        copyBtn.onclick = () => {
+            // Get the href attribute which contains the bookmarklet code
+            const code = bookmarkletLink.getAttribute('href');
+            navigator.clipboard.writeText(code).then(() => {
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => copyBtn.textContent = 'Copy Bookmarklet Code', 2000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = code;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => copyBtn.textContent = 'Copy Bookmarklet Code', 2000);
+            });
+        };
     </script>
 </body>
 </html>
