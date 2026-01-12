@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lobsters Latest Comments Bookmarklet</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1 {
+            color: #ac0000;
+            border-bottom: 2px solid #ac0000;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 2em;
+        }
+        .bookmarklet-link {
+            display: inline-block;
+            background: #ac0000;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: grab;
+            margin: 20px 0;
+        }
+        .bookmarklet-link:hover {
+            background: #8a0000;
+        }
+        .bookmarklet-link:active {
+            cursor: grabbing;
+        }
+        .instructions {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #ac0000;
+        }
+        .instructions ol {
+            margin-bottom: 0;
+        }
+        .instructions li {
+            margin: 8px 0;
+        }
+        code {
+            background: #e8e8e8;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+            font-size: 0.9em;
+        }
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .feature-list {
+            background: #fff8f0;
+            border-left: 4px solid #ac0000;
+            padding: 15px 20px;
+            margin: 20px 0;
+        }
+        .feature-list ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .feature-list li {
+            margin: 5px 0;
+        }
+        .browser-icon {
+            width: 24px;
+            height: 24px;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .demo-video {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Lobsters Latest Comments</h1>
+
+    <p>A bookmarklet that adds a "Latest" tab to <a href="https://lobste.rs">Lobste.rs</a> comment threads, showing all comments in a flat chronological view with newest first.</p>
+
+    <div class="feature-list">
+        <strong>Features:</strong>
+        <ul>
+            <li><strong>Default tab:</strong> Original threaded/nested comment view</li>
+            <li><strong>Latest tab:</strong> Flat view sorted by time (newest first, oldest at bottom)</li>
+            <li><strong>Reply links:</strong> Each reply shows "reply to @username" linking to the parent comment</li>
+            <li><strong>Time link navigation:</strong> Clicking a comment's timestamp in Latest view switches back to Default and scrolls to that comment in the tree</li>
+        </ul>
+    </div>
+
+    <h2>Install the Bookmarklet</h2>
+
+    <p><strong>Drag this button to your bookmarks bar:</strong></p>
+
+    <a class="bookmarklet-link" href="javascript:(function(){if(document.querySelector('#comment-view-tabs'))return;const commentsLabel=document.querySelector('.comments_label');const commentsContainer=document.querySelector('ol.comments');if(!commentsLabel||!commentsContainer){alert('This bookmarklet only works on Lobste.rs comment pages');return}const originalCommentsHTML=commentsContainer.innerHTML;function getAuthor(element){const links=element.querySelectorAll('a[href^=&quot;/~&quot;]');for(const link of links){const text=link.textContent?.trim();if(text)return text}return null}function extractComments(){const comments=[];document.querySelectorAll('.comments_subtree').forEach(subtree=>{const comment=subtree.querySelector(':scope > .comment[id^=&quot;c_&quot;]');if(!comment)return;const timeEl=comment.querySelector('time');const parentSubtree=subtree.parentElement?.closest('.comments_subtree');const parentComment=parentSubtree?.querySelector(':scope > .comment[id^=&quot;c_&quot;]');comments.push({id:comment.id,element:comment.cloneNode(true),author:getAuthor(comment),timestamp:parseInt(timeEl?.getAttribute('data-at-unix')||'0'),parentId:parentComment?.id||null,parentAuthor:parentComment?getAuthor(parentComment):null})});return comments}const tabsContainer=document.createElement('div');tabsContainer.id='comment-view-tabs';tabsContainer.innerHTML=`<style>#comment-view-tabs{margin:10px 0}#comment-view-tabs .tab-buttons{display:flex;gap:0}#comment-view-tabs .tab-btn{padding:8px 16px;border:1px solid #ac0000;background:white;cursor:pointer;font-size:14px;color:#ac0000}#comment-view-tabs .tab-btn:first-child{border-radius:4px 0 0 4px}#comment-view-tabs .tab-btn:last-child{border-radius:0 4px 4px 0;border-left:none}#comment-view-tabs .tab-btn.active{background:#ac0000;color:white}#comment-view-tabs .tab-btn:hover:not(.active){background:#f0f0f0}.flat-comment{margin:0 0 15px 0!important;padding:10px!important;border-left:3px solid #ddd!important}.reply-to-link{font-size:12px;color:#666;margin-left:10px}.reply-to-link a{color:#ac0000;text-decoration:none}.reply-to-link a:hover{text-decoration:underline}</style><div class=&quot;tab-buttons&quot;><button class=&quot;tab-btn active&quot; data-view=&quot;default&quot;>Default</button><button class=&quot;tab-btn&quot; data-view=&quot;latest&quot;>Latest</button></div>`;const byline=commentsLabel.closest('.byline');byline.parentNode.insertBefore(tabsContainer,byline.nextSibling);function switchToDefault(scrollToId){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelector('.tab-btn[data-view=&quot;default&quot;]').classList.add('active');commentsContainer.innerHTML=originalCommentsHTML;if(scrollToId){setTimeout(()=>{const el=document.getElementById(scrollToId);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.transition='background 0.3s';el.style.background='#ffffd0';setTimeout(()=>el.style.background='',2000)}},100)}}function buildFlatView(){const comments=extractComments();comments.sort((a,b)=>b.timestamp-a.timestamp);const flatContainer=document.createElement('div');comments.forEach(c=>{const wrapper=document.createElement('div');wrapper.className='flat-comment-wrapper';const commentEl=c.element;commentEl.classList.add('flat-comment');commentEl.style.marginLeft='0';if(c.parentId&&c.parentAuthor){const byline=commentEl.querySelector('.byline');if(byline){const replySpan=document.createElement('span');replySpan.className='reply-to-link';replySpan.innerHTML=` ↩ reply to <a href=&quot;#${c.parentId}&quot;>@${c.parentAuthor}</a>`;byline.appendChild(replySpan)}}const timeLink=commentEl.querySelector('a[href^=&quot;/c/&quot;]');if(timeLink){const commentId=c.id;timeLink.addEventListener('click',function(e){e.preventDefault();switchToDefault(commentId)})}wrapper.appendChild(commentEl);flatContainer.appendChild(wrapper)});return flatContainer}let flatViewCache=null;const tabButtons=tabsContainer.querySelectorAll('.tab-btn');tabButtons.forEach(btn=>{btn.addEventListener('click',()=>{tabButtons.forEach(b=>b.classList.remove('active'));btn.classList.add('active');const view=btn.dataset.view;if(view==='default'){commentsContainer.innerHTML=originalCommentsHTML}else if(view==='latest'){if(!flatViewCache){flatViewCache=buildFlatView()}commentsContainer.innerHTML='';commentsContainer.appendChild(flatViewCache.cloneNode(true));commentsContainer.querySelectorAll('a[href^=&quot;/c/&quot;]').forEach(link=>{const wrapper=link.closest('.flat-comment-wrapper');const commentEl=wrapper?.querySelector('.comment');const commentId=commentEl?.id;if(commentId){link.addEventListener('click',function(e){e.preventDefault();switchToDefault(commentId)})}})}})})})();">Lobsters Latest</a>
+
+    <h2>Installation Instructions</h2>
+
+    <div class="instructions">
+        <h3>Chrome / Firefox / Desktop Safari</h3>
+        <ol>
+            <li>Make sure your bookmarks bar is visible
+                <ul>
+                    <li><strong>Chrome:</strong> Press <code>Cmd+Shift+B</code> (Mac) or <code>Ctrl+Shift+B</code> (Windows)</li>
+                    <li><strong>Firefox:</strong> Press <code>Cmd+B</code> (Mac) or <code>Ctrl+B</code> (Windows)</li>
+                    <li><strong>Safari:</strong> View → Show Favorites Bar</li>
+                </ul>
+            </li>
+            <li><strong>Drag</strong> the red "Lobsters Latest" button above to your bookmarks bar</li>
+            <li>Navigate to any Lobste.rs comment thread</li>
+            <li>Click the bookmarklet to activate</li>
+        </ol>
+    </div>
+
+    <div class="instructions">
+        <h3>Mobile Safari (iPhone/iPad)</h3>
+        <ol>
+            <li><strong>Copy the bookmarklet code</strong> below (tap and hold, then "Select All" and "Copy"):</li>
+        </ol>
+        <div class="code-block" id="bookmarklet-code">javascript:(function(){if(document.querySelector('#comment-view-tabs'))return;const commentsLabel=document.querySelector('.comments_label');const commentsContainer=document.querySelector('ol.comments');if(!commentsLabel||!commentsContainer){alert('This bookmarklet only works on Lobste.rs comment pages');return}const originalCommentsHTML=commentsContainer.innerHTML;function getAuthor(element){const links=element.querySelectorAll('a[href^="/~"]');for(const link of links){const text=link.textContent?.trim();if(text)return text}return null}function extractComments(){const comments=[];document.querySelectorAll('.comments_subtree').forEach(subtree=>{const comment=subtree.querySelector(':scope > .comment[id^="c_"]');if(!comment)return;const timeEl=comment.querySelector('time');const parentSubtree=subtree.parentElement?.closest('.comments_subtree');const parentComment=parentSubtree?.querySelector(':scope > .comment[id^="c_"]');comments.push({id:comment.id,element:comment.cloneNode(true),author:getAuthor(comment),timestamp:parseInt(timeEl?.getAttribute('data-at-unix')||'0'),parentId:parentComment?.id||null,parentAuthor:parentComment?getAuthor(parentComment):null})});return comments}const tabsContainer=document.createElement('div');tabsContainer.id='comment-view-tabs';tabsContainer.innerHTML=`<style>#comment-view-tabs{margin:10px 0}#comment-view-tabs .tab-buttons{display:flex;gap:0}#comment-view-tabs .tab-btn{padding:8px 16px;border:1px solid #ac0000;background:white;cursor:pointer;font-size:14px;color:#ac0000}#comment-view-tabs .tab-btn:first-child{border-radius:4px 0 0 4px}#comment-view-tabs .tab-btn:last-child{border-radius:0 4px 4px 0;border-left:none}#comment-view-tabs .tab-btn.active{background:#ac0000;color:white}#comment-view-tabs .tab-btn:hover:not(.active){background:#f0f0f0}.flat-comment{margin:0 0 15px 0!important;padding:10px!important;border-left:3px solid #ddd!important}.reply-to-link{font-size:12px;color:#666;margin-left:10px}.reply-to-link a{color:#ac0000;text-decoration:none}.reply-to-link a:hover{text-decoration:underline}</style><div class="tab-buttons"><button class="tab-btn active" data-view="default">Default</button><button class="tab-btn" data-view="latest">Latest</button></div>`;const byline=commentsLabel.closest('.byline');byline.parentNode.insertBefore(tabsContainer,byline.nextSibling);function switchToDefault(scrollToId){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelector('.tab-btn[data-view="default"]').classList.add('active');commentsContainer.innerHTML=originalCommentsHTML;if(scrollToId){setTimeout(()=>{const el=document.getElementById(scrollToId);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.transition='background 0.3s';el.style.background='#ffffd0';setTimeout(()=>el.style.background='',2000)}},100)}}function buildFlatView(){const comments=extractComments();comments.sort((a,b)=>b.timestamp-a.timestamp);const flatContainer=document.createElement('div');comments.forEach(c=>{const wrapper=document.createElement('div');wrapper.className='flat-comment-wrapper';const commentEl=c.element;commentEl.classList.add('flat-comment');commentEl.style.marginLeft='0';if(c.parentId&&c.parentAuthor){const byline=commentEl.querySelector('.byline');if(byline){const replySpan=document.createElement('span');replySpan.className='reply-to-link';replySpan.innerHTML=` ↩ reply to <a href="#${c.parentId}">@${c.parentAuthor}</a>`;byline.appendChild(replySpan)}}const timeLink=commentEl.querySelector('a[href^="/c/"]');if(timeLink){const commentId=c.id;timeLink.addEventListener('click',function(e){e.preventDefault();switchToDefault(commentId)})}wrapper.appendChild(commentEl);flatContainer.appendChild(wrapper)});return flatContainer}let flatViewCache=null;const tabButtons=tabsContainer.querySelectorAll('.tab-btn');tabButtons.forEach(btn=>{btn.addEventListener('click',()=>{tabButtons.forEach(b=>b.classList.remove('active'));btn.classList.add('active');const view=btn.dataset.view;if(view==='default'){commentsContainer.innerHTML=originalCommentsHTML}else if(view==='latest'){if(!flatViewCache){flatViewCache=buildFlatView()}commentsContainer.innerHTML='';commentsContainer.appendChild(flatViewCache.cloneNode(true));commentsContainer.querySelectorAll('a[href^="/c/"]').forEach(link=>{const wrapper=link.closest('.flat-comment-wrapper');const commentEl=wrapper?.querySelector('.comment');const commentId=commentEl?.id;if(commentId){link.addEventListener('click',function(e){e.preventDefault();switchToDefault(commentId)})}})}})})})()</div>
+        <ol start="2">
+            <li><strong>Create a new bookmark:</strong>
+                <ul>
+                    <li>Go to any webpage and tap the Share button</li>
+                    <li>Tap "Add Bookmark"</li>
+                    <li>Name it "Lobsters Latest" and save</li>
+                </ul>
+            </li>
+            <li><strong>Edit the bookmark:</strong>
+                <ul>
+                    <li>Open your Bookmarks (tap the book icon)</li>
+                    <li>Tap "Edit" at the bottom</li>
+                    <li>Find and tap "Lobsters Latest"</li>
+                    <li>Delete the URL and paste the copied code</li>
+                    <li>Tap "Done"</li>
+                </ul>
+            </li>
+            <li><strong>To use:</strong> Navigate to a Lobste.rs thread, tap the bookmarks icon, and select "Lobsters Latest"</li>
+        </ol>
+    </div>
+
+    <div class="warning">
+        <strong>Note:</strong> This bookmarklet only works on Lobste.rs comment thread pages (URLs like <code>lobste.rs/s/...</code>). It won't do anything on the homepage or other pages.
+    </div>
+
+    <h2>How It Works</h2>
+
+    <p>The bookmarklet:</p>
+    <ol>
+        <li>Extracts all comments from the page, including their timestamps and parent-child relationships</li>
+        <li>Adds two tabs below the comment count header</li>
+        <li>When "Latest" is selected, displays comments in a flat list sorted by newest first</li>
+        <li>Adds "reply to @username" links for comments that are replies</li>
+        <li>Clicking the timestamp link (e.g., "14 hours ago") switches back to Default view and scrolls to that comment in the tree, with a brief yellow highlight</li>
+    </ol>
+
+    <h2>Source Code</h2>
+
+    <p>The readable, unminified source code:</p>
+
+    <details>
+        <summary style="cursor: pointer; color: #ac0000; font-weight: bold;">Click to expand source code</summary>
+        <pre class="code-block" style="margin-top: 10px;">(function() {
+  // Don't run twice
+  if (document.querySelector('#comment-view-tabs')) return;
+
+  const commentsLabel = document.querySelector('.comments_label');
+  const commentsContainer = document.querySelector('ol.comments');
+
+  if (!commentsLabel || !commentsContainer) {
+    alert('This bookmarklet only works on Lobste.rs comment pages');
+    return;
+  }
+
+  // Store original HTML
+  const originalCommentsHTML = commentsContainer.innerHTML;
+
+  // Helper to find author name
+  function getAuthor(element) {
+    const links = element.querySelectorAll('a[href^="/~"]');
+    for (const link of links) {
+      const text = link.textContent?.trim();
+      if (text) return text;
+    }
+    return null;
+  }
+
+  // Extract all comments with their data
+  function extractComments() {
+    const comments = [];
+    document.querySelectorAll('.comments_subtree').forEach(subtree => {
+      const comment = subtree.querySelector(':scope > .comment[id^="c_"]');
+      if (!comment) return;
+
+      const timeEl = comment.querySelector('time');
+      const parentSubtree = subtree.parentElement?.closest('.comments_subtree');
+      const parentComment = parentSubtree?.querySelector(':scope > .comment[id^="c_"]');
+
+      comments.push({
+        id: comment.id,
+        element: comment.cloneNode(true),
+        author: getAuthor(comment),
+        timestamp: parseInt(timeEl?.getAttribute('data-at-unix') || '0'),
+        parentId: parentComment?.id || null,
+        parentAuthor: parentComment ? getAuthor(parentComment) : null
+      });
+    });
+    return comments;
+  }
+
+  // Create tabs
+  const tabsContainer = document.createElement('div');
+  tabsContainer.id = 'comment-view-tabs';
+  tabsContainer.innerHTML = `
+    &lt;style&gt;
+      #comment-view-tabs { margin: 10px 0 }
+      #comment-view-tabs .tab-buttons { display: flex; gap: 0 }
+      #comment-view-tabs .tab-btn {
+        padding: 8px 16px;
+        border: 1px solid #ac0000;
+        background: white;
+        cursor: pointer;
+        font-size: 14px;
+        color: #ac0000;
+      }
+      #comment-view-tabs .tab-btn:first-child { border-radius: 4px 0 0 4px }
+      #comment-view-tabs .tab-btn:last-child {
+        border-radius: 0 4px 4px 0;
+        border-left: none
+      }
+      #comment-view-tabs .tab-btn.active { background: #ac0000; color: white }
+      #comment-view-tabs .tab-btn:hover:not(.active) { background: #f0f0f0 }
+      .flat-comment {
+        margin: 0 0 15px 0 !important;
+        padding: 10px !important;
+        border-left: 3px solid #ddd !important;
+      }
+      .reply-to-link { font-size: 12px; color: #666; margin-left: 10px }
+      .reply-to-link a { color: #ac0000; text-decoration: none }
+      .reply-to-link a:hover { text-decoration: underline }
+    &lt;/style&gt;
+    &lt;div class="tab-buttons"&gt;
+      &lt;button class="tab-btn active" data-view="default"&gt;Default&lt;/button&gt;
+      &lt;button class="tab-btn" data-view="latest"&gt;Latest&lt;/button&gt;
+    &lt;/div&gt;
+  `;
+
+  // Insert tabs
+  const byline = commentsLabel.closest('.byline');
+  byline.parentNode.insertBefore(tabsContainer, byline.nextSibling);
+
+  // Switch to default view and optionally scroll to a comment
+  function switchToDefault(scrollToId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.tab-btn[data-view="default"]').classList.add('active');
+    commentsContainer.innerHTML = originalCommentsHTML;
+
+    if (scrollToId) {
+      setTimeout(() => {
+        const el = document.getElementById(scrollToId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.transition = 'background 0.3s';
+          el.style.background = '#ffffd0';
+          setTimeout(() => el.style.background = '', 2000);
+        }
+      }, 100);
+    }
+  }
+
+  // Build flat view
+  function buildFlatView() {
+    const comments = extractComments();
+    comments.sort((a, b) => b.timestamp - a.timestamp);
+
+    const flatContainer = document.createElement('div');
+
+    comments.forEach(c => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'flat-comment-wrapper';
+
+      const commentEl = c.element;
+      commentEl.classList.add('flat-comment');
+      commentEl.style.marginLeft = '0';
+
+      // Add reply-to link
+      if (c.parentId && c.parentAuthor) {
+        const byline = commentEl.querySelector('.byline');
+        if (byline) {
+          const replySpan = document.createElement('span');
+          replySpan.className = 'reply-to-link';
+          replySpan.innerHTML = ` ↩ reply to &lt;a href="#${c.parentId}"&gt;@${c.parentAuthor}&lt;/a&gt;`;
+          byline.appendChild(replySpan);
+        }
+      }
+
+      // Add click handler for time link
+      const timeLink = commentEl.querySelector('a[href^="/c/"]');
+      if (timeLink) {
+        const commentId = c.id;
+        timeLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          switchToDefault(commentId);
+        });
+      }
+
+      wrapper.appendChild(commentEl);
+      flatContainer.appendChild(wrapper);
+    });
+
+    return flatContainer;
+  }
+
+  let flatViewCache = null;
+
+  // Tab switching
+  const tabButtons = tabsContainer.querySelectorAll('.tab-btn');
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const view = btn.dataset.view;
+
+      if (view === 'default') {
+        commentsContainer.innerHTML = originalCommentsHTML;
+      } else if (view === 'latest') {
+        if (!flatViewCache) {
+          flatViewCache = buildFlatView();
+        }
+        commentsContainer.innerHTML = '';
+        commentsContainer.appendChild(flatViewCache.cloneNode(true));
+
+        // Re-attach click handlers after cloning
+        commentsContainer.querySelectorAll('a[href^="/c/"]').forEach(link => {
+          const wrapper = link.closest('.flat-comment-wrapper');
+          const commentEl = wrapper?.querySelector('.comment');
+          const commentId = commentEl?.id;
+          if (commentId) {
+            link.addEventListener('click', function(e) {
+              e.preventDefault();
+              switchToDefault(commentId);
+            });
+          }
+        });
+      }
+    });
+  });
+})();</pre>
+    </details>
+
+    <footer>
+        <p>Created with Claude. Works on <a href="https://lobste.rs">Lobste.rs</a> comment threads.</p>
+    </footer>
+
+    <script>
+        // Add copy button for mobile
+        const codeBlock = document.getElementById('bookmarklet-code');
+        if (navigator.clipboard) {
+            const copyBtn = document.createElement('button');
+            copyBtn.textContent = 'Copy to Clipboard';
+            copyBtn.style.cssText = 'display:block;margin:10px 0;padding:8px 16px;background:#ac0000;color:white;border:none;border-radius:4px;cursor:pointer;';
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(codeBlock.textContent).then(() => {
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(() => copyBtn.textContent = 'Copy to Clipboard', 2000);
+                });
+            };
+            codeBlock.parentNode.insertBefore(copyBtn, codeBlock.nextSibling);
+        }
+    </script>
+</body>
+</html>
