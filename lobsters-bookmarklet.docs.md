@@ -1,5 +1,3 @@
-# Documentation
+View Lobste.rs comment threads with a chronological "Latest" tab that displays all comments in a flat, newest-first layout alongside the original nested view. The bookmarklet adds reply-to links showing which comment each reply targets, and clicking timestamps in the Latest view smoothly navigates back to the threaded view with the selected comment highlighted for easy reference.
 
-Browse Lobste.rs comment threads with an enhanced viewing mode by installing this bookmarklet, which adds a "Latest" tab that displays all comments in chronological order with the newest first. The flat view includes reply-to links showing parent comment authors, and clicking any timestamp seamlessly returns you to the nested default view while highlighting the selected comment for easy navigation.
-
-<!-- Generated from commit: 9aed2dd41f9c2ff60d55f3a649354e2abcb2bea6 -->
+<!-- Generated from commit: 487824be1517bdb62a030f3cdac9904aea0b01fc -->
