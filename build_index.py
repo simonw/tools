@@ -196,6 +196,7 @@ def build_index() -> None:
         }}
         h1 {{
             font-family: Georgia, 'Times New Roman', Times, serif;
+            font-size: 1.4em;
         }}
         h2 {{
             margin-top: 1.5em;
