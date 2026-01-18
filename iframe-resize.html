@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seamless Sandboxed Iframe Prototype</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+h1 {
+  color: #333;
+}
+
+.info {
+  background: #e7f3ff;
+  border-left: 4px solid #2196F3;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border-radius: 0 4px 4px 0;
+}
+
+.section {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.section h2 {
+  margin-top: 0;
+  color: #444;
+  font-size: 1.1rem;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.sandbox-container {
+  border: 2px dashed #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+  position: relative;
+}
+
+.sandbox-container::before {
+  content: 'Sandboxed Content (no allow-same-origin)';
+  position: absolute;
+  top: -10px;
+  left: 10px;
+  background: #fafafa;
+  padding: 0 8px;
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sandboxed-iframe {
+  width: 100%;
+  border: none;
+  display: block;
+  overflow: hidden;
+  transition: height 0.15s ease-out;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+}
+
+button {
+  background: #2196F3;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button:hover {
+  background: #1976D2;
+}
+
+button.danger {
+  background: #f44336;
+}
+
+button.danger:hover {
+  background: #d32f2f;
+}
+
+.height-display {
+  font-family: monospace;
+  background: #333;
+  color: #0f0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.parent-content {
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 4px;
+  margin: 20px 0;
+}
+  </style>
+</head>
+<body>
+  <h1>Seamless Sandboxed Iframe</h1>
+
+  <div class="info">
+    This prototype demonstrates embedding untrusted content in a sandbox <strong>without</strong> 
+    <code>allow-same-origin</code>, while still achieving seamless height adjustment. 
+    The parent page scrolls normally—no scroll inside the iframe.
+  </div>
+
+  <div class="section">
+    <h2>Controls</h2>
+    <div class="controls">
+      <button onclick="injectContent('basic')">Load Basic Content</button>
+      <button onclick="injectContent('dynamic')">Load Dynamic Content</button>
+      <button onclick="injectContent('images')">Load With Images</button>
+      <button onclick="injectContent('malicious')" class="danger">Load "Malicious" Content</button>
+    </div>
+    <div class="height-display">
+      Iframe height: <span id="height-value">0</span>px
+    </div>
+  </div>
+
+  <div class="parent-content">
+    ↑ This is parent page content ABOVE the sandbox
+  </div>
+
+  <div class="section">
+    <h2>Sandboxed Untrusted Content</h2>
+    <div class="sandbox-container">
+      <iframe 
+        id="sandbox" 
+        class="sandboxed-iframe"
+        sandbox="allow-scripts"
+      ></iframe>
+    </div>
+  </div>
+
+  <div class="parent-content">
+    ↓ This is parent page content BELOW the sandbox — it should move as iframe resizes
+  </div>
+
+  <div class="section">
+    <h2>How It Works</h2>
+    <p>The untrusted content is wrapped with a small height-reporting script before being injected. 
+    This script uses <code>postMessage</code> to tell the parent its height whenever content changes.</p>
+    <p>The sandbox has only <code>allow-scripts</code> — no <code>allow-same-origin</code> — so the 
+    untrusted code cannot access the parent's DOM, cookies, or storage.</p>
+  </div>
+
+  <script>
+    const iframe = document.getElementById('sandbox');
+    const heightDisplay = document.getElementById('height-value');
+    const MAX_HEIGHT = 5000; // Safety limit
+
+    // Height reporter script injected into sandboxed content
+    const heightReporterScript = `
+<script>
+  (function() {
+    let lastHeight = 0;
+    
+    function reportHeight() {
+      const height = Math.max(
+        document.body.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.scrollHeight,
+        document.documentElement.offsetHeight
+      );
+      
+      if (height !== lastHeight) {
+        lastHeight = height;
+        window.parent.postMessage({ type: 'sandbox-height', height: height }, '*');
+      }
+    }
+    
+    // Report immediately
+    reportHeight();
+    
+    // Report after DOM settles
+    setTimeout(reportHeight, 0);
+    setTimeout(reportHeight, 100);
+    
+    // Watch for size changes
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(reportHeight).observe(document.body);
+    }
+    
+    // Watch for DOM changes
+    new MutationObserver(reportHeight).observe(document.body, {
+      childList: true, subtree: true, attributes: true
+    });
+    
+    // Watch for image/resource loads
+    document.addEventListener('load', reportHeight, true);
+    
+    // Periodic fallback
+    setInterval(reportHeight, 500);
+  })();
+<\/script>
+`;
+
+    const baseStyles = `
+<style>
+  * { box-sizing: border-box; }
+  html, body { 
+    margin: 0; 
+    padding: 0; 
+    overflow: hidden; /* Let parent scroll */
+  }
+  body { 
+    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+  }
+</style>
+
+`;
+
+// Listen for height messages from sandbox
+window.addEventListener('message', (e) => {
+  // IMPORTANT: Verify message is from our iframe
+  if (e.source !== iframe.contentWindow) return;
+  if (e.data?.type !== 'sandbox-height') return;
+  
+  let height = parseInt(e.data.height, 10);
+  if (isNaN(height) || height < 0) return;
+  
+  // Enforce maximum height for safety
+  height = Math.min(height, MAX_HEIGHT);
+  
+  iframe.style.height = height + 'px';
+  heightDisplay.textContent = height;
+});
+
+// Content examples
+const contentExamples = {
+  basic: `
+    <h2>Basic Untrusted Content</h2>
+    <p>This is simple static content loaded in a sandboxed iframe.</p>
+    <p>The iframe automatically resizes to fit this content, and the parent page scrolls normally.</p>
+    <ul>
+      <li>No <code>allow-same-origin</code></li>
+      <li>Cannot access parent DOM</li>
+      <li>Cannot access cookies or storage</li>
+      <li>Height is reported via postMessage</li>
+    </ul>
+    <div style="background:#e8f5e9; padding:15px; border-radius:4px; margin-top:15px;">
+      ✅ This content is safely sandboxed
+    </div>
+  `,
+  
+  dynamic: `
+    <h2>Dynamic Content</h2>
+    <p>Click the button to add more content and watch the iframe resize:</p>
+    <button onclick="addContent()" style="padding:10px 20px; font-size:16px; cursor:pointer;">
+      Add More Content
+    </button>
+    <div id="dynamic-area" style="margin-top:15px;"></div>
+    <script>
+      let counter = 0;
+      function addContent() {
+        counter++;
+        const div = document.createElement('div');
+        div.style.cssText = 'background:#' + Math.floor(Math.random()*16777215).toString(16).padStart(6,'0') + '; padding:20px; margin:10px 0; border-radius:4px; color:white; text-shadow: 0 1px 2px rgba(0,0,0,0.5);';
+        div.innerHTML = '<strong>Dynamic block #' + counter + '</strong><p>Added at ' + new Date().toLocaleTimeString() + '</p>';
+        document.getElementById('dynamic-area').appendChild(div);
+      }
+    <\/script>
+  `,
+  
+  images: `
+    <h2>Content With Images</h2>
+    <p>Images load asynchronously — the iframe should resize when they finish loading:</p>
+    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px;">
+      <img src="https://picsum.photos/300/200?random=1" style="width:100%; border-radius:4px;">
+      <img src="https://picsum.photos/300/200?random=2" style="width:100%; border-radius:4px;">
+      <img src="https://picsum.photos/300/200?random=3" style="width:100%; border-radius:4px;">
+      <img src="https://picsum.photos/300/200?random=4" style="width:100%; border-radius:4px;">
+    </div>
+    <p style="margin-top:15px; color:#666; font-size:14px;">
+      The height reporter listens for image load events and re-reports height.
+    </p>
+  `,
+  
+  malicious: `
+    <h2 style="color:#d32f2f;">⚠️ "Malicious" Content</h2>
+    <p>This content tries various attacks that would work without proper sandboxing:</p>
+    
+    <div style="background:#ffebee; padding:15px; border-radius:4px; margin:15px 0;">
+      <strong>Attempting to access parent...</strong>
+      <pre id="attack-results" style="margin:10px 0; font-size:12px;"></pre>
+    </div>
+    
+    <script>
+      const results = [];
+      
+      // Try to access parent document
+      try {
+        const x = window.parent.document.body;
+        results.push('❌ Accessed parent.document.body!');
+      } catch(e) {
+        results.push('✅ parent.document.body blocked: ' + e.name);
+      }
+      
+      // Try to access cookies
+      try {
+        const x = document.cookie;
+        results.push('⚠️ Can read own cookies (but not parent): ' + (x || '(empty)'));
+      } catch(e) {
+        results.push('✅ cookies blocked: ' + e.name);
+      }
+      
+      // Try localStorage
+      try {
+        localStorage.setItem('test', '1');
+        results.push('❌ localStorage works!');
+      } catch(e) {
+        results.push('✅ localStorage blocked: ' + e.name);
+      }
+      
+      // Try to navigate parent
+      try {
+        window.parent.location.href = 'https://evil.com';
+        results.push('❌ Navigated parent!');
+      } catch(e) {
+        results.push('✅ parent navigation blocked: ' + e.name);
+      }
+      
+      // Try to open popup
+      try {
+        const w = window.open('https://evil.com');
+        if (w) {
+          results.push('❌ Popup opened!');
+          w.close();
+        } else {
+          results.push('✅ Popup blocked (returned null)');
+        }
+      } catch(e) {
+        results.push('✅ Popup blocked: ' + e.name);
+      }
+      
+      document.getElementById('attack-results').textContent = results.join('\\n');
+    <\/script>
+    
+    <p>The sandbox successfully blocks access to the parent page.</p>
+    
+    <button onclick="tryHeightLie()" style="padding:8px 16px;">
+      Try to lie about height (set to 10000px)
+    </button>
+    <p style="font-size:13px; color:#666;">
+      This will be capped by the parent's MAX_HEIGHT limit.
+    </p>
+    <script>
+      function tryHeightLie() {
+        window.parent.postMessage({ type: 'sandbox-height', height: 10000 }, '*');
+      }
+    <\/script>
+  `
+};
+
+function injectContent(type) {
+  const content = contentExamples[type] || contentExamples.basic;
+  iframe.srcdoc = heightReporterScript + baseStyles + content;
+}
+
+// Load basic content on start
+injectContent('basic');
+
+
+  </script>
+</body>
+</html>
