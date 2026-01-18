@@ -1,0 +1,3 @@
+Embed untrusted content safely within a webpage using a sandboxed iframe that automatically adjusts its height without allowing cross-origin access. The prototype uses `postMessage` to communicate height changes between the sandboxed iframe and parent page, enabling seamless content display while maintaining security restrictions. Various content examples demonstrate how the sandbox handles dynamic content, images, and attempts at malicious behavior.
+
+<!-- Generated from commit: 6e88344d337ee402c4fe06390fe5f8ce69be81ed -->
