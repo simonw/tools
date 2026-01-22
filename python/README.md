@@ -4,6 +4,22 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## q3_tts.py
+
+Generate speech audio using Qwen3-TTS and MLX Audio on macOS.
+
+```bash
+uv run https://tools.simonwillison.net/python/q3_tts.py 'Say this out loud'
+```
+To describe a different voice for it to use:
+
+```bash
+uv run https://tools.simonwillison.net/python/q3_tts.py 'Say this out loud' -i 'Gruff pirate voice'
+```
+Files are saved as `output.wav` then `output-2.wav` etc. Use `-o other.wav` to specify a filename.
+
+The first time you run this it will download a 4.5GB model file from Hugging Face.
+
 ## list_llm_model_ids.py
 
 List available model IDs from OpenAI, Anthropic, and Gemini.
