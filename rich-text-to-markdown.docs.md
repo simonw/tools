@@ -1,3 +1,3 @@
-Convert formatted text from rich text editors or web pages directly into clean Markdown syntax. This tool accepts pasted content with bold, italic, links, lists, and paragraph breaks, then automatically converts the underlying HTML to properly formatted Markdown that can be copied with a single click. It works offline in your browser without requiring any external dependencies or frameworks.
+Convert rich text from your clipboard into properly formatted Markdown by pasting content into the input area. The tool automatically detects formatting such as bold text and converts it to Markdown syntax while removing unnecessary leading spaces from each line. Supports rich text format (RTF) from terminal output, HTML from web pages, and plain text input.
 
-<!-- Generated from commit: 385ad14624d67c915fc144f5abd5baf9f6149b43 -->
+<!-- Generated from commit: 139aebd747b7cee9fe25c830096417736643eb40 -->
