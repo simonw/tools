@@ -1,3 +1,3 @@
-Monitor your GitHub API usage with this rate limit checker tool. Authenticate with your GitHub account to view detailed information about your remaining API calls across different resource types, including visual progress indicators and reset times. The tool displays usage statistics and alerts you when your rate limits are running low.
+Monitor your GitHub API usage and remaining rate limits with this authentication-based checker. After authenticating with your GitHub account, the tool displays detailed information about your API quotas across different resource types, including remaining calls, reset times, and visual progress indicators. The interface shows critical warnings when your limits are running low, helping you manage your API consumption effectively.
 
-<!-- Generated from commit: c2ba78da8f9b27d0a361015904ad6fe0af9770b7 -->
+<!-- Generated from commit: d6b0634ce65c95cd5d55061c1cfcb03778b33419 -->
