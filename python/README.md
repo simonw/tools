@@ -4,6 +4,23 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## livestream-gif.py
+
+Convert a YouTube livestream to an animated GIF or MP4.
+
+```bash
+uv run https://tools.simonwillison.net/python/livestream-gif.py \
+  "https://www.youtube.com/watch?v=BfGL7A2YgUY" \
+  --frames 200  -o livestream.mp4 --fps 10 --mp4
+```
+This will grab 200 frames spaced out throughout the available livestream (often capped at 12 hours) and turn that into a 10fps MP4 video called `livestream.mp4`.
+
+Without `--mp4` it will create an animated GIF.
+
+`--hours 4` will limit it to the most recent 4 hours of the livestream.
+
+Use `--help` to see all available options.
+
 ## q3_tts.py
 
 Generate speech audio using Qwen3-TTS and MLX Audio on macOS.
