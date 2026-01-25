@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Directory Explorer Demo</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  min-height: 100vh;
+  color: #e0e0e0;
+}
+
+h1 {
+  text-align: center;
+  color: #00d9ff;
+  margin-bottom: 10px;
+  font-weight: 400;
+}
+
+.subtitle {
+  text-align: center;
+  color: #888;
+  margin-bottom: 30px;
+  font-size: 14px;
+}
+
+.upload-zone {
+  border: 2px dashed #00d9ff;
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  margin-bottom: 30px;
+  background: rgba(0, 217, 255, 0.05);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.upload-zone:hover {
+  background: rgba(0, 217, 255, 0.1);
+  border-color: #00ffcc;
+}
+
+.upload-zone.dragover {
+  background: rgba(0, 217, 255, 0.15);
+  border-color: #00ffcc;
+  transform: scale(1.01);
+}
+
+.upload-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+}
+
+input[type="file"] {
+  display: none;
+}
+
+.btn {
+  background: linear-gradient(135deg, #00d9ff, #00ffcc);
+  color: #1a1a2e;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 217, 255, 0.4);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: #00d9ff;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 5px;
+}
+
+.search-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.search-bar input,
+.search-bar select {
+  font-size: 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e0e0e0;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+.search-bar input {
+  flex: 1;
+}
+
+.search-bar input::placeholder {
+  color: #666;
+}
+
+.search-bar input:focus,
+.search-bar select:focus {
+  outline: none;
+  border-color: #00d9ff;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 800px) {
+  .panels {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.panel-header {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 15px 20px;
+  font-weight: 600;
+  color: #00d9ff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-content {
+  padding: 15px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.tree-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.tree-item:hover {
+  background: rgba(0, 217, 255, 0.1);
+}
+
+.tree-item.selected {
+  background: rgba(0, 217, 255, 0.2);
+}
+
+.tree-item .icon {
+  width: 20px;
+  text-align: center;
+}
+
+.tree-item .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-item .size {
+  font-size: 12px;
+  color: #666;
+}
+
+.folder {
+  color: #ffd700;
+}
+
+.file-preview {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 15px;
+  font-family: monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.file-preview img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.file-info {
+  margin-bottom: 15px;
+  padding: 15px;
+  background: rgba(0, 217, 255, 0.1);
+  border-radius: 8px;
+}
+
+.file-info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.file-info-row:last-child {
+  border-bottom: none;
+}
+
+.file-info-label {
+  color: #888;
+}
+
+.chart-container {
+  margin-top: 20px;
+}
+
+.chart-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.chart-label {
+  width: 80px;
+  font-size: 12px;
+  color: #888;
+}
+
+.chart-track {
+  flex: 1;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.chart-fill {
+  height: 100%;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1a1a2e;
+  transition: width 0.5s ease;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+
+.badge {
+  background: rgba(0, 217, 255, 0.2);
+  color: #00d9ff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+  </style>
+</head>
+<body>
+  <h1>📁 Directory explorer</h1>
+  <p class="subtitle">See what JavaScript can do with <code>&lt;input webkitdirectory&gt;</code></p>
+
+  <div class="upload-zone" id="uploadZone">
+    <div class="upload-icon">📂</div>
+    <p>Click or drag to select a folder</p>
+    <button class="btn">Choose directory</button>
+    <input type="file" id="dirInput" webkitdirectory multiple>
+  </div>
+
+  <div id="results" class="hidden">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="totalFiles">0</div>
+        <div class="stat-label">Total files</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalFolders">0</div>
+        <div class="stat-label">Folders</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalSize">0 B</div>
+        <div class="stat-label">Total size</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="fileTypes">0</div>
+        <div class="stat-label">File types</div>
+      </div>
+    </div>
+
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search files...">
+      <select id="typeFilter">
+        <option value="">All types</option>
+      </select>
+    </div>
+
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-header">
+          <span>File tree</span>
+          <span class="badge" id="visibleCount">0</span>
+        </div>
+        <div class="panel-content" id="fileTree">
+          <div class="empty-state">Select a directory to explore</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span>File preview</span>
+        </div>
+        <div class="panel-content" id="previewPane">
+          <div class="empty-state">Click a file to preview</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top: 20px;">
+      <div class="panel-header">File type distribution</div>
+      <div class="panel-content">
+        <div id="typeChart" class="chart-container"></div>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+const dirInput = document.getElementById('dirInput');
+const uploadZone = document.getElementById('uploadZone');
+const results = document.getElementById('results');
+const fileTree = document.getElementById('fileTree');
+const previewPane = document.getElementById('previewPane');
+const searchInput = document.getElementById('searchInput');
+const typeFilter = document.getElementById('typeFilter');
+
+let allFiles = [];
+let filesByPath = new Map();
+
+// File type colors
+const typeColors = {
+  js: '#f7df1e',
+  ts: '#3178c6',
+  html: '#e34c26',
+  css: '#264de4',
+  json: '#292929',
+  md: '#083fa1',
+  txt: '#888888',
+  png: '#ff6b6b',
+  jpg: '#ff6b6b',
+  jpeg: '#ff6b6b',
+  gif: '#ff6b6b',
+  svg: '#ffb13b',
+  pdf: '#ff0000',
+  py: '#3776ab',
+  rb: '#cc342d',
+  go: '#00add8',
+  rs: '#dea584',
+  default: '#00d9ff'
+};
+
+// Format bytes to human readable
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// Get file extension
+function getExtension(filename) {
+  const parts = filename.split('.');
+  return parts.length > 1 ? parts.pop().toLowerCase() : '';
+}
+
+// Get icon for file type
+function getFileIcon(filename) {
+  const ext = getExtension(filename);
+  const icons = {
+    js: '📜', ts: '📘', html: '🌐', css: '🎨',
+    json: '📋', md: '📝', txt: '📄',
+    png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', svg: '🖼️',
+    pdf: '📕', py: '🐍', rb: '💎', go: '🐹', rs: '🦀',
+    mp3: '🎵', mp4: '🎬', zip: '📦', default: '📄'
+  };
+  return icons[ext] || icons.default;
+}
+
+// Build folder structure
+function buildTree(files) {
+  const root = { name: '', children: new Map(), files: [] };
+  
+  files.forEach(file => {
+    const parts = file.webkitRelativePath.split('/');
+    let current = root;
+    
+    // Process folders
+    for (let i = 0; i < parts.length - 1; i++) {
+      const folderName = parts[i];
+      if (!current.children.has(folderName)) {
+        current.children.set(folderName, { 
+          name: folderName, 
+          children: new Map(), 
+          files: [],
+          path: parts.slice(0, i + 1).join('/')
+        });
+      }
+      current = current.children.get(folderName);
+    }
+    
+    // Add file
+    current.files.push(file);
+  });
+  
+  return root;
+}
+
+// Count folders
+function countFolders(node) {
+  let count = node.children.size;
+  node.children.forEach(child => {
+    count += countFolders(child);
+  });
+  return count;
+}
+
+// Render tree
+function renderTree(node, container, depth = 0, searchTerm = '', typeFilterValue = '') {
+  const sortedFolders = Array.from(node.children.values()).sort((a, b) => 
+    a.name.localeCompare(b.name)
+  );
+  
+  const sortedFiles = node.files
+    .filter(f => {
+      const matchesSearch = !searchTerm || 
+        f.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = !typeFilterValue || 
+        getExtension(f.name) === typeFilterValue;
+      return matchesSearch && matchesType;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  sortedFolders.forEach(folder => {
+    const folderEl = document.createElement('div');
+    folderEl.className = 'tree-item folder';
+    folderEl.style.paddingLeft = (depth * 16 + 10) + 'px';
+    folderEl.innerHTML = `
+      <span class="icon">📁</span>
+      <span class="name">${folder.name}</span>
+    `;
+    container.appendChild(folderEl);
+    
+    renderTree(folder, container, depth + 1, searchTerm, typeFilterValue);
+  });
+
+  sortedFiles.forEach(file => {
+    const fileEl = document.createElement('div');
+    fileEl.className = 'tree-item';
+    fileEl.style.paddingLeft = (depth * 16 + 10) + 'px';
+    fileEl.innerHTML = `
+      <span class="icon">${getFileIcon(file.name)}</span>
+      <span class="name">${file.name}</span>
+      <span class="size">${formatBytes(file.size)}</span>
+    `;
+    fileEl.addEventListener('click', () => selectFile(file, fileEl));
+    container.appendChild(fileEl);
+    filesByPath.set(file.webkitRelativePath, fileEl);
+  });
+}
+
+// Select file and show preview
+async function selectFile(file, element) {
+  document.querySelectorAll('.tree-item.selected').forEach(el => 
+    el.classList.remove('selected')
+  );
+  element.classList.add('selected');
+  
+  const ext = getExtension(file.name);
+  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext);
+  const isText = ['txt', 'js', 'ts', 'html', 'css', 'json', 'md', 'py', 'rb', 
+    'go', 'rs', 'xml', 'yaml', 'yml', 'sh', 'bat', 'env', 'gitignore'].includes(ext) ||
+    file.type.startsWith('text/');
+
+  let previewHtml = `
+    <div class="file-info">
+      <div class="file-info-row">
+        <span class="file-info-label">Name</span>
+        <span>${file.name}</span>
+      </div>
+      <div class="file-info-row">
+        <span class="file-info-label">Path</span>
+        <span>${file.webkitRelativePath}</span>
+      </div>
+      <div class="file-info-row">
+        <span class="file-info-label">Size</span>
+        <span>${formatBytes(file.size)}</span>
+      </div>
+      <div class="file-info-row">
+        <span class="file-info-label">Type</span>
+        <span>${file.type || 'Unknown'}</span>
+      </div>
+      <div class="file-info-row">
+        <span class="file-info-label">Last modified</span>
+        <span>${new Date(file.lastModified).toLocaleString()}</span>
+      </div>
+    </div>
+  `;
+
+  if (isImage) {
+    const url = URL.createObjectURL(file);
+    previewHtml += `<div class="file-preview"><img src="${url}" alt="${file.name}"></div>`;
+  } else if (isText && file.size < 500000) {
+    try {
+      const text = await file.text();
+      const escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      previewHtml += `<div class="file-preview">${escaped}</div>`;
+    } catch (e) {
+      previewHtml += `<div class="file-preview">Unable to read file</div>`;
+    }
+  } else {
+    previewHtml += `<div class="empty-state">Preview not available for this file type</div>`;
+  }
+
+  previewPane.innerHTML = previewHtml;
+}
+
+// Render type chart
+function renderTypeChart(files) {
+  const typeCounts = {};
+  files.forEach(file => {
+    const ext = getExtension(file.name) || 'no ext';
+    typeCounts[ext] = (typeCounts[ext] || 0) + 1;
+  });
+
+  const sorted = Object.entries(typeCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  const max = sorted[0]?.[1] || 1;
+  const chart = document.getElementById('typeChart');
+  
+  chart.innerHTML = sorted.map(([ext, count]) => {
+    const color = typeColors[ext] || typeColors.default;
+    const pct = (count / max) * 100;
+    return `
+      <div class="chart-bar">
+        <span class="chart-label">.${ext}</span>
+        <div class="chart-track">
+          <div class="chart-fill" style="width: ${pct}%; background: ${color}">
+            ${count}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Populate filter dropdown
+  typeFilter.innerHTML = '<option value="">All types</option>' +
+    sorted.map(([ext]) => `<option value="${ext}">.${ext}</option>`).join('');
+}
+
+// Process selected directory
+function processFiles(files) {
+  allFiles = Array.from(files);
+  
+  if (allFiles.length === 0) return;
+  
+  results.classList.remove('hidden');
+
+  // Calculate stats
+  const totalSize = allFiles.reduce((sum, f) => sum + f.size, 0);
+  const tree = buildTree(allFiles);
+  const folderCount = countFolders(tree);
+  const extensions = new Set(allFiles.map(f => getExtension(f.name)));
+
+  document.getElementById('totalFiles').textContent = allFiles.length;
+  document.getElementById('totalFolders').textContent = folderCount;
+  document.getElementById('totalSize').textContent = formatBytes(totalSize);
+  document.getElementById('fileTypes').textContent = extensions.size;
+
+  // Render tree
+  updateTree();
+  
+  // Render chart
+  renderTypeChart(allFiles);
+}
+
+function updateTree() {
+  const searchTerm = searchInput.value;
+  const typeFilterValue = typeFilter.value;
+  
+  fileTree.innerHTML = '';
+  filesByPath.clear();
+  
+  const tree = buildTree(allFiles);
+  renderTree(tree, fileTree, 0, searchTerm, typeFilterValue);
+  
+  const visibleFiles = fileTree.querySelectorAll('.tree-item:not(.folder)').length;
+  document.getElementById('visibleCount').textContent = visibleFiles;
+  
+  if (visibleFiles === 0) {
+    fileTree.innerHTML = '<div class="empty-state">No files match your search</div>';
+  }
+}
+
+// Event listeners
+uploadZone.addEventListener('click', () => dirInput.click());
+
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('dragover');
+});
+
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  // Note: drag & drop doesn't support webkitdirectory well in all browsers
+  if (e.dataTransfer.files.length > 0) {
+    processFiles(e.dataTransfer.files);
+  }
+});
+
+dirInput.addEventListener('change', (e) => {
+  processFiles(e.target.files);
+});
+
+searchInput.addEventListener('input', updateTree);
+typeFilter.addEventListener('change', updateTree);
+</script>
+</body>
+</html>
