@@ -1,0 +1,3 @@
+Explore the contents of a local directory in your browser with an interactive file tree viewer and search functionality. This tool demonstrates the capabilities of the `webkitdirectory` input attribute to access folder structures and analyze file distribution. Once a directory is selected, view detailed statistics about file counts, total size, and file type breakdown, with options to filter by name and file extension.
+
+<!-- Generated from commit: e6b8a4661f03ee58feeb8eddc40145823e596019 -->
