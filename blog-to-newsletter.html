@@ -456,7 +456,13 @@ with content as (
         else ''
     end ||
     '</p>' as html,
-    'null' as json,
+    json_object(
+      'created', date(created),
+      'quotation', quotation,
+      'source', source,
+      'source_url', source_url,
+      'context', context
+    ) as json,
     source_url as external_url
   from blog_quotation
   union all
@@ -667,9 +673,11 @@ order by
               }
             }
 
-            if (e.type === 'quotation' && e.html) {
-              // Process quotation HTML
+            if (e.type === 'quotation' && e.json !== 'null') {
+              const info = typeof e.json === 'string' ? JSON.parse(e.json) : e.json;
               const entry = { ...e };
+              const quotationHtml = marked.parse(info.quotation || '');
+              entry.html = `<p><strong>Quote</strong> ${info.created}</p><blockquote>${quotationHtml}</blockquote><p><a href="${info.source_url || '#'}">${info.source}</a>${info.context ? ', ' + info.context : ''}</p>`;
               return entry;
             }
 
