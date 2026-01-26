@@ -491,6 +491,43 @@
       transform: translateX(16px);
     }
 
+    /* Inline images from JSON */
+    .inline-images-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .inline-images-section .section-title {
+      margin-top: 0;
+    }
+
+    .inline-images-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .inline-image-item {
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .inline-image-item img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      display: block;
+    }
+
+    .inline-image-meta {
+      font-size: 0.8rem;
+      color: #6b7280;
+      margin-top: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
     @media (max-width: 640px) {
       .card {
         padding: 14px 14px 16px;
@@ -671,6 +708,15 @@ curl -X POST 'https://api.example.com/data' \
         </label>
       </div>
       <pre id="body-output">// Response body will appear here</pre>
+
+      <!-- Inline images extracted from JSON -->
+      <div id="inline-images-section" class="inline-images-section hidden">
+        <div class="section-title">
+          Inline Images
+          <small id="inline-images-count"></small>
+        </div>
+        <div id="inline-images-grid" class="inline-images-grid"></div>
+      </div>
     </div>
   </div>
 
@@ -712,6 +758,11 @@ curl -X POST 'https://api.example.com/data' \
     const formatToggleContainer = document.getElementById("format-toggle-container");
     const formatToggle = document.getElementById("format-toggle");
 
+    // Inline images
+    const inlineImagesSection = document.getElementById("inline-images-section");
+    const inlineImagesGrid = document.getElementById("inline-images-grid");
+    const inlineImagesCount = document.getElementById("inline-images-count");
+
     // State
     let kvPairs = [];
     let headerPairs = [];
@@ -741,16 +792,79 @@ curl -X POST 'https://api.example.com/data' \
       }
     }
 
+    // Find inline image data objects recursively in JSON
+    // Looks for objects with shape: { inlineData: { mimeType: "image/...", data: "base64..." } }
+    function findInlineImages(obj, path = "") {
+      const images = [];
+
+      if (obj === null || typeof obj !== "object") {
+        return images;
+      }
+
+      // Check if this object has the inlineData shape
+      if (obj.inlineData &&
+          typeof obj.inlineData === "object" &&
+          typeof obj.inlineData.mimeType === "string" &&
+          obj.inlineData.mimeType.startsWith("image/") &&
+          typeof obj.inlineData.data === "string") {
+        images.push({
+          mimeType: obj.inlineData.mimeType,
+          data: obj.inlineData.data,
+          path: path || "root"
+        });
+      }
+
+      // Recursively search arrays and objects
+      if (Array.isArray(obj)) {
+        obj.forEach((item, index) => {
+          const childPath = path ? `${path}[${index}]` : `[${index}]`;
+          images.push(...findInlineImages(item, childPath));
+        });
+      } else {
+        for (const key of Object.keys(obj)) {
+          if (key === "inlineData") continue; // Already processed above
+          const childPath = path ? `${path}.${key}` : key;
+          images.push(...findInlineImages(obj[key], childPath));
+        }
+      }
+
+      return images;
+    }
+
+    function renderInlineImages(images) {
+      if (!images || images.length === 0) {
+        inlineImagesSection.classList.add("hidden");
+        inlineImagesGrid.innerHTML = "";
+        return;
+      }
+
+      inlineImagesSection.classList.remove("hidden");
+      inlineImagesCount.textContent = `${images.length} found`;
+
+      inlineImagesGrid.innerHTML = images.map((img, index) => {
+        const dataUri = `data:${escapeHtml(img.mimeType)};base64,${img.data}`;
+        return `
+          <div class="inline-image-item">
+            <img src="${dataUri}" alt="Inline image ${index + 1}" />
+            <div class="inline-image-meta">
+              ${escapeHtml(img.mimeType)} &bull; Path: ${escapeHtml(img.path)}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
     function setResponseBody(text) {
       responseBodyRaw = text;
       responseIsJson = false;
       responseBodyFormatted = "";
+      let parsedJson = null;
 
       // Try to parse as JSON
       if (text) {
         try {
-          const parsed = JSON.parse(text);
-          responseBodyFormatted = JSON.stringify(parsed, null, 2);
+          parsedJson = JSON.parse(text);
+          responseBodyFormatted = JSON.stringify(parsedJson, null, 2);
           responseIsJson = true;
         } catch {
           // Not valid JSON
@@ -767,6 +881,14 @@ curl -X POST 'https://api.example.com/data' \
       }
 
       updateBodyDisplay();
+
+      // Find and render inline images from JSON
+      if (responseIsJson && parsedJson) {
+        const inlineImages = findInlineImages(parsedJson);
+        renderInlineImages(inlineImages);
+      } else {
+        renderInlineImages([]);
+      }
     }
 
     function updateHeadersCount() {
@@ -1320,6 +1442,8 @@ curl -X POST 'https://api.example.com/data' \
       headersContainer.innerHTML = '<div class="hint">Awaiting response…</div>';
       formatToggleContainer.classList.add("hidden");
       bodyOutput.textContent = "";
+      inlineImagesSection.classList.add("hidden");
+      inlineImagesGrid.innerHTML = "";
 
       updateFragmentFromState();
 
@@ -1356,6 +1480,7 @@ curl -X POST 'https://api.example.com/data' \
         if (method === "HEAD") {
           formatToggleContainer.classList.add("hidden");
           bodyOutput.textContent = "// HEAD requests do not return a body.";
+          inlineImagesSection.classList.add("hidden");
         } else {
           let bodyText;
           try {
@@ -1367,6 +1492,7 @@ curl -X POST 'https://api.example.com/data' \
           if (!bodyText) {
             formatToggleContainer.classList.add("hidden");
             bodyOutput.textContent = "// Empty response body (or body already consumed).";
+            inlineImagesSection.classList.add("hidden");
           } else {
             setResponseBody(bodyText);
           }
@@ -1384,6 +1510,7 @@ curl -X POST 'https://api.example.com/data' \
         bodyOutput.textContent =
           "// No body: the browser blocked access to the response.\n" +
           "// This usually means the server has not enabled CORS for this origin.";
+        inlineImagesSection.classList.add("hidden");
       } finally {
         setLoading(false);
       }
