@@ -1,3 +1,3 @@
-Convert text to The New Yorker's distinctive typographic style, automatically applying diacritical marks like diaereses (coöperate, naïve), converting straight quotes to curly quotes, replacing hyphens with em dashes, and transforming ellipses into proper typographic characters. Paste your text into the input field to instantly see the refined version, then copy the converted result with a single click.
+Convert text to match The New Yorker's distinctive typographic style, featuring proper diaereses (such as "coöperate" and "naïve"), curly quotation marks, em dashes, and ellipses. Paste your text into the input field and watch the refined version appear instantly in the output area, which can be copied to your clipboard with a single click.
 
-<!-- Generated from commit: a78c80f6582c885f3bfec8b750c9f8f579415e99 -->
+<!-- Generated from commit: 27c0255038c88a8607b4bcd9f5ef0e66c614de4e -->
