@@ -151,19 +151,47 @@ textarea:focus {
 .partial-label.visible {
     display: block;
 }
+
+.examples {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.examples a {
+    color: #4a90d9;
+    text-decoration: none;
+    margin-left: 0.25rem;
+}
+
+.examples a:hover {
+    text-decoration: underline;
+}
+
+.examples a + a::before {
+    content: " | ";
+    color: #ccc;
+    margin-right: 0.25rem;
+}
 </style>
 </head>
 <body>
 
 <header>
     <h1>SQLite AST Explorer</h1>
-    <a href="https://github.com/simonw/sqlite-ast" style="color:#8cb4e0;font-size:0.85rem;text-decoration:none;" target="_blank" rel="noopener">github.com/simonw/sqlite-ast</a>
+    <a href="https://github.com/simonw/sqlite-ast" style="color:#8cb4e0;font-size:0.85rem;text-decoration:none;">github.com/simonw/sqlite-ast</a>
     <span id="status">Loading Pyodide...</span>
 </header>
 
 <div class="input-section">
     <label for="sql-input">SQL Query</label>
     <textarea id="sql-input" placeholder="Enter a SQLite SELECT query, e.g.: select * from users where age > 21" spellcheck="false">select * from users where age > 21 order by name</textarea>
+    <div class="examples">Examples:
+        <a href="#" data-sql="select id, name, email from users where age > 21 order by name limit 10">Simple select</a>
+        <a href="#" data-sql="select name from users where active = 1 union all select name from archived_users where year > 2020">Compound select</a>
+        <a href="#" data-sql="with regional_sales as (select region, sum(amount) as total from orders group by region), top_regions as (select region from regional_sales where total > (select sum(total) / 10 from regional_sales)) select region, product, sum(quantity) as units from orders where region in (select region from top_regions) group by region, product">Select with CTE</a>
+        <a href="#" data-sql="select name, department, salary, rank() over (partition by department order by salary desc) as dept_rank, avg(salary) over (partition by department) as dept_avg, sum(salary) over (order by salary rows between unbounded preceding and current row) as running_total from employees">Select with window functions</a>
+    </div>
 </div>
 
 <div id="error-banner"></div>
@@ -318,6 +346,14 @@ async function runParse() {
 sqlInput.addEventListener('input', () => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(runParse, 300);
+});
+
+document.querySelectorAll('.examples a[data-sql]').forEach(link => {
+    link.addEventListener('click', (e) => {
+        e.preventDefault();
+        sqlInput.value = link.dataset.sql;
+        runParse();
+    });
 });
 
 initPyodide();
