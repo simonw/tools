@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQLite AST Explorer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    line-height: 1.5;
+}
+
+header {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+header h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+#status {
+    font-size: 0.85rem;
+    color: #aaa;
+}
+
+#status.ready { color: #6ecf6e; }
+#status.error { color: #f08080; }
+
+.input-section {
+    padding: 1rem 1.5rem;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+}
+
+.input-section label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+}
+
+textarea {
+    width: 100%;
+    min-height: 100px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.95rem;
+    padding: 0.75rem;
+    border: 2px solid #ccc;
+    border-radius: 6px;
+    resize: vertical;
+    transition: border-color 0.15s;
+    background: #fafafa;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: #4a90d9;
+    background: #fff;
+}
+
+#error-banner {
+    display: none;
+    margin: 0.75rem 1.5rem 0;
+    padding: 0.75rem 1rem;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-left: 4px solid #ef4444;
+    border-radius: 6px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.85rem;
+    color: #b91c1c;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+#error-banner.visible {
+    display: block;
+}
+
+.columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+.column {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.column-header {
+    background: #f0f0f0;
+    padding: 0.5rem 0.75rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #ddd;
+    color: #555;
+}
+
+.column pre {
+    flex: 1;
+    padding: 0.75rem;
+    margin: 0;
+    overflow: auto;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #1a1a1a;
+    min-height: 200px;
+    max-height: 70vh;
+}
+
+.column pre.empty {
+    color: #999;
+    font-style: italic;
+}
+
+.partial-label {
+    display: none;
+    margin: 0.5rem 1.5rem 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b45309;
+}
+
+.partial-label.visible {
+    display: block;
+}
+</style>
+</head>
+<body>
+
+<header>
+    <h1>SQLite AST Explorer</h1>
+    <span id="status">Loading Pyodide...</span>
+</header>
+
+<div class="input-section">
+    <label for="sql-input">SQL Query</label>
+    <textarea id="sql-input" placeholder="Enter a SQLite SELECT query, e.g.: select * from users where age > 21" spellcheck="false">select * from users where age > 21 order by name</textarea>
+</div>
+
+<div id="error-banner"></div>
+<div id="partial-label" class="partial-label">Partial AST (from parse error):</div>
+
+<div class="columns">
+    <div class="column">
+        <div class="column-header">parse() — JSON</div>
+        <pre id="json-output" class="empty">Loading...</pre>
+    </div>
+    <div class="column">
+        <div class="column-header">parse_ast() — pprint</div>
+        <pre id="pprint-output" class="empty">Loading...</pre>
+    </div>
+</div>
+
+<script>
+const sqlInput = document.getElementById('sql-input');
+const jsonOutput = document.getElementById('json-output');
+const pprintOutput = document.getElementById('pprint-output');
+const statusEl = document.getElementById('status');
+const errorBanner = document.getElementById('error-banner');
+const partialLabel = document.getElementById('partial-label');
+
+let pyodide = null;
+let debounceTimer = null;
+
+async function initPyodide() {
+    try {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js';
+        document.head.appendChild(script);
+
+        await new Promise((resolve, reject) => {
+            script.onload = resolve;
+            script.onerror = reject;
+        });
+
+        statusEl.textContent = 'Initializing Python...';
+        pyodide = await loadPyodide();
+
+        statusEl.textContent = 'Installing sqlite-ast...';
+        await pyodide.loadPackage('micropip');
+        await pyodide.runPythonAsync(`
+import micropip
+await micropip.install('sqlite-ast')
+`);
+
+        // Set up the Python helper functions
+        await pyodide.runPythonAsync(`
+import json
+from pprint import pformat
+from sqlite_ast import parse, parse_ast, ParseError
+
+def run_parse(sql):
+    """Returns a dict with results or error info."""
+    result = {
+        "ok": False,
+        "error": None,
+        "json_str": "",
+        "pprint_str": "",
+        "partial_json_str": "",
+        "partial_pprint_str": "",
+    }
+    try:
+        dict_ast = parse(sql)
+        node_ast = parse_ast(sql)
+        result["ok"] = True
+        result["json_str"] = json.dumps(dict_ast, indent=2)
+        result["pprint_str"] = pformat(node_ast, width=60)
+    except ParseError as e:
+        result["error"] = str(e)
+        if e.partial_ast is not None:
+            try:
+                result["partial_json_str"] = json.dumps(e.partial_ast.to_dict(), indent=2)
+            except Exception:
+                result["partial_json_str"] = "(could not convert partial AST to JSON)"
+            result["partial_pprint_str"] = pformat(e.partial_ast, width=60)
+        else:
+            result["partial_json_str"] = ""
+            result["partial_pprint_str"] = ""
+    except Exception as e:
+        result["error"] = str(e)
+    return json.dumps(result)
+`);
+
+        statusEl.textContent = 'Ready';
+        statusEl.className = 'ready';
+
+        // Run initial parse
+        runParse();
+    } catch (err) {
+        statusEl.textContent = 'Failed to load: ' + err.message;
+        statusEl.className = 'error';
+        console.error(err);
+    }
+}
+
+async function runParse() {
+    if (!pyodide) return;
+
+    const sql = sqlInput.value.trim();
+    if (!sql) {
+        jsonOutput.textContent = 'Enter a SQL query above';
+        jsonOutput.className = 'empty';
+        pprintOutput.textContent = 'Enter a SQL query above';
+        pprintOutput.className = 'empty';
+        errorBanner.className = '';
+        partialLabel.className = 'partial-label';
+        return;
+    }
+
+    try {
+        // Escape the SQL for embedding in Python string
+        const escaped = sql.replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"');
+        const resultJson = await pyodide.runPythonAsync(`run_parse("""${escaped}""")`);
+        const result = JSON.parse(resultJson);
+
+        if (result.ok) {
+            errorBanner.className = '';
+            partialLabel.className = 'partial-label';
+            jsonOutput.textContent = result.json_str;
+            jsonOutput.className = '';
+            pprintOutput.textContent = result.pprint_str;
+            pprintOutput.className = '';
+        } else {
+            // Show error
+            errorBanner.textContent = result.error;
+            errorBanner.className = 'visible';
+
+            if (result.partial_json_str || result.partial_pprint_str) {
+                partialLabel.className = 'partial-label visible';
+                jsonOutput.textContent = result.partial_json_str || '(no partial AST available)';
+                jsonOutput.className = result.partial_json_str ? '' : 'empty';
+                pprintOutput.textContent = result.partial_pprint_str || '(no partial AST available)';
+                pprintOutput.className = result.partial_pprint_str ? '' : 'empty';
+            } else {
+                partialLabel.className = 'partial-label';
+                jsonOutput.textContent = '(no partial AST available)';
+                jsonOutput.className = 'empty';
+                pprintOutput.textContent = '(no partial AST available)';
+                pprintOutput.className = 'empty';
+            }
+        }
+    } catch (err) {
+        errorBanner.textContent = 'Unexpected error: ' + err.message;
+        errorBanner.className = 'visible';
+        console.error(err);
+    }
+}
+
+sqlInput.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runParse, 300);
+});
+
+initPyodide();
+</script>
+
+</body>
+</html>
