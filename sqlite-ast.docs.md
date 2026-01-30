@@ -1,0 +1,3 @@
+Explore and visualize the abstract syntax tree (AST) of SQLite SQL queries in real-time using the sqlite-ast Python library. Enter any valid SQLite SELECT statement to see both JSON and pretty-printed representations of the parsed query structure, with support for complex queries including CTEs, window functions, and compound selects. When a parse error occurs, the tool displays the partial AST that was successfully parsed before the error, helping you understand where queries fail.
+
+<!-- Generated from commit: 77861536219bd3118d6565da68d73f5ad92908f8 -->
