@@ -263,7 +263,7 @@ header h1 {
         <pre id="json-pre" class="empty"><code id="json-output" class="language-json">Loading...</code></pre>
     </div>
     <div class="column">
-        <div class="column-header">parse_ast() — pprint</div>
+        <div class="column-header">parse_ast() — rich</div>
         <pre id="pprint-pre" class="empty"><code id="pprint-output" class="language-python">Loading...</code></pre>
     </div>
 </div>
@@ -343,13 +343,13 @@ async function initPyodide() {
         await pyodide.loadPackage('micropip');
         await pyodide.runPythonAsync(`
 import micropip
-await micropip.install('sqlite-ast')
+await micropip.install('sqlite-ast'), micropip.install('rich')
 `);
 
         // Set up the Python helper functions
         await pyodide.runPythonAsync(`
 import json
-from pprint import pformat
+from rich.pretty import pretty_repr
 from sqlite_ast import parse, parse_ast, ParseError
 
 def run_parse(sql):
@@ -367,7 +367,7 @@ def run_parse(sql):
         node_ast = parse_ast(sql)
         result["ok"] = True
         result["json_str"] = json.dumps(dict_ast, indent=2)
-        result["pprint_str"] = pformat(node_ast, width=80, indent=1)
+        result["pprint_str"] = pretty_repr(node_ast, max_width=88, indent_size=2, expand_all=True)
     except ParseError as e:
         result["error"] = str(e)
         if e.partial_ast is not None:
@@ -375,7 +375,7 @@ def run_parse(sql):
                 result["partial_json_str"] = json.dumps(e.partial_ast.to_dict(), indent=2)
             except Exception:
                 result["partial_json_str"] = "(could not convert partial AST to JSON)"
-            result["partial_pprint_str"] = pformat(e.partial_ast, width=80, indent=1)
+            result["partial_pprint_str"] = pretty_repr(e.partial_ast, max_width=88, indent_size=2, expand_all=True)
         else:
             result["partial_json_str"] = ""
             result["partial_pprint_str"] = ""
