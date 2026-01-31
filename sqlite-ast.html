@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SQLite AST Explorer</title>
+<title>SQLite AST</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github.min.css">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -12,6 +13,11 @@ body {
     background: #f5f5f5;
     color: #1a1a1a;
     line-height: 1.5;
+}
+
+.page-wrapper {
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
 header {
@@ -51,23 +57,64 @@ header h1 {
     font-size: 0.9rem;
 }
 
-textarea {
-    width: 100%;
-    min-height: 100px;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 0.95rem;
-    padding: 0.75rem;
+.editor-wrap {
+    position: relative;
     border: 2px solid #ccc;
     border-radius: 6px;
-    resize: vertical;
+    overflow: hidden;
     transition: border-color 0.15s;
     background: #fafafa;
 }
 
-textarea:focus {
-    outline: none;
+.editor-wrap:focus-within {
     border-color: #4a90d9;
     background: #fff;
+}
+
+.editor-wrap pre {
+    margin: 0;
+    padding: 0.75rem;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 100px;
+    pointer-events: none;
+}
+
+.editor-wrap pre code {
+    font-family: inherit;
+    font-size: inherit;
+    padding: 0 !important;
+    background: transparent !important;
+}
+
+.editor-wrap textarea {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    padding: 0.75rem;
+    border: none;
+    resize: none;
+    background: transparent;
+    color: transparent;
+    caret-color: #1a1a1a;
+    outline: none;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    -webkit-text-fill-color: transparent;
+}
+
+.editor-wrap textarea::placeholder {
+    color: #999;
+    -webkit-text-fill-color: #999;
 }
 
 #error-banner {
@@ -122,7 +169,7 @@ textarea:focus {
 
 .column pre {
     flex: 1;
-    padding: 0.75rem;
+    padding: 0;
     margin: 0;
     overflow: auto;
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
@@ -135,7 +182,16 @@ textarea:focus {
     max-height: 70vh;
 }
 
+.column pre code {
+    display: block;
+    padding: 0.75rem;
+    background: transparent !important;
+    font-family: inherit;
+    font-size: inherit;
+}
+
 .column pre.empty {
+    padding: 0.75rem;
     color: #999;
     font-style: italic;
 }
@@ -176,16 +232,20 @@ textarea:focus {
 </style>
 </head>
 <body>
+<div class="page-wrapper">
 
 <header>
-    <h1>SQLite AST Explorer</h1>
+    <h1>SQLite AST</h1>
     <a href="https://github.com/simonw/sqlite-ast" style="color:#8cb4e0;font-size:0.85rem;text-decoration:none;">github.com/simonw/sqlite-ast</a>
     <span id="status">Loading Pyodide...</span>
 </header>
 
 <div class="input-section">
     <label for="sql-input">SQL Query</label>
-    <textarea id="sql-input" placeholder="Enter a SQLite SELECT query, e.g.: select * from users where age > 21" spellcheck="false">select * from users where age > 21 order by name</textarea>
+    <div class="editor-wrap">
+        <pre aria-hidden="true"><code id="sql-highlight" class="language-sql"></code></pre>
+        <textarea id="sql-input" placeholder="Enter a SQLite SELECT query, e.g.: select * from users where age > 21" spellcheck="false">select * from users where age > 21 order by name</textarea>
+    </div>
     <div class="examples">Examples:
         <a href="#" data-sql="select id, name, email from users where age > 21 order by name limit 10">Simple select</a>
         <a href="#" data-sql="select name from users where active = 1 union all select name from archived_users where year > 2020">Compound select</a>
@@ -200,24 +260,70 @@ textarea:focus {
 <div class="columns">
     <div class="column">
         <div class="column-header">parse() — JSON</div>
-        <pre id="json-output" class="empty">Loading...</pre>
+        <pre id="json-pre" class="empty"><code id="json-output" class="language-json">Loading...</code></pre>
     </div>
     <div class="column">
-        <div class="column-header">parse_ast() — pprint</div>
-        <pre id="pprint-output" class="empty">Loading...</pre>
+        <div class="column-header">parse_ast() — rich</div>
+        <pre id="pprint-pre" class="empty"><code id="pprint-output" class="language-python">Loading...</code></pre>
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/languages/sql.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/languages/json.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/languages/python.min.js"></script>
 <script>
 const sqlInput = document.getElementById('sql-input');
+const sqlHighlight = document.getElementById('sql-highlight');
 const jsonOutput = document.getElementById('json-output');
+const jsonPre = document.getElementById('json-pre');
 const pprintOutput = document.getElementById('pprint-output');
+const pprintPre = document.getElementById('pprint-pre');
 const statusEl = document.getElementById('status');
 const errorBanner = document.getElementById('error-banner');
 const partialLabel = document.getElementById('partial-label');
 
 let pyodide = null;
 let debounceTimer = null;
+
+function highlightSQL() {
+    const text = sqlInput.value;
+    // Need trailing newline so the pre height matches when textarea ends with newline
+    sqlHighlight.textContent = text + '\n';
+    sqlHighlight.removeAttribute('data-highlighted');
+    hljs.highlightElement(sqlHighlight);
+}
+
+function highlightOutput(codeEl, preEl, text, isEmpty) {
+    if (isEmpty) {
+        codeEl.textContent = text;
+        preEl.className = 'empty';
+        // Remove hljs class so it doesn't style placeholder text
+        codeEl.removeAttribute('data-highlighted');
+    } else {
+        codeEl.textContent = text;
+        preEl.className = '';
+        codeEl.removeAttribute('data-highlighted');
+        hljs.highlightElement(codeEl);
+    }
+}
+
+// Sync textarea scroll to highlighted pre
+sqlInput.addEventListener('scroll', () => {
+    const pre = sqlHighlight.parentElement;
+    pre.scrollTop = sqlInput.scrollTop;
+    pre.scrollLeft = sqlInput.scrollLeft;
+});
+
+// Keep highlight in sync on every input
+sqlInput.addEventListener('input', () => {
+    highlightSQL();
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runParse, 300);
+});
+
+// Initial highlight
+highlightSQL();
 
 async function initPyodide() {
     try {
@@ -237,13 +343,14 @@ async function initPyodide() {
         await pyodide.loadPackage('micropip');
         await pyodide.runPythonAsync(`
 import micropip
-await micropip.install('sqlite-ast')
+import asyncio
+await asyncio.gather(micropip.install('sqlite-ast'), micropip.install('rich'))
 `);
 
         // Set up the Python helper functions
         await pyodide.runPythonAsync(`
 import json
-from pprint import pformat
+from rich.pretty import pretty_repr
 from sqlite_ast import parse, parse_ast, ParseError
 
 def run_parse(sql):
@@ -261,7 +368,7 @@ def run_parse(sql):
         node_ast = parse_ast(sql)
         result["ok"] = True
         result["json_str"] = json.dumps(dict_ast, indent=2)
-        result["pprint_str"] = pformat(node_ast, width=60)
+        result["pprint_str"] = pretty_repr(node_ast, max_width=88, indent_size=2, expand_all=True)
     except ParseError as e:
         result["error"] = str(e)
         if e.partial_ast is not None:
@@ -269,7 +376,7 @@ def run_parse(sql):
                 result["partial_json_str"] = json.dumps(e.partial_ast.to_dict(), indent=2)
             except Exception:
                 result["partial_json_str"] = "(could not convert partial AST to JSON)"
-            result["partial_pprint_str"] = pformat(e.partial_ast, width=60)
+            result["partial_pprint_str"] = pretty_repr(e.partial_ast, max_width=88, indent_size=2, expand_all=True)
         else:
             result["partial_json_str"] = ""
             result["partial_pprint_str"] = ""
@@ -295,10 +402,8 @@ async function runParse() {
 
     const sql = sqlInput.value.trim();
     if (!sql) {
-        jsonOutput.textContent = 'Enter a SQL query above';
-        jsonOutput.className = 'empty';
-        pprintOutput.textContent = 'Enter a SQL query above';
-        pprintOutput.className = 'empty';
+        highlightOutput(jsonOutput, jsonPre, 'Enter a SQL query above', true);
+        highlightOutput(pprintOutput, pprintPre, 'Enter a SQL query above', true);
         errorBanner.className = '';
         partialLabel.className = 'partial-label';
         return;
@@ -313,10 +418,8 @@ async function runParse() {
         if (result.ok) {
             errorBanner.className = '';
             partialLabel.className = 'partial-label';
-            jsonOutput.textContent = result.json_str;
-            jsonOutput.className = '';
-            pprintOutput.textContent = result.pprint_str;
-            pprintOutput.className = '';
+            highlightOutput(jsonOutput, jsonPre, result.json_str, false);
+            highlightOutput(pprintOutput, pprintPre, result.pprint_str, false);
         } else {
             // Show error
             errorBanner.textContent = result.error;
@@ -324,16 +427,16 @@ async function runParse() {
 
             if (result.partial_json_str || result.partial_pprint_str) {
                 partialLabel.className = 'partial-label visible';
-                jsonOutput.textContent = result.partial_json_str || '(no partial AST available)';
-                jsonOutput.className = result.partial_json_str ? '' : 'empty';
-                pprintOutput.textContent = result.partial_pprint_str || '(no partial AST available)';
-                pprintOutput.className = result.partial_pprint_str ? '' : 'empty';
+                highlightOutput(jsonOutput, jsonPre,
+                    result.partial_json_str || '(no partial AST available)',
+                    !result.partial_json_str);
+                highlightOutput(pprintOutput, pprintPre,
+                    result.partial_pprint_str || '(no partial AST available)',
+                    !result.partial_pprint_str);
             } else {
                 partialLabel.className = 'partial-label';
-                jsonOutput.textContent = '(no partial AST available)';
-                jsonOutput.className = 'empty';
-                pprintOutput.textContent = '(no partial AST available)';
-                pprintOutput.className = 'empty';
+                highlightOutput(jsonOutput, jsonPre, '(no partial AST available)', true);
+                highlightOutput(pprintOutput, pprintPre, '(no partial AST available)', true);
             }
         }
     } catch (err) {
@@ -343,15 +446,11 @@ async function runParse() {
     }
 }
 
-sqlInput.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(runParse, 300);
-});
-
 document.querySelectorAll('.examples a[data-sql]').forEach(link => {
     link.addEventListener('click', (e) => {
         e.preventDefault();
         sqlInput.value = link.dataset.sql;
+        highlightSQL();
         runParse();
     });
 });
@@ -359,5 +458,6 @@ document.querySelectorAll('.examples a[data-sql]').forEach(link => {
 initPyodide();
 </script>
 
+</div><!-- .page-wrapper -->
 </body>
 </html>
