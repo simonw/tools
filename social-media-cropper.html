@@ -318,6 +318,7 @@
         let cropperData = null;
         let zoomValue = 1;
         let currentDragMode = 'move'; // 'move' = move image, 'crop' = move crop box
+        let userChangedBgColor = false; // tracks if user manually picked a color
 
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
@@ -482,7 +483,13 @@
         resetBtn.addEventListener('click', () => {
             if (cropper) {
                 cropper.reset();
-                zoomValue = 1;
+                // Read the actual zoom ratio after reset
+                const canvasData = cropper.getCanvasData();
+                if (canvasData.naturalWidth) {
+                    zoomValue = canvasData.width / canvasData.naturalWidth;
+                } else {
+                    zoomValue = 1;
+                }
                 updateZoomDisplay();
                 setDragMode('move');
                 updatePreview();
@@ -505,7 +512,11 @@
         });
 
         // Listen for background color changes and update the preview
+        backgroundColor.addEventListener('input', () => {
+            userChangedBgColor = true;
+        });
         backgroundColor.addEventListener('change', () => {
+            userChangedBgColor = true;
             updatePreview();
         });
 
@@ -515,6 +526,54 @@
                 displayValue = (zoomValue * 100).toFixed(1);
             }
             zoomValueDisplay.textContent = `${displayValue}%`;
+        }
+
+        // --- Edge color detection ---
+        // Samples pixels along all four edges. If they're sufficiently
+        // uniform, returns the dominant color as a hex string; otherwise null.
+        function detectEdgeColor(img) {
+            const c = document.createElement('canvas');
+            const ctx = c.getContext('2d', { willReadFrequently: true });
+            c.width = img.naturalWidth;
+            c.height = img.naturalHeight;
+            ctx.drawImage(img, 0, 0);
+
+            const w = c.width, h = c.height;
+            if (w < 3 || h < 3) return null;
+
+            // Collect sample positions along all four edges
+            const step = Math.max(1, Math.floor(Math.max(w, h) / 40));
+            const samples = [];
+            for (let x = 0; x < w; x += step) {
+                samples.push([x, 0]);           // top
+                samples.push([x, h - 1]);       // bottom
+            }
+            for (let y = 0; y < h; y += step) {
+                samples.push([0, y]);            // left
+                samples.push([w - 1, y]);        // right
+            }
+
+            let rSum = 0, gSum = 0, bSum = 0;
+            const colors = [];
+            for (const [sx, sy] of samples) {
+                const d = ctx.getImageData(sx, sy, 1, 1).data;
+                colors.push([d[0], d[1], d[2]]);
+                rSum += d[0]; gSum += d[1]; bSum += d[2];
+            }
+            const n = colors.length;
+            const rAvg = rSum / n, gAvg = gSum / n, bAvg = bSum / n;
+
+            // Check how much each sample deviates from the average
+            const threshold = 30; // max average deviation per channel
+            let totalDev = 0;
+            for (const [r, g, b] of colors) {
+                totalDev += Math.abs(r - rAvg) + Math.abs(g - gAvg) + Math.abs(b - bAvg);
+            }
+            if (totalDev / n > threshold) return null;
+
+            // Convert average to hex
+            const toHex = (v) => Math.round(v).toString(16).padStart(2, '0');
+            return '#' + toHex(rAvg) + toHex(gAvg) + toHex(bAvg);
         }
 
         function handleFile(file) {
@@ -533,7 +592,20 @@
                 updateZoomDisplay();
                 setDragMode('move');
 
-                initCropper();
+                // Detect edge color once the image is decoded
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    if (!userChangedBgColor) {
+                        const edgeColor = detectEdgeColor(tempImg);
+                        if (edgeColor) {
+                            backgroundColor.value = edgeColor;
+                        } else {
+                            backgroundColor.value = '#ffffff';
+                        }
+                    }
+                    initCropper();
+                };
+                tempImg.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
@@ -568,6 +640,14 @@
                 // Disable Cropper.js touch zoom - we intercept pinch ourselves
                 zoomOnTouch: false,
                 ready: function() {
+                    // Sync zoomValue to the actual ratio Cropper.js computed
+                    // so the first +/- click doesn't jump
+                    const canvasData = cropper.getCanvasData();
+                    if (canvasData.naturalWidth) {
+                        zoomValue = canvasData.width / canvasData.naturalWidth;
+                        updateZoomDisplay();
+                    }
+
                     if (preserveData && cropperData) {
                         setTimeout(() => {
                             cropper.setData(cropperData);
