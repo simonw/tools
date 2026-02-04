@@ -337,21 +337,28 @@
         const downloadBtn = document.getElementById('downloadBtn');
 
         // --- Drag mode toggle ---
+        // Cropper.js stacks .cropper-crop-box on top of .cropper-drag-box.
+        // Touches inside the crop area always hit the crop box first, so
+        // dragMode('move') alone doesn't help on mobile. We toggle
+        // pointer-events on the crop box to let touches pass through to
+        // the image-drag layer when "Move Image" is active.
         function setDragMode(mode) {
             currentDragMode = mode;
+            const cropBox = document.querySelector('.cropper-crop-box');
             if (mode === 'move') {
                 dragMoveBtn.classList.add('active');
                 dragCropBtn.classList.remove('active');
                 if (cropper) {
                     cropper.setDragMode('move');
                 }
+                if (cropBox) cropBox.style.pointerEvents = 'none';
             } else {
                 dragCropBtn.classList.add('active');
                 dragMoveBtn.classList.remove('active');
                 if (cropper) {
-                    // 'none' disables image dragging; crop box remains movable
                     cropper.setDragMode('none');
                 }
+                if (cropBox) cropBox.style.pointerEvents = 'auto';
             }
         }
 
@@ -653,6 +660,13 @@
                             cropper.setData(cropperData);
                         }, 50);
                     }
+                    // Apply pointer-events for current drag mode now that
+                    // the crop box element exists in the DOM
+                    const cropBox = document.querySelector('.cropper-crop-box');
+                    if (cropBox) {
+                        cropBox.style.pointerEvents = currentDragMode === 'move' ? 'none' : 'auto';
+                    }
+
                     updatePreview();
 
                     // Install custom pinch-zoom handler on the cropper container
