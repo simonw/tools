@@ -93,7 +93,7 @@
             align-items: center;
             justify-content: center;
             margin: 15px 0;
-            gap: 10px;
+            gap: 12px;
         }
         .control-btn {
             background: #f0f0f0;
@@ -108,10 +108,80 @@
             background: #e0e0e0;
             border-color: #ccc;
         }
+        .zoom-btn {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 2px solid #ccc;
+            background: #fff;
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            color: #333;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .zoom-btn:hover {
+            background: #f0f0f0;
+            border-color: #999;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        .zoom-btn:active, .zoom-btn.pressing {
+            background: #e0e0e0;
+            border-color: #888;
+            transform: scale(0.93);
+            box-shadow: 0 0 2px rgba(0,0,0,0.1);
+        }
         .zoom-value {
-            width: 50px;
+            min-width: 55px;
             text-align: center;
+            font-weight: 600;
+            font-size: 15px;
+            font-variant-numeric: tabular-nums;
+        }
+        .drag-mode-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            margin: 12px 0;
+        }
+        .drag-mode-btn {
+            padding: 10px 18px;
+            border: 2px solid #ccc;
+            background: #fff;
+            cursor: pointer;
+            font-size: 14px;
             font-weight: 500;
+            transition: all 0.15s;
+            color: #555;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .drag-mode-btn:first-child {
+            border-radius: 8px 0 0 8px;
+        }
+        .drag-mode-btn:last-child {
+            border-radius: 0 8px 8px 0;
+            border-left: none;
+        }
+        .drag-mode-btn.active {
+            background: #0066cc;
+            border-color: #0066cc;
+            color: #fff;
+        }
+        .drag-mode-btn:not(.active):hover {
+            background: #f0f0f0;
         }
         .color-picker {
             display: flex;
@@ -151,6 +221,15 @@
             .options-container {
                 gap: 10px;
             }
+            .zoom-btn {
+                width: 56px;
+                height: 56px;
+                font-size: 28px;
+            }
+            .drag-mode-btn {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -187,7 +266,6 @@
                     
                     <div style="margin-top: 15px;">
                         <button id="resetBtn" class="control-btn">Reset Image</button>
-                        <span id="zoomValue" class="zoom-value" style="margin-left: 10px;">100%</span>
                     </div>
                 </div>
             </div>
@@ -212,9 +290,16 @@
             <img id="image" class="hidden">
         </div>
         
-        <div class="zoom-controls hidden" id="zoomControlsContainer">
-            <button id="zoomOutBtn" class="control-btn">−</button>
-            <button id="zoomInBtn" class="control-btn">+</button>
+        <div class="hidden" id="zoomControlsContainer">
+            <div class="drag-mode-controls">
+                <button id="dragMoveBtn" class="drag-mode-btn active">Move Image</button>
+                <button id="dragCropBtn" class="drag-mode-btn">Move Crop</button>
+            </div>
+            <div class="zoom-controls">
+                <button id="zoomOutBtn" class="zoom-btn" aria-label="Zoom out">−</button>
+                <span id="zoomValue" class="zoom-value">100%</span>
+                <button id="zoomInBtn" class="zoom-btn" aria-label="Zoom in">+</button>
+            </div>
         </div>
 
         <div class="preview-container hidden" id="previewContainer">
@@ -232,7 +317,8 @@
         let cropper = null;
         let cropperData = null;
         let zoomValue = 1;
-        
+        let currentDragMode = 'move'; // 'move' = move image, 'crop' = move crop box
+
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const backgroundColor = document.getElementById('backgroundColor');
@@ -241,13 +327,118 @@
         const zoomValueDisplay = document.getElementById('zoomValue');
         const resetBtn = document.getElementById('resetBtn');
         const zoomControlsContainer = document.getElementById('zoomControlsContainer');
-        
+        const dragMoveBtn = document.getElementById('dragMoveBtn');
+        const dragCropBtn = document.getElementById('dragCropBtn');
+
         const image = document.getElementById('image');
         const preview = document.getElementById('preview');
         const previewContainer = document.getElementById('previewContainer');
         const downloadBtn = document.getElementById('downloadBtn');
 
-        // Handle paste events
+        // --- Drag mode toggle ---
+        function setDragMode(mode) {
+            currentDragMode = mode;
+            if (mode === 'move') {
+                dragMoveBtn.classList.add('active');
+                dragCropBtn.classList.remove('active');
+                if (cropper) {
+                    cropper.setDragMode('move');
+                }
+            } else {
+                dragCropBtn.classList.add('active');
+                dragMoveBtn.classList.remove('active');
+                if (cropper) {
+                    // 'none' disables image dragging; crop box remains movable
+                    cropper.setDragMode('none');
+                }
+            }
+        }
+
+        dragMoveBtn.addEventListener('click', () => setDragMode('move'));
+        dragCropBtn.addEventListener('click', () => setDragMode('crop'));
+
+        // --- Press-and-hold continuous zoom ---
+        function setupContinuousButton(btn, actionFn) {
+            let holdTimer = null;
+            let holdInterval = null;
+
+            function startHold(e) {
+                e.preventDefault();
+                // Fire once immediately
+                actionFn();
+                btn.classList.add('pressing');
+                // After a short delay, start repeating
+                holdTimer = setTimeout(() => {
+                    let speed = 60; // ms between repeats, starts moderate
+                    let elapsed = 0;
+                    holdInterval = setInterval(() => {
+                        actionFn();
+                        elapsed++;
+                        // Accelerate after sustained hold
+                        if (elapsed > 15 && speed > 30) {
+                            clearInterval(holdInterval);
+                            speed = 30;
+                            holdInterval = setInterval(() => actionFn(), speed);
+                        }
+                    }, speed);
+                }, 300);
+            }
+
+            function stopHold(e) {
+                if (e) e.preventDefault();
+                btn.classList.remove('pressing');
+                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+                if (holdInterval) { clearInterval(holdInterval); holdInterval = null; }
+            }
+
+            // Mouse events
+            btn.addEventListener('mousedown', startHold);
+            window.addEventListener('mouseup', stopHold);
+
+            // Touch events
+            btn.addEventListener('touchstart', startHold, { passive: false });
+            btn.addEventListener('touchend', stopHold, { passive: false });
+            btn.addEventListener('touchcancel', stopHold, { passive: false });
+
+            // Prevent context menu on long press
+            btn.addEventListener('contextmenu', (e) => e.preventDefault());
+        }
+
+        function doZoomIn() {
+            if (!cropper) return;
+            zoomValue = Math.min(zoomValue + 0.02, 3);
+            updateZoomDisplay();
+            cropper.zoomTo(zoomValue);
+        }
+
+        function doZoomOut() {
+            if (!cropper) return;
+            let zoomDecrement = 0.02;
+            if (zoomValue < 0.2) {
+                zoomDecrement = 0.005;
+            } else if (zoomValue < 0.5) {
+                zoomDecrement = 0.01;
+            }
+            zoomValue = Math.max(zoomValue - zoomDecrement, 0.01);
+            updateZoomDisplay();
+            cropper.zoomTo(zoomValue);
+
+            const canvasData = cropper.getCanvasData();
+            if (zoomValue < 0.3) {
+                const scaleFactor = zoomValue < 0.1 ? 0.98 : 0.99;
+                cropper.setCanvasData({
+                    width: canvasData.width * scaleFactor,
+                    height: canvasData.height * scaleFactor,
+                    left: canvasData.left + (canvasData.width - canvasData.width * scaleFactor) / 2,
+                    top: canvasData.top + (canvasData.height - canvasData.height * scaleFactor) / 2
+                });
+            }
+        }
+
+        setupContinuousButton(zoomInBtn, doZoomIn);
+        setupContinuousButton(zoomOutBtn, doZoomOut);
+
+        // --- Handle paste events ---
         document.addEventListener('paste', (e) => {
             e.preventDefault();
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
@@ -260,7 +451,7 @@
             }
         });
 
-        // Handle drag and drop
+        // --- Handle drag and drop ---
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.classList.add('dragover');
@@ -286,28 +477,24 @@
                 handleFile(e.target.files[0]);
             }
         });
-        
+
         // Reset button
         resetBtn.addEventListener('click', () => {
             if (cropper) {
                 cropper.reset();
                 zoomValue = 1;
                 updateZoomDisplay();
+                setDragMode('move');
                 updatePreview();
             }
         });
-        
+
         // Listen for aspect ratio changes and update the cropper
         document.querySelectorAll('input[name="aspectRatio"]').forEach(radio => {
             radio.addEventListener('change', () => {
                 if (cropper) {
-                    // Save the current zoom level and other data
                     const currentZoom = zoomValue;
-                    
-                    // Reinitialize cropper with new aspect ratio
                     initCropper(true);
-                    
-                    // Restore zoom after initialization
                     setTimeout(() => {
                         zoomValue = currentZoom;
                         updateZoomDisplay();
@@ -316,60 +503,15 @@
                 }
             });
         });
-        
+
         // Listen for background color changes and update the preview
         backgroundColor.addEventListener('change', () => {
             updatePreview();
         });
-        
-        // Handle zoom buttons
-        zoomInBtn.addEventListener('click', () => {
-            if (cropper) {
-                // Smaller increment for zooming in
-                zoomValue = Math.min(zoomValue + 0.02, 3);
-                updateZoomDisplay();
-                cropper.zoomTo(zoomValue);
-            }
-        });
-        
-        zoomOutBtn.addEventListener('click', () => {
-            if (cropper) {
-                // Extra small decrement for zooming out, with smaller steps at lower zoom levels
-                let zoomDecrement = 0.02;
-                
-                // Use even smaller decrements for small zoom values
-                if (zoomValue < 0.2) {
-                    zoomDecrement = 0.005;
-                } else if (zoomValue < 0.5) {
-                    zoomDecrement = 0.01;
-                }
-                
-                zoomValue = Math.max(zoomValue - zoomDecrement, 0.01);
-                updateZoomDisplay();
-                cropper.zoomTo(zoomValue);
-                
-                // Force update canvas size to allow zooming out beyond image boundaries
-                const canvasData = cropper.getCanvasData();
-                if (zoomValue < 0.3) {
-                    // Apply more aggressive canvas scaling for very small zoom levels
-                    // Smaller scale factor for smoother transitions
-                    const scaleFactor = zoomValue < 0.1 ? 0.98 : 0.99;
-                    
-                    cropper.setCanvasData({
-                        width: canvasData.width * scaleFactor,
-                        height: canvasData.height * scaleFactor,
-                        left: canvasData.left + (canvasData.width - canvasData.width * scaleFactor) / 2,
-                        top: canvasData.top + (canvasData.height - canvasData.height * scaleFactor) / 2
-                    });
-                }
-            }
-        });
-        
+
         function updateZoomDisplay() {
-            // Show zoom percentage with 1 decimal place for smaller values
             let displayValue = Math.round(zoomValue * 100);
             if (zoomValue < 0.1) {
-                // Show more precision for very small values
                 displayValue = (zoomValue * 100).toFixed(1);
             }
             zoomValueDisplay.textContent = `${displayValue}%`;
@@ -386,11 +528,11 @@
                 image.src = e.target.result;
                 image.classList.remove('hidden');
                 zoomControlsContainer.classList.remove('hidden');
-                
-                // Reset zoom value to default
+
                 zoomValue = 1;
                 updateZoomDisplay();
-                
+                setDragMode('move');
+
                 initCropper();
             };
             reader.readAsDataURL(file);
@@ -398,22 +540,19 @@
 
         function initCropper(preserveData = false) {
             if (cropper) {
-                // Store data if needed
                 if (preserveData) {
                     cropperData = cropper.getData();
                 }
-                
                 cropper.destroy();
             }
 
-            // Get the selected aspect ratio
             const aspectRatioValue = document.querySelector('input[name="aspectRatio"]:checked').value;
             const ratio = parseFloat(aspectRatioValue);
 
             cropper = new Cropper(image, {
                 aspectRatio: ratio,
-                viewMode: 0, // Changed to 0 to allow for unlimited movement
-                dragMode: 'move',
+                viewMode: 0,
+                dragMode: currentDragMode === 'move' ? 'move' : 'none',
                 autoCropArea: 0.9,
                 restore: false,
                 guides: true,
@@ -424,20 +563,22 @@
                 toggleDragModeOnDblclick: false,
                 minCropBoxWidth: 100,
                 minCropBoxHeight: 100,
+                // Disable Cropper.js built-in wheel zoom (we handle zoom via buttons)
+                zoomOnWheel: false,
+                // Disable Cropper.js touch zoom - we intercept pinch ourselves
+                zoomOnTouch: false,
                 ready: function() {
-                    // If we need to restore data
                     if (preserveData && cropperData) {
-                        // Set the crop box data first
                         setTimeout(() => {
                             cropper.setData(cropperData);
                         }, 50);
                     }
-                    
-                    // Initial preview update
                     updatePreview();
+
+                    // Install custom pinch-zoom handler on the cropper container
+                    installPinchZoom();
                 },
                 zoom: function(e) {
-                    // Update zoom value when zooming from cropper
                     zoomValue = e.detail.ratio;
                     updateZoomDisplay();
                 },
@@ -445,18 +586,56 @@
             });
         }
 
+        // --- Custom pinch-zoom handler ---
+        // This ensures single-touch drag moves image/crop as expected,
+        // and only two-finger pinch triggers zoom.
+        function installPinchZoom() {
+            const cropperContainer = document.querySelector('.cropper-container');
+            if (!cropperContainer) return;
+
+            let pinchStartDist = 0;
+            let pinchStartZoom = 1;
+
+            function getTouchDistance(t1, t2) {
+                const dx = t1.clientX - t2.clientX;
+                const dy = t1.clientY - t2.clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            cropperContainer.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    // Starting a pinch - record baseline
+                    pinchStartDist = getTouchDistance(e.touches[0], e.touches[1]);
+                    pinchStartZoom = zoomValue;
+                }
+            }, { passive: true });
+
+            cropperContainer.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && pinchStartDist > 0) {
+                    e.preventDefault(); // prevent page zoom
+                    const currentDist = getTouchDistance(e.touches[0], e.touches[1]);
+                    const scale = currentDist / pinchStartDist;
+                    const newZoom = Math.max(0.01, Math.min(3, pinchStartZoom * scale));
+                    zoomValue = newZoom;
+                    updateZoomDisplay();
+                    cropper.zoomTo(newZoom);
+                }
+            }, { passive: false });
+
+            cropperContainer.addEventListener('touchend', () => {
+                pinchStartDist = 0;
+            }, { passive: true });
+        }
+
         function updatePreview() {
             if (!cropper) return;
 
-            // Create a larger canvas with the background color
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            
-            // Get the selected aspect ratio
+
             const aspectRatioValue = document.querySelector('input[name="aspectRatio"]:checked').value;
             const ratio = parseFloat(aspectRatioValue);
-            
-            // Set canvas dimensions to the desired aspect ratio
+
             if (ratio === 2) {
                 canvas.width = 1200;
                 canvas.height = 600;
@@ -473,39 +652,32 @@
                 canvas.width = 1200;
                 canvas.height = 1200 / ratio;
             }
-            
-            // Fill with background color
+
             ctx.fillStyle = backgroundColor.value;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Get the cropped canvas
+
             const croppedCanvas = cropper.getCroppedCanvas();
             if (!croppedCanvas) return;
-            
-            // Calculate dimensions to center the image
+
             const scale = Math.min(
                 canvas.width / croppedCanvas.width,
                 canvas.height / croppedCanvas.height
             );
-            
+
             const scaledWidth = croppedCanvas.width * scale;
             const scaledHeight = croppedCanvas.height * scale;
             const x = (canvas.width - scaledWidth) / 2;
             const y = (canvas.height - scaledHeight) / 2;
-            
-            // Draw the cropped image centered on the background
+
             ctx.drawImage(croppedCanvas, x, y, scaledWidth, scaledHeight);
-            
-            // Convert to JPEG with 0.9 quality
+
             const previewUrl = canvas.toDataURL('image/jpeg', 0.9);
             preview.src = previewUrl;
             previewContainer.classList.remove('hidden');
 
-            // Show dimensions
             const dimensionsInfo = document.getElementById('dimensionsInfo');
             dimensionsInfo.textContent = `Dimensions: ${canvas.width} × ${canvas.height} pixels`;
 
-            // Update download link
             downloadBtn.href = previewUrl;
             downloadBtn.download = `social-card-${aspectRatioValue.replace('.', '_')}.jpg`;
         }
