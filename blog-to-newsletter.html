@@ -298,6 +298,29 @@
     .long-urls-warning .edit-url-btn:hover {
       background: #e0a800;
     }
+    .newsletter-item {
+      position: relative;
+    }
+    .newsletter-item .delete-item-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      font-size: 16px;
+      line-height: 22px;
+      text-align: center;
+      cursor: pointer;
+      opacity: 0.5;
+      transition: opacity 0.15s;
+    }
+    .newsletter-item .delete-item-btn:hover {
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -677,7 +700,8 @@ order by
               const info = typeof e.json === 'string' ? JSON.parse(e.json) : e.json;
               const entry = { ...e };
               const quotationHtml = marked.parse(info.quotation || '');
-              entry.html = `<p><strong>Quote</strong> ${info.created}</p><blockquote>${quotationHtml}</blockquote><p><a href="${info.source_url || '#'}">${info.source}</a>${info.context ? ', ' + info.context : ''}</p>`;
+              const contextHtml = info.context ? ', ' + marked.parseInline(info.context) : '';
+              entry.html = `<p><strong>Quote</strong> ${info.created}</p><blockquote>${quotationHtml}</blockquote><p><a href="${info.source_url || '#'}">${info.source}</a>${contextHtml}</p>`;
               return entry;
             }
 
@@ -901,7 +925,7 @@ order by
       function generateNewsletter() {
         const idOrder = storyOrder.map(s => parseInt(s.split(':')[0], 10));
 
-        let html = '';
+        let headerHtml = '';
 
         // Table of contents
         if (entries.length) {
@@ -911,9 +935,9 @@ order by
             return indexA - indexB;
           });
 
-          html += '<p>In this newsletter:</p><ul>';
-          html += sortedEntries.map(e => `<li>${e.title}</li>`).join('\n');
-          html += '</ul>';
+          headerHtml += '<p>In this newsletter:</p><ul>';
+          headerHtml += sortedEntries.map(e => `<li>${e.title}</li>`).join('\n');
+          headerHtml += '</ul>';
         }
 
         // Summary of extras
@@ -931,11 +955,11 @@ order by
           extras.push(`${notes.length} note${notes.length > 1 ? 's' : ''}`);
         }
         if (extras.length) {
-          html += `<p>Plus ${extras.join(' and ')}</p>`;
+          headerHtml += `<p>Plus ${extras.join(' and ')}</p>`;
         }
 
         // Sponsor message
-        html += `<p><em>If you find this newsletter useful, please consider <a href="https://github.com/sponsors/simonw">sponsoring me via GitHub</a>. $10/month and higher sponsors get a monthly newsletter with my summary of the most important trends of the past 30 days - here are previews from <a href="https://gist.github.com/simonw/3385bc8c83a8157557f06865a0302753">October</a> and <a href="https://gist.github.com/simonw/fc34b780a9ae19b6be5d732078a572c8">November</a>.</em></p>`;
+        headerHtml += `<p><em>If you find this newsletter useful, please consider <a href="https://github.com/sponsors/simonw">sponsoring me via GitHub</a>. $10/month and higher sponsors get a monthly newsletter with my summary of the most important trends of the past 30 days - here are previews from <a href="https://gist.github.com/simonw/3385bc8c83a8157557f06865a0302753">October</a> and <a href="https://gist.github.com/simonw/fc34b780a9ae19b6be5d732078a572c8">November</a>.</em></p>`;
 
         // Content sorted by story order
         const sortedContent = [...content].sort((a, b) => {
@@ -945,20 +969,52 @@ order by
           return indexA - indexB;
         });
 
-        html += sortedContent.map(c => c.html + '<hr>').join('\n');
-
-        // Apply URL replacements
-        for (const [oldUrl, newUrl] of urlReplacements) {
-          html = html.split(oldUrl).join(newUrl);
+        // Apply URL replacements helper
+        function applyReplacements(html) {
+          for (const [oldUrl, newUrl] of urlReplacements) {
+            html = html.split(oldUrl).join(newUrl);
+          }
+          return html;
         }
 
-        newsletterHTML = html;
+        // Clean newsletter HTML (for copying)
+        let html = headerHtml + sortedContent.map(c => c.html + '<hr>').join('\n');
+        newsletterHTML = applyReplacements(html);
         htmlLengthEl.textContent = `Length of HTML: ${newsletterHTML.length.toLocaleString()} characters`;
-        previewEl.innerHTML = html;
+
+        // Preview HTML with delete buttons for non-entry items
+        const previewContentHtml = sortedContent.map(c => {
+          const itemHtml = applyReplacements(c.html);
+          if (c.type !== 'entry') {
+            return `<div class="newsletter-item" data-type="${c.type}" data-id="${c.id}"><button class="delete-item-btn" title="Remove this item">&times;</button>${itemHtml}</div><hr>`;
+          }
+          return itemHtml + '<hr>';
+        }).join('\n');
+        previewEl.innerHTML = applyReplacements(headerHtml) + previewContentHtml;
 
         // Check for long URLs and display warnings
-        checkLongUrls(html);
+        checkLongUrls(newsletterHTML);
       }
+
+      // Remove an item from the newsletter
+      function removeItem(type, id) {
+        content = content.filter(e => !(e.type === type && String(e.id) === String(id)));
+        blogmarks = blogmarks.filter(e => !(type === 'blogmark' && String(e.id) === String(id)));
+        quotations = quotations.filter(e => !(type === 'quotation' && String(e.id) === String(id)));
+        tils = tils.filter(e => !(type === 'til' && String(e.id) === String(id)));
+        notes = notes.filter(e => !(type === 'note' && String(e.id) === String(id)));
+        generateNewsletter();
+      }
+
+      // Event delegation for delete buttons in preview
+      previewEl.addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-item-btn')) {
+          const wrapper = e.target.closest('.newsletter-item');
+          if (wrapper) {
+            removeItem(wrapper.dataset.type, wrapper.dataset.id);
+          }
+        }
+      });
 
       // Check for URLs longer than 200 characters
       function checkLongUrls(html) {
