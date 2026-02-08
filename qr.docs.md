@@ -1,3 +1,3 @@
-Decode QR codes from image files by uploading, dragging and dropping, or pasting them directly into the application. The decoder processes the image data using the jsQR library to extract and display the encoded content, automatically converting URLs into clickable links for convenient access.
+Decode QR codes from images or your device's camera with this interactive web application. Upload an image by dragging and dropping, clicking to select a file, or pasting from your clipboard, and the decoder will extract the encoded data instantly. Switch to webcam mode for real-time scanning with support for multiple cameras and pinch-to-zoom functionality on touch devices.
 
-<!-- Generated from commit: 345bdc992ffa314a78473541afb6815d215eec0b -->
+<!-- Generated from commit: d4336f4693a0ab5a417d152d6ce79b9bf1325f10 -->
