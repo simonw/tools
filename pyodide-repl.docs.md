@@ -1,0 +1,3 @@
+Execute and interact with Python code directly in your web browser using this Pyodide-powered REPL interface. The application provides a responsive Python environment optimized for both desktop and mobile devices, with features including command history navigation, single-line and multi-line editing modes, and real-time output display. Code execution happens entirely client-side through the Pyodide runtime, requiring no backend server.
+
+<!-- Generated from commit: eb2634fa548897d2bd79072e39870447acb9eb24 -->
