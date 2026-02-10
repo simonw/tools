@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIF Dissector</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: #0f1117;
+  color: #e2e4e9;
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  color: #8b8fa3;
+  margin-bottom: 2rem;
+  font-size: 0.95rem;
+}
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed #2e3140;
+  border-radius: 12px;
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: #161822;
+  margin-bottom: 2rem;
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: #646cff;
+  background: #1a1d2e;
+}
+
+.drop-zone p {
+  color: #8b8fa3;
+  font-size: 1rem;
+}
+
+.drop-zone p strong {
+  color: #646cff;
+}
+
+.drop-zone input {
+  display: none;
+}
+
+/* Info panels */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .info-grid { grid-template-columns: 1fr; }
+}
+
+.info-panel {
+  background: #161822;
+  border: 1px solid #2e3140;
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.info-panel h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8b8fa3;
+  margin-bottom: 0.75rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  font-size: 0.9rem;
+}
+
+.info-row .label { color: #8b8fa3; }
+.info-row .value { color: #e2e4e9; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* Color palette */
+.palette-wrap {
+  background: #161822;
+  border: 1px solid #2e3140;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.palette-wrap h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8b8fa3;
+  margin-bottom: 0.75rem;
+}
+
+.palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer;
+  position: relative;
+}
+
+.swatch:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e2030;
+  border: 1px solid #2e3140;
+  color: #e2e4e9;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+  font-family: monospace;
+}
+
+/* Preview */
+.preview-section {
+  background: #161822;
+  border: 1px solid #2e3140;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.preview-section h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8b8fa3;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+.preview-section img {
+  max-width: 100%;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  background: repeating-conic-gradient(#1a1a2e 0% 25%, #12121e 0% 50%) 0 0 / 16px 16px;
+}
+
+/* Frames */
+.frames-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1rem;
+}
+
+.frames-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.frames-header .count {
+  color: #8b8fa3;
+  font-size: 0.9rem;
+}
+
+.frame-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.frame-card {
+  display: flex;
+  gap: 1.25rem;
+  background: #161822;
+  border: 1px solid #2e3140;
+  border-radius: 10px;
+  padding: 1rem;
+  align-items: flex-start;
+}
+
+.frame-index {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #646cff;
+  background: rgba(100, 108, 255, 0.1);
+  border-radius: 6px;
+  min-width: 3rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.frame-canvas-wrap {
+  flex-shrink: 0;
+  background: repeating-conic-gradient(#1a1a2e 0% 25%, #12121e 0% 50%) 0 0 / 12px 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.frame-canvas-wrap canvas {
+  max-width: 200px;
+  max-height: 200px;
+  image-rendering: pixelated;
+}
+
+.frame-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.frame-details .duration {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #e2e4e9;
+  line-height: 1.2;
+}
+
+.frame-details .duration small {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #8b8fa3;
+}
+
+.frame-meta {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: #8b8fa3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+}
+
+.frame-meta span { white-space: nowrap; }
+
+#results { display: none; }
+
+.error-msg {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.08);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>GIF Dissector</h1>
+  <p class="subtitle">Drop an animated GIF to extract every frame with timing and metadata.</p>
+
+  <div class="drop-zone" id="dropZone">
+    <p><strong>Click to choose a GIF</strong> or drag and drop one here</p>
+    <input type="file" id="fileInput" accept="image/gif,.gif">
+  </div>
+
+  <div id="error"></div>
+
+  <div id="results">
+    <div class="preview-section">
+      <h3>Original</h3>
+      <img id="originalPreview" alt="Original GIF">
+    </div>
+
+    <div class="info-grid">
+      <div class="info-panel" id="fileInfo"></div>
+      <div class="info-panel" id="gifInfo"></div>
+    </div>
+
+    <div class="palette-wrap" id="paletteSection">
+      <h3>Global Color Table (<span id="paletteCount"></span> colors)</h3>
+      <div class="palette" id="palette"></div>
+    </div>
+
+    <div class="frames-header">
+      <h2>Frames</h2>
+      <span class="count" id="frameCount"></span>
+    </div>
+    <div class="frame-list" id="frameList"></div>
+  </div>
+</div>
+
+<script type="module">
+import { parseGIF, decompressFrames } from 'https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/+esm';
+
+// ---- Render composited frames ----
+
+function renderFrames(decompressed, width, height) {
+  const compCanvas = document.createElement('canvas');
+  compCanvas.width = width;
+  compCanvas.height = height;
+  const compCtx = compCanvas.getContext('2d');
+
+  let previousImageData = compCtx.getImageData(0, 0, width, height);
+  const rendered = [];
+
+  for (const frame of decompressed) {
+    const { dims, disposalType, patch } = frame;
+
+    // Save state before drawing (for disposal method 3)
+    if (disposalType === 3) {
+      previousImageData = compCtx.getImageData(0, 0, width, height);
+    }
+
+    // Build ImageData from RGBA patch and draw onto composite
+    const frameImageData = new ImageData(patch, dims.width, dims.height);
+
+    // For transparent pixels in patch (alpha=0), we want to keep the existing composite.
+    // For opaque pixels, we overwrite. Use a temp canvas for this frame's patch.
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = dims.width;
+    tempCanvas.height = dims.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.putImageData(frameImageData, 0, 0);
+    compCtx.drawImage(tempCanvas, dims.left, dims.top);
+
+    // Snapshot the composited result
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = width;
+    outCanvas.height = height;
+    outCanvas.getContext('2d').drawImage(compCanvas, 0, 0);
+    rendered.push(outCanvas);
+
+    // Handle disposal for next frame
+    if (disposalType === 2) {
+      compCtx.clearRect(dims.left, dims.top, dims.width, dims.height);
+    } else if (disposalType === 3) {
+      compCtx.putImageData(previousImageData, 0, 0);
+    }
+  }
+
+  return rendered;
+}
+
+// ---- Extract metadata from parsed GIF ----
+
+function extractMetadata(gif) {
+  let loopCount = null;
+  const comments = [];
+
+  for (const frame of gif.frames) {
+    if (frame.application) {
+      const id = frame.application.id || '';
+      if (id.startsWith('NETSCAPE')) {
+        const blocks = frame.application.blocks;
+        if (blocks) {
+          loopCount = (blocks[1] || 0) | ((blocks[2] || 0) << 8);
+        }
+      }
+    }
+    if (frame.comment) {
+      comments.push(frame.comment);
+    }
+  }
+
+  return { loopCount, comments };
+}
+
+// ---- UI ----
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const errorDiv = document.getElementById('error');
+const resultsDiv = document.getElementById('results');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+const DISPOSAL_LABELS = ['Unspecified', 'Do Not Dispose', 'Restore to Background', 'Restore to Previous'];
+
+function handleFile(file) {
+  errorDiv.innerHTML = '';
+  resultsDiv.style.display = 'none';
+
+  if (!file.name.toLowerCase().endsWith('.gif') && file.type !== 'image/gif') {
+    errorDiv.innerHTML = '<div class="error-msg">Please select a GIF file.</div>';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onerror = () => {
+    errorDiv.innerHTML = '<div class="error-msg">Failed to read file.</div>';
+  };
+  reader.onload = () => {
+    try {
+      processGif(reader.result, file);
+    } catch (e) {
+      errorDiv.innerHTML = '<div class="error-msg">Error parsing GIF: ' + escapeHtml(e.message) + '</div>';
+      console.error(e);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function processGif(buffer, file) {
+  const gif = parseGIF(buffer);
+  const decompressed = decompressFrames(gif, true);
+
+  if (decompressed.length === 0) throw new Error('No frames found in the GIF.');
+
+  const { lsd } = gif;
+  const width = lsd.width;
+  const height = lsd.height;
+  const fileSize = buffer.byteLength;
+
+  // Extract metadata (loop count, comments)
+  const meta = extractMetadata(gif);
+
+  // Show original preview
+  const originalPreview = document.getElementById('originalPreview');
+  originalPreview.src = URL.createObjectURL(file);
+
+  // Total duration
+  let totalDuration = 0;
+  for (const f of decompressed) {
+    totalDuration += (f.delay || 100);
+  }
+
+  // File info panel
+  const fileInfo = document.getElementById('fileInfo');
+  fileInfo.innerHTML = `
+    <h3>File Info</h3>
+    <div class="info-row"><span class="label">Filename</span><span class="value">${escapeHtml(file.name)}</span></div>
+    <div class="info-row"><span class="label">File size</span><span class="value">${formatBytes(fileSize)}</span></div>
+    <div class="info-row"><span class="label">Version</span><span class="value">GIF${gif.header ? gif.header.version || '89a' : '89a'}</span></div>
+    <div class="info-row"><span class="label">Total frames</span><span class="value">${decompressed.length}</span></div>
+    <div class="info-row"><span class="label">Total duration</span><span class="value">${totalDuration}ms (${(totalDuration / 1000).toFixed(2)}s)</span></div>
+    <div class="info-row"><span class="label">Loop count</span><span class="value">${meta.loopCount === 0 ? 'Infinite' : meta.loopCount === null ? 'No loop' : meta.loopCount}</span></div>
+    ${meta.comments.length ? '<div class="info-row"><span class="label">Comments</span><span class="value">' + escapeHtml(meta.comments.join(', ')) + '</span></div>' : ''}
+  `;
+
+  // GIF info panel
+  const gctSize = gif.gct ? gif.gct.length : 0;
+  const gifInfo = document.getElementById('gifInfo');
+  gifInfo.innerHTML = `
+    <h3>Image Properties</h3>
+    <div class="info-row"><span class="label">Dimensions</span><span class="value">${width} &times; ${height} px</span></div>
+    <div class="info-row"><span class="label">Color resolution</span><span class="value">${(lsd.gct ? lsd.gct.resolution || 0 : 0) + 1} bits/pixel</span></div>
+    <div class="info-row"><span class="label">Global color table</span><span class="value">${gctSize ? gctSize + ' colors' : 'None'}</span></div>
+    <div class="info-row"><span class="label">Background index</span><span class="value">${lsd.backgroundColorIndex}${gctSize ? ' (' + gctColorHex(gif.gct, lsd.backgroundColorIndex) + ')' : ''}</span></div>
+    <div class="info-row"><span class="label">Pixel aspect ratio</span><span class="value">${lsd.pixelAspectRatio === 0 ? 'Square pixels' : lsd.pixelAspectRatio}</span></div>
+    <div class="info-row"><span class="label">Sorted colors</span><span class="value">${lsd.gct && lsd.gct.sort ? 'Yes' : 'No'}</span></div>
+  `;
+
+  // Palette
+  const paletteSection = document.getElementById('paletteSection');
+  const paletteDiv = document.getElementById('palette');
+  const paletteCount = document.getElementById('paletteCount');
+
+  if (gif.gct && gif.gct.length) {
+    paletteSection.style.display = 'block';
+    paletteCount.textContent = gctSize;
+    paletteDiv.innerHTML = '';
+    for (let i = 0; i < gctSize; i++) {
+      const c = gif.gct[i];
+      const hex = rgbHex(c[0], c[1], c[2]);
+      const swatch = document.createElement('div');
+      swatch.className = 'swatch';
+      swatch.style.background = hex;
+      swatch.title = '#' + i + ': ' + hex;
+      paletteDiv.appendChild(swatch);
+    }
+  } else {
+    paletteSection.style.display = 'none';
+  }
+
+  // Render composited frames
+  const canvases = renderFrames(decompressed, width, height);
+
+  // Frame list
+  const frameList = document.getElementById('frameList');
+  frameList.innerHTML = '';
+  document.getElementById('frameCount').textContent = decompressed.length + ' frame' + (decompressed.length !== 1 ? 's' : '');
+
+  // Find the raw image frames for extra metadata
+  const rawImageFrames = gif.frames.filter(f => f.image);
+
+  for (let i = 0; i < decompressed.length; i++) {
+    const frame = decompressed[i];
+    const raw = rawImageFrames[i];
+    const delay = frame.delay || 100; // ms; gifuct-js gives delay in ms
+    const canvas = canvases[i];
+
+    const card = document.createElement('div');
+    card.className = 'frame-card';
+
+    const idx = document.createElement('div');
+    idx.className = 'frame-index';
+    idx.textContent = '#' + i;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'frame-canvas-wrap';
+    wrap.appendChild(canvas);
+
+    const details = document.createElement('div');
+    details.className = 'frame-details';
+
+    const dur = document.createElement('div');
+    dur.className = 'duration';
+    dur.innerHTML = delay + '<small>ms</small>';
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'frame-meta';
+
+    const metaItems = [
+      `Size: ${frame.dims.width}&times;${frame.dims.height}`,
+      `Position: (${frame.dims.left}, ${frame.dims.top})`,
+      `Disposal: ${DISPOSAL_LABELS[frame.disposalType] || frame.disposalType}`,
+    ];
+
+    if (raw && raw.gce && raw.gce.extras && raw.gce.extras.transparentColorGiven) {
+      metaItems.push(`Transparent: index ${raw.gce.transparentColorIndex}`);
+    }
+
+    if (raw && raw.image && raw.image.descriptor && raw.image.descriptor.lct && raw.image.descriptor.lct.exists) {
+      const lctSize = 1 << ((raw.image.descriptor.lct.size || 0) + 1);
+      metaItems.push(`Local palette: ${lctSize} colors`);
+    }
+
+    if (raw && raw.image && raw.image.descriptor && raw.image.descriptor.lct && raw.image.descriptor.lct.interlaced) {
+      metaItems.push('Interlaced');
+    }
+
+    metaDiv.innerHTML = metaItems.map(m => '<span>' + m + '</span>').join('');
+
+    details.appendChild(dur);
+    details.appendChild(metaDiv);
+
+    card.appendChild(idx);
+    card.appendChild(wrap);
+    card.appendChild(details);
+    frameList.appendChild(card);
+  }
+
+  resultsDiv.style.display = 'block';
+}
+
+function rgbHex(r, g, b) {
+  return '#' + [r, g, b].map(c => (c || 0).toString(16).padStart(2, '0')).join('');
+}
+
+function gctColorHex(gct, index) {
+  if (!gct || index >= gct.length) return '#000000';
+  const c = gct[index];
+  return rgbHex(c[0], c[1], c[2]);
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+
+</body>
+</html>
