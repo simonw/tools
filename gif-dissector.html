@@ -375,13 +375,12 @@ function extractMetadata(gif) {
   const comments = [];
 
   for (const frame of gif.frames) {
-    if (frame.appExt) {
-      const id = frame.appExt.identifier || '';
-      const auth = frame.appExt.authCode || '';
-      if (id === 'NETSCAPE' && auth === '2.0') {
-        const data = frame.appExt.data;
-        if (data && data.length >= 3) {
-          loopCount = data[1] | (data[2] << 8);
+    if (frame.application) {
+      const id = frame.application.id || '';
+      if (id.startsWith('NETSCAPE')) {
+        const blocks = frame.application.blocks;
+        if (blocks) {
+          loopCount = (blocks[1] || 0) | ((blocks[2] || 0) << 8);
         }
       }
     }
@@ -480,16 +479,16 @@ function processGif(buffer, file) {
   `;
 
   // GIF info panel
-  const gctSize = gif.gct ? gif.gct.length / 3 : 0;
+  const gctSize = gif.gct ? gif.gct.length : 0;
   const gifInfo = document.getElementById('gifInfo');
   gifInfo.innerHTML = `
     <h3>Image Properties</h3>
     <div class="info-row"><span class="label">Dimensions</span><span class="value">${width} &times; ${height} px</span></div>
-    <div class="info-row"><span class="label">Color resolution</span><span class="value">${(lsd.colorRes || 0) + 1} bits/pixel</span></div>
+    <div class="info-row"><span class="label">Color resolution</span><span class="value">${(lsd.gct ? lsd.gct.resolution || 0 : 0) + 1} bits/pixel</span></div>
     <div class="info-row"><span class="label">Global color table</span><span class="value">${gctSize ? gctSize + ' colors' : 'None'}</span></div>
-    <div class="info-row"><span class="label">Background index</span><span class="value">${lsd.bgColor}${gctSize ? ' (' + flatColorHex(gif.gct, lsd.bgColor) + ')' : ''}</span></div>
+    <div class="info-row"><span class="label">Background index</span><span class="value">${lsd.backgroundColorIndex}${gctSize ? ' (' + gctColorHex(gif.gct, lsd.backgroundColorIndex) + ')' : ''}</span></div>
     <div class="info-row"><span class="label">Pixel aspect ratio</span><span class="value">${lsd.pixelAspectRatio === 0 ? 'Square pixels' : lsd.pixelAspectRatio}</span></div>
-    <div class="info-row"><span class="label">Sorted colors</span><span class="value">${lsd.sorted ? 'Yes' : 'No'}</span></div>
+    <div class="info-row"><span class="label">Sorted colors</span><span class="value">${lsd.gct && lsd.gct.sort ? 'Yes' : 'No'}</span></div>
   `;
 
   // Palette
@@ -498,14 +497,12 @@ function processGif(buffer, file) {
   const paletteCount = document.getElementById('paletteCount');
 
   if (gif.gct && gif.gct.length) {
-    paletteSection.style.display = '';
+    paletteSection.style.display = 'block';
     paletteCount.textContent = gctSize;
     paletteDiv.innerHTML = '';
     for (let i = 0; i < gctSize; i++) {
-      const r = gif.gct[i * 3];
-      const g = gif.gct[i * 3 + 1];
-      const b = gif.gct[i * 3 + 2];
-      const hex = rgbHex(r, g, b);
+      const c = gif.gct[i];
+      const hex = rgbHex(c[0], c[1], c[2]);
       const swatch = document.createElement('div');
       swatch.className = 'swatch';
       swatch.style.background = hex;
@@ -560,8 +557,8 @@ function processGif(buffer, file) {
       `Disposal: ${DISPOSAL_LABELS[frame.disposalType] || frame.disposalType}`,
     ];
 
-    if (frame.transparentIndex !== undefined && frame.transparentIndex >= 0) {
-      metaItems.push(`Transparent: index ${frame.transparentIndex}`);
+    if (raw && raw.gce && raw.gce.extras && raw.gce.extras.transparentColorGiven) {
+      metaItems.push(`Transparent: index ${raw.gce.transparentColorIndex}`);
     }
 
     if (raw && raw.image && raw.image.descriptor && raw.image.descriptor.lct && raw.image.descriptor.lct.exists) {
@@ -584,16 +581,17 @@ function processGif(buffer, file) {
     frameList.appendChild(card);
   }
 
-  resultsDiv.style.display = '';
+  resultsDiv.style.display = 'block';
 }
 
 function rgbHex(r, g, b) {
   return '#' + [r, g, b].map(c => (c || 0).toString(16).padStart(2, '0')).join('');
 }
 
-function flatColorHex(flatTable, index) {
-  if (!flatTable || index * 3 + 2 >= flatTable.length) return '#000000';
-  return rgbHex(flatTable[index * 3], flatTable[index * 3 + 1], flatTable[index * 3 + 2]);
+function gctColorHex(gct, index) {
+  if (!gct || index >= gct.length) return '#000000';
+  const c = gct[index];
+  return rgbHex(c[0], c[1], c[2]);
 }
 
 function escapeHtml(s) {
