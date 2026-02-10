@@ -1,0 +1,3 @@
+Parse and visualize animated GIF files by extracting individual frames, timing data, color palettes, and detailed metadata. Upload a GIF file to instantly decompose it into its constituent frames with precise delay measurements, disposal methods, transparency information, and global color table analysis. The tool renders composited frames to show exactly how the animation appears, while providing comprehensive technical details about the image structure and properties.
+
+<!-- Generated from commit: 8d36bfd6bedeb8fae0e829b140f4fef04216e0b6 -->
