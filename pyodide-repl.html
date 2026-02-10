@@ -25,19 +25,20 @@
         }
         html, body {
             height: 100%;
-            background: var(--bg);
+            background: var(--output-bg);
             color: var(--text);
             font-family: var(--mono);
             font-size: 14px;
         }
-        body {
-            display: flex;
-            flex-direction: column;
+        #scroll-container {
+            height: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
         #header {
             padding: 12px 16px 8px;
             border-bottom: 1px solid var(--border);
-            flex-shrink: 0;
+            background: var(--bg);
         }
         #header h1 {
             font-size: 16px;
@@ -50,61 +51,54 @@
             margin-top: 2px;
         }
         #output {
-            flex: 1;
-            overflow-y: auto;
-            padding: 12px 16px;
-            background: var(--output-bg);
+            padding: 12px 16px 0;
             white-space: pre-wrap;
             word-wrap: break-word;
             line-height: 1.5;
-            -webkit-overflow-scrolling: touch;
         }
-        #output .banner {
-            color: var(--muted);
-        }
-        #output .prompt {
-            color: var(--prompt-color);
-        }
-        #output .input-echo {
-            color: var(--text);
-        }
-        #output .stdout {
-            color: var(--text);
-        }
-        #output .stderr {
-            color: var(--error-color);
-        }
+        #output .banner { color: var(--muted); }
+        #output .prompt { color: var(--prompt-color); }
+        #output .input-echo { color: var(--text); }
+        #output .stdout { color: var(--text); }
+        #output .stderr { color: var(--error-color); }
+
+        /* Input area flows inline after output */
         #input-area {
-            flex-shrink: 0;
-            border-top: 1px solid var(--border);
-            background: var(--surface);
-            padding: 8px;
+            padding: 0 16px 16px;
+        }
+        #input-row {
             display: flex;
             gap: 8px;
-            align-items: flex-end;
+            align-items: flex-start;
         }
         #prompt-label {
             color: var(--prompt-color);
             font-weight: bold;
-            padding: 10px 0 10px 4px;
+            padding: 9px 0 0 0;
             flex-shrink: 0;
-            line-height: 1.4;
-            align-self: flex-start;
+            line-height: 1.5;
+        }
+        #input-wrap {
+            flex: 1;
+            min-width: 0;
         }
         #input {
-            flex: 1;
-            background: var(--output-bg);
+            width: 100%;
+            background: var(--surface);
             color: var(--text);
             border: 1px solid var(--border);
             border-radius: 6px;
-            padding: 10px;
+            padding: 8px 10px;
             font-family: var(--mono);
             font-size: 14px;
-            line-height: 1.4;
+            line-height: 1.5;
             resize: none;
-            min-height: 40px;
-            max-height: 40vh;
-            overflow-y: auto;
+            overflow: hidden;
+        }
+        #input.multiline {
+            min-height: 100px;
+            resize: vertical;
+            overflow: auto;
         }
         #input:focus {
             outline: none;
@@ -114,30 +108,53 @@
         #input::placeholder {
             color: var(--muted);
         }
+        #btn-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
         #run-btn {
-            flex-shrink: 0;
             background: var(--accent);
             color: #000;
             border: none;
             border-radius: 6px;
-            padding: 10px 16px;
+            padding: 8px 16px;
             font-family: var(--mono);
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
-            min-height: 40px;
             touch-action: manipulation;
         }
-        #run-btn:hover {
-            background: var(--accent-hover);
+        #run-btn:hover { background: var(--accent-hover); }
+        #run-btn:active { transform: scale(0.97); }
+        #run-btn:disabled { opacity: 0.5; cursor: default; }
+        #mode-btn {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-family: var(--mono);
+            font-size: 12px;
+            cursor: pointer;
+            touch-action: manipulation;
+            white-space: nowrap;
         }
-        #run-btn:active {
-            transform: scale(0.97);
+        #mode-btn:hover { color: var(--text); border-color: var(--muted); }
+        #mode-btn:active { transform: scale(0.97); }
+        .mode-hint {
+            font-size: 11px;
+            color: var(--muted);
+            margin-left: auto;
+            padding: 8px 0;
+            white-space: nowrap;
         }
-        #run-btn:disabled {
-            opacity: 0.5;
-            cursor: default;
+
+        /* Bottom padding so content isn't hidden behind keyboard */
+        #bottom-spacer {
+            height: 40vh;
         }
+
         #loading-overlay {
             position: fixed;
             inset: 0;
@@ -149,9 +166,7 @@
             z-index: 100;
             gap: 16px;
         }
-        #loading-overlay.hidden {
-            display: none;
-        }
+        #loading-overlay.hidden { display: none; }
         .spinner {
             width: 36px;
             height: 36px;
@@ -167,11 +182,11 @@
         }
         @media (max-width: 600px) {
             #header { padding: 10px 12px 6px; }
-            #output { padding: 10px 12px; font-size: 13px; }
-            #input-area { padding: 6px; gap: 6px; }
-            #input { font-size: 16px; /* prevents iOS zoom */ padding: 8px; }
+            #output { padding: 10px 12px 0; font-size: 13px; }
+            #input-area { padding: 0 12px 12px; }
+            #input { font-size: 16px; /* prevents iOS zoom */ }
             #run-btn { padding: 8px 12px; }
-            #prompt-label { padding: 8px 0 8px 2px; }
+            #prompt-label { padding: 7px 0 0 0; }
         }
     </style>
 </head>
@@ -181,23 +196,39 @@
         <div id="loading-text">Loading Pyodide...</div>
     </div>
 
-    <div id="header">
-        <h1>Pyodide REPL</h1>
-        <div class="subtitle">Python in the browser &mdash; mobile friendly</div>
-    </div>
+    <div id="scroll-container">
+        <div id="header">
+            <h1>Pyodide REPL</h1>
+            <div class="subtitle">Python in the browser &mdash; mobile friendly</div>
+        </div>
 
-    <div id="output"></div>
+        <div id="output"></div>
 
-    <div id="input-area">
-        <div id="prompt-label">&gt;&gt;&gt;</div>
-        <textarea id="input" rows="1" placeholder="Python code..." autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
-        <button id="run-btn" disabled>Run</button>
+        <div id="input-area">
+            <div id="input-row">
+                <div id="prompt-label">&gt;&gt;&gt;</div>
+                <div id="input-wrap">
+                    <textarea id="input" rows="1" placeholder="Python code..." autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+                    <div id="btn-row">
+                        <button id="run-btn" disabled>Run</button>
+                        <button id="mode-btn">Multi-line</button>
+                        <div class="mode-hint" id="mode-hint">Enter to run</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="bottom-spacer"></div>
     </div>
 
     <script type="module">
+        const scrollContainer = document.getElementById('scroll-container');
         const outputEl = document.getElementById('output');
         const inputEl = document.getElementById('input');
+        const inputArea = document.getElementById('input-area');
         const runBtn = document.getElementById('run-btn');
+        const modeBtn = document.getElementById('mode-btn');
+        const modeHint = document.getElementById('mode-hint');
         const promptLabel = document.getElementById('prompt-label');
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingText = document.getElementById('loading-text');
@@ -208,6 +239,7 @@
         let awaitFut = null;
         let currentPrompt = '>>> ';
         let running = false;
+        let multilineMode = false;
 
         // History
         const history = [];
@@ -218,7 +250,14 @@
             span.className = cls;
             span.textContent = text;
             outputEl.appendChild(span);
-            outputEl.scrollTop = outputEl.scrollHeight;
+            scrollToInput();
+        }
+
+        function scrollToInput() {
+            // Scroll so the input area is visible
+            requestAnimationFrame(() => {
+                inputArea.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+            });
         }
 
         function setPrompt(ps) {
@@ -227,9 +266,28 @@
         }
 
         function autoResize() {
+            if (multilineMode) return; // manual resize in multiline mode
             inputEl.style.height = 'auto';
-            inputEl.style.height = Math.min(inputEl.scrollHeight, window.innerHeight * 0.4) + 'px';
+            inputEl.style.height = inputEl.scrollHeight + 'px';
         }
+
+        function setMode(multi) {
+            multilineMode = multi;
+            if (multi) {
+                inputEl.classList.add('multiline');
+                inputEl.style.height = '';
+                modeBtn.textContent = 'Single-line';
+                modeHint.textContent = 'Ctrl+Enter to run';
+            } else {
+                inputEl.classList.remove('multiline');
+                modeBtn.textContent = 'Multi-line';
+                modeHint.textContent = 'Enter to run';
+                autoResize();
+            }
+            inputEl.focus();
+        }
+
+        modeBtn.addEventListener('click', () => setMode(!multilineMode));
 
         inputEl.addEventListener('input', autoResize);
 
@@ -316,17 +374,35 @@
             running = false;
             runBtn.disabled = false;
             inputEl.focus();
-            outputEl.scrollTop = outputEl.scrollHeight;
+            scrollToInput();
         }
 
         runBtn.addEventListener('click', execute);
 
         inputEl.addEventListener('keydown', (e) => {
-            // Shift+Enter: always insert newline
+            if (multilineMode) {
+                // Multi-line mode: Ctrl/Cmd+Enter runs, Enter inserts newline
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    execute();
+                    return;
+                }
+                // Tab: insert spaces
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const start = inputEl.selectionStart;
+                    const end = inputEl.selectionEnd;
+                    inputEl.value = inputEl.value.substring(0, start) + '    ' + inputEl.value.substring(end);
+                    inputEl.selectionStart = inputEl.selectionEnd = start + 4;
+                    return;
+                }
+                return;
+            }
+
+            // Single-line mode: Enter runs, Shift+Enter inserts newline
             if (e.key === 'Enter' && e.shiftKey) {
                 return; // default behavior inserts newline
             }
-            // Enter without Shift: execute
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 execute();
@@ -342,7 +418,7 @@
                 autoResize();
                 return;
             }
-            // History navigation (only when single-line and cursor at start/end)
+            // History navigation (only when single-line content)
             if (e.key === 'ArrowUp' && inputEl.value.indexOf('\n') === -1 && history.length > 0) {
                 e.preventDefault();
                 if (historyIndex === -1) historyIndex = history.length;
