@@ -164,29 +164,34 @@
     const storyAuthor = storyEl ? getAuthor(storyEl) : null;
     result.push(`[1] ${storyAuthor || 'Unknown'}: ${storyTitle}`);
 
-    function processLevel(parentEl, pathPrefix) {
-      const subtrees = parentEl.querySelectorAll(':scope > .comments_subtree');
+    // Use extractComments() to get all comments and build hierarchy
+    const comments = extractComments();
+    
+    // Build a map of comment ID to comment data for quick lookup
+    const commentMap = new Map();
+    comments.forEach(c => commentMap.set(c.id, c));
+    
+    // Build hierarchy by processing top-level comments and their children
+    function buildHierarchy(parentId = null, pathPrefix = '1') {
       let counter = 0;
-      subtrees.forEach(subtree => {
-        const comment = subtree.querySelector(':scope > .comment[id^="c_"]');
-        if (!comment) return;
+      
+      // Find all comments that are direct children of parentId
+      const children = comments.filter(c => c.parentId === parentId);
+      
+      children.forEach(comment => {
         counter++;
-        const path = `${pathPrefix}.${counter}`;
-        const author = getAuthor(comment) || 'Anonymous';
-        const textEl = comment.querySelector('.comment_text');
+        const path = parentId === null ? `${pathPrefix}.${counter}` : `${pathPrefix}.${counter}`;
+        const author = comment.author || 'Anonymous';
+        const textEl = comment.element.querySelector('.comment_text');
         const text = textEl ? textEl.textContent.trim().replace(/\s+/g, ' ') : '';
         result.push(`[${path}] ${author}: ${text}`);
-        const nestedOl = subtree.querySelector(':scope > ol');
-        if (nestedOl) {
-          processLevel(nestedOl, path);
-        }
+        
+        // Recursively process children of this comment
+        buildHierarchy(comment.id, path);
       });
     }
-
-    // The actual comment tree is inside #story_comments > ol.comments,
-    // not the top-level ol.comments which also contains the comment form
-    const actualComments = document.querySelector('#story_comments > ol.comments') || commentsContainer;
-    processLevel(actualComments, '1');
+    
+    buildHierarchy();
     return result.join('\n\n');
   }
 
