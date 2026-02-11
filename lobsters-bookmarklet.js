@@ -183,7 +183,10 @@
       });
     }
 
-    processLevel(commentsContainer, '1');
+    // The actual comment tree is inside #story_comments > ol.comments,
+    // not the top-level ol.comments which also contains the comment form
+    const actualComments = document.querySelector('#story_comments > ol.comments') || commentsContainer;
+    processLevel(actualComments, '1');
     return result.join('\n\n');
   }
 
