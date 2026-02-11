@@ -131,6 +131,7 @@
             <li><strong>Latest tab:</strong> Flat view sorted by time (newest first, oldest at bottom)</li>
             <li><strong>Reply links:</strong> Each reply shows "reply to @username" linking to the parent comment</li>
             <li><strong>Time link navigation:</strong> Clicking a comment's timestamp in Latest view switches back to Default and scrolls to that comment in the tree</li>
+            <li><strong>Copy Thread:</strong> Export the entire comment thread as numbered plain text to the clipboard</li>
         </ul>
     </div>
 
@@ -138,7 +139,7 @@
 
     <p><strong>Drag this button to your bookmarks bar:</strong></p>
 
-    <a class="bookmarklet-link" href="javascript:(function(){if(document.querySelector('#comment-view-tabs'))return;const commentsLabel=document.querySelector('.comments_label');const commentsContainer=document.querySelector('ol.comments');if(!commentsLabel||!commentsContainer){alert('This bookmarklet only works on Lobste.rs comment pages');return}const originalCommentsHTML=commentsContainer.innerHTML;function getAuthor(element){const links=element.querySelectorAll('a[href^=&quot;/~&quot;]');for(const link of links){const text=link.textContent?.trim();if(text)return text}return null}function extractComments(){const comments=[];document.querySelectorAll('.comments_subtree').forEach(subtree=>{const comment=subtree.querySelector(':scope > .comment[id^=&quot;c_&quot;]');if(!comment)return;const timeEl=comment.querySelector('time');const parentSubtree=subtree.parentElement?.closest('.comments_subtree');const parentComment=parentSubtree?.querySelector(':scope > .comment[id^=&quot;c_&quot;]');comments.push({id:comment.id,element:comment.cloneNode(true),author:getAuthor(comment),timestamp:parseInt(timeEl?.getAttribute('data-at-unix')||'0'),parentId:parentComment?.id||null,parentAuthor:parentComment?getAuthor(parentComment):null})});return comments}const tabsContainer=document.createElement('div');tabsContainer.id='comment-view-tabs';tabsContainer.innerHTML=`<style>#comment-view-tabs{margin:10px 0}#comment-view-tabs .tab-buttons{display:flex;gap:0}#comment-view-tabs .tab-btn{padding:8px 16px;border:1px solid #ac0000;background:white;cursor:pointer;font-size:14px;color:#ac0000}#comment-view-tabs .tab-btn:first-child{border-radius:4px 0 0 4px}#comment-view-tabs .tab-btn:last-child{border-radius:0 4px 4px 0;border-left:none}#comment-view-tabs .tab-btn.active{background:#ac0000;color:white}#comment-view-tabs .tab-btn:hover:not(.active){background:#f0f0f0}.flat-comment{margin:0 0 15px 0!important;padding:10px!important;border-left:3px solid #ddd!important}.reply-to-link{font-size:12px;color:#666;margin-left:10px}.reply-to-link a{color:#ac0000;text-decoration:none}.reply-to-link a:hover{text-decoration:underline}</style><div class=&quot;tab-buttons&quot;><button class=&quot;tab-btn active&quot; data-view=&quot;default&quot;>Default</button><button class=&quot;tab-btn&quot; data-view=&quot;latest&quot;>Latest</button></div>`;const byline=commentsLabel.closest('.byline');byline.parentNode.insertBefore(tabsContainer,byline.nextSibling);function switchToDefault(scrollToId){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelector('.tab-btn[data-view=&quot;default&quot;]').classList.add('active');commentsContainer.innerHTML=originalCommentsHTML;if(scrollToId){setTimeout(()=>{const el=document.getElementById(scrollToId);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.transition='background 0.3s';el.style.background='#ffffd0';setTimeout(()=>el.style.background='',2000)}},100)}}function buildFlatView(){const comments=extractComments();comments.sort((a,b)=>b.timestamp-a.timestamp);const flatContainer=document.createElement('div');comments.forEach(c=>{const wrapper=document.createElement('div');wrapper.className='flat-comment-wrapper';const commentEl=c.element;commentEl.classList.add('flat-comment');commentEl.style.marginLeft='0';if(c.parentId&&c.parentAuthor){const byline=commentEl.querySelector('.byline');if(byline){const replySpan=document.createElement('span');replySpan.className='reply-to-link';replySpan.innerHTML=` ↩ reply to <a href=&quot;#${c.parentId}&quot;>@${c.parentAuthor}</a>`;byline.appendChild(replySpan)}}const timeLink=commentEl.querySelector('a[href^=&quot;/c/&quot;]');if(timeLink){const commentId=c.id;timeLink.addEventListener('click',function(e){e.preventDefault();switchToDefault(commentId)})}wrapper.appendChild(commentEl);flatContainer.appendChild(wrapper)});return flatContainer}let flatViewCache=null;const tabButtons=tabsContainer.querySelectorAll('.tab-btn');tabButtons.forEach(btn=>{btn.addEventListener('click',()=>{tabButtons.forEach(b=>b.classList.remove('active'));btn.classList.add('active');const view=btn.dataset.view;if(view==='default'){commentsContainer.innerHTML=originalCommentsHTML}else if(view==='latest'){if(!flatViewCache){flatViewCache=buildFlatView()}commentsContainer.innerHTML='';commentsContainer.appendChild(flatViewCache.cloneNode(true));commentsContainer.querySelectorAll('a[href^=&quot;/c/&quot;]').forEach(link=>{const wrapper=link.closest('.flat-comment-wrapper');const commentEl=wrapper?.querySelector('.comment');const commentId=commentEl?.id;if(commentId){link.addEventListener('click',function(e){e.preventDefault();switchToDefault(commentId)})}})}})})})();">Lobsters Latest</a>
+    <a class="bookmarklet-link" href="javascript:void(0)">Lobsters Latest</a>
 
     <h2>Installation Instructions</h2>
 
@@ -198,6 +199,7 @@
         <li>When "Latest" is selected, displays comments in a flat list sorted by newest first</li>
         <li>Adds "reply to @username" links for comments that are replies</li>
         <li>Clicking the timestamp link (e.g., "14 hours ago") switches back to Default view and scrolls to that comment in the tree, with a brief yellow highlight</li>
+        <li>The "Copy Thread" button exports the entire comment tree as numbered plain text (e.g., <code>[1.2.3] author: text</code>) and copies it to the clipboard</li>
     </ol>
 
     <h2>Source Code</h2>
@@ -206,193 +208,7 @@
 
     <details>
         <summary style="cursor: pointer; color: #ac0000; font-weight: bold;">Click to expand source code</summary>
-        <pre class="code-block" style="margin-top: 10px;">(function() {
-  // Don't run twice
-  if (document.querySelector('#comment-view-tabs')) return;
-
-  const commentsLabel = document.querySelector('.comments_label');
-  const commentsContainer = document.querySelector('ol.comments');
-
-  if (!commentsLabel || !commentsContainer) {
-    alert('This bookmarklet only works on Lobste.rs comment pages');
-    return;
-  }
-
-  // Store original HTML
-  const originalCommentsHTML = commentsContainer.innerHTML;
-
-  // Helper to find author name
-  function getAuthor(element) {
-    const links = element.querySelectorAll('a[href^="/~"]');
-    for (const link of links) {
-      const text = link.textContent?.trim();
-      if (text) return text;
-    }
-    return null;
-  }
-
-  // Extract all comments with their data
-  function extractComments() {
-    const comments = [];
-    document.querySelectorAll('.comments_subtree').forEach(subtree => {
-      const comment = subtree.querySelector(':scope > .comment[id^="c_"]');
-      if (!comment) return;
-
-      const timeEl = comment.querySelector('time');
-      const parentSubtree = subtree.parentElement?.closest('.comments_subtree');
-      const parentComment = parentSubtree?.querySelector(':scope > .comment[id^="c_"]');
-
-      comments.push({
-        id: comment.id,
-        element: comment.cloneNode(true),
-        author: getAuthor(comment),
-        timestamp: parseInt(timeEl?.getAttribute('data-at-unix') || '0'),
-        parentId: parentComment?.id || null,
-        parentAuthor: parentComment ? getAuthor(parentComment) : null
-      });
-    });
-    return comments;
-  }
-
-  // Create tabs
-  const tabsContainer = document.createElement('div');
-  tabsContainer.id = 'comment-view-tabs';
-  tabsContainer.innerHTML = `
-    &lt;style&gt;
-      #comment-view-tabs { margin: 10px 0 }
-      #comment-view-tabs .tab-buttons { display: flex; gap: 0 }
-      #comment-view-tabs .tab-btn {
-        padding: 8px 16px;
-        border: 1px solid #ac0000;
-        background: white;
-        cursor: pointer;
-        font-size: 14px;
-        color: #ac0000;
-      }
-      #comment-view-tabs .tab-btn:first-child { border-radius: 4px 0 0 4px }
-      #comment-view-tabs .tab-btn:last-child {
-        border-radius: 0 4px 4px 0;
-        border-left: none
-      }
-      #comment-view-tabs .tab-btn.active { background: #ac0000; color: white }
-      #comment-view-tabs .tab-btn:hover:not(.active) { background: #f0f0f0 }
-      .flat-comment {
-        margin: 0 0 15px 0 !important;
-        padding: 10px !important;
-        border-left: 3px solid #ddd !important;
-      }
-      .reply-to-link { font-size: 12px; color: #666; margin-left: 10px }
-      .reply-to-link a { color: #ac0000; text-decoration: none }
-      .reply-to-link a:hover { text-decoration: underline }
-    &lt;/style&gt;
-    &lt;div class="tab-buttons"&gt;
-      &lt;button class="tab-btn active" data-view="default"&gt;Default&lt;/button&gt;
-      &lt;button class="tab-btn" data-view="latest"&gt;Latest&lt;/button&gt;
-    &lt;/div&gt;
-  `;
-
-  // Insert tabs
-  const byline = commentsLabel.closest('.byline');
-  byline.parentNode.insertBefore(tabsContainer, byline.nextSibling);
-
-  // Switch to default view and optionally scroll to a comment
-  function switchToDefault(scrollToId) {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector('.tab-btn[data-view="default"]').classList.add('active');
-    commentsContainer.innerHTML = originalCommentsHTML;
-
-    if (scrollToId) {
-      setTimeout(() => {
-        const el = document.getElementById(scrollToId);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.style.transition = 'background 0.3s';
-          el.style.background = '#ffffd0';
-          setTimeout(() => el.style.background = '', 2000);
-        }
-      }, 100);
-    }
-  }
-
-  // Build flat view
-  function buildFlatView() {
-    const comments = extractComments();
-    comments.sort((a, b) => b.timestamp - a.timestamp);
-
-    const flatContainer = document.createElement('div');
-
-    comments.forEach(c => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'flat-comment-wrapper';
-
-      const commentEl = c.element;
-      commentEl.classList.add('flat-comment');
-      commentEl.style.marginLeft = '0';
-
-      // Add reply-to link
-      if (c.parentId && c.parentAuthor) {
-        const byline = commentEl.querySelector('.byline');
-        if (byline) {
-          const replySpan = document.createElement('span');
-          replySpan.className = 'reply-to-link';
-          replySpan.innerHTML = ` ↩ reply to &lt;a href="#${c.parentId}"&gt;@${c.parentAuthor}&lt;/a&gt;`;
-          byline.appendChild(replySpan);
-        }
-      }
-
-      // Add click handler for time link
-      const timeLink = commentEl.querySelector('a[href^="/c/"]');
-      if (timeLink) {
-        const commentId = c.id;
-        timeLink.addEventListener('click', function(e) {
-          e.preventDefault();
-          switchToDefault(commentId);
-        });
-      }
-
-      wrapper.appendChild(commentEl);
-      flatContainer.appendChild(wrapper);
-    });
-
-    return flatContainer;
-  }
-
-  let flatViewCache = null;
-
-  // Tab switching
-  const tabButtons = tabsContainer.querySelectorAll('.tab-btn');
-  tabButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      tabButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      const view = btn.dataset.view;
-
-      if (view === 'default') {
-        commentsContainer.innerHTML = originalCommentsHTML;
-      } else if (view === 'latest') {
-        if (!flatViewCache) {
-          flatViewCache = buildFlatView();
-        }
-        commentsContainer.innerHTML = '';
-        commentsContainer.appendChild(flatViewCache.cloneNode(true));
-
-        // Re-attach click handlers after cloning
-        commentsContainer.querySelectorAll('a[href^="/c/"]').forEach(link => {
-          const wrapper = link.closest('.flat-comment-wrapper');
-          const commentEl = wrapper?.querySelector('.comment');
-          const commentId = commentEl?.id;
-          if (commentId) {
-            link.addEventListener('click', function(e) {
-              e.preventDefault();
-              switchToDefault(commentId);
-            });
-          }
-        });
-      }
-    });
-  });
-})();</pre>
+        <pre class="code-block" id="source-code" style="margin-top: 10px;">Loading...</pre>
     </details>
 
     <footer>
@@ -400,18 +216,40 @@
     </footer>
 
     <script>
-        // Copy button extracts code from the bookmarklet link's href
-        const copyBtn = document.getElementById('copy-bookmarklet-btn');
         const bookmarkletLink = document.querySelector('.bookmarklet-link');
+        const sourceDisplay = document.getElementById('source-code');
+        const copyBtn = document.getElementById('copy-bookmarklet-btn');
+
+        fetch('lobsters-bookmarklet.js')
+            .then(r => r.text())
+            .then(code => {
+                // Display source code
+                sourceDisplay.textContent = code;
+
+                // Minify for bookmarklet: strip full-line comments and collapse whitespace
+                const minified = 'javascript:' + code
+                    .replace(/^\s*\/\/.*$/gm, '')
+                    .replace(/\n/g, ' ')
+                    .replace(/\s{2,}/g, ' ')
+                    .trim();
+
+                bookmarkletLink.href = minified;
+            })
+            .catch(err => {
+                sourceDisplay.textContent = 'Failed to load source code: ' + err.message;
+            });
 
         copyBtn.onclick = () => {
-            // Get the href attribute which contains the bookmarklet code
             const code = bookmarkletLink.getAttribute('href');
+            if (!code || code === 'javascript:void(0)') {
+                copyBtn.textContent = 'Still loading...';
+                setTimeout(() => copyBtn.textContent = 'Copy Bookmarklet Code', 2000);
+                return;
+            }
             navigator.clipboard.writeText(code).then(() => {
                 copyBtn.textContent = 'Copied!';
                 setTimeout(() => copyBtn.textContent = 'Copy Bookmarklet Code', 2000);
             }).catch(() => {
-                // Fallback for older browsers
                 const textarea = document.createElement('textarea');
                 textarea.value = code;
                 document.body.appendChild(textarea);
