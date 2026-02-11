@@ -40,10 +40,37 @@
             border-bottom: 1px solid var(--border);
             background: var(--bg);
         }
+        #header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
         #header h1 {
             font-size: 16px;
             font-weight: 600;
             color: var(--accent);
+        }
+        #version-picker {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+        #version-select {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 4px 6px;
+            font-family: var(--mono);
+            font-size: 12px;
+            cursor: pointer;
+        }
+        #version-select:focus {
+            outline: none;
+            border-color: var(--accent);
         }
         #header .subtitle {
             font-size: 12px;
@@ -198,7 +225,28 @@
 
     <div id="scroll-container">
         <div id="header">
-            <h1>Pyodide REPL</h1>
+            <div id="header-top">
+                <h1>Pyodide REPL</h1>
+                <div id="version-picker">
+                    <label for="version-select">Pyodide</label>
+                    <select id="version-select">
+                        <option value="0.27.5">v0.27.5</option>
+                        <option value="0.27.4">v0.27.4</option>
+                        <option value="0.27.3">v0.27.3</option>
+                        <option value="0.27.2">v0.27.2</option>
+                        <option value="0.27.1">v0.27.1</option>
+                        <option value="0.27.0">v0.27.0</option>
+                        <option value="0.26.4">v0.26.4</option>
+                        <option value="0.26.3">v0.26.3</option>
+                        <option value="0.26.2">v0.26.2</option>
+                        <option value="0.26.1">v0.26.1</option>
+                        <option value="0.26.0">v0.26.0</option>
+                        <option value="0.25.1" selected>v0.25.1</option>
+                        <option value="0.25.0">v0.25.0</option>
+                        <option value="0.24.1">v0.24.1</option>
+                    </select>
+                </div>
+            </div>
             <div class="subtitle">Python in the browser &mdash; mobile friendly</div>
         </div>
 
@@ -232,6 +280,22 @@
         const promptLabel = document.getElementById('prompt-label');
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingText = document.getElementById('loading-text');
+        const versionSelect = document.getElementById('version-select');
+
+        // Version selection from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlVersion = urlParams.get('v');
+        if (urlVersion && versionSelect.querySelector(`option[value="${CSS.escape(urlVersion)}"]`)) {
+            versionSelect.value = urlVersion;
+        }
+        const selectedVersion = versionSelect.value;
+
+        versionSelect.addEventListener('change', () => {
+            const newVersion = versionSelect.value;
+            const url = new URL(window.location);
+            url.searchParams.set('v', newVersion);
+            window.location.href = url.toString();
+        });
 
         let pyodide = null;
         let pyconsole = null;
@@ -446,8 +510,8 @@
         // Initialize
         async function init() {
             try {
-                loadingText.textContent = 'Loading Pyodide runtime...';
-                const indexURL = 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/';
+                loadingText.textContent = `Loading Pyodide v${selectedVersion}...`;
+                const indexURL = `https://cdn.jsdelivr.net/pyodide/v${selectedVersion}/full/`;
                 const { loadPyodide } = await import(indexURL + 'pyodide.mjs');
 
                 loadingText.textContent = 'Initializing Python...';
