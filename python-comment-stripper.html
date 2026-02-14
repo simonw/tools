@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Python Comment Stripper</title>
+  <link
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐍</text></svg>"
+    rel="icon"
+  />
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    #loading-banner {
+      text-align: center;
+      padding: 12px;
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      color: #856404;
+    }
+
+    #loading-banner.hidden { display: none; }
+    #loading-banner.error { background: #f8d7da; border-color: #dc3545; color: #721c24; }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .panels { grid-template-columns: 1fr; }
+    }
+
+    .panel label {
+      display: block;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 6px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 400px;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 14px;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      resize: vertical;
+      tab-size: 4;
+      background: #fff;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #0066cc;
+      box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2);
+    }
+
+    #output {
+      background: #f8f9fa;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #strip-btn {
+      background: #0066cc;
+      color: #fff;
+    }
+    #strip-btn:hover { background: #0052a3; }
+    #strip-btn:disabled { opacity: 0.5; cursor: default; }
+
+    #copy-btn {
+      background: #28a745;
+      color: #fff;
+    }
+    #copy-btn:hover { background: #218838; }
+
+    #error-msg {
+      margin-top: 10px;
+      padding: 10px;
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      border-radius: 6px;
+      color: #721c24;
+      font-family: monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Python Comment Stripper</h1>
+  <div class="subtitle">Paste Python code and remove all comments using the <code>ast</code> module via Pyodide</div>
+
+  <div id="loading-banner">Loading Pyodide...</div>
+
+  <div class="panels">
+    <div class="panel">
+      <label for="input">Python Source</label>
+      <textarea id="input" placeholder="Paste Python code here..." autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+    </div>
+    <div class="panel">
+      <label for="output">Comments Removed</label>
+      <textarea id="output" readonly placeholder="Output will appear here..."></textarea>
+    </div>
+  </div>
+
+  <div class="button-row">
+    <button id="strip-btn" disabled>Strip Comments</button>
+    <button id="copy-btn">Copy to Clipboard</button>
+  </div>
+
+  <div id="error-msg"></div>
+</div>
+
+<script>
+// Python code that uses ast + tokenize to strip comments
+const PYTHON_STRIP_COMMENTS = `
+import ast
+import tokenize
+import io
+
+def strip_comments(source):
+    """Remove all comments from Python source code using tokenize.
+
+    Preserves strings, indentation, and all other formatting.
+    """
+    result = []
+    last_end = (1, 0)
+    source_lines = source.splitlines(True)
+
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except tokenize.TokenError:
+        # If tokenization fails, try ast.parse for a better error
+        ast.parse(source)
+        raise
+
+    for tok_type, tok_string, tok_start, tok_end, tok_line in tokens:
+        start_row, start_col = tok_start
+        end_row, end_col = tok_end
+        last_row, last_col = last_end
+
+        # Fill in any gap between last token end and this token start
+        if start_row > last_row:
+            # Add remaining text on the last_row line
+            if last_row <= len(source_lines):
+                result.append(source_lines[last_row - 1][last_col:])
+            # Add any full lines between
+            for line_idx in range(last_row + 1, start_row):
+                if line_idx <= len(source_lines):
+                    result.append(source_lines[line_idx - 1])
+            # Add text on the start_row up to start_col
+            if start_row <= len(source_lines):
+                result.append(source_lines[start_row - 1][:start_col])
+        elif start_col > last_col:
+            result.append(source_lines[start_row - 1][last_col:start_col])
+
+        if tok_type == tokenize.COMMENT:
+            # Skip the comment token entirely
+            pass
+        else:
+            result.append(tok_string)
+
+        last_end = (end_row, end_col)
+
+    output = ''.join(result)
+
+    # Remove trailing whitespace on lines that had comments stripped
+    # but preserve the overall structure
+    cleaned_lines = []
+    for line in output.splitlines(True):
+        # rstrip the line content but keep the newline
+        if line.endswith('\\n'):
+            cleaned_lines.append(line.rstrip() + '\\n')
+        elif line.endswith('\\r\\n'):
+            cleaned_lines.append(line.rstrip() + '\\r\\n')
+        else:
+            cleaned_lines.append(line.rstrip())
+
+    result_text = ''.join(cleaned_lines)
+    # Preserve trailing newline if original had one
+    if source.endswith('\\n') and not result_text.endswith('\\n'):
+        result_text += '\\n'
+
+    return result_text
+`;
+
+let pyodide = null;
+let stripComments = null;
+
+const inputEl = document.getElementById('input');
+const outputEl = document.getElementById('output');
+const stripBtn = document.getElementById('strip-btn');
+const copyBtn = document.getElementById('copy-btn');
+const errorMsg = document.getElementById('error-msg');
+const loadingBanner = document.getElementById('loading-banner');
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.style.display = 'block';
+}
+
+function clearError() {
+  errorMsg.style.display = 'none';
+  errorMsg.textContent = '';
+}
+
+function doStrip() {
+  clearError();
+  const source = inputEl.value;
+  if (!source.trim()) {
+    outputEl.value = '';
+    return;
+  }
+  try {
+    const result = stripComments(source);
+    outputEl.value = result;
+  } catch (e) {
+    const msg = e.message || String(e);
+    // Extract just the Python error from PythonError
+    const lines = msg.split('\n');
+    const pythonErr = lines.filter(l => !l.startsWith('    at ')).join('\n').trim();
+    showError(pythonErr || msg);
+    outputEl.value = '';
+  }
+}
+
+stripBtn.addEventListener('click', doStrip);
+
+copyBtn.addEventListener('click', () => {
+  const text = outputEl.value;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = copyBtn.textContent;
+    copyBtn.textContent = 'Copied!';
+    setTimeout(() => { copyBtn.textContent = orig; }, 1500);
+  });
+});
+
+// Auto-strip on input (debounced)
+let debounceTimer = null;
+inputEl.addEventListener('input', () => {
+  if (!stripComments) return;
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(doStrip, 300);
+});
+
+async function init() {
+  try {
+    const indexURL = 'https://cdn.jsdelivr.net/pyodide/v0.27.5/full/';
+    const { loadPyodide } = await import(indexURL + 'pyodide.mjs');
+
+    loadingBanner.textContent = 'Initializing Python...';
+    pyodide = await loadPyodide({ indexURL });
+
+    pyodide.runPython(PYTHON_STRIP_COMMENTS);
+    stripComments = pyodide.globals.get('strip_comments');
+
+    loadingBanner.classList.add('hidden');
+    stripBtn.disabled = false;
+
+    // If there's already text in the input, strip it
+    if (inputEl.value.trim()) {
+      doStrip();
+    }
+  } catch (e) {
+    loadingBanner.textContent = 'Failed to load Pyodide: ' + e.message;
+    loadingBanner.classList.add('error');
+    console.error(e);
+  }
+}
+
+init();
+</script>
+
+<!-- TEST_SUITE_START -->
+<script>
+const testCases = [
+  {
+    name: "Simple inline comment",
+    input: "x = 1  # set x\n",
+    expected: "x = 1\n"
+  },
+  {
+    name: "Full-line comment",
+    input: "# this is a comment\nx = 1\n",
+    expected: "\nx = 1\n"
+  },
+  {
+    name: "No comments unchanged",
+    input: "x = 1\ny = 2\n",
+    expected: "x = 1\ny = 2\n"
+  },
+  {
+    name: "Hash inside string preserved",
+    input: "s = \"hello # world\"\n",
+    expected: "s = \"hello # world\"\n"
+  },
+  {
+    name: "Multiple comments",
+    input: "# first\nx = 1  # inline\n# last\ny = 2\n",
+    expected: "\nx = 1\n\ny = 2\n"
+  },
+  {
+    name: "Indented comment in function",
+    input: "def foo():\n    # do stuff\n    return 1\n",
+    expected: "def foo():\n\n    return 1\n"
+  },
+  {
+    name: "Docstring preserved",
+    input: "def foo():\n    \"\"\"This is a docstring.\"\"\"\n    return 1\n",
+    expected: "def foo():\n    \"\"\"This is a docstring.\"\"\"\n    return 1\n"
+  },
+  {
+    name: "Hash in f-string preserved",
+    input: "msg = f\"value is {x}  # not a comment\"\n",
+    expected: "msg = f\"value is {x}  # not a comment\"\n"
+  },
+  {
+    name: "Shebang line removed (is a comment)",
+    input: "#!/usr/bin/env python\nprint('hi')\n",
+    expected: "\nprint('hi')\n"
+  },
+  {
+    name: "Empty input",
+    input: "",
+    expected: ""
+  },
+  {
+    name: "Only comments",
+    input: "# comment 1\n# comment 2\n",
+    expected: "\n\n"
+  },
+  {
+    name: "Inline comment after string with hash",
+    input: "x = \"a#b\"  # comment\n",
+    expected: "x = \"a#b\"\n"
+  },
+  {
+    name: "Multi-line string with hash preserved",
+    input: "s = '''line1\n# not a comment\nline3'''\n",
+    expected: "s = '''line1\n# not a comment\nline3'''\n"
+  },
+  {
+    name: "Comment with no trailing newline",
+    input: "x = 1  # comment",
+    expected: "x = 1"
+  },
+  {
+    name: "Decorator not affected",
+    input: "@decorator\ndef foo():\n    pass\n",
+    expected: "@decorator\ndef foo():\n    pass\n"
+  },
+  {
+    name: "Type comment stripped",
+    input: "x = []  # type: list[int]\n",
+    expected: "x = []\n"
+  }
+];
+
+function runTests() {
+  if (!stripComments) return null;
+
+  const results = [];
+  let passed = 0;
+  let failed = 0;
+
+  for (const test of testCases) {
+    try {
+      const actual = stripComments(test.input);
+      const success = actual === test.expected;
+
+      if (success) {
+        passed++;
+        results.push({ name: test.name, success: true });
+      } else {
+        failed++;
+        results.push({
+          name: test.name,
+          success: false,
+          expected: JSON.stringify(test.expected),
+          actual: JSON.stringify(actual)
+        });
+      }
+    } catch (e) {
+      failed++;
+      results.push({
+        name: test.name,
+        success: false,
+        expected: JSON.stringify(test.expected),
+        actual: "ERROR: " + e.message
+      });
+    }
+  }
+
+  return { passed, failed, total: testCases.length, results };
+}
+
+function displayTestResults() {
+  const container = document.getElementById('test-results-container');
+  if (!container) return;
+  if (!stripComments) {
+    container.innerHTML = '<span style="color: #856404;">Waiting for Pyodide to load...</span>';
+    return;
+  }
+
+  const { passed, failed, total, results } = runTests();
+  const allPassed = failed === 0;
+
+  let html = `<span style="color: ${allPassed ? '#28a745' : '#dc3545'}; font-weight: bold;">`;
+  html += allPassed ? '\u2713' : '\u2717';
+  html += ` Tests: ${passed}/${total} passed</span>`;
+
+  html += '<div style="margin-top: 10px; font-family: monospace; font-size: 12px;">';
+  for (const r of results) {
+    if (r.success) {
+      html += `<div style="color: #28a745;">\u2713 ${r.name}</div>`;
+    } else {
+      html += `<div style="color: #dc3545;">\u2717 ${r.name}</div>`;
+      html += `<div style="margin-left: 20px; color: #666;">Expected: ${r.expected}</div>`;
+      html += `<div style="margin-left: 20px; color: #666;">Actual: ${r.actual}</div>`;
+    }
+  }
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+// Re-check tests after Pyodide loads
+const _origInit = window._pyodideInitResolve;
+function waitForPyodideAndRunTests() {
+  if (stripComments) {
+    displayTestResults();
+  } else {
+    setTimeout(waitForPyodideAndRunTests, 500);
+  }
+}
+
+window.addEventListener('load', () => {
+  waitForPyodideAndRunTests();
+});
+
+// Export for Node.js testing
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { testCases, runTests };
+}
+// TEST_SUITE_END
+</script>
+
+<details style="margin-top: 40px; padding: 12px; background: #fafafa; border: 1px solid #ddd; border-radius: 6px;">
+  <summary style="cursor: pointer; color: #666; font-size: 12px;">Test Results</summary>
+  <div id="test-results-container" style="padding: 10px;">Waiting for Pyodide to load...</div>
+</details>
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="if(typeof displayTestResults==='function')displayTestResults()" style="position:absolute;width:1px;height:1px;opacity:0;">
+
+</body>
+</html>
