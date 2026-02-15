@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gradient image generator</title>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Helvetica, Arial, sans-serif;
+  background: #0f1117;
+  color: #e0e4ec;
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 20px 0;
+  color: #fff;
+}
+
+.layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.preview-wrap {
+  flex: 1;
+  min-width: 0;
+  position: sticky;
+  top: 24px;
+}
+
+.canvas-container {
+  background: #1a1d27;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #2a2d3a;
+}
+
+canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.preview-actions button {
+  flex: 1;
+}
+
+.controls {
+  width: 340px;
+  flex-shrink: 0;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.controls::-webkit-scrollbar {
+  width: 5px;
+}
+
+.controls::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.controls::-webkit-scrollbar-thumb {
+  background: #3a3d4a;
+  border-radius: 3px;
+}
+
+.section {
+  background: #1a1d27;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid #2a2d3a;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #6b7280;
+  margin: 0 0 12px 0;
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.field-row label {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.field-row .value {
+  font-size: 12px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #2a2d3a;
+  outline: none;
+  margin: 4px 0;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #5b8af5;
+  cursor: pointer;
+  border: 2px solid #1a1d27;
+}
+
+input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 36px;
+  height: 28px;
+  border: 2px solid #2a2d3a;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  padding: 1px;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+.color-pair {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.color-pair label {
+  font-size: 12px;
+  color: #6b7280;
+  width: 16px;
+}
+
+select, input[type="text"], textarea {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  background: #0f1117;
+  border: 1px solid #2a2d3a;
+  border-radius: 6px;
+  color: #e0e4ec;
+  padding: 6px 10px;
+  width: 100%;
+  outline: none;
+}
+
+select {
+  font-size: 13px;
+  cursor: pointer;
+}
+
+select:focus, input[type="text"]:focus, textarea:focus {
+  border-color: #5b8af5;
+}
+
+textarea {
+  font-size: 16px;
+  font-family: monospace;
+  resize: vertical;
+  min-height: 80px;
+}
+
+button {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-primary {
+  background: #5b8af5;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #4a7ae5;
+}
+
+.btn-secondary {
+  background: #2a2d3a;
+  color: #e0e4ec;
+}
+
+.btn-secondary:hover {
+  background: #3a3d4a;
+}
+
+.json-section {
+  margin-top: 4px;
+}
+
+.json-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.json-actions button {
+  flex: 1;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: #5b8af5;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transition: transform 0.3s, opacity 0.3s;
+  z-index: 100;
+}
+
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+.dims {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dims input[type="text"] {
+  width: 80px;
+  text-align: center;
+}
+
+.dims span {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.checkbox-row input[type="checkbox"] {
+  accent-color: #5b8af5;
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 800px) {
+  .layout {
+    flex-direction: column;
+  }
+  .controls {
+    width: 100%;
+    max-height: none;
+    position: static;
+  }
+  .preview-wrap {
+    position: static;
+  }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Gradient image generator</h1>
+  <div class="layout">
+    <div class="preview-wrap">
+      <div class="canvas-container">
+        <canvas id="canvas"></canvas>
+      </div>
+      <div class="preview-actions">
+        <button class="btn-primary" id="downloadBtn">Download PNG</button>
+        <button class="btn-secondary" id="randomBtn">Randomize</button>
+      </div>
+    </div>
+    <div class="controls" id="controls"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+const defaults = {
+  width: 1600,
+  height: 800,
+  gradientType: "linear",
+  color1: "#0a2463",
+  color2: "#3e92cc",
+  color3: "#1b4965",
+  useColor3: false,
+  color3Stop: 50,
+  angle: 135,
+  radialX: 50,
+  radialY: 50,
+  radialRadius: 80,
+  pattern: "noise",
+  patternOpacity: 12,
+  patternScale: 3,
+  patternDensity: 50,
+  patternColor: "#ffffff",
+  patternAngle: 0,
+  pattern2: "none",
+  pattern2Opacity: 8,
+  pattern2Scale: 5,
+  pattern2Density: 40,
+  pattern2Color: "#ffffff",
+  pattern2Angle: 45,
+  vignetteStrength: 20,
+  vignetteSize: 70,
+  noiseAmount: 5,
+  blendMode: "normal",
+  blendMode2: "normal",
+};
+
+let S = { ...defaults };
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+// Seeded random for reproducible noise
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function drawPattern(context, w, h, cfg) {
+  const { type, opacity, scale, density, color, angle, blendMode } = cfg;
+  if (type === "none") return;
+
+  context.save();
+  context.globalAlpha = opacity / 100;
+  context.globalCompositeOperation = blendMode;
+
+  const cx = w / 2, cy = h / 2;
+
+  if (angle !== 0) {
+    context.translate(cx, cy);
+    context.rotate((angle * Math.PI) / 180);
+    context.translate(-cx, -cy);
+  }
+
+  const s = Math.max(1, scale);
+  const d = Math.max(5, 105 - density);
+
+  switch (type) {
+    case "dots": {
+      const spacing = d * s * 0.4;
+      context.fillStyle = color;
+      const pad = spacing * 2;
+      for (let x = -pad; x < w + pad; x += spacing) {
+        for (let y = -pad; y < h + pad; y += spacing) {
+          context.beginPath();
+          context.arc(x, y, s * 1.2, 0, Math.PI * 2);
+          context.fill();
+        }
+      }
+      break;
+    }
+    case "lines": {
+      const spacing = d * s * 0.5;
+      context.strokeStyle = color;
+      context.lineWidth = s * 0.5;
+      const pad = Math.max(w, h);
+      for (let i = -pad; i < pad * 2; i += spacing) {
+        context.beginPath();
+        context.moveTo(i, -pad);
+        context.lineTo(i, pad * 2);
+        context.stroke();
+      }
+      break;
+    }
+    case "crosshatch": {
+      const spacing = d * s * 0.4;
+      context.strokeStyle = color;
+      context.lineWidth = s * 0.4;
+      const pad = Math.max(w, h);
+      for (let i = -pad; i < pad * 2; i += spacing) {
+        context.beginPath();
+        context.moveTo(i, -pad);
+        context.lineTo(i, pad * 2);
+        context.stroke();
+        context.beginPath();
+        context.moveTo(-pad, i);
+        context.lineTo(pad * 2, i);
+        context.stroke();
+      }
+      break;
+    }
+    case "grid": {
+      const spacing = d * s * 0.6;
+      context.strokeStyle = color;
+      context.lineWidth = s * 0.3;
+      const pad = Math.max(w, h);
+      for (let i = -pad; i < pad * 2; i += spacing) {
+        context.beginPath();
+        context.moveTo(i, -pad);
+        context.lineTo(i, pad * 2);
+        context.stroke();
+        context.beginPath();
+        context.moveTo(-pad, i);
+        context.lineTo(pad * 2, i);
+        context.stroke();
+      }
+      break;
+    }
+    case "diamonds": {
+      const spacing = d * s * 0.5;
+      context.strokeStyle = color;
+      context.lineWidth = s * 0.4;
+      const pad = Math.max(w, h);
+      for (let i = -pad; i < pad * 2; i += spacing) {
+        context.beginPath();
+        context.moveTo(i, -pad);
+        context.lineTo(i + pad * 2, pad);
+        context.stroke();
+        context.beginPath();
+        context.moveTo(i, -pad);
+        context.lineTo(i - pad * 2, pad);
+        context.stroke();
+      }
+      break;
+    }
+    case "waves": {
+      const spacing = d * s * 0.4;
+      const amp = s * 6;
+      const freq = 0.02 / s;
+      context.strokeStyle = color;
+      context.lineWidth = s * 0.5;
+      const pad = spacing * 2;
+      for (let row = -pad; row < h + pad; row += spacing) {
+        context.beginPath();
+        for (let x = -pad; x <= w + pad; x += 2) {
+          const y = row + Math.sin(x * freq * density * 0.3) * amp;
+          x === -pad ? context.moveTo(x, y) : context.lineTo(x, y);
+        }
+        context.stroke();
+      }
+      break;
+    }
+    case "circles": {
+      const spacing = d * s * 0.8;
+      context.strokeStyle = color;
+      context.lineWidth = s * 0.3;
+      const maxR = Math.max(w, h);
+      for (let r = spacing; r < maxR; r += spacing) {
+        context.beginPath();
+        context.arc(cx, cy, r, 0, Math.PI * 2);
+        context.stroke();
+      }
+      break;
+    }
+    case "triangles": {
+      const spacing = d * s * 0.5;
+      context.strokeStyle = color;
+      context.lineWidth = s * 0.35;
+      const pad = spacing * 2;
+      let rowIdx = 0;
+      for (let y = -pad; y < h + pad; y += spacing * 0.866) {
+        const offset = (rowIdx % 2) * (spacing / 2);
+        for (let x = -pad + offset; x < w + pad; x += spacing) {
+          context.beginPath();
+          context.moveTo(x, y);
+          context.lineTo(x + spacing / 2, y + spacing * 0.866);
+          context.lineTo(x - spacing / 2, y + spacing * 0.866);
+          context.closePath();
+          context.stroke();
+        }
+        rowIdx++;
+      }
+      break;
+    }
+    case "noise": {
+      const rand = mulberry32(42);
+      const blockSize = Math.max(1, Math.round(s * 1.5));
+      const prob = density / 100;
+      for (let x = 0; x < w; x += blockSize) {
+        for (let y = 0; y < h; y += blockSize) {
+          if (rand() < prob) {
+            const a = rand() * 0.6;
+            context.fillStyle = color;
+            context.globalAlpha = (opacity / 100) * a;
+            context.fillRect(x, y, blockSize, blockSize);
+          }
+        }
+      }
+      context.globalAlpha = opacity / 100;
+      break;
+    }
+    case "stipple": {
+      const rand2 = mulberry32(77);
+      const count = density * w * h * 0.00003 * s;
+      context.fillStyle = color;
+      for (let i = 0; i < count; i++) {
+        const x = rand2() * w;
+        const y = rand2() * h;
+        const r = rand2() * s * 1.5 + 0.5;
+        context.beginPath();
+        context.arc(x, y, r, 0, Math.PI * 2);
+        context.fill();
+      }
+      break;
+    }
+    case "hexagons": {
+      const size = d * s * 0.3;
+      context.strokeStyle = color;
+      context.lineWidth = s * 0.3;
+      const h2 = size * Math.sqrt(3);
+      const pad = size * 3;
+      for (let row = -2; row < (h + pad) / (h2); row++) {
+        for (let col = -2; col < (w + pad) / (size * 1.5); col++) {
+          const cx2 = col * size * 1.5;
+          const cy2 = row * h2 + (col % 2 ? h2 / 2 : 0);
+          context.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i - Math.PI / 6;
+            const hx = cx2 + size * 0.6 * Math.cos(a);
+            const hy = cy2 + size * 0.6 * Math.sin(a);
+            i === 0 ? context.moveTo(hx, hy) : context.lineTo(hx, hy);
+          }
+          context.closePath();
+          context.stroke();
+        }
+      }
+      break;
+    }
+  }
+  context.restore();
+}
+
+function render() {
+  const w = S.width;
+  const h2 = S.height;
+  canvas.width = w;
+  canvas.height = h2;
+
+  // Gradient
+  let grad;
+  if (S.gradientType === "linear") {
+    const a = (S.angle * Math.PI) / 180;
+    const len = Math.max(w, h2);
+    const dx = Math.cos(a) * len;
+    const dy = Math.sin(a) * len;
+    grad = ctx.createLinearGradient(w/2 - dx/2, h2/2 - dy/2, w/2 + dx/2, h2/2 + dy/2);
+  } else if (S.gradientType === "radial") {
+    const rx = (S.radialX / 100) * w;
+    const ry = (S.radialY / 100) * h2;
+    const rr = (S.radialRadius / 100) * Math.max(w, h2);
+    grad = ctx.createRadialGradient(rx, ry, 0, rx, ry, rr);
+  } else {
+    const a = (S.angle * Math.PI) / 180;
+    const len = Math.max(w, h2) * 0.7;
+    const dx = Math.cos(a) * len;
+    const dy = Math.sin(a) * len;
+    grad = ctx.createConicGradient(a, w/2, h2/2);
+  }
+
+  grad.addColorStop(0, S.color1);
+  if (S.useColor3) {
+    grad.addColorStop(S.color3Stop / 100, S.color3);
+  }
+  grad.addColorStop(1, S.color2);
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h2);
+
+  // Pattern 1
+  drawPattern(ctx, w, h2, {
+    type: S.pattern,
+    opacity: S.patternOpacity,
+    scale: S.patternScale,
+    density: S.patternDensity,
+    color: S.patternColor,
+    angle: S.patternAngle,
+    blendMode: S.blendMode,
+  });
+
+  // Pattern 2
+  drawPattern(ctx, w, h2, {
+    type: S.pattern2,
+    opacity: S.pattern2Opacity,
+    scale: S.pattern2Scale,
+    density: S.pattern2Density,
+    color: S.pattern2Color,
+    angle: S.pattern2Angle,
+    blendMode: S.blendMode2,
+  });
+
+  // Film noise
+  if (S.noiseAmount > 0) {
+    const imageData = ctx.getImageData(0, 0, w, h2);
+    const data = imageData.data;
+    const rand = mulberry32(123);
+    const amt = S.noiseAmount * 2.55;
+    for (let i = 0; i < data.length; i += 4) {
+      const n = (rand() - 0.5) * amt;
+      data[i] += n;
+      data[i+1] += n;
+      data[i+2] += n;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  // Vignette
+  if (S.vignetteStrength > 0) {
+    const vr = Math.max(w, h2) * (S.vignetteSize / 100);
+    const vg = ctx.createRadialGradient(w/2, h2/2, vr * 0.3, w/2, h2/2, vr);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, `rgba(0,0,0,${S.vignetteStrength / 100})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, w, h2);
+  }
+}
+
+const patternTypes = [
+  ["none", "None"], ["noise", "Noise"], ["stipple", "Stipple"],
+  ["dots", "Dots"], ["lines", "Lines"], ["crosshatch", "Crosshatch"],
+  ["grid", "Grid"], ["diamonds", "Diamonds"], ["waves", "Waves"],
+  ["circles", "Concentric circles"], ["triangles", "Triangles"],
+  ["hexagons", "Hexagons"],
+];
+
+const blendModes = [
+  "normal", "multiply", "screen", "overlay", "soft-light",
+  "hard-light", "difference", "exclusion", "lighten", "darken",
+];
+
+function buildControls() {
+  const c = document.getElementById("controls");
+  c.innerHTML = "";
+
+  const sections = [
+    {
+      title: "Canvas",
+      fields: [
+        { type: "dims", key1: "width", key2: "height" },
+      ]
+    },
+    {
+      title: "Gradient",
+      fields: [
+        { type: "select", key: "gradientType", label: "Type", options: [["linear","Linear"],["radial","Radial"],["conic","Conic"]] },
+        { type: "colorpair", label: "Colors" },
+        { type: "checkbox", key: "useColor3", label: "Third color stop" },
+        ...(S.useColor3 ? [
+          { type: "color", key: "color3", label: "Color 3" },
+          { type: "range", key: "color3Stop", label: "Stop position", min: 5, max: 95, suffix: "%" },
+        ] : []),
+        ...(S.gradientType !== "radial" ? [
+          { type: "range", key: "angle", label: "Angle", min: 0, max: 360, suffix: "°" },
+        ] : []),
+        ...(S.gradientType === "radial" ? [
+          { type: "range", key: "radialX", label: "Center X", min: 0, max: 100, suffix: "%" },
+          { type: "range", key: "radialY", label: "Center Y", min: 0, max: 100, suffix: "%" },
+          { type: "range", key: "radialRadius", label: "Radius", min: 10, max: 150, suffix: "%" },
+        ] : []),
+      ]
+    },
+    {
+      title: "Pattern 1",
+      fields: [
+        { type: "select", key: "pattern", label: "Type", options: patternTypes },
+        ...(S.pattern !== "none" ? [
+          { type: "range", key: "patternOpacity", label: "Opacity", min: 1, max: 60, suffix: "%" },
+          { type: "range", key: "patternScale", label: "Scale", min: 1, max: 20 },
+          { type: "range", key: "patternDensity", label: "Density", min: 5, max: 95 },
+          { type: "color", key: "patternColor", label: "Color" },
+          { type: "range", key: "patternAngle", label: "Rotation", min: 0, max: 180, suffix: "°" },
+          { type: "select", key: "blendMode", label: "Blend mode", options: blendModes.map(b => [b, b.charAt(0).toUpperCase() + b.slice(1)]) },
+        ] : []),
+      ]
+    },
+    {
+      title: "Pattern 2",
+      fields: [
+        { type: "select", key: "pattern2", label: "Type", options: patternTypes },
+        ...(S.pattern2 !== "none" ? [
+          { type: "range", key: "pattern2Opacity", label: "Opacity", min: 1, max: 60, suffix: "%" },
+          { type: "range", key: "pattern2Scale", label: "Scale", min: 1, max: 20 },
+          { type: "range", key: "pattern2Density", label: "Density", min: 5, max: 95 },
+          { type: "color", key: "pattern2Color", label: "Color" },
+          { type: "range", key: "pattern2Angle", label: "Rotation", min: 0, max: 180, suffix: "°" },
+          { type: "select", key: "blendMode2", label: "Blend mode", options: blendModes.map(b => [b, b.charAt(0).toUpperCase() + b.slice(1)]) },
+        ] : []),
+      ]
+    },
+    {
+      title: "Effects",
+      fields: [
+        { type: "range", key: "noiseAmount", label: "Film grain", min: 0, max: 40 },
+        { type: "range", key: "vignetteStrength", label: "Vignette strength", min: 0, max: 80, suffix: "%" },
+        { type: "range", key: "vignetteSize", label: "Vignette size", min: 30, max: 120, suffix: "%" },
+      ]
+    },
+    {
+      title: "Presets",
+      fields: [
+        { type: "json" },
+      ]
+    },
+  ];
+
+  for (const sec of sections) {
+    const div = document.createElement("div");
+    div.className = "section";
+    div.innerHTML = `<div class="section-title">${sec.title}</div>`;
+
+    for (const f of sec.fields) {
+      const fd = document.createElement("div");
+      fd.className = "field";
+
+      if (f.type === "range") {
+        const val = S[f.key];
+        fd.innerHTML = `
+          <div class="field-row">
+            <label>${f.label}</label>
+            <span class="value">${val}${f.suffix || ""}</span>
+          </div>
+          <input type="range" min="${f.min}" max="${f.max}" value="${val}" data-key="${f.key}" data-suffix="${f.suffix || ""}">
+        `;
+        fd.querySelector("input").addEventListener("input", (e) => {
+          S[f.key] = Number(e.target.value);
+          e.target.previousElementSibling.querySelector(".value").textContent = e.target.value + (f.suffix || "");
+          render();
+        });
+      } else if (f.type === "select") {
+        fd.innerHTML = `
+          <div class="field-row"><label>${f.label}</label></div>
+          <select data-key="${f.key}">
+            ${f.options.map(([v, l]) => `<option value="${v}" ${S[f.key] === v ? "selected" : ""}>${l}</option>`).join("")}
+          </select>
+        `;
+        fd.querySelector("select").addEventListener("change", (e) => {
+          S[f.key] = e.target.value;
+          buildControls();
+          render();
+        });
+      } else if (f.type === "color") {
+        fd.innerHTML = `
+          <div class="field-row">
+            <label>${f.label}</label>
+            <input type="color" value="${S[f.key]}" data-key="${f.key}">
+          </div>
+        `;
+        fd.querySelector("input").addEventListener("input", (e) => {
+          S[f.key] = e.target.value;
+          render();
+        });
+      } else if (f.type === "colorpair") {
+        fd.innerHTML = `
+          <div class="color-pair">
+            <label>A</label><input type="color" value="${S.color1}" data-key="color1">
+            <label>B</label><input type="color" value="${S.color2}" data-key="color2">
+            <button class="btn-secondary" id="swapColors" style="font-size:12px;padding:4px 10px;">Swap</button>
+          </div>
+        `;
+        fd.querySelectorAll("input").forEach(inp => {
+          inp.addEventListener("input", (e) => {
+            S[e.target.dataset.key] = e.target.value;
+            render();
+          });
+        });
+        fd.querySelector("#swapColors").addEventListener("click", () => {
+          [S.color1, S.color2] = [S.color2, S.color1];
+          buildControls();
+          render();
+        });
+      } else if (f.type === "checkbox") {
+        fd.innerHTML = `
+          <label class="checkbox-row">
+            <input type="checkbox" ${S[f.key] ? "checked" : ""} data-key="${f.key}">
+            ${f.label}
+          </label>
+        `;
+        fd.querySelector("input").addEventListener("change", (e) => {
+          S[f.key] = e.target.checked;
+          buildControls();
+          render();
+        });
+      } else if (f.type === "dims") {
+        fd.innerHTML = `
+          <div class="dims">
+            <input type="text" value="${S.width}" data-key="width" placeholder="W">
+            <span>×</span>
+            <input type="text" value="${S.height}" data-key="height" placeholder="H">
+            <span>px</span>
+          </div>
+        `;
+        fd.querySelectorAll("input").forEach(inp => {
+          inp.addEventListener("change", (e) => {
+            const v = parseInt(e.target.value) || (e.target.dataset.key === "width" ? 1600 : 800);
+            S[e.target.dataset.key] = Math.max(100, Math.min(4000, v));
+            e.target.value = S[e.target.dataset.key];
+            render();
+          });
+        });
+      } else if (f.type === "json") {
+        fd.className = "field json-section";
+        fd.innerHTML = `
+          <div class="json-actions">
+            <button class="btn-secondary" id="copyJson">Copy settings</button>
+            <button class="btn-secondary" id="pasteJson">Restore settings</button>
+          </div>
+          <button class="btn-secondary" id="resetBtn" style="width:100%;">Reset to defaults</button>
+        `;
+        fd.querySelector("#copyJson").addEventListener("click", () => {
+          navigator.clipboard.writeText(JSON.stringify(S, null, 2)).then(() => showToast("Settings copied to clipboard"));
+        });
+        fd.querySelector("#pasteJson").addEventListener("click", () => {
+          const input = prompt("Paste settings JSON:");
+          if (input) {
+            try {
+              const parsed = JSON.parse(input);
+              Object.assign(S, parsed);
+              buildControls();
+              render();
+              showToast("Settings restored");
+            } catch {
+              showToast("Invalid JSON");
+            }
+          }
+        });
+        fd.querySelector("#resetBtn").addEventListener("click", () => {
+          Object.assign(S, { ...defaults });
+          buildControls();
+          render();
+          showToast("Reset to defaults");
+        });
+      }
+      div.appendChild(fd);
+    }
+    c.appendChild(div);
+  }
+}
+
+function randomize() {
+  const randHue = () => 190 + Math.random() * 60;
+  const randSL = () => {
+    const s = 40 + Math.random() * 50;
+    const l = 10 + Math.random() * 40;
+    return [s, l];
+  };
+  const hslToHex = (h, s, l) => {
+    const el = document.createElement("canvas").getContext("2d");
+    el.fillStyle = `hsl(${h}, ${s}%, ${l}%)`;
+    return el.fillStyle;
+  };
+
+  const h1 = randHue(), [s1, l1] = randSL();
+  const h2 = randHue(), [s2, l2] = randSL();
+
+  S.color1 = hslToHex(h1, s1, l1);
+  S.color2 = hslToHex(h2, s2, l2);
+  S.gradientType = ["linear", "radial", "conic"][Math.floor(Math.random() * 3)];
+  S.angle = Math.floor(Math.random() * 360);
+  S.radialX = 30 + Math.random() * 40;
+  S.radialY = 30 + Math.random() * 40;
+  S.radialRadius = 50 + Math.random() * 60;
+
+  const pats = patternTypes.filter(p => p[0] !== "none").map(p => p[0]);
+  S.pattern = pats[Math.floor(Math.random() * pats.length)];
+  S.patternOpacity = 5 + Math.floor(Math.random() * 25);
+  S.patternScale = 1 + Math.floor(Math.random() * 10);
+  S.patternDensity = 20 + Math.floor(Math.random() * 60);
+  S.patternAngle = Math.floor(Math.random() * 180);
+  S.blendMode = blendModes[Math.floor(Math.random() * blendModes.length)];
+
+  S.pattern2 = Math.random() > 0.5 ? pats[Math.floor(Math.random() * pats.length)] : "none";
+  if (S.pattern2 !== "none") {
+    S.pattern2Opacity = 3 + Math.floor(Math.random() * 15);
+    S.pattern2Scale = 1 + Math.floor(Math.random() * 12);
+    S.pattern2Density = 20 + Math.floor(Math.random() * 60);
+    S.pattern2Angle = Math.floor(Math.random() * 180);
+    S.blendMode2 = blendModes[Math.floor(Math.random() * blendModes.length)];
+  }
+
+  S.useColor3 = Math.random() > 0.6;
+  if (S.useColor3) {
+    const h3 = randHue();
+    const [s3, l3] = randSL();
+    S.color3 = hslToHex(h3, s3, l3);
+    S.color3Stop = 30 + Math.floor(Math.random() * 40);
+  }
+
+  S.noiseAmount = Math.floor(Math.random() * 15);
+  S.vignetteStrength = Math.floor(Math.random() * 40);
+  S.vignetteSize = 50 + Math.floor(Math.random() * 50);
+
+  buildControls();
+  render();
+}
+
+document.getElementById("downloadBtn").addEventListener("click", () => {
+  const link = document.createElement("a");
+  link.download = `gradient-${S.width}x${S.height}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+  showToast("Image downloaded");
+});
+
+document.getElementById("randomBtn").addEventListener("click", randomize);
+
+buildControls();
+render();
+</script>
+</body>
+</html>
