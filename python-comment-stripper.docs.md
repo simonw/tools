@@ -1,0 +1,3 @@
+Remove all comments from Python source code while preserving strings, docstrings, and code structure using the `tokenize` module running on Pyodide. Paste your Python code into the input panel, and the tool automatically strips comments in real-time, with the ability to copy the cleaned output to your clipboard. The application runs entirely in the browser without requiring a local Python installation.
+
+<!-- Generated from commit: f763a6ea5887c08e0b8bc45e03b1466d14e78c02 -->

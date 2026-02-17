@@ -1,5 +1,3 @@
-# Documentation
+Convert blog posts and other content from Simon Willison's website into a formatted HTML newsletter ready for Substack distribution. The tool fetches recent entries, blogmarks, quotations, and TILs from a Datasette backup, allows customization of the time period and content filtering, and provides drag-and-drop reordering of stories. Users can copy the generated HTML directly to their newsletter platform while optionally excluding previously sent links and content that appears after a cutoff marker.
 
-Convert blog content from a Datasette backup into HTML formatted for Substack newsletters. This tool fetches recent entries, blogmarks, quotations, TILs, and notes from simonwillison.net, filters out previously sent content, and provides live preview with drag-and-drop reordering of articles. Users can customize the time range, adjust URLs, and copy the final newsletter HTML directly to their clipboard for pasting into Substack.
-
-<!-- Generated from commit: c4f8d2962bf299ed201e78af7f0d8a0bfcbea755 -->
+<!-- Generated from commit: 07da6235c612ab4777a41b840e9af4e7942a5fd1 -->

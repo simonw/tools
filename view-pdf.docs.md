@@ -1,3 +1,3 @@
-View PDF documents directly in your browser with this lightweight viewer that supports navigation, zooming, and automatic scaling. Load PDFs by entering a URL or passing one via the `?url=` parameter, with support for CORS-enabled PDF sources. The viewer renders all pages with customizable zoom levels from 50% to 200%, and automatically tracks your position as you scroll through the document.
+View PDF files from any CORS-enabled URL with this interactive PDF viewer application. The viewer supports navigation between pages, adjustable zoom levels including auto-scaling, and maintains your viewing state through URL parameters. High-DPI display support ensures sharp text rendering across all devices, and the responsive design adapts seamlessly to mobile screens.
 
-<!-- Generated from commit: 1ed41fe2e8e03950af916e4904b73f9032ebd5ea -->
+<!-- Generated from commit: 8d8bac810dc3a0b4b1b3a2ff37a1d2c412b222e0 -->
