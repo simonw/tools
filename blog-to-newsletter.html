@@ -423,6 +423,37 @@
       // URL replacements map (old URL -> new URL)
       let urlReplacements = new Map();
 
+      // Persist story order in URL hash fragment
+      function updateUrlHash() {
+        const ids = storyOrder.map(s => parseInt(s.split(':')[0], 10));
+        history.replaceState(null, '', '#order=' + ids.join(','));
+      }
+
+      // Read story order from URL hash and reorder storyOrder accordingly
+      function applyOrderFromHash() {
+        const hash = location.hash;
+        if (!hash.startsWith('#order=')) return;
+
+        const hashIds = hash.slice('#order='.length).split(',')
+          .map(s => parseInt(s, 10))
+          .filter(id => !isNaN(id));
+
+        if (hashIds.length === 0) return;
+
+        const storyMap = new Map(
+          storyOrder.map(s => [parseInt(s.split(':')[0], 10), s])
+        );
+        const currentIds = Array.from(storyMap.keys());
+
+        // Keep only IDs that exist in current entries
+        const validHashIds = hashIds.filter(id => storyMap.has(id));
+        // Remaining IDs not mentioned in the hash, in their default order
+        const remainingIds = currentIds.filter(id => !validHashIds.includes(id));
+
+        const newIdOrder = [...validHashIds, ...remainingIds];
+        storyOrder = newIdOrder.map(id => storyMap.get(id));
+      }
+
       // SQL query
       const sql = `
 with content as (
@@ -723,6 +754,7 @@ order by
 
         // Initialize story order
         storyOrder = entries.map(e => `${e.id}: ${e.title}`).reverse();
+        applyOrderFromHash();
 
         renderStoryOrder();
         generateNewsletter();
@@ -818,6 +850,7 @@ order by
 
           // Update storyOrder array
           storyOrder = Array.from(storyOrderList.querySelectorAll('li')).map(el => el.textContent);
+          updateUrlHash();
           generateNewsletter();
 
           draggedItem = null;
