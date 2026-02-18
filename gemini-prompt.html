@@ -518,6 +518,28 @@
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') submit();
     });
 
+    // ── Auto-decode URL-encoded paste ───────────────────────────────────────
+    document.getElementById('content').addEventListener('paste', e => {
+      const text = e.clipboardData?.getData('text');
+      if (!text) return;
+      if (/%[0-9A-Fa-f]{2}/.test(text)) {
+        try {
+          const decoded = decodeURIComponent(text);
+          if (decoded !== text) {
+            e.preventDefault();
+            const ta = e.target;
+            const start = ta.selectionStart;
+            const end = ta.selectionEnd;
+            ta.value = ta.value.slice(0, start) + decoded + ta.value.slice(end);
+            const cursor = start + decoded.length;
+            ta.selectionStart = ta.selectionEnd = cursor;
+          }
+        } catch {
+          // malformed URI sequence — let the normal paste go through
+        }
+      }
+    });
+
     // ── Init ───────────────────────────────────────────────────────────────────
     (function init() {
       const hist = loadHistory();
