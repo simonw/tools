@@ -1,3 +1,5 @@
-Count source code lines using this analyzer that implements the SLOCCount algorithm via WebAssembly and Perl. Analyze code by pasting it directly, providing a GitHub repository URL, or uploading a ZIP file containing your source code. The tool automatically detects programming languages and provides estimates of development effort and cost using the COCOMO model.
+# Documentation
 
-<!-- Generated from commit: e4b2b448a6e03d26feafd40077664670b9b66024 -->
+Count lines of code in source files across multiple programming languages using SLOCCount algorithms compiled to WebAssembly. This tool analyzes code from pasted snippets, GitHub repositories, or uploaded ZIP files, providing detailed breakdowns by language along with COCOMO-based effort and cost estimates. The analysis runs entirely in your browser using the actual SLOCCount Perl scripts and C-based counters compiled to WebAssembly for fast, privacy-preserving processing.
+
+<!-- Generated from commit: 4d3809c45b6a702903d43733bcaf51b1cf340e7c -->
