@@ -234,6 +234,26 @@
       font-size: 0.9rem;
     }
 
+    /* API key row */
+    #api-key-row {
+      display: none;
+      margin-bottom: 16px;
+    }
+
+    #change-api-key-btn {
+      background: none;
+      border: 1px solid #d1d5db;
+      color: #6b7280;
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 5px;
+    }
+    #change-api-key-btn:hover {
+      border-color: #4f7df3;
+      color: #4f7df3;
+      background: #eff6ff;
+    }
+
     /* Status */
     #status {
       font-size: 0.8rem;
@@ -241,10 +261,23 @@
       margin-top: 8px;
       height: 1.2em;
     }
+
+    @media (max-width: 600px) {
+      .controls-row {
+        flex-wrap: wrap;
+      }
+      #submit-btn {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
   <h1>Gemini Prompt</h1>
+
+  <div id="api-key-row">
+    <button id="change-api-key-btn">Change API key</button>
+  </div>
 
   <label for="system-prompt">System Prompt</label>
   <textarea id="system-prompt" placeholder="Optional system prompt…"></textarea>
@@ -303,14 +336,30 @@
     let showAll  = false;
 
     // ── API key ────────────────────────────────────────────────────────────────
+    function updateApiKeyUI() {
+      const hasKey = !!localStorage.getItem(STORAGE_KEY_API);
+      document.getElementById('api-key-row').style.display = hasKey ? 'block' : 'none';
+    }
+
     function getApiKey() {
       let key = localStorage.getItem(STORAGE_KEY_API);
       if (!key) {
         key = prompt('Enter your Gemini API key:');
-        if (key) localStorage.setItem(STORAGE_KEY_API, key.trim());
+        if (key) {
+          localStorage.setItem(STORAGE_KEY_API, key.trim());
+          updateApiKeyUI();
+        }
       }
       return key;
     }
+
+    document.getElementById('change-api-key-btn').addEventListener('click', () => {
+      const key = prompt('Enter your new Gemini API key:');
+      if (key && key.trim()) {
+        localStorage.setItem(STORAGE_KEY_API, key.trim());
+        updateApiKeyUI();
+      }
+    });
 
     // ── System prompt history ─────────────────────────────────────────────────
     function loadHistory() {
@@ -476,6 +525,7 @@
         document.getElementById('system-prompt').value = hist[0];
       }
       renderHistory();
+      updateApiKeyUI();
     })();
   </script>
 </body>
