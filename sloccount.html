@@ -552,8 +552,26 @@
                 analyzeZipBtn.textContent = 'Analyze ZIP';
                 analyzeZipBtn.disabled = false;
 
-                showStatus('Ready to analyze code!', 'success');
-                setTimeout(hideStatus, 2000);
+                // Check for ?repo= query parameter and auto-run
+                const params = new URLSearchParams(window.location.search);
+                const repoParam = params.get('repo');
+                if (repoParam) {
+                    // Switch to GitHub tab
+                    tabs.forEach(t => t.classList.remove('active'));
+                    document.querySelector('[data-tab="github"]').classList.add('active');
+                    pasteTab.classList.remove('active');
+                    githubTab.classList.add('active');
+                    zipTab.classList.remove('active');
+
+                    // Fill in the repo URL
+                    repoInput.value = repoParam;
+
+                    // Auto-run analysis
+                    analyzeGitHubRepo();
+                } else {
+                    showStatus('Ready to analyze code!', 'success');
+                    setTimeout(hideStatus, 2000);
+                }
             } catch (error) {
                 showStatus('Failed to initialize: ' + error.message, 'error');
                 console.error('Initialization error:', error);
@@ -859,6 +877,12 @@
 
             try {
                 analyzeRepoBtn.disabled = true;
+
+                // Update URL bar with ?repo= parameter
+                const url = new URL(window.location);
+                url.searchParams.set('repo', repoUrl);
+                history.replaceState(null, '', url);
+
                 showStatus('Fetching repository information from GitHub API...', 'info');
 
                 // First, get the repository info to determine the default branch
