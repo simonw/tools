@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Prompt</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f9fafb;
+      color: #111;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin: 0 0 20px;
+      color: #1a1a2e;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #555;
+      margin-bottom: 4px;
+    }
+
+    textarea {
+      width: 100%;
+      font-family: inherit;
+      font-size: 0.95rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 10px 12px;
+      background: #fff;
+      color: #111;
+      resize: vertical;
+      line-height: 1.5;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #4f7df3;
+      box-shadow: 0 0 0 3px rgba(79,125,243,0.15);
+    }
+
+    #system-prompt { height: 90px; }
+    #content { height: 260px; }
+
+    /* History */
+    #history-section {
+      margin: 6px 0 16px;
+      font-size: 0.82rem;
+    }
+
+    #history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+
+    .history-item {
+      cursor: pointer;
+      padding: 5px 10px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 5px;
+      color: #374151;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      transition: background 0.1s, border-color 0.1s;
+      font-size: 0.82rem;
+    }
+    .history-item:hover {
+      background: #eff6ff;
+      border-color: #93c5fd;
+    }
+
+    #show-more-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #4f7df3;
+      font-size: 0.82rem;
+      padding: 0;
+      text-decoration: underline;
+    }
+    #show-more-btn:hover { color: #2563eb; }
+
+    /* Controls row */
+    .controls-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    select {
+      font-family: inherit;
+      font-size: 0.9rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: #fff;
+      color: #111;
+      flex: 1;
+    }
+    select:focus { outline: none; border-color: #4f7df3; }
+
+    button {
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border-radius: 6px;
+      padding: 8px 18px;
+      border: 1px solid transparent;
+      transition: background 0.15s;
+    }
+
+    #submit-btn {
+      background: #4f7df3;
+      color: #fff;
+      border-color: #3b6de0;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    #submit-btn:hover { background: #3b6de0; }
+    #submit-btn:disabled { background: #93aef8; border-color: #93aef8; cursor: not-allowed; }
+
+    /* Output area */
+    #output-section {
+      margin-top: 24px;
+    }
+
+    #output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    #output-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #555;
+    }
+
+    #copy-btn {
+      background: #fff;
+      border: 1px solid #d1d5db;
+      color: #374151;
+      font-size: 0.82rem;
+      padding: 5px 12px;
+    }
+    #copy-btn:hover { background: #f3f4f6; }
+    #copy-btn.copied { color: #16a34a; border-color: #86efac; background: #f0fdf4; }
+
+    #output-box {
+      background: #fff;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 16px 20px;
+      min-height: 120px;
+      color: #111;
+      line-height: 1.7;
+    }
+
+    #output-box.empty { color: #9ca3af; font-style: italic; }
+
+    #output-box h1, #output-box h2, #output-box h3,
+    #output-box h4, #output-box h5, #output-box h6 {
+      margin-top: 1.1em;
+      margin-bottom: 0.4em;
+      line-height: 1.3;
+    }
+    #output-box h1 { font-size: 1.4em; }
+    #output-box h2 { font-size: 1.2em; }
+    #output-box h3 { font-size: 1.05em; }
+    #output-box p { margin: 0.6em 0; }
+    #output-box ul, #output-box ol { padding-left: 1.6em; margin: 0.5em 0; }
+    #output-box li { margin: 0.3em 0; }
+    #output-box pre {
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      border-radius: 5px;
+      padding: 12px;
+      overflow-x: auto;
+      font-size: 0.88em;
+      line-height: 1.5;
+    }
+    #output-box code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.88em;
+      background: #f3f4f6;
+      padding: 0.15em 0.35em;
+      border-radius: 3px;
+    }
+    #output-box pre code { background: none; padding: 0; font-size: inherit; }
+    #output-box blockquote {
+      border-left: 3px solid #d1d5db;
+      margin: 0.5em 0;
+      padding: 0.2em 0 0.2em 1em;
+      color: #6b7280;
+    }
+    #output-box table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
+    #output-box th, #output-box td {
+      border: 1px solid #e5e7eb;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    #output-box th { background: #f9fafb; font-weight: 600; }
+    #output-box a { color: #2563eb; }
+
+    /* Error */
+    #error-msg {
+      display: none;
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+      color: #dc2626;
+      padding: 10px 14px;
+      margin-top: 12px;
+      font-size: 0.9rem;
+    }
+
+    /* Status */
+    #status {
+      font-size: 0.8rem;
+      color: #6b7280;
+      margin-top: 8px;
+      height: 1.2em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gemini Prompt</h1>
+
+  <label for="system-prompt">System Prompt</label>
+  <textarea id="system-prompt" placeholder="Optional system prompt…"></textarea>
+
+  <div id="history-section">
+    <div id="history-list"></div>
+    <button id="show-more-btn" style="display:none;"></button>
+  </div>
+
+  <label for="content">Content</label>
+  <textarea id="content" placeholder="Enter your prompt content here…"></textarea>
+
+  <div class="controls-row">
+    <select id="model-select">
+      <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
+      <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+      <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+      <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+      <option value="gemini-2.5-flash-lite-preview-06-17">gemini-2.5-flash-lite-preview-06-17</option>
+      <option value="gemini-2.5-flash-preview-04-17">gemini-2.5-flash-preview-04-17</option>
+      <option value="gemini-2.5-pro-preview-03-25">gemini-2.5-pro-preview-03-25</option>
+      <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+      <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+      <option value="gemini-2.0-pro-exp-02-05">gemini-2.0-pro-exp-02-05</option>
+      <option value="gemini-2.0-flash-thinking-exp-01-21">gemini-2.0-flash-thinking-exp-01-21</option>
+      <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
+      <option value="gemini-1.5-pro-latest">gemini-1.5-pro</option>
+      <option value="gemini-1.5-flash-latest">gemini-1.5-flash</option>
+      <option value="gemini-1.5-flash-8b-latest">gemini-1.5-flash-8b</option>
+    </select>
+    <button id="submit-btn">Submit</button>
+  </div>
+
+  <div id="error-msg"></div>
+  <div id="status"></div>
+
+  <div id="output-section">
+    <div id="output-header">
+      <span id="output-label">Output</span>
+      <button id="copy-btn">Copy to clipboard</button>
+    </div>
+    <div id="output-box" class="empty">Response will appear here…</div>
+  </div>
+
+  <script type="module">
+    import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+    import { marked } from "https://esm.run/marked";
+
+    const STORAGE_KEY_API    = 'GEMINI_API_KEY';
+    const STORAGE_KEY_HIST   = 'gemini_prompt_system_history';
+    const MAX_STORED         = 50;
+    const INITIAL_VISIBLE    = 3;
+    const TRUNCATE_LEN       = 90;
+
+    let fullText = '';
+    let showAll  = false;
+
+    // ── API key ────────────────────────────────────────────────────────────────
+    function getApiKey() {
+      let key = localStorage.getItem(STORAGE_KEY_API);
+      if (!key) {
+        key = prompt('Enter your Gemini API key:');
+        if (key) localStorage.setItem(STORAGE_KEY_API, key.trim());
+      }
+      return key;
+    }
+
+    // ── System prompt history ─────────────────────────────────────────────────
+    function loadHistory() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY_HIST) || '[]'); }
+      catch { return []; }
+    }
+
+    function saveToHistory(prompt) {
+      if (!prompt.trim()) return;
+      let hist = loadHistory().filter(h => h !== prompt);
+      hist.unshift(prompt);
+      localStorage.setItem(STORAGE_KEY_HIST, JSON.stringify(hist.slice(0, MAX_STORED)));
+    }
+
+    function truncate(str, len) {
+      return str.length > len ? str.slice(0, len).trimEnd() + '…' : str;
+    }
+
+    function renderHistory() {
+      const hist = loadHistory();
+      const list = document.getElementById('history-list');
+      const moreBtn = document.getElementById('show-more-btn');
+      list.innerHTML = '';
+
+      if (hist.length === 0) {
+        moreBtn.style.display = 'none';
+        return;
+      }
+
+      const visible = showAll ? hist : hist.slice(0, INITIAL_VISIBLE);
+
+      visible.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'history-item';
+        el.title = item;
+        el.textContent = truncate(item, TRUNCATE_LEN);
+        el.addEventListener('click', () => {
+          document.getElementById('system-prompt').value = item;
+        });
+        list.appendChild(el);
+      });
+
+      const extra = hist.length - INITIAL_VISIBLE;
+      if (extra > 0 && !showAll) {
+        moreBtn.textContent = `${extra} more…`;
+        moreBtn.style.display = 'inline';
+      } else if (showAll && hist.length > INITIAL_VISIBLE) {
+        moreBtn.textContent = 'Show fewer';
+        moreBtn.style.display = 'inline';
+      } else {
+        moreBtn.style.display = 'none';
+      }
+    }
+
+    document.getElementById('show-more-btn').addEventListener('click', () => {
+      showAll = !showAll;
+      renderHistory();
+    });
+
+    // ── Submit ─────────────────────────────────────────────────────────────────
+    async function submit() {
+      const systemPrompt = document.getElementById('system-prompt').value.trim();
+      const content      = document.getElementById('content').value.trim();
+      const modelId      = document.getElementById('model-select').value;
+      const outputBox    = document.getElementById('output-box');
+      const errorMsg     = document.getElementById('error-msg');
+      const submitBtn    = document.getElementById('submit-btn');
+      const status       = document.getElementById('status');
+
+      if (!content) {
+        document.getElementById('content').focus();
+        return;
+      }
+
+      errorMsg.style.display = 'none';
+      submitBtn.disabled = true;
+      outputBox.className = '';
+      outputBox.innerHTML = '';
+      fullText = '';
+      status.textContent = 'Generating…';
+
+      if (systemPrompt) saveToHistory(systemPrompt);
+      renderHistory();
+
+      const apiKey = getApiKey();
+      if (!apiKey) {
+        submitBtn.disabled = false;
+        status.textContent = '';
+        return;
+      }
+
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const modelOpts = { model: modelId };
+        if (systemPrompt) modelOpts.systemInstruction = systemPrompt;
+
+        const model = genAI.getGenerativeModel(modelOpts);
+        const result = await model.generateContentStream(content);
+
+        let chunkCount = 0;
+        for await (const chunk of result.stream) {
+          fullText += chunk.text();
+          outputBox.innerHTML = marked.parse(fullText);
+          chunkCount++;
+          status.textContent = `Streaming… (${chunkCount} chunks)`;
+        }
+
+        const meta = (await result.response).usageMetadata;
+        const tokens = meta ? `${meta.totalTokenCount ?? '?'} tokens` : '';
+        status.textContent = tokens ? `Done · ${tokens}` : 'Done';
+      } catch (err) {
+        errorMsg.textContent = err.message || String(err);
+        errorMsg.style.display = 'block';
+        if (!fullText) {
+          outputBox.className = 'empty';
+          outputBox.innerHTML = 'Response will appear here…';
+        }
+        status.textContent = '';
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    // ── Copy ───────────────────────────────────────────────────────────────────
+    document.getElementById('copy-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('copy-btn');
+      if (!fullText) return;
+      try {
+        await navigator.clipboard.writeText(fullText);
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy to clipboard';
+          btn.classList.remove('copied');
+        }, 2000);
+      } catch {
+        // fallback: select the raw text content
+        const ta = document.createElement('textarea');
+        ta.value = fullText;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy to clipboard';
+          btn.classList.remove('copied');
+        }, 2000);
+      }
+    });
+
+    // ── Wire up ────────────────────────────────────────────────────────────────
+    document.getElementById('submit-btn').addEventListener('click', submit);
+    document.getElementById('content').addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') submit();
+    });
+
+    // ── Init ───────────────────────────────────────────────────────────────────
+    (function init() {
+      const hist = loadHistory();
+      if (hist.length > 0) {
+        document.getElementById('system-prompt').value = hist[0];
+      }
+      renderHistory();
+    })();
+  </script>
+</body>
+</html>
