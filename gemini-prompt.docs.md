@@ -1,3 +1,3 @@
-Send custom prompts to Google's Gemini API and receive formatted responses with support for multiple model versions. The interface allows you to specify a system prompt, enter content, and stream responses in real-time with markdown rendering. A built-in history system automatically saves your system prompts for quick reuse, while an API key manager securely stores your credentials in local storage.
+Generate responses from Google's Gemini API with support for system prompts, model selection, and streaming output. The interface stores your API key securely in local storage and maintains a history of system prompts for quick reuse. Markdown formatting is automatically rendered in the output area, and you can copy responses to your clipboard with a single click.
 
-<!-- Generated from commit: 2869ccbfd4f2140ee7191d46876bca553106ac9a -->
+<!-- Generated from commit: 8ef8fd6737514504f0debeebc858fcde651fc7f5 -->
