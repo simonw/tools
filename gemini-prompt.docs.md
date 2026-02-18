@@ -1,0 +1,3 @@
+Send prompts to Google's Gemini API and view streamed responses with support for multiple model versions and optional system instructions. The application stores your API key locally and maintains a history of system prompts for quick access across sessions. Responses are rendered as formatted markdown and can be copied to the clipboard with a single click.
+
+<!-- Generated from commit: 2363be3bd1d4712d806dfbdf9532670feeb86bb9 -->
