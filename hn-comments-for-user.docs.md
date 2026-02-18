@@ -1,3 +1,3 @@
-Retrieve and view recent comments from a Hacker News user by entering their username and fetching up to 1,000 of their most recent comments. The tool displays each comment with its date, associated story title, thread link, comment link, and full text in an easily readable format. You can copy all the retrieved comments to your clipboard with a single click.
+Retrieve and view all recent comments from a specific Hacker News user in a formatted, easy-to-read layout. Enter a username and click "Fetch comments" to display up to 1,000 of their most recent comments, including timestamps, story titles, and direct links to each comment and thread. The output can be copied to your clipboard for further use or analysis.
 
-<!-- Generated from commit: f4a6ff558ddc63b35c6444b8e8f7ca46ef0a81b2 -->
+<!-- Generated from commit: 9b87d73e9c513deb81f00bb9643c44f52248640c -->
