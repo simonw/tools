@@ -1,3 +1,3 @@
-Submit contact information through this form that demonstrates client-side validation using only HTML5 and CSS. The form validates required fields, email addresses, phone numbers, and message length in real-time as users interact with inputs, displaying visual feedback with checkmarks for valid entries and error indicators for invalid ones. No JavaScript processing occurs—this is a demonstration of modern web standards for form validation without backend submission.
+Submit contact information through this responsive form that provides real-time validation using native HTML5 attributes and CSS-only feedback. The form validates required fields including name, email, and message content, displaying checkmarks for valid inputs and error messages for invalid entries without requiring any JavaScript. The clean, modern design features a card layout with smooth transitions and a collapsible source code viewer for examining the underlying HTML and CSS implementation.
 
-<!-- Generated from commit: 33147cd391d8fc52497704dc28bd4b959685d2c1 -->
+<!-- Generated from commit: 42812c4ffde78c6385f7f96d664450fbf702bcf1 -->
