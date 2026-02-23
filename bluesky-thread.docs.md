@@ -1,3 +1,3 @@
-View Bluesky thread conversations with nested reply hierarchies and chronological sorting options. This viewer fetches posts from public Bluesky APIs and displays them with color-coded depth levels, embedded media support, and interactive features like quoted post previews and image galleries. Users can toggle between thread view (showing reply nesting) and chronological view (most recent first), with the ability to hide non-author replies in thread mode for easier navigation through long conversations.
+View Bluesky thread conversations with multiple display options including nested thread view, chronological sorting, and media support. This viewer fetches complete discussion threads from Bluesky posts and renders them with color-coded depth indicators, clickable reply relationships, and embedded images and videos. Users can switch between different viewing modes, copy thread text or raw JSON data, and optionally hide non-author replies to focus on the original poster's main conversation.
 
-<!-- Generated from commit: 2854cfeb292a24478bb9db568d67bb8365c66e96 -->
+<!-- Generated from commit: e766dd32ea7be2d0ab72afaddfa7787cb690da77 -->
