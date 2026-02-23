@@ -398,6 +398,7 @@
     <div class="tabs" id="viewTabs">
       <button class="tab active" data-view="thread">Thread View</button>
       <button class="tab" data-view="recent">Most Recent First</button>
+      <button class="tab" data-view="oldest">Oldest First</button>
     </div>
   </header>
   <div id="threadContainer"></div>
@@ -865,6 +866,61 @@
         });
       }
 
+      // Display posts in chronological order (oldest first)
+      function displayPostsOldestFirst() {
+        container.innerHTML = '';
+        const sorted = [...allPosts].sort((a, b) => a.createdAt - b.createdAt);
+
+        sorted.forEach(postData => {
+          const item = postData.item;
+          const el = document.createElement('div');
+          el.className = 'post depth-1';
+          el.id = getPostId(item.post.uri);
+
+          // Add "in reply to" if this is a reply
+          if (postData.parentUri) {
+            const replyToEl = document.createElement('div');
+            replyToEl.className = 'reply-to';
+            const replyLink = document.createElement('a');
+            replyLink.href = '#' + getPostId(postData.parentUri);
+            replyLink.textContent = `in reply to ${postData.parentAuthor}`;
+            replyLink.addEventListener('click', (e) => {
+              e.preventDefault();
+              const targetEl = document.getElementById(getPostId(postData.parentUri));
+              if (targetEl) {
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetEl.classList.add('highlighted');
+                setTimeout(() => targetEl.classList.remove('highlighted'), 2000);
+              }
+            });
+            replyToEl.appendChild(replyLink);
+            el.appendChild(replyToEl);
+          }
+
+          const authorEl = document.createElement('div');
+          authorEl.className = 'author';
+          authorEl.textContent = `${item.post.author.displayName} (@${item.post.author.handle})`;
+          const metaEl = document.createElement('div');
+          metaEl.className = 'meta';
+          metaEl.textContent = new Date(item.post.record.createdAt).toLocaleString();
+          const link = document.createElement('a');
+          link.href = `https://bsky.app/profile/${item.post.author.handle}/post/${item.post.uri.split('/').pop()}`;
+          link.textContent = 'View in Bluesky';
+          link.target = '_blank';
+          metaEl.appendChild(link);
+          const textEl = document.createElement('div');
+          textEl.className = 'text';
+          textEl.appendChild(renderTextWithFacets(item.post.record.text, item.post.record.facets));
+          el.append(authorEl, metaEl, textEl);
+          // Render embed if present
+          if (item.post.embed) {
+            const embedEl = renderEmbed(item.post.embed);
+            if (embedEl) el.appendChild(embedEl);
+          }
+          container.appendChild(el);
+        });
+      }
+
       // Display thread view
       function displayThreadView() {
         container.innerHTML = '';
@@ -877,6 +933,8 @@
       function renderCurrentView() {
         if (currentView === 'thread') {
           displayThreadView();
+        } else if (currentView === 'oldest') {
+          displayPostsOldestFirst();
         } else {
           displayPostsChronological();
         }
@@ -1058,7 +1116,7 @@
       const viewParam = params.get('view');
       const hideRepliesParam = params.get('hideReplies');
       // Initialize view from URL parameter if valid
-      if (viewParam === 'thread' || viewParam === 'recent') {
+      if (viewParam === 'thread' || viewParam === 'recent' || viewParam === 'oldest') {
         currentView = viewParam;
         viewTabs.querySelectorAll('.tab').forEach(t => {
           t.classList.toggle('active', t.dataset.view === viewParam);
