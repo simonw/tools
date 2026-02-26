@@ -398,6 +398,7 @@
       let quotations = [];
       let tils = [];
       let notes = [];
+      let chapters = [];
       let previousLinks = [];
       let storyOrder = [];
       let newsletterHTML = '';
@@ -543,6 +544,26 @@ with content as (
   from blog_note
   union all
   select
+    c.id,
+    'chapter' as type,
+    c.title,
+    c.created,
+    c.slug,
+    'No HTML' as html,
+    json_object(
+      'created', date(c.created),
+      'title', c.title,
+      'body', c.body,
+      'chapter_slug', c.slug,
+      'guide_title', g.title,
+      'guide_slug', g.slug
+    ) as json,
+    'https://simonwillison.net/guides/' || g.slug || '/' || c.slug || '/' as external_url
+  from guides_chapter c
+  join guides_guide g on c.guide_id = g.id
+  where c.is_draft = 0
+  union all
+  select
     rowid,
     'til' as type,
     title,
@@ -559,7 +580,7 @@ collected as (
     type,
     title,
     case
-      when type = 'til'
+      when type in ('til', 'chapter')
       then external_url
       else 'https://simonwillison.net/' || strftime('%Y/', created)
       || substr('JanFebMarAprMayJunJulAugSepOctNovDec', (strftime('%m', created) - 1) * 3 + 1, 3) ||
@@ -693,6 +714,33 @@ order by
         return await response.json();
       }
 
+      // Render first three paragraphs of a chapter with word count suffix
+      function renderChapterExcerpt(body, chapterUrl) {
+        const fullHtml = marked.parse(body);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = fullHtml;
+        const paragraphs = tempDiv.querySelectorAll(':scope > p');
+
+        if (paragraphs.length <= 3) return fullHtml;
+
+        const excerptDiv = document.createElement('div');
+        for (let i = 0; i < 3; i++) {
+          excerptDiv.appendChild(paragraphs[i].cloneNode(true));
+        }
+        let excerptHtml = excerptDiv.innerHTML;
+
+        const wordCount = body.split(/\s+/).filter(w => w.length > 0).length;
+        const formattedCount = wordCount.toLocaleString();
+        const suffix = ` <span style="font-size: 0.9em">[... <a href="${chapterUrl}">${formattedCount} word${wordCount !== 1 ? 's' : ''}</a>]</span>`;
+        const lastP = excerptHtml.lastIndexOf('</p>');
+        if (lastP !== -1) {
+          excerptHtml = excerptHtml.substring(0, lastP) + suffix + excerptHtml.substring(lastP);
+        } else {
+          excerptHtml += suffix;
+        }
+        return excerptHtml;
+      }
+
       // Filter content based on settings
       function filterContent() {
         const skipExisting = skipExistingInput.checked;
@@ -745,12 +793,27 @@ order by
           });
         }
 
+        // Always render chapter HTML from markdown
+        filtered = filtered.map(e => {
+          if (e.type === 'chapter' && e.json !== 'null') {
+            const info = typeof e.json === 'string' ? JSON.parse(e.json) : e.json;
+            const entry = { ...e };
+            const chapterUrl = `https://simonwillison.net/guides/${info.guide_slug}/${info.chapter_slug}/`;
+            const guideUrl = `https://simonwillison.net/guides/${info.guide_slug}/`;
+            const excerptHtml = renderChapterExcerpt(info.body, chapterUrl);
+            entry.html = `<p style="font-size: 0.85em; color: #999; margin: 0 0 -0.2em 0; line-height: 1.2;"><a href="${guideUrl}" style="color: #999; text-decoration: none;">${info.guide_title}</a> &gt;</p><h3 style="margin-top: 0.2em; margin-bottom: 0.5em;"><a href="${chapterUrl}">${info.title}</a> - ${info.created}</h3>${excerptHtml}`;
+            return entry;
+          }
+          return e;
+        });
+
         content = filtered;
         entries = content.filter(e => e.type === 'entry');
         blogmarks = content.filter(e => e.type === 'blogmark');
         quotations = content.filter(e => e.type === 'quotation');
         tils = content.filter(e => e.type === 'til');
         notes = content.filter(e => e.type === 'note');
+        chapters = content.filter(e => e.type === 'chapter');
 
         // Initialize story order
         storyOrder = entries.map(e => `${e.id}: ${e.title}`).reverse();
@@ -987,6 +1050,9 @@ order by
         if (notes.length) {
           extras.push(`${notes.length} note${notes.length > 1 ? 's' : ''}`);
         }
+        if (chapters.length) {
+          extras.push(`${chapters.length} guide chapter${chapters.length > 1 ? 's' : ''}`);
+        }
         if (extras.length) {
           headerHtml += `<p>Plus ${extras.join(' and ')}</p>`;
         }
@@ -1036,6 +1102,7 @@ order by
         quotations = quotations.filter(e => !(type === 'quotation' && String(e.id) === String(id)));
         tils = tils.filter(e => !(type === 'til' && String(e.id) === String(id)));
         notes = notes.filter(e => !(type === 'note' && String(e.id) === String(id)));
+        chapters = chapters.filter(e => !(type === 'chapter' && String(e.id) === String(id)));
         generateNewsletter();
       }
 
