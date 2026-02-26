@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile Data Tables: Responsive Patterns Demo</title>
+<style>
+/* ── Design Tokens ───────────────────────────────────── */
+:root {
+  --row-height: 52px;
+  --header-height: 56px;
+  --cell-pad: 16px;
+  --touch-target: 44px;
+
+  --fs-body: clamp(0.875rem, 0.8rem + 0.25vw, 1rem);
+  --fs-dense: clamp(0.75rem, 0.7rem + 0.2vw, 0.875rem);
+  --fs-heading: clamp(1.25rem, 1rem + 0.75vw, 1.75rem);
+
+  --c-bg: #ffffff;
+  --c-surface: #f8f9fa;
+  --c-border: #dee2e6;
+  --c-text: #212529;
+  --c-muted: #6c757d;
+  --c-accent: #0d6efd;
+  --c-accent-light: #e7f1ff;
+  --c-zebra: #f8f9fb;
+  --c-sticky-shadow: rgba(0,0,0,.08);
+
+  --radius: 8px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.1);
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--c-text);
+  line-height: 1.5;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--c-surface); }
+
+/* ── Utility Classes ─────────────────────────────────── */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+.num { text-align: right !important; font-variant-numeric: tabular-nums; }
+
+/* ── Page Layout ─────────────────────────────────────── */
+.page-header {
+  background: var(--c-bg);
+  border-bottom: 1px solid var(--c-border);
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+.page-header h1 {
+  margin: 0 0 .25rem;
+  font-size: var(--fs-heading);
+  font-weight: 700;
+}
+.page-header p {
+  margin: 0;
+  color: var(--c-muted);
+  font-size: var(--fs-body);
+  max-width: 50em;
+  margin-inline: auto;
+}
+
+/* Sticky TOC */
+.toc {
+  position: sticky; top: 0; z-index: 200;
+  background: var(--c-bg);
+  border-bottom: 1px solid var(--c-border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  white-space: nowrap;
+  padding: .5rem 1rem;
+  display: flex;
+  gap: .5rem;
+}
+.toc a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: .35rem .75rem;
+  border-radius: 999px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  text-decoration: none;
+  font-size: .8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.toc a:hover, .toc a:focus-visible {
+  background: var(--c-accent-light);
+  color: var(--c-accent);
+}
+
+main { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+
+/* ── Section Cards ───────────────────────────────────── */
+.demo-section {
+  background: var(--c-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 2rem;
+  overflow: hidden;
+}
+.demo-section header {
+  padding: 1.25rem var(--cell-pad);
+  border-bottom: 1px solid var(--c-border);
+}
+.demo-section header h2 {
+  margin: 0 0 .25rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.demo-section header p {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--c-muted);
+}
+.demo-body { padding: var(--cell-pad); overflow: hidden; }
+
+/* ── Shared Table Styles ─────────────────────────────── */
+.demo-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-body);
+}
+.demo-table th, .demo-table td {
+  padding: 0 var(--cell-pad);
+  text-align: left;
+  border-bottom: 1px solid var(--c-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.demo-table th {
+  height: var(--header-height);
+  font-weight: 600;
+  font-size: var(--fs-dense);
+  color: var(--c-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  background: var(--c-bg);
+}
+.demo-table td { height: var(--row-height); }
+.demo-table tbody tr:nth-child(even) td { background: var(--c-zebra); }
+
+/* ── Scrollable Wrapper ──────────────────────────────── */
+.scroll-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  /* Scroll shadows via background-attachment */
+  background:
+    linear-gradient(to right, var(--c-bg) 30%, transparent) left / 40px 100% no-repeat local,
+    linear-gradient(to left, var(--c-bg) 30%, transparent) right / 40px 100% no-repeat local,
+    linear-gradient(to right, var(--c-sticky-shadow), transparent) left / 14px 100% no-repeat scroll,
+    linear-gradient(to left, var(--c-sticky-shadow), transparent) right / 14px 100% no-repeat scroll;
+}
+
+/*
+ * Scroll-driven animations (Chrome 115+) can replace the background-attachment
+ * scroll shadows above with mask-based fading using animation-timeline: scroll().
+ * Requires @property declarations for custom properties to be animatable.
+ * The background-attachment technique above is the robust cross-browser fallback.
+ */
+
+/* ── 1. Horizontal Scroll ────────────────────────────── */
+#horizontal-scroll .demo-table { min-width: 900px; }
+
+/* ── 2. Priority Columns (Sticky First Col) ──────────── */
+#priority-columns .demo-table { min-width: 900px; }
+#priority-columns .demo-table th:first-child,
+#priority-columns .demo-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--c-bg);
+  min-width: 150px;
+  box-shadow: 2px 0 4px var(--c-sticky-shadow);
+}
+#priority-columns .demo-table tbody tr:nth-child(even) td:first-child {
+  background: var(--c-zebra);
+}
+#priority-columns .demo-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+#priority-columns .demo-table thead th:first-child {
+  z-index: 4; /* corner cell highest */
+}
+
+/* ── 3. Stacked Cards ────────────────────────────────── */
+#stacked-cards .stacked-table { min-width: 900px; }
+@media (max-width: 768px) {
+  #stacked-cards .scroll-wrapper { overflow-x: visible; background: none; }
+  #stacked-cards .stacked-table,
+  #stacked-cards .stacked-table thead,
+  #stacked-cards .stacked-table tbody,
+  #stacked-cards .stacked-table th,
+  #stacked-cards .stacked-table td,
+  #stacked-cards .stacked-table tr { display: block; }
+  #stacked-cards .stacked-table { min-width: 0; }
+  #stacked-cards .stacked-table thead {
+    position: absolute; width: 1px; height: 1px;
+    clip: rect(0,0,0,0); overflow: hidden;
+  }
+  #stacked-cards .stacked-table tbody tr {
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+    padding: .5rem 0;
+    background: var(--c-bg) !important;
+    box-shadow: var(--shadow-sm);
+  }
+  #stacked-cards .stacked-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: auto;
+    padding: .5rem var(--cell-pad);
+    border-bottom: 1px solid var(--c-surface);
+    white-space: normal;
+    text-align: right;
+  }
+  #stacked-cards .stacked-table td:last-child { border-bottom: none; }
+  #stacked-cards .stacked-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: var(--fs-dense);
+    color: var(--c-muted);
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    text-align: left;
+    flex-basis: 40%;
+    flex-shrink: 0;
+    padding-right: 1rem;
+  }
+  #stacked-cards .stacked-table tbody tr:nth-child(even) td { background: transparent; }
+}
+
+/* ── 4. Column Toggle ────────────────────────────────── */
+.toggle-bar {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: var(--touch-target);
+  padding: .4rem 1rem;
+  background: var(--c-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+.toggle-btn:hover { opacity: .9; }
+.toggle-badge {
+  display: inline-block;
+  background: rgba(255,255,255,.3);
+  border-radius: 999px;
+  padding: 0 .5rem;
+  font-size: .75rem;
+}
+.toggle-panel {
+  display: none;
+  flex-wrap: wrap;
+  gap: .5rem;
+  padding: .75rem;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+}
+.toggle-panel.open { display: flex; }
+.toggle-panel label {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: var(--touch-target);
+  padding: .25rem .75rem;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  user-select: none;
+}
+.toggle-panel label:has(input:checked) {
+  background: var(--c-accent-light);
+  border-color: var(--c-accent);
+}
+.toggle-panel input { accent-color: var(--c-accent); width: 18px; height: 18px; }
+.toggle-panel label.disabled { opacity: .5; cursor: not-allowed; }
+#column-toggle .col-hidden { display: none; }
+
+/* ── 5. Accordion Rows ───────────────────────────────── */
+.accordion-table tbody tr.acc-summary { cursor: pointer; }
+.accordion-table tbody tr.acc-summary:hover td { background: var(--c-accent-light); }
+.accordion-table tbody tr.acc-summary:focus-visible { outline: 2px solid var(--c-accent); outline-offset: -2px; }
+.acc-icon {
+  display: inline-block;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  line-height: var(--touch-target);
+  text-align: center;
+  font-size: 1rem;
+  transition: transform .2s;
+}
+tr.acc-summary[aria-expanded="true"] .acc-icon { transform: rotate(90deg); }
+.acc-detail { background: var(--c-surface) !important; }
+.acc-detail td { height: auto; padding: 1rem var(--cell-pad); white-space: normal; }
+.acc-detail dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: .5rem 1.5rem;
+  margin: 0;
+}
+.acc-detail dt { font-size: var(--fs-dense); color: var(--c-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.acc-detail dd { margin: 0 0 .5rem; font-size: var(--fs-body); }
+
+/* ── 6. Adaptive Content (Container Queries) ─────────── */
+#adaptive-content .resize-handle {
+  container-type: inline-size;
+  container-name: adaptive;
+  resize: horizontal;
+  overflow: hidden;
+  border: 2px dashed var(--c-border);
+  border-radius: var(--radius);
+  padding: 2px;
+  min-width: 280px;
+  max-width: 100%;
+}
+.resize-hint {
+  text-align: center;
+  font-size: var(--fs-dense);
+  color: var(--c-muted);
+  padding: .25rem 0;
+}
+#adaptive-content .demo-table { font-size: clamp(0.75rem, 2cqi, 1rem); }
+#adaptive-content .demo-table th,
+#adaptive-content .demo-table td { padding: 0 clamp(6px, 1.5cqi, 16px); }
+
+/* Abbreviation layers */
+.full-text { }
+.abbr-text { display: none; }
+.icon-text { display: none; }
+
+@container adaptive (max-width: 600px) {
+  #adaptive-content .col-category { display: none; }
+  .full-text.region { display: none; }
+  .abbr-text.region { display: inline; }
+}
+@container adaptive (max-width: 450px) {
+  .full-text.revenue { display: none; }
+  .abbr-text.revenue { display: inline; }
+  .full-text.price { display: none; }
+  .abbr-text.price { display: inline; }
+}
+@container adaptive (max-width: 340px) {
+  .full-text.rating { display: none; }
+  .icon-text.rating { display: inline; }
+  #adaptive-content .col-growth { display: none; }
+}
+
+/* ── 7. Comparison Mode ──────────────────────────────── */
+.cmp-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.cmp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: .4rem .75rem;
+  background: var(--c-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.cmp-btn:disabled { opacity: .4; cursor: not-allowed; }
+.cmp-indicator { font-size: var(--fs-body); color: var(--c-muted); font-weight: 500; }
+.cmp-table td:first-child, .cmp-table th:first-child { font-weight: 600; }
+.cmp-table { width: 100%; }
+
+/* ── 8. Multi-Row Stacking ───────────────────────────── */
+.multirow-table tr.row-primary td { border-bottom: none; }
+.multirow-table tr.row-secondary td {
+  font-size: var(--fs-dense);
+  color: var(--c-muted);
+  height: 36px;
+}
+.multirow-table tr.row-secondary td:first-child { border-bottom: none; }
+.multirow-table tr:nth-child(4n+3) td,
+.multirow-table tr:nth-child(4n+4) td { background: var(--c-zebra); }
+
+/* ── 9. Data Filter ──────────────────────────────────── */
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+.filter-group { display: flex; flex-direction: column; gap: .25rem; }
+.filter-group label { font-size: var(--fs-dense); font-weight: 600; color: var(--c-muted); text-transform: uppercase; }
+.filter-group select,
+.filter-group input {
+  min-height: var(--touch-target);
+  padding: .4rem .6rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  font-size: var(--fs-body);
+  background: var(--c-bg);
+}
+.filter-columns { display: flex; flex-wrap: wrap; gap: .35rem; }
+.filter-columns label {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .25rem .5rem;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  font-size: var(--fs-dense);
+  cursor: pointer;
+  min-height: 36px;
+}
+.filter-columns label:has(input:checked) {
+  background: var(--c-accent-light);
+  border-color: var(--c-accent);
+}
+.filter-columns input { width: 16px; height: 16px; accent-color: var(--c-accent); }
+.filter-apply {
+  min-height: var(--touch-target);
+  padding: .4rem 1.25rem;
+  background: var(--c-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  font-weight: 600;
+}
+#filter-output { min-height: 100px; }
+
+/* ── 10. No Table (Chart) ────────────────────────────── */
+.chart-controls {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+.chart-controls label { font-size: var(--fs-dense); font-weight: 600; color: var(--c-muted); text-transform: uppercase; }
+.chart-controls select {
+  min-height: var(--touch-target);
+  padding: .4rem .6rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  font-size: var(--fs-body);
+}
+#chart-container svg { width: 100%; height: auto; }
+
+/* ── 11. CSS Grid + Subgrid ──────────────────────────── */
+.subgrid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+.subgrid-card {
+  display: grid;
+  grid-row: span 5;
+  grid-template-rows: subgrid;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  background: var(--c-bg);
+  gap: 0;
+}
+@supports not (grid-template-rows: subgrid) {
+  .subgrid-card {
+    grid-row: auto;
+    grid-template-rows: auto auto auto auto auto;
+  }
+}
+.subgrid-card .card-name { font-weight: 700; font-size: 1rem; margin-bottom: .25rem; }
+.subgrid-card .card-meta { font-size: var(--fs-dense); color: var(--c-muted); }
+.subgrid-card .card-stat { font-size: var(--fs-body); }
+.subgrid-card .card-stat .label { font-size: var(--fs-dense); color: var(--c-muted); }
+.subgrid-card .card-bar {
+  height: 6px;
+  background: var(--c-surface);
+  border-radius: 3px;
+  overflow: hidden;
+  align-self: end;
+}
+.subgrid-card .card-bar-fill {
+  height: 100%;
+  background: var(--c-accent);
+  border-radius: 3px;
+}
+
+/* ── 12. Fixed Layout + Ellipsis ─────────────────────── */
+.fixed-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.fixed-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Kebab Menu (for UX principles) ──────────────────── */
+.kebab-menu {
+  position: relative;
+  display: inline-flex;
+}
+.kebab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  border-radius: var(--radius);
+  color: var(--c-muted);
+}
+.kebab-btn:hover { background: var(--c-surface); }
+.kebab-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  z-index: 50;
+  min-width: 120px;
+}
+.kebab-dropdown.open { display: block; }
+.kebab-dropdown button {
+  display: block;
+  width: 100%;
+  padding: .5rem .75rem;
+  text-align: left;
+  background: none;
+  border: none;
+  font-size: var(--fs-body);
+  cursor: pointer;
+  min-height: var(--touch-target);
+}
+.kebab-dropdown button:hover { background: var(--c-surface); }
+
+/* ── Footer ──────────────────────────────────────────── */
+.page-footer {
+  text-align: center;
+  padding: 2rem 1rem;
+  font-size: var(--fs-dense);
+  color: var(--c-muted);
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Mobile Data Tables</h1>
+  <p>A complete interactive demo of every responsive table pattern, CSS technique, and accessibility requirement. Resize your browser or view on mobile to see each pattern in action.</p>
+</div>
+
+<nav class="toc" aria-label="Demo sections">
+  <a href="#horizontal-scroll">Horizontal Scroll</a>
+  <a href="#priority-columns">Priority Columns</a>
+  <a href="#stacked-cards">Stacked Cards</a>
+  <a href="#column-toggle">Column Toggle</a>
+  <a href="#accordion-rows">Accordion</a>
+  <a href="#adaptive-content">Adaptive Content</a>
+  <a href="#comparison-mode">Comparison</a>
+  <a href="#multi-row-stack">Multi-Row</a>
+  <a href="#data-filter">Data Filter</a>
+  <a href="#no-table">No Table</a>
+  <a href="#subgrid-demo">Subgrid</a>
+  <a href="#fixed-layout">Fixed Layout</a>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════════════════════════════
+     1. HORIZONTAL SCROLLING
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="horizontal-scroll">
+  <header>
+    <h2>1. Horizontal Scrolling</h2>
+    <p>The simplest pattern: wrap the table in <code>overflow-x: auto</code>. The partially visible cut-off column signals scrollability. Gradient shadows on both edges reinforce the affordance. Best when users need to compare data across columns.</p>
+  </header>
+  <div class="demo-body">
+    <div class="scroll-wrapper" role="region" tabindex="0" aria-labelledby="hs-caption">
+      <table class="demo-table" id="horizontal-scroll-table">
+        <caption id="hs-caption" class="sr-only">Product catalog — scroll horizontally to see all columns</caption>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Category</th>
+            <th class="num">Price</th>
+            <th class="num">Rating</th>
+            <th class="num">Stock</th>
+            <th class="num">Revenue</th>
+            <th class="num">Growth</th>
+            <th>Region</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     2. PRIORITY COLUMNS (PINNED FIRST COLUMN)
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="priority-columns">
+  <header>
+    <h2>2. Priority Columns (Pinned First Column)</h2>
+    <p>The identifier column stays fixed via <code>position: sticky; left: 0</code> while other columns scroll underneath. Uses <code>border-collapse: separate</code> and z-index layering: corner (4) > header (3) > first column (2). NNG's top recommendation for comparison tables.</p>
+  </header>
+  <div class="demo-body">
+    <div class="scroll-wrapper" role="region" tabindex="0" aria-labelledby="pc-caption">
+      <table class="demo-table" id="priority-columns-table">
+        <caption id="pc-caption" class="sr-only">Product catalog with pinned first column</caption>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Category</th>
+            <th class="num">Price</th>
+            <th class="num">Rating</th>
+            <th class="num">Stock</th>
+            <th class="num">Revenue</th>
+            <th class="num">Growth</th>
+            <th>Region</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     3. STACKED ROWS / CARD REFORMATTING
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="stacked-cards">
+  <header>
+    <h2>3. Stacked Rows / Card Reformatting</h2>
+    <p>Below 768px, each row becomes a vertical card. <code>&lt;thead&gt;</code> is hidden; <code>td::before</code> with <code>data-label</code> attributes supplies labels. Full ARIA role remediation restores semantics after <code>display: block</code> strips them. Great for independent records; destroys column comparison.</p>
+  </header>
+  <div class="demo-body">
+    <div class="scroll-wrapper" role="region" tabindex="0" aria-labelledby="sc-caption">
+      <table class="demo-table stacked-table" role="table" id="stacked-cards-table">
+        <caption id="sc-caption" class="sr-only">Product catalog — reformats to cards on narrow screens</caption>
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader">Product</th>
+            <th role="columnheader">Category</th>
+            <th role="columnheader" class="num">Price</th>
+            <th role="columnheader" class="num">Rating</th>
+            <th role="columnheader" class="num">Stock</th>
+            <th role="columnheader" class="num">Revenue</th>
+            <th role="columnheader" class="num">Growth</th>
+            <th role="columnheader">Region</th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     4. COLUMN TOGGLING
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="column-toggle">
+  <header>
+    <h2>4. Column Toggling</h2>
+    <p>Hide non-essential columns behind a checkbox panel. Each column has a <code>data-priority</code> (1–6) controlling auto-hide at breakpoints. Ideal for tables with 8+ columns of mixed importance. Product Name (priority 1) is always visible.</p>
+  </header>
+  <div class="demo-body">
+    <div class="toggle-bar">
+      <button class="toggle-btn" id="toggle-columns-btn" aria-expanded="false" aria-controls="toggle-panel">
+        Columns <span class="toggle-badge" id="toggle-badge">8/8</span>
+      </button>
+    </div>
+    <div class="toggle-panel" id="toggle-panel" role="group" aria-label="Toggle table columns"></div>
+    <div class="scroll-wrapper" role="region" tabindex="0" aria-labelledby="ct-caption">
+      <table class="demo-table" id="column-toggle-table">
+        <caption id="ct-caption" class="sr-only">Product catalog with toggleable columns</caption>
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     5. COLLAPSE/EXPAND (ACCORDION) ROWS
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="accordion-rows">
+  <header>
+    <h2>5. Collapse/Expand (Accordion) Rows</h2>
+    <p>Show summary data in each row; tap to expand full details. Progressive disclosure keeps the view compact and scannable. Keyboard accessible: Enter or Space toggles rows. Best for drill-down workflows; makes row comparison impossible.</p>
+  </header>
+  <div class="demo-body">
+    <table class="demo-table accordion-table" id="accordion-table">
+      <caption class="sr-only">Product catalog — click rows to expand details</caption>
+      <thead>
+        <tr>
+          <th style="width:44px"></th>
+          <th>Product</th>
+          <th>Category</th>
+          <th class="num">Price</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     6. ADAPTIVE CONTENT REDUCTION (CONTAINER QUERIES)
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="adaptive-content">
+  <header>
+    <h2>6. Adaptive Content Reduction + Container Queries</h2>
+    <p>Instead of hiding columns, reduce what's <em>inside</em> cells: abbreviate text, substitute icons, truncate decimals. Uses <code>@container</code> queries (not media queries) so the table responds to its own container width. Drag the resize handle below to see three breakpoints in action. Typography uses <code>cqi</code> units.</p>
+  </header>
+  <div class="demo-body">
+    <div class="resize-handle">
+      <p class="resize-hint">&#x2194; Drag the bottom-right corner to resize</p>
+      <table class="demo-table" id="adaptive-table">
+        <caption class="sr-only">Adaptive content table — resize container to see content reduction</caption>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th class="col-category">Category</th>
+            <th class="num">Price</th>
+            <th class="num">Rating</th>
+            <th class="num">Stock</th>
+            <th class="num">Revenue</th>
+            <th class="num col-growth">Growth</th>
+            <th>Region</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     7. COMPARISON MODE / SWIPEABLE COLUMNS
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="comparison-mode">
+  <header>
+    <h2>7. Comparison Mode / Swipeable Columns</h2>
+    <p>Fixed reference column (first product) and one comparison column at a time, with arrow navigation <em>within</em> the data area — not pagination dots. NNG warns dots are "often overlooked." Supports touch swipe.</p>
+  </header>
+  <div class="demo-body">
+    <div class="cmp-controls">
+      <button class="cmp-btn" id="cmp-prev" aria-label="Previous product">&larr;</button>
+      <span class="cmp-indicator" id="cmp-indicator">2 of 12</span>
+      <button class="cmp-btn" id="cmp-next" aria-label="Next product">&rarr;</button>
+    </div>
+    <table class="demo-table cmp-table" id="comparison-table">
+      <caption class="sr-only">Product comparison — use arrows to browse products</caption>
+      <thead><tr><th>Attribute</th><th id="cmp-ref-head">—</th><th id="cmp-cur-head">—</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     8. MULTI-ROW STACKING
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="multi-row-stack">
+  <header>
+    <h2>8. Multi-Row Stacking</h2>
+    <p>Two lines of data per logical row reduce the column count. The Product cell spans both rows via <code>rowspan</code>. Primary row shows financials; secondary row shows metadata. Zebra striping applied to row pairs.</p>
+  </header>
+  <div class="demo-body">
+    <table class="demo-table multirow-table" id="multirow-table">
+      <caption class="sr-only">Product catalog with multi-row stacking</caption>
+      <thead>
+        <tr>
+          <th rowspan="2">Product</th>
+          <th class="num">Price</th>
+          <th class="num">Revenue</th>
+          <th class="num">Growth</th>
+        </tr>
+        <tr>
+          <th>Category</th>
+          <th class="num">Stock</th>
+          <th>Region</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     9. DATA SELECTION / FILTERING BEFORE DISPLAY
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="data-filter">
+  <header>
+    <h2>9. Data Selection / Filtering Before Display</h2>
+    <p>Let users choose which columns to see and filter data <em>before</em> rendering the table. Reduces information overload on small screens. Select columns and apply filters, then click "Show Table."</p>
+  </header>
+  <div class="demo-body">
+    <form class="filter-form" id="filter-form" onsubmit="return false">
+      <div class="filter-group">
+        <label>Columns</label>
+        <div class="filter-columns" id="filter-col-checks"></div>
+      </div>
+      <div class="filter-group">
+        <label for="filter-category">Category</label>
+        <select id="filter-category">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="filter-min-price">Min Price</label>
+        <input type="number" id="filter-min-price" placeholder="0" style="width:80px">
+      </div>
+      <div class="filter-group">
+        <label for="filter-max-price">Max Price</label>
+        <input type="number" id="filter-max-price" placeholder="999" style="width:80px">
+      </div>
+      <button class="filter-apply" id="filter-apply">Show Table</button>
+    </form>
+    <div id="filter-output"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     10. "NO TABLE" PATTERN (SVG BAR CHART)
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="no-table">
+  <header>
+    <h2>10. "No Table" Pattern</h2>
+    <p>Abandon tabular format entirely for a visualization. The same product data rendered as a horizontal bar chart. Use sparingly — Steven Hoober warns against being "contemptuous of the user's need to view information in a tabular format."</p>
+  </header>
+  <div class="demo-body">
+    <div class="chart-controls">
+      <label for="chart-metric">Metric</label>
+      <select id="chart-metric">
+        <option value="revenue">Revenue</option>
+        <option value="price">Price</option>
+        <option value="stock">Stock</option>
+        <option value="growth">Growth %</option>
+      </select>
+    </div>
+    <div id="chart-container" role="img" aria-label="Bar chart of product data"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     11. CSS GRID + SUBGRID
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="subgrid-demo">
+  <header>
+    <h2>11. CSS Grid with Subgrid</h2>
+    <p>Cards in an <code>auto-fill</code> grid, each using <code>grid-template-rows: subgrid</code> so that name, category, price, and bar chart rows align across cards regardless of content length. Falls back gracefully without subgrid support.</p>
+  </header>
+  <div class="demo-body">
+    <div class="subgrid-cards" id="subgrid-cards"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     12. FIXED LAYOUT + ELLIPSIS
+     ═══════════════════════════════════════════════════════ -->
+<section class="demo-section" id="fixed-layout">
+  <header>
+    <h2>12. Fixed Layout with Ellipsis</h2>
+    <p><code>table-layout: fixed</code> with explicit column widths via <code>&lt;colgroup&gt;</code>. Long text is truncated with <code>text-overflow: ellipsis</code>. Hover/focus reveals full text via <code>title</code>. Good for controlled density without structural changes.</p>
+  </header>
+  <div class="demo-body">
+    <table class="demo-table fixed-table" id="fixed-table">
+      <caption class="sr-only">Product catalog with fixed column widths and ellipsis overflow</caption>
+      <colgroup>
+        <col style="width:22%">
+        <col style="width:14%">
+        <col style="width:10%">
+        <col style="width:9%">
+        <col style="width:9%">
+        <col style="width:14%">
+        <col style="width:10%">
+        <col style="width:12%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Category</th>
+          <th class="num">Price</th>
+          <th class="num">Rating</th>
+          <th class="num">Stock</th>
+          <th class="num">Revenue</th>
+          <th class="num">Growth</th>
+          <th>Region</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<footer class="page-footer">
+  Responsive table patterns demo &middot; All CSS and JS inline, no dependencies &middot; Based on research from NNG, UXmatters, USWDS, Polaris, and more
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Sample Data ───────────────────────────────────── */
+  const DATA = [
+    { name: 'Wireless Earbuds Pro',     category: 'Audio',       price: 149.99, rating: 4.7, stock: 1243, revenue: 335420, growth: 23.5, region: 'North America' },
+    { name: 'Mechanical Keyboard',      category: 'Peripherals', price: 189.00, rating: 4.5, stock: 567,  revenue: 214890, growth: 12.1, region: 'Europe' },
+    { name: 'USB-C Docking Station',    category: 'Peripherals', price: 249.99, rating: 4.2, stock: 312,  revenue: 178560, growth: -3.4, region: 'North America' },
+    { name: '4K Webcam Ultra',          category: 'Video',       price: 199.99, rating: 4.8, stock: 891,  revenue: 402300, growth: 45.2, region: 'Asia Pacific' },
+    { name: 'Noise-Cancelling Headset', category: 'Audio',       price: 299.99, rating: 4.6, stock: 423,  revenue: 289100, growth: 18.7, region: 'Europe' },
+    { name: 'Portable SSD 2TB',         category: 'Storage',     price: 129.99, rating: 4.9, stock: 2105, revenue: 521400, growth: 31.0, region: 'North America' },
+    { name: 'Ergonomic Mouse',          category: 'Peripherals', price: 79.99,  rating: 4.3, stock: 1890, revenue: 156200, growth: 8.4,  region: 'Asia Pacific' },
+    { name: 'Smart Power Strip',        category: 'Accessories', price: 44.99,  rating: 4.1, stock: 3200, revenue: 98700,  growth: -1.2, region: 'Europe' },
+    { name: 'Thunderbolt Cable 2m',     category: 'Accessories', price: 39.99,  rating: 4.4, stock: 5100, revenue: 67300,  growth: 5.6,  region: 'North America' },
+    { name: 'Studio Monitor Speakers',  category: 'Audio',       price: 449.99, rating: 4.8, stock: 198,  revenue: 387600, growth: 27.3, region: 'Asia Pacific' },
+    { name: 'Mesh Wi-Fi System',        category: 'Networking',  price: 349.99, rating: 4.5, stock: 678,  revenue: 445200, growth: 38.9, region: 'North America' },
+    { name: 'Laptop Stand Aluminum',    category: 'Accessories', price: 59.99,  rating: 4.6, stock: 4200, revenue: 124800, growth: 14.2, region: 'Europe' },
+  ];
+
+  const COLUMNS = [
+    { key: 'name',     label: 'Product',  align: 'left',  priority: 1, fmt: v => v },
+    { key: 'category', label: 'Category', align: 'left',  priority: 3, fmt: v => v },
+    { key: 'price',    label: 'Price',    align: 'right', priority: 2, fmt: v => '$' + v.toFixed(2) },
+    { key: 'rating',   label: 'Rating',   align: 'right', priority: 4, fmt: v => v.toFixed(1) },
+    { key: 'stock',    label: 'Stock',    align: 'right', priority: 5, fmt: v => v.toLocaleString() },
+    { key: 'revenue',  label: 'Revenue',  align: 'right', priority: 2, fmt: v => '$' + v.toLocaleString() },
+    { key: 'growth',   label: 'Growth',   align: 'right', priority: 3, fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%' },
+    { key: 'region',   label: 'Region',   align: 'left',  priority: 6, fmt: v => v },
+  ];
+
+  const REGION_ABBR = { 'North America': 'NA', 'Europe': 'EU', 'Asia Pacific': 'APAC' };
+
+  function fmtCompact(v) {
+    if (v >= 1000000) return '$' + (v / 1000000).toFixed(1) + 'M';
+    if (v >= 1000) return '$' + (v / 1000).toFixed(0) + 'K';
+    return '$' + v;
+  }
+
+  function starRating(v) {
+    var full = Math.floor(v);
+    var half = v - full >= 0.5 ? 1 : 0;
+    return '\u2605'.repeat(full) + (half ? '\u00BD' : '');
+  }
+
+  /* ── 1 & 2. Populate simple scroll tables ──────────── */
+  function fillSimpleTable(tableId) {
+    var tbody = document.querySelector('#' + tableId + ' tbody');
+    DATA.forEach(function (row) {
+      var tr = document.createElement('tr');
+      COLUMNS.forEach(function (col) {
+        var td = document.createElement('td');
+        if (col.align === 'right') td.className = 'num';
+        td.textContent = col.fmt(row[col.key]);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  fillSimpleTable('horizontal-scroll-table');
+  fillSimpleTable('priority-columns-table');
+
+  /* ── 3. Stacked cards table (with data-label + ARIA) ── */
+  (function () {
+    var tbody = document.querySelector('#stacked-cards-table tbody');
+    DATA.forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.setAttribute('role', 'row');
+      COLUMNS.forEach(function (col) {
+        var td = document.createElement('td');
+        td.setAttribute('role', 'cell');
+        td.setAttribute('data-label', col.label);
+        if (col.align === 'right') td.className = 'num';
+        td.textContent = col.fmt(row[col.key]);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  })();
+
+  /* ── 4. Column Toggling ────────────────────────────── */
+  (function () {
+    var table = document.getElementById('column-toggle-table');
+    var theadTr = table.querySelector('thead tr');
+    var tbody = table.querySelector('tbody');
+    var panel = document.getElementById('toggle-panel');
+    var badge = document.getElementById('toggle-badge');
+    var btn = document.getElementById('toggle-columns-btn');
+    var visible = {};
+
+    COLUMNS.forEach(function (col, i) {
+      // Header
+      var th = document.createElement('th');
+      th.textContent = col.label;
+      th.setAttribute('data-col', i);
+      if (col.align === 'right') th.className = 'num';
+      theadTr.appendChild(th);
+
+      // Checkbox
+      var label = document.createElement('label');
+      if (col.priority === 1) label.className = 'disabled';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.value = i;
+      if (col.priority === 1) cb.disabled = true;
+      cb.addEventListener('change', updateToggle);
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(' ' + col.label));
+      panel.appendChild(label);
+      visible[i] = true;
+    });
+
+    // Rows
+    DATA.forEach(function (row) {
+      var tr = document.createElement('tr');
+      COLUMNS.forEach(function (col, i) {
+        var td = document.createElement('td');
+        td.setAttribute('data-col', i);
+        if (col.align === 'right') td.className = 'num';
+        td.textContent = col.fmt(row[col.key]);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+
+    btn.addEventListener('click', function () {
+      var open = panel.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open);
+    });
+
+    function updateToggle() {
+      var checks = panel.querySelectorAll('input[type=checkbox]');
+      var count = 0;
+      checks.forEach(function (cb) {
+        var idx = cb.value;
+        visible[idx] = cb.checked;
+        if (cb.checked) count++;
+        table.querySelectorAll('[data-col="' + idx + '"]').forEach(function (el) {
+          el.classList.toggle('col-hidden', !cb.checked);
+        });
+      });
+      badge.textContent = count + '/' + COLUMNS.length;
+    }
+  })();
+
+  /* ── 5. Accordion Rows ─────────────────────────────── */
+  (function () {
+    var tbody = document.querySelector('#accordion-table tbody');
+    DATA.forEach(function (row, idx) {
+      var summaryId = 'acc-sum-' + idx;
+      var detailId = 'acc-det-' + idx;
+
+      var tr = document.createElement('tr');
+      tr.className = 'acc-summary';
+      tr.setAttribute('tabindex', '0');
+      tr.setAttribute('role', 'row');
+      tr.setAttribute('aria-expanded', 'false');
+      tr.setAttribute('aria-controls', detailId);
+      tr.id = summaryId;
+
+      var tdIcon = document.createElement('td');
+      tdIcon.innerHTML = '<span class="acc-icon" aria-hidden="true">&#x25B8;</span>';
+      tr.appendChild(tdIcon);
+
+      [['name',''], ['category',''], ['price','num']].forEach(function (pair) {
+        var td = document.createElement('td');
+        if (pair[1]) td.className = pair[1];
+        var col = COLUMNS.find(function(c) { return c.key === pair[0]; });
+        td.textContent = col.fmt(row[pair[0]]);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+
+      // Detail row
+      var det = document.createElement('tr');
+      det.className = 'acc-detail';
+      det.id = detailId;
+      det.hidden = true;
+      det.setAttribute('role', 'row');
+      var detTd = document.createElement('td');
+      detTd.setAttribute('colspan', '4');
+      var dl = document.createElement('dl');
+      [
+        ['Rating', row.rating.toFixed(1)],
+        ['Stock', row.stock.toLocaleString()],
+        ['Revenue', '$' + row.revenue.toLocaleString()],
+        ['Growth', (row.growth >= 0 ? '+' : '') + row.growth.toFixed(1) + '%'],
+        ['Region', row.region]
+      ].forEach(function (pair) {
+        var dt = document.createElement('dt');
+        dt.textContent = pair[0];
+        var dd = document.createElement('dd');
+        dd.textContent = pair[1];
+        dl.appendChild(dt);
+        dl.appendChild(dd);
+      });
+      detTd.appendChild(dl);
+      det.appendChild(detTd);
+      tbody.appendChild(det);
+
+      function toggle() {
+        var expanded = tr.getAttribute('aria-expanded') === 'true';
+        tr.setAttribute('aria-expanded', !expanded);
+        det.hidden = expanded;
+      }
+      tr.addEventListener('click', toggle);
+      tr.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      });
+    });
+  })();
+
+  /* ── 6. Adaptive Content (Container Queries) ───────── */
+  (function () {
+    var tbody = document.querySelector('#adaptive-table tbody');
+    DATA.forEach(function (row) {
+      var tr = document.createElement('tr');
+
+      // Product
+      var td0 = document.createElement('td');
+      td0.textContent = row.name;
+      tr.appendChild(td0);
+
+      // Category
+      var td1 = document.createElement('td');
+      td1.className = 'col-category';
+      td1.textContent = row.category;
+      tr.appendChild(td1);
+
+      // Price (full / abbreviated)
+      var td2 = document.createElement('td');
+      td2.className = 'num';
+      td2.innerHTML = '<span class="full-text price">$' + row.price.toFixed(2) + '</span><span class="abbr-text price">$' + Math.round(row.price) + '</span>';
+      tr.appendChild(td2);
+
+      // Rating (full / icon)
+      var td3 = document.createElement('td');
+      td3.className = 'num';
+      td3.innerHTML = '<span class="full-text rating">' + row.rating.toFixed(1) + '</span><span class="icon-text rating">' + starRating(row.rating) + '</span>';
+      tr.appendChild(td3);
+
+      // Stock
+      var td4 = document.createElement('td');
+      td4.className = 'num';
+      td4.textContent = row.stock.toLocaleString();
+      tr.appendChild(td4);
+
+      // Revenue (full / compact)
+      var td5 = document.createElement('td');
+      td5.className = 'num';
+      td5.innerHTML = '<span class="full-text revenue">$' + row.revenue.toLocaleString() + '</span><span class="abbr-text revenue">' + fmtCompact(row.revenue) + '</span>';
+      tr.appendChild(td5);
+
+      // Growth
+      var td6 = document.createElement('td');
+      td6.className = 'num col-growth';
+      td6.textContent = (row.growth >= 0 ? '+' : '') + row.growth.toFixed(1) + '%';
+      tr.appendChild(td6);
+
+      // Region (full / abbr)
+      var td7 = document.createElement('td');
+      td7.innerHTML = '<span class="full-text region">' + row.region + '</span><span class="abbr-text region">' + (REGION_ABBR[row.region] || row.region) + '</span>';
+      tr.appendChild(td7);
+
+      tbody.appendChild(tr);
+    });
+  })();
+
+  /* ── 7. Comparison Mode ────────────────────────────── */
+  (function () {
+    var table = document.getElementById('comparison-table');
+    var tbody = table.querySelector('tbody');
+    var refHead = document.getElementById('cmp-ref-head');
+    var curHead = document.getElementById('cmp-cur-head');
+    var indicator = document.getElementById('cmp-indicator');
+    var prevBtn = document.getElementById('cmp-prev');
+    var nextBtn = document.getElementById('cmp-next');
+    var currentIdx = 1;
+    var refIdx = 0;
+
+    var attrs = COLUMNS.slice(1); // skip name
+
+    function render() {
+      var ref = DATA[refIdx];
+      var cur = DATA[currentIdx];
+      refHead.textContent = ref.name;
+      curHead.textContent = cur.name;
+      indicator.textContent = (currentIdx + 1) + ' of ' + DATA.length;
+      prevBtn.disabled = currentIdx <= 1;
+      nextBtn.disabled = currentIdx >= DATA.length - 1;
+
+      tbody.innerHTML = '';
+      attrs.forEach(function (col) {
+        var tr = document.createElement('tr');
+        var th = document.createElement('td');
+        th.style.fontWeight = '600';
+        th.textContent = col.label;
+        var tdRef = document.createElement('td');
+        if (col.align === 'right') tdRef.className = 'num';
+        tdRef.textContent = col.fmt(ref[col.key]);
+        var tdCur = document.createElement('td');
+        if (col.align === 'right') tdCur.className = 'num';
+        tdCur.textContent = col.fmt(cur[col.key]);
+        tr.appendChild(th);
+        tr.appendChild(tdRef);
+        tr.appendChild(tdCur);
+        tbody.appendChild(tr);
+      });
+    }
+
+    prevBtn.addEventListener('click', function () {
+      if (currentIdx > 1) { currentIdx--; render(); }
+    });
+    nextBtn.addEventListener('click', function () {
+      if (currentIdx < DATA.length - 1) { currentIdx++; render(); }
+    });
+
+    // Touch swipe
+    var startX = 0;
+    var section = document.getElementById('comparison-mode');
+    section.addEventListener('touchstart', function (e) { startX = e.touches[0].clientX; }, { passive: true });
+    section.addEventListener('touchend', function (e) {
+      var dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) > 50) {
+        if (dx < 0 && currentIdx < DATA.length - 1) { currentIdx++; render(); }
+        else if (dx > 0 && currentIdx > 1) { currentIdx--; render(); }
+      }
+    }, { passive: true });
+
+    render();
+  })();
+
+  /* ── 8. Multi-Row Stacking ─────────────────────────── */
+  (function () {
+    var tbody = document.querySelector('#multirow-table tbody');
+    DATA.forEach(function (row) {
+      var tr1 = document.createElement('tr');
+      tr1.className = 'row-primary';
+      var tdName = document.createElement('td');
+      tdName.setAttribute('rowspan', '2');
+      tdName.style.fontWeight = '600';
+      tdName.style.verticalAlign = 'middle';
+      tdName.textContent = row.name;
+      tr1.appendChild(tdName);
+      [['price','num'], ['revenue','num'], ['growth','num']].forEach(function (pair) {
+        var td = document.createElement('td');
+        if (pair[1]) td.className = pair[1];
+        var col = COLUMNS.find(function(c) { return c.key === pair[0]; });
+        td.textContent = col.fmt(row[pair[0]]);
+        tr1.appendChild(td);
+      });
+      tbody.appendChild(tr1);
+
+      var tr2 = document.createElement('tr');
+      tr2.className = 'row-secondary';
+      [['category',''], ['stock','num'], ['region','']].forEach(function (pair) {
+        var td = document.createElement('td');
+        if (pair[1]) td.className = pair[1];
+        var col = COLUMNS.find(function(c) { return c.key === pair[0]; });
+        td.textContent = col.fmt(row[pair[0]]);
+        tr2.appendChild(td);
+      });
+      tbody.appendChild(tr2);
+    });
+  })();
+
+  /* ── 9. Data Filter ────────────────────────────────── */
+  (function () {
+    var colChecks = document.getElementById('filter-col-checks');
+    var catSelect = document.getElementById('filter-category');
+    var output = document.getElementById('filter-output');
+
+    // Column checkboxes
+    COLUMNS.forEach(function (col, i) {
+      var label = document.createElement('label');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = i;
+      cb.checked = i < 4; // first 4 checked by default
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(' ' + col.label));
+      colChecks.appendChild(label);
+    });
+
+    // Category dropdown
+    var cats = [];
+    DATA.forEach(function (row) {
+      if (cats.indexOf(row.category) === -1) cats.push(row.category);
+    });
+    cats.sort().forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c;
+      opt.textContent = c;
+      catSelect.appendChild(opt);
+    });
+
+    document.getElementById('filter-apply').addEventListener('click', function () {
+      var selectedCols = [];
+      colChecks.querySelectorAll('input:checked').forEach(function (cb) {
+        selectedCols.push(COLUMNS[parseInt(cb.value)]);
+      });
+      if (selectedCols.length === 0) { output.innerHTML = '<p style="color:var(--c-muted)">Select at least one column.</p>'; return; }
+
+      var cat = catSelect.value;
+      var minP = parseFloat(document.getElementById('filter-min-price').value) || 0;
+      var maxP = parseFloat(document.getElementById('filter-max-price').value) || Infinity;
+
+      var filtered = DATA.filter(function (row) {
+        if (cat && row.category !== cat) return false;
+        if (row.price < minP || row.price > maxP) return false;
+        return true;
+      });
+
+      if (filtered.length === 0) { output.innerHTML = '<p style="color:var(--c-muted)">No products match your filters.</p>'; return; }
+
+      var html = '<div class="scroll-wrapper" role="region" tabindex="0"><table class="demo-table"><thead><tr>';
+      selectedCols.forEach(function (col) {
+        html += '<th' + (col.align === 'right' ? ' class="num"' : '') + '>' + col.label + '</th>';
+      });
+      html += '</tr></thead><tbody>';
+      filtered.forEach(function (row) {
+        html += '<tr>';
+        selectedCols.forEach(function (col) {
+          html += '<td' + (col.align === 'right' ? ' class="num"' : '') + '>' + col.fmt(row[col.key]) + '</td>';
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+      output.innerHTML = html;
+    });
+
+    // Auto-trigger
+    document.getElementById('filter-apply').click();
+  })();
+
+  /* ── 10. Bar Chart (SVG) ───────────────────────────── */
+  (function () {
+    var container = document.getElementById('chart-container');
+    var metricSel = document.getElementById('chart-metric');
+
+    function render() {
+      var key = metricSel.value;
+      var col = COLUMNS.find(function (c) { return c.key === key; });
+      if (!col) return;
+
+      var sorted = DATA.slice().sort(function (a, b) { return b[key] - a[key]; });
+      var maxVal = Math.max.apply(null, sorted.map(function (r) { return Math.abs(r[key]); }));
+      var barH = 28;
+      var gap = 8;
+      var labelW = 180;
+      var valueW = 80;
+      var chartW = 600;
+      var totalW = labelW + chartW + valueW;
+      var totalH = sorted.length * (barH + gap) + gap;
+
+      var svg = '<svg viewBox="0 0 ' + totalW + ' ' + totalH + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' + col.label + ' by product">';
+      sorted.forEach(function (row, i) {
+        var y = gap + i * (barH + gap);
+        var val = row[key];
+        var barW = Math.abs(val) / maxVal * (chartW - 20);
+        var color = val >= 0 ? '#0d6efd' : '#dc3545';
+        svg += '<text x="' + (labelW - 8) + '" y="' + (y + barH / 2 + 5) + '" text-anchor="end" font-size="13" fill="#212529" font-family="-apple-system,sans-serif">' + row.name + '</text>';
+        svg += '<rect x="' + labelW + '" y="' + y + '" width="' + barW + '" height="' + barH + '" rx="4" fill="' + color + '" opacity="0.85"/>';
+        svg += '<text x="' + (labelW + chartW + 4) + '" y="' + (y + barH / 2 + 5) + '" font-size="13" fill="#6c757d" font-family="-apple-system,sans-serif" font-variant-numeric="tabular-nums">' + col.fmt(val) + '</text>';
+      });
+      svg += '</svg>';
+      container.innerHTML = svg;
+    }
+
+    metricSel.addEventListener('change', render);
+    render();
+  })();
+
+  /* ── 11. Subgrid Cards ─────────────────────────────── */
+  (function () {
+    var grid = document.getElementById('subgrid-cards');
+    var maxRev = Math.max.apply(null, DATA.map(function (r) { return r.revenue; }));
+    DATA.forEach(function (row) {
+      var card = document.createElement('div');
+      card.className = 'subgrid-card';
+      card.innerHTML =
+        '<div class="card-name">' + row.name + '</div>' +
+        '<div class="card-meta">' + row.category + ' &middot; ' + row.region + '</div>' +
+        '<div class="card-stat"><span class="label">Price</span> $' + row.price.toFixed(2) + ' &nbsp; <span class="label">Rating</span> ' + row.rating.toFixed(1) + '</div>' +
+        '<div class="card-stat"><span class="label">Revenue</span> $' + row.revenue.toLocaleString() + ' &nbsp; <span class="label">Growth</span> ' + (row.growth >= 0 ? '+' : '') + row.growth.toFixed(1) + '%</div>' +
+        '<div class="card-bar"><div class="card-bar-fill" style="width:' + (row.revenue / maxRev * 100).toFixed(1) + '%"></div></div>';
+      grid.appendChild(card);
+    });
+  })();
+
+  /* ── 12. Fixed Layout Table ────────────────────────── */
+  (function () {
+    var tbody = document.querySelector('#fixed-table tbody');
+    DATA.forEach(function (row) {
+      var tr = document.createElement('tr');
+      COLUMNS.forEach(function (col) {
+        var td = document.createElement('td');
+        if (col.align === 'right') td.className = 'num';
+        var text = col.fmt(row[col.key]);
+        td.textContent = text;
+        td.setAttribute('title', text);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  })();
+
+  /* ── Kebab menus (close on outside click) ──────────── */
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll('.kebab-dropdown.open').forEach(function (dd) {
+      if (!dd.parentElement.contains(e.target)) dd.classList.remove('open');
+    });
+  });
+
+})();
+</script>
+</body>
+</html>
