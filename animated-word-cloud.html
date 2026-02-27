@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Animated Word Cloud</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0f0f1a;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+}
+h1 { font-size: 1.4rem; margin-bottom: 0.5rem; color: #fff; }
+#input-section {
+    width: 100%;
+    max-width: 900px;
+    margin-bottom: 1rem;
+}
+#input-section textarea {
+    width: 100%;
+    height: 120px;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+    resize: vertical;
+    font-family: inherit;
+}
+#input-section textarea:focus { outline: none; border-color: #6c63ff; }
+.btn-row { display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap; }
+button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: opacity 0.15s;
+}
+button:hover { opacity: 0.85; }
+button:disabled { opacity: 0.4; cursor: default; }
+.btn-primary { background: #6c63ff; color: #fff; }
+.btn-secondary { background: #333; color: #e0e0e0; }
+#controls {
+    width: 100%;
+    max-width: 900px;
+    background: #1a1a2e;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+    display: none;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+#controls.visible { display: flex; }
+#controls label { font-size: 0.8rem; color: #aaa; }
+#controls .control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+#speed-slider { width: 120px; accent-color: #6c63ff; }
+#progress-slider { width: 200px; accent-color: #6c63ff; }
+#status {
+    font-size: 0.8rem;
+    color: #aaa;
+    margin-left: auto;
+    white-space: nowrap;
+}
+#canvas-wrap {
+    position: relative;
+    border-radius: 6px;
+    overflow: hidden;
+    display: none;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+#canvas-wrap.visible { display: block; }
+canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+.info {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 0.5rem;
+    text-align: center;
+    max-width: 900px;
+}
+</style>
+</head>
+<body>
+<h1>Animated Word Cloud</h1>
+<div id="input-section">
+    <textarea id="text-input" placeholder="Paste your text here..."></textarea>
+    <div class="btn-row">
+        <button class="btn-primary" id="btn-generate">Generate Word Cloud</button>
+        <button class="btn-secondary" id="btn-clear">Clear</button>
+    </div>
+</div>
+<div id="controls">
+    <div class="control-group">
+        <button class="btn-secondary" id="btn-play" title="Play/Pause">&#9654;</button>
+        <button class="btn-secondary" id="btn-step" title="Step forward one frame" disabled>&#9197;</button>
+    </div>
+    <div class="control-group">
+        <label>Speed</label>
+        <input type="range" id="speed-slider" min="1" max="100" value="50">
+    </div>
+    <div class="control-group">
+        <label>Progress</label>
+        <input type="range" id="progress-slider" min="0" max="0" value="0">
+    </div>
+    <div class="control-group">
+        <button class="btn-secondary" id="btn-download">Download PNG</button>
+    </div>
+    <span id="status"></span>
+</div>
+<div id="canvas-wrap">
+    <canvas id="cloud-canvas" width="1200" height="800"></canvas>
+</div>
+<p class="info">
+    Visualizes the Archimedean spiral placement algorithm: each word spirals outward
+    from the center until it finds a spot that doesn't overlap existing words.
+    Grid-based spatial indexing accelerates collision detection.
+</p>
+<script>
+(function() {
+    'use strict';
+
+    const CANVAS_W = 1200, CANVAS_H = 800;
+    const BG_COLOR = '#1a1a2e';
+    const CELL_SIZE = 40;
+    const PADDING = 3;
+    const MAX_WORDS = 200;
+    const MIN_FONT = 12, MAX_FONT = 90;
+    const MIN_WORD_LEN = 3;
+
+    const PALETTES = {
+        vibrant: ['#FF6B6B','#4ECDC4','#FFE66D','#A06CD5','#6BCB77','#FF8C42','#45B7D1','#F7DC6F','#BB8FCE','#58D68D']
+    };
+    const PALETTE = PALETTES.vibrant;
+
+    const STOP_WORDS = new Set([
+        'the','be','to','of','and','in','that','have','it','for','not','on','with','he','as','you',
+        'do','at','this','but','his','by','from','they','we','say','her','she','or','an','will','my',
+        'one','all','would','there','their','what','so','up','out','if','about','who','get','which',
+        'go','me','when','make','can','like','time','no','just','him','know','take','people','into',
+        'year','your','good','some','could','them','see','other','than','then','now','look','only',
+        'come','its','over','think','also','back','after','use','two','how','our','work','first',
+        'well','way','even','new','want','because','any','these','give','day','most','us','is','are',
+        'was','were','been','has','had','did','does','doing','being','am','more','very','much','too',
+        'here','where','why','each','such','should','own','same','may','still','must','got','made',
+        'don','didn','doesn','isn','aren','wasn','weren','won','let','thing','things','really',
+        'going','those','need','right','put','many','used','using','through','since','long','while',
+        'before','between','under','along','both','another','around','however','without','again',
+        'off','down','away','every','found','keep','might','left','part','point','last','different',
+        'end','set','three','few','help','start','show','world','next','began','head','turn','real',
+        'leave','great','old','big','small','large','high','little',
+        "it's","i'm","i've","i'll","don't","didn't","doesn't","isn't","that's","there's",
+        "they're","you're","we're","he's","she's","it'd","i'd","we'd","you'd","they'd",
+        "won't","wouldn't","couldn't","shouldn't","wasn't","weren't","aren't","hasn't",
+        "hadn't","can't","what's","who's","let's",'ll','ve','re',
+        'http','https','www','com','org','net','html','htm','png','jpg','jpeg','gif','svg','css','pdf',
+        'class','style','width','height','div','span','href','src','nbsp','amp','quot','rel','nofollow'
+    ]);
+
+    // --- Word counting ---
+    function countWords(text) {
+        const counts = new Map();
+        const words = text.split(/[^a-zA-Z0-9']+/);
+        for (let raw of words) {
+            const w = raw.replace(/^'+|'+$/g, '').toLowerCase();
+            if (w.length < MIN_WORD_LEN) continue;
+            if (/^\d+$/.test(w)) continue;
+            if (w.length === 6 && /^[0-9a-f]+$/.test(w)) continue;
+            if (STOP_WORDS.has(w)) continue;
+            counts.set(w, (counts.get(w) || 0) + 1);
+        }
+        return [...counts.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, MAX_WORDS);
+    }
+
+    // --- Text measurement ---
+    let measureCtx;
+    function measureText(word, fontSize) {
+        if (!measureCtx) {
+            const c = document.createElement('canvas');
+            measureCtx = c.getContext('2d');
+        }
+        measureCtx.font = `bold ${fontSize}px sans-serif`;
+        const m = measureCtx.measureText(word);
+        const w = Math.ceil(m.width);
+        const h = Math.ceil(fontSize * 1.15);
+        return [w, h];
+    }
+
+    // --- Spatial grid ---
+    class SpatialGrid {
+        constructor(width, height, cellSize) {
+            this.cellSize = cellSize;
+            this.cols = Math.ceil(width / cellSize);
+            this.rows = Math.ceil(height / cellSize);
+            this.cells = new Array(this.cols * this.rows);
+            for (let i = 0; i < this.cells.length; i++) this.cells[i] = [];
+            this.rects = [];
+        }
+        insert(x, y, w, h) {
+            const idx = this.rects.length;
+            this.rects.push([x, y, w, h]);
+            const c0 = Math.max(0, Math.floor(x / this.cellSize));
+            const c1 = Math.min(this.cols - 1, Math.floor((x + w) / this.cellSize));
+            const r0 = Math.max(0, Math.floor(y / this.cellSize));
+            const r1 = Math.min(this.rows - 1, Math.floor((y + h) / this.cellSize));
+            for (let r = r0; r <= r1; r++) {
+                for (let c = c0; c <= c1; c++) {
+                    this.cells[r * this.cols + c].push(idx);
+                }
+            }
+        }
+        overlaps(x, y, w, h, padding) {
+            const px = x - padding, py = y - padding;
+            const pw = w + 2 * padding, ph = h + 2 * padding;
+            const c0 = Math.max(0, Math.floor(px / this.cellSize));
+            const c1 = Math.min(this.cols - 1, Math.floor((px + pw) / this.cellSize));
+            const r0 = Math.max(0, Math.floor(py / this.cellSize));
+            const r1 = Math.min(this.rows - 1, Math.floor((py + ph) / this.cellSize));
+            for (let r = r0; r <= r1; r++) {
+                for (let c = c0; c <= c1; c++) {
+                    const cell = this.cells[r * this.cols + c];
+                    for (let i = 0; i < cell.length; i++) {
+                        const [rx, ry, rw, rh] = this.rects[cell[i]];
+                        if (px < rx + rw && px + pw > rx && py < ry + rh && py + ph > ry) return true;
+                    }
+                }
+            }
+            return false;
+        }
+    }
+
+    // --- Pre-compute all placement frames ---
+    function computePlacement(wordCounts) {
+        const grid = new SpatialGrid(CANVAS_W, CANVAS_H, CELL_SIZE);
+        const centerX = CANVAS_W / 2, centerY = CANVAS_H / 2;
+        const maxCount = wordCounts[0][1];
+        const minCount = wordCounts[wordCounts.length - 1][1];
+        const logMax = Math.log(maxCount), logMin = Math.log(minCount);
+
+        const frames = []; // Each frame: { type, word, fontSize, color, x, y, tw, th, spiralX?, spiralY?, placed? }
+        // Frame types: 'try' (spiral probe), 'place' (final placement), 'skip' (gave up)
+
+        const rng = mulberry32(42); // deterministic seed
+
+        for (let idx = 0; idx < wordCounts.length; idx++) {
+            const [word, count] = wordCounts[idx];
+            const ratio = maxCount > minCount
+                ? (Math.log(count) - logMin) / (logMax - logMin)
+                : 1;
+            const fontSize = MIN_FONT + ratio * (MAX_FONT - MIN_FONT);
+            const [tw, th] = measureText(word, fontSize);
+            if (tw === 0 || th === 0) continue;
+
+            const color = PALETTE[idx % PALETTE.length];
+            const maxRadius = Math.sqrt(CANVAS_W * CANVAS_W + CANVAS_H * CANVAS_H) / 2;
+            const angleOffset = rng() * Math.PI * 2;
+            const dTheta = 0.15;
+            const a = 1.2;
+            const maxSteps = Math.floor((maxRadius / a) / dTheta) + 5000;
+
+            let found = false;
+            // We don't record every single spiral probe - that would be too many frames.
+            // Instead record a subset to keep animation manageable.
+            let probesSinceLastFrame = 0;
+            const probeInterval = Math.max(1, Math.floor(maxSteps / 60)); // at most ~60 probe frames per word
+
+            for (let step = 0; step < maxSteps; step++) {
+                const theta = step * dTheta;
+                const r = a * theta;
+                const angle = theta + angleOffset;
+                const x = Math.round(centerX + r * Math.cos(angle) - tw / 2);
+                const y = Math.round(centerY + r * Math.sin(angle) - th / 2);
+
+                probesSinceLastFrame++;
+
+                if (x < 4 || y < 4 || x + tw > CANVAS_W - 4 || y + th > CANVAS_H - 4) {
+                    if (r > maxRadius) break;
+                    continue;
+                }
+
+                if (!grid.overlaps(x, y, tw, th, PADDING)) {
+                    // Record a few probe frames leading up to placement
+                    frames.push({ type: 'place', word, fontSize, color, x, y, tw, th, wordIdx: idx });
+                    grid.insert(x, y, tw, th);
+                    found = true;
+                    break;
+                } else if (probesSinceLastFrame >= probeInterval) {
+                    frames.push({ type: 'try', word, fontSize, color, x, y, tw, th, wordIdx: idx });
+                    probesSinceLastFrame = 0;
+                }
+            }
+            if (!found) {
+                frames.push({ type: 'skip', word, fontSize, color, x: 0, y: 0, tw, th, wordIdx: idx });
+            }
+        }
+        return frames;
+    }
+
+    // Deterministic PRNG (mulberry32)
+    function mulberry32(seed) {
+        return function() {
+            seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+            let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+            t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+    }
+
+    // --- Rendering ---
+    function renderFrame(ctx, frames, upToIndex) {
+        ctx.fillStyle = BG_COLOR;
+        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+        // Draw all placed words up to this frame
+        const placed = [];
+        let currentTry = null;
+        for (let i = 0; i <= upToIndex && i < frames.length; i++) {
+            const f = frames[i];
+            if (f.type === 'place') {
+                placed.push(f);
+            } else if (f.type === 'try') {
+                currentTry = (i === upToIndex) ? f : null;
+            }
+        }
+
+        // Draw placed words
+        for (const f of placed) {
+            ctx.font = `bold ${f.fontSize}px sans-serif`;
+            ctx.fillStyle = f.color;
+            ctx.textBaseline = 'top';
+            ctx.fillText(f.word, f.x, f.y);
+        }
+
+        // Draw current probe attempt (ghost word + spiral indicator)
+        if (currentTry) {
+            // Draw faint ghost of the word being tried
+            ctx.save();
+            ctx.globalAlpha = 0.35;
+            ctx.font = `bold ${currentTry.fontSize}px sans-serif`;
+            ctx.fillStyle = currentTry.color;
+            ctx.textBaseline = 'top';
+            ctx.fillText(currentTry.word, currentTry.x, currentTry.y);
+
+            // Draw bounding box
+            ctx.globalAlpha = 0.5;
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 3]);
+            ctx.strokeRect(currentTry.x - PADDING, currentTry.y - PADDING,
+                           currentTry.tw + 2 * PADDING, currentTry.th + 2 * PADDING);
+            ctx.setLineDash([]);
+
+            // Draw crosshair at center
+            const cx = currentTry.x + currentTry.tw / 2;
+            const cy = currentTry.y + currentTry.th / 2;
+            ctx.strokeStyle = '#ff444488';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
+            ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Draw label
+            ctx.save();
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillStyle = '#ff8888';
+            ctx.textBaseline = 'bottom';
+            const label = `Trying: "${currentTry.word}" (collision)`;
+            ctx.fillText(label, 10, CANVAS_H - 10);
+            ctx.restore();
+        }
+
+        // Find current word being placed (from last frame)
+        const lastFrame = frames[upToIndex];
+        if (lastFrame && lastFrame.type === 'place') {
+            // Highlight the just-placed word
+            ctx.save();
+            ctx.strokeStyle = '#6c63ff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(lastFrame.x - 2, lastFrame.y - 2, lastFrame.tw + 4, lastFrame.th + 4);
+            ctx.restore();
+
+            ctx.save();
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillStyle = '#88ff88';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(`Placed: "${lastFrame.word}"`, 10, CANVAS_H - 10);
+            ctx.restore();
+        }
+
+        if (lastFrame && lastFrame.type === 'skip') {
+            ctx.save();
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillStyle = '#ff6666';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(`Skipped: "${lastFrame.word}" (no space found)`, 10, CANVAS_H - 10);
+            ctx.restore();
+        }
+
+        // Stats overlay
+        const placedCount = placed.length;
+        const totalWords = new Set(frames.map(f => f.wordIdx)).size;
+        ctx.save();
+        ctx.font = '11px sans-serif';
+        ctx.fillStyle = '#888';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`Words placed: ${placedCount} / ${totalWords}`, 10, 10);
+        ctx.restore();
+    }
+
+    // --- Animation controller ---
+    let frames = [];
+    let currentFrame = 0;
+    let playing = false;
+    let animId = null;
+    let lastTime = 0;
+
+    const canvas = document.getElementById('cloud-canvas');
+    const ctx = canvas.getContext('2d');
+    const controlsEl = document.getElementById('controls');
+    const canvasWrap = document.getElementById('canvas-wrap');
+    const btnGenerate = document.getElementById('btn-generate');
+    const btnClear = document.getElementById('btn-clear');
+    const btnPlay = document.getElementById('btn-play');
+    const btnStep = document.getElementById('btn-step');
+    const btnDownload = document.getElementById('btn-download');
+    const speedSlider = document.getElementById('speed-slider');
+    const progressSlider = document.getElementById('progress-slider');
+    const statusEl = document.getElementById('status');
+    const textInput = document.getElementById('text-input');
+
+    function getDelay() {
+        // Speed 1 = very slow (500ms), speed 100 = very fast (5ms)
+        const v = parseInt(speedSlider.value);
+        return Math.round(500 * Math.pow(0.954, v - 1)); // exponential curve: ~500ms down to ~5ms
+    }
+
+    function updateControls() {
+        btnPlay.innerHTML = playing ? '&#9646;&#9646;' : '&#9654;';
+        btnStep.disabled = playing || currentFrame >= frames.length - 1;
+        progressSlider.max = Math.max(0, frames.length - 1);
+        progressSlider.value = currentFrame;
+        const f = frames[currentFrame];
+        if (f) {
+            statusEl.textContent = `Frame ${currentFrame + 1}/${frames.length} — "${f.word}"`;
+        }
+    }
+
+    function tick(timestamp) {
+        if (!playing) return;
+        if (!lastTime) lastTime = timestamp;
+        const elapsed = timestamp - lastTime;
+        const delay = getDelay();
+        if (elapsed >= delay) {
+            lastTime = timestamp;
+            if (currentFrame < frames.length - 1) {
+                currentFrame++;
+                renderFrame(ctx, frames, currentFrame);
+                updateControls();
+            } else {
+                playing = false;
+                updateControls();
+                return;
+            }
+        }
+        animId = requestAnimationFrame(tick);
+    }
+
+    function startPlaying() {
+        if (currentFrame >= frames.length - 1) currentFrame = 0;
+        playing = true;
+        lastTime = 0;
+        updateControls();
+        animId = requestAnimationFrame(tick);
+    }
+
+    function stopPlaying() {
+        playing = false;
+        if (animId) cancelAnimationFrame(animId);
+        animId = null;
+        updateControls();
+    }
+
+    btnPlay.addEventListener('click', () => {
+        if (playing) stopPlaying();
+        else startPlaying();
+    });
+
+    btnStep.addEventListener('click', () => {
+        if (playing) return;
+        if (currentFrame < frames.length - 1) {
+            currentFrame++;
+            renderFrame(ctx, frames, currentFrame);
+            updateControls();
+        }
+    });
+
+    progressSlider.addEventListener('input', () => {
+        const wasPlaying = playing;
+        if (playing) stopPlaying();
+        currentFrame = parseInt(progressSlider.value);
+        renderFrame(ctx, frames, currentFrame);
+        updateControls();
+        // Don't auto-resume; let user manually play again
+    });
+
+    btnDownload.addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = 'wordcloud.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    });
+
+    function persistText(text) {
+        try {
+            const compressed = btoa(encodeURIComponent(text));
+            history.replaceState(null, '', '#' + compressed);
+        } catch(e) {
+            // If text is too large for fragment, just store raw
+            history.replaceState(null, '', '#' + encodeURIComponent(text));
+        }
+    }
+
+    function loadTextFromHash() {
+        const hash = location.hash.slice(1);
+        if (!hash) return '';
+        try {
+            return decodeURIComponent(atob(hash));
+        } catch(e) {
+            try { return decodeURIComponent(hash); } catch(e2) { return hash; }
+        }
+    }
+
+    function generate(text) {
+        text = text.trim();
+        if (!text) return;
+
+        persistText(text);
+
+        btnGenerate.disabled = true;
+        btnGenerate.textContent = 'Computing...';
+
+        // Use setTimeout to let UI update
+        setTimeout(() => {
+            const wordCounts = countWords(text);
+            if (wordCounts.length === 0) {
+                alert('No words found after filtering. Try longer or different text.');
+                btnGenerate.disabled = false;
+                btnGenerate.textContent = 'Generate Word Cloud';
+                return;
+            }
+
+            frames = computePlacement(wordCounts);
+            currentFrame = 0;
+
+            controlsEl.classList.add('visible');
+            canvasWrap.classList.add('visible');
+
+            renderFrame(ctx, frames, 0);
+            updateControls();
+
+            btnGenerate.disabled = false;
+            btnGenerate.textContent = 'Generate Word Cloud';
+
+            startPlaying();
+        }, 50);
+    }
+
+    btnGenerate.addEventListener('click', () => {
+        stopPlaying();
+        generate(textInput.value);
+    });
+
+    btnClear.addEventListener('click', () => {
+        stopPlaying();
+        textInput.value = '';
+        history.replaceState(null, '', location.pathname);
+        controlsEl.classList.remove('visible');
+        canvasWrap.classList.remove('visible');
+    });
+
+    // On load: check hash
+    const hashText = loadTextFromHash();
+    if (hashText) {
+        textInput.value = hashText;
+        generate(hashText);
+    }
+})();
+</script>
+</body>
+</html>
