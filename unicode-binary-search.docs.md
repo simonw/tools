@@ -1,3 +1,3 @@
-Explore Unicode characters through interactive binary search visualization. This tool fetches character metadata from a remote database using HTTP Range requests, allowing you to search for any Unicode character and see exactly which network requests were made at each step of the search algorithm. Each query demonstrates how binary search efficiently narrows down results while minimizing data transfer.
+Search for Unicode characters and watch a binary search algorithm execute over HTTP in real time. Each search step fetches only the specific byte range needed from a Unicode database file using HTTP Range requests, visualizing how binary search minimizes data transfer. The network log displays every step of the algorithm, showing cached signpost lookups and fetched records with response times, along with a summary of total requests and bytes transferred.
 
-<!-- Generated from commit: a36540b4cf542f78d2a689b834621e2403153e8e -->
+<!-- Generated from commit: 8c53eb9de2281f32b12910889dd979ff8cc9c270 -->
