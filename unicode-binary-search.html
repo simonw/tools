@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unicode Explorer — Binary Search Over HTTP</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent: #2563eb;
+    --accent-light: #dbeafe;
+    --bg: #fafafa;
+    --surface: #ffffff;
+    --border: #e5e7eb;
+    --text: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --found: #059669;
+    --found-bg: #ecfdf5;
+    --cached-bg: #f9fafb;
+    --cached-text: #9ca3af;
+    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+
+  .subtitle {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
+  }
+
+  /* Search input */
+  .search-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    align-items: stretch;
+  }
+
+  .search-input {
+    flex: 1;
+    font-size: 1.25rem;
+    padding: 0.625rem 1rem;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+    font-family: var(--mono);
+    transition: border-color 0.15s;
+  }
+
+  .search-input:focus {
+    border-color: var(--accent);
+  }
+
+  .search-input::placeholder {
+    color: var(--text-muted);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.95rem;
+  }
+
+  .search-btn {
+    padding: 0.625rem 1.5rem;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+
+  .search-btn:hover { opacity: 0.9; }
+  .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Result card */
+  .result-card {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .result-card.visible { display: flex; gap: 1.5rem; align-items: center; }
+
+  .result-char {
+    font-size: 96px;
+    line-height: 1;
+    min-width: 120px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .result-info { flex: 1; }
+
+  .result-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .result-detail {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-family: var(--mono);
+    margin-bottom: 0.2rem;
+  }
+
+  .result-not-found {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+    color: var(--text-secondary);
+  }
+
+  .result-not-found.visible { display: block; }
+
+  /* Network log */
+  .log-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .log-header {
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .log-table-wrap {
+    overflow-x: auto;
+  }
+
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    font-family: var(--mono);
+  }
+
+  .log-table thead th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  .log-table tbody td {
+    padding: 0.4rem 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+    white-space: nowrap;
+  }
+
+  .log-table tbody tr:last-child td { border-bottom: none; }
+
+  .log-table tbody tr.cached td {
+    color: var(--cached-text);
+    background: var(--cached-bg);
+  }
+
+  .log-table tbody tr.found td {
+    color: var(--found);
+    background: var(--found-bg);
+    font-weight: 600;
+  }
+
+  .log-table tbody tr.fresh td {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; background: var(--accent-light); }
+    to { opacity: 1; }
+  }
+
+  .step-num { color: var(--text-muted); }
+  .source-cached { font-style: italic; }
+
+  /* Summary */
+  .summary {
+    display: none;
+    margin-top: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border);
+  }
+
+  .summary.visible { display: block; }
+
+  .summary strong { color: var(--text); }
+
+  /* Empty state */
+  .empty-state {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .examples {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .example-btn {
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    transition: border-color 0.15s;
+  }
+
+  .example-btn:hover { border-color: var(--accent); }
+
+  /* Loading */
+  .loading-msg {
+    display: none;
+    padding: 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .loading-msg.visible { display: block; }
+
+  @media (max-width: 600px) {
+    .container { padding: 1rem 0.75rem; }
+    .result-card.visible { flex-direction: column; text-align: center; }
+    .result-char { font-size: 72px; min-width: auto; }
+    .log-table { font-size: 0.7rem; }
+    .log-table thead th, .log-table tbody td { padding: 0.3rem 0.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Unicode Explorer</h1>
+  <p class="subtitle">Binary search over HTTP &mdash; each step is a real network fetch</p>
+
+  <div class="search-row">
+    <input type="text" id="searchInput" class="search-input"
+           placeholder="Paste a character or type a hex codepoint (e.g. 2665)"
+           autocomplete="off" spellcheck="false">
+    <button id="searchBtn" class="search-btn">Search</button>
+  </div>
+
+  <div id="resultCard" class="result-card">
+    <div id="resultChar" class="result-char"></div>
+    <div class="result-info">
+      <div id="resultName" class="result-name"></div>
+      <div id="resultCP" class="result-detail"></div>
+      <div id="resultCat" class="result-detail"></div>
+      <div id="resultBlock" class="result-detail"></div>
+    </div>
+  </div>
+
+  <div id="resultNotFound" class="result-not-found">
+    Character not found in the Unicode database.
+  </div>
+
+  <div class="log-section">
+    <div class="log-header">Network Log</div>
+    <div class="log-table-wrap">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>Source</th>
+            <th>Record</th>
+            <th>Comparison</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyState" class="empty-state">
+      Search for a character to see the binary search in action.
+      <div class="examples">
+        <button class="example-btn" data-char="A">A</button>
+        <button class="example-btn" data-char="&#x2665;">&#x2665;</button>
+        <button class="example-btn" data-char="&#x1F480;">&#x1F480;</button>
+        <button class="example-btn" data-char="&#x4E16;">&#x4E16;</button>
+        <button class="example-btn" data-hex="FEFF">U+FEFF</button>
+        <button class="example-btn" data-char="&#x03B1;">&#x03B1;</button>
+      </tr>
+      </div>
+    </div>
+    <div id="loadingMsg" class="loading-msg">Loading metadata&hellip;</div>
+    <div id="summary" class="summary"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // State
+  let meta = null;
+  let searching = false;
+
+  // DOM refs
+  const searchInput = document.getElementById('searchInput');
+  const searchBtn = document.getElementById('searchBtn');
+  const resultCard = document.getElementById('resultCard');
+  const resultNotFound = document.getElementById('resultNotFound');
+  const resultChar = document.getElementById('resultChar');
+  const resultName = document.getElementById('resultName');
+  const resultCP = document.getElementById('resultCP');
+  const resultCat = document.getElementById('resultCat');
+  const resultBlock = document.getElementById('resultBlock');
+  const logBody = document.getElementById('logBody');
+  const emptyState = document.getElementById('emptyState');
+  const loadingMsg = document.getElementById('loadingMsg');
+  const summaryEl = document.getElementById('summary');
+
+  // Category full names
+  const CATEGORIES = {
+    Lu: 'Letter, uppercase', Ll: 'Letter, lowercase', Lt: 'Letter, titlecase',
+    Lm: 'Letter, modifier', Lo: 'Letter, other', Mn: 'Mark, nonspacing',
+    Mc: 'Mark, spacing combining', Me: 'Mark, enclosing', Nd: 'Number, decimal digit',
+    Nl: 'Number, letter', No: 'Number, other', Pc: 'Punctuation, connector',
+    Pd: 'Punctuation, dash', Ps: 'Punctuation, open', Pe: 'Punctuation, close',
+    Pi: 'Punctuation, initial quote', Pf: 'Punctuation, final quote',
+    Po: 'Punctuation, other', Sm: 'Symbol, math', Sc: 'Symbol, currency',
+    Sk: 'Symbol, modifier', So: 'Symbol, other', Zs: 'Separator, space',
+    Zl: 'Separator, line', Zp: 'Separator, paragraph', Cc: 'Other, control',
+    Cf: 'Other, format', Cs: 'Other, surrogate', Co: 'Other, private use',
+    Cn: 'Other, not assigned'
+  };
+
+  // Load metadata
+  async function init() {
+    loadingMsg.classList.add('visible');
+    try {
+      const resp = await fetch('https://static.simonwillison.net/static/cors-allow/2026/unicode-explorer-binary-search/data/meta.json');
+      if (!resp.ok) throw new Error('Failed to load meta.json');
+      meta = await resp.json();
+      loadingMsg.classList.remove('visible');
+      emptyState.style.display = '';
+      searchInput.focus();
+    } catch (e) {
+      loadingMsg.textContent = 'Error loading metadata: ' + e.message;
+      console.error(e);
+    }
+  }
+
+  // Parse user input to a codepoint
+  function parseInput(input) {
+    input = input.trim();
+    if (!input) return null;
+
+    // Explicit hex prefixes: U+2665, 0x2665, \u{2665}
+    let prefixed = input.match(/^(?:U\+|0x|\\u\{?)([0-9A-Fa-f]{1,6})\}?$/);
+    if (prefixed) {
+      const cp = parseInt(prefixed[1], 16);
+      if (cp >= 0 && cp <= 0x10FFFF) return cp;
+    }
+
+    // If it's 1-2 characters (possibly a surrogate pair), treat as a literal character
+    if ([...input].length <= 2 && input.length <= 4) {
+      return input.codePointAt(0);
+    }
+
+    // Bare hex: 4+ hex digits like "2665" or "1F480"
+    let bareHex = input.match(/^([0-9A-Fa-f]{4,6})$/);
+    if (bareHex) {
+      const cp = parseInt(bareHex[1], 16);
+      if (cp >= 0 && cp <= 0x10FFFF) return cp;
+    }
+
+    // Fallback: treat as character
+    return input.codePointAt(0);
+  }
+
+  // Format a codepoint as hex
+  function cpHex(cp) {
+    return 'U+' + cp.toString(16).toUpperCase().padStart(4, '0');
+  }
+
+  // Add a row to the network log
+  function addLogRow(step, source, record, comparison, time, cls) {
+    const tr = document.createElement('tr');
+    if (cls) tr.className = cls;
+
+    const recordStr = record
+      ? cpHex(record.cp) + ' ' + (record.name.length > 30 ? record.name.substring(0, 30) + '...' : record.name)
+      : '';
+
+    tr.innerHTML =
+      '<td class="step-num">' + step + '</td>' +
+      '<td' + (cls === 'cached' ? ' class="source-cached"' : '') + '>' + esc(source) + '</td>' +
+      '<td>' + esc(recordStr) + '</td>' +
+      '<td>' + esc(comparison) + '</td>' +
+      '<td>' + esc(time) + '</td>';
+
+    logBody.appendChild(tr);
+    tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    return tr;
+  }
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // Show result card
+  function showResult(record) {
+    resultCard.classList.add('visible');
+    resultNotFound.classList.remove('visible');
+
+    // Render character (skip control chars)
+    if (record.cp >= 32 && record.cat !== 'Cc' && record.cat !== 'Cf') {
+      resultChar.textContent = String.fromCodePoint(record.cp);
+    } else {
+      resultChar.textContent = cpHex(record.cp);
+      resultChar.style.fontSize = '2rem';
+    }
+
+    resultName.textContent = record.name;
+    resultCP.textContent = cpHex(record.cp) + '  (' + record.cp + ' decimal)';
+    resultCat.textContent = record.cat + ' \u2014 ' + (CATEGORIES[record.cat] || record.cat);
+    resultBlock.textContent = record.block;
+  }
+
+  function showNotFound() {
+    resultCard.classList.remove('visible');
+    resultNotFound.classList.add('visible');
+  }
+
+  function clearResults() {
+    resultCard.classList.remove('visible');
+    resultNotFound.classList.remove('visible');
+    resultChar.style.fontSize = '';
+    logBody.innerHTML = '';
+    emptyState.style.display = 'none';
+    summaryEl.classList.remove('visible');
+  }
+
+  // The main binary search
+  async function search(targetCP) {
+    if (!meta || searching) return;
+    searching = true;
+    searchBtn.disabled = true;
+    clearResults();
+
+    const { recordWidth, totalRecords, signposts, totalBytes } = meta;
+    let lo = 0;
+    let hi = totalRecords - 1;
+    let step = 0;
+    let fetchCount = 0;
+    let bytesTransferred = 0;
+    let cachedSteps = 0;
+
+    // Phase 1: Walk signposts to narrow bounds
+    // Signposts are sorted by idx (and therefore by cp).
+    // Find the tightest lo/hi from signposts.
+    for (let i = 0; i < signposts.length; i++) {
+      step++;
+      const sp = signposts[i];
+      const comparison = compareStr(targetCP, sp.cp);
+      const isFinal = (sp.cp === targetCP);
+
+      addLogRow(
+        step,
+        'signpost',
+        { cp: sp.cp, name: '(signpost idx=' + sp.idx + ')' },
+        isFinal ? '\u2713 Found (signpost)!' : comparison,
+        'cached',
+        isFinal ? 'found' : 'cached'
+      );
+      cachedSteps++;
+
+      if (sp.cp === targetCP) {
+        // Extremely lucky — the target is exactly a signpost
+        // Still need to fetch the full record for display
+        const record = await fetchRecord(sp.idx, recordWidth);
+        fetchCount++;
+        bytesTransferred += recordWidth;
+        showResult(record);
+        showSummary(step, cachedSteps, fetchCount, bytesTransferred, totalBytes, true);
+        searching = false;
+        searchBtn.disabled = false;
+        return;
+      }
+
+      if (sp.cp < targetCP) {
+        lo = sp.idx;
+      } else {
+        hi = sp.idx;
+        break; // signposts are sorted, no need to continue
+      }
+    }
+
+    // Phase 2: Binary search via Range requests
+    let found = false;
+    while (lo <= hi) {
+      step++;
+      const mid = Math.floor((lo + hi) / 2);
+      const byteStart = mid * recordWidth;
+      const byteEnd = byteStart + recordWidth - 1;
+      const rangeHeader = 'bytes=' + byteStart + '-' + byteEnd;
+
+      const t0 = performance.now();
+      const record = await fetchRecord(mid, recordWidth);
+      const elapsed = Math.round(performance.now() - t0);
+
+      fetchCount++;
+      bytesTransferred += recordWidth;
+
+      if (record.cp === targetCP) {
+        addLogRow(step, rangeHeader, record, '\u2713 Found!', elapsed + 'ms', 'found fresh');
+        showResult(record);
+        found = true;
+        break;
+      }
+
+      const comparison = compareStr(targetCP, record.cp);
+      addLogRow(step, rangeHeader, record, comparison, elapsed + 'ms', 'fresh');
+
+      if (record.cp < targetCP) {
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+
+    if (!found) {
+      showNotFound();
+    }
+
+    showSummary(step, cachedSteps, fetchCount, bytesTransferred, totalBytes, found);
+    searching = false;
+    searchBtn.disabled = false;
+  }
+
+  function compareStr(target, actual) {
+    if (target > actual) {
+      return target + ' > ' + actual + ' \u2192 go right';
+    } else {
+      return target + ' < ' + actual + ' \u2192 go left';
+    }
+  }
+
+  async function fetchRecord(idx, recordWidth) {
+    const byteStart = idx * recordWidth;
+    const byteEnd = byteStart + recordWidth - 1;
+    const resp = await fetch('https://static.simonwillison.net/static/cors-allow/2026/unicode-explorer-binary-search/data/unicode-data.bin', {
+      headers: {
+        'Range': 'bytes=' + byteStart + '-' + byteEnd,
+        'Accept-Encoding': 'identity'
+      }
+    });
+    const text = await resp.text();
+    return JSON.parse(text.trim());
+  }
+
+  function showSummary(totalSteps, cached, fetched, bytes, totalFileBytes, found) {
+    const fileSizeMB = (totalFileBytes / 1024 / 1024).toFixed(1);
+    const bytesStr = bytes.toLocaleString();
+    const verb = found ? 'Found' : 'Not found';
+    summaryEl.innerHTML =
+      '<strong>' + verb + '</strong> in ' + totalSteps + ' steps (' +
+      cached + ' cached, ' + fetched + ' fetched) &middot; ' +
+      bytesStr + ' bytes transferred &middot; full file is ' + fileSizeMB + 'MB';
+    summaryEl.classList.add('visible');
+  }
+
+  // Event listeners
+  function doSearch() {
+    const cp = parseInput(searchInput.value);
+    if (cp === null) return;
+    search(cp);
+  }
+
+  searchBtn.addEventListener('click', doSearch);
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doSearch();
+  });
+
+  document.querySelectorAll('.example-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (btn.dataset.char) {
+        searchInput.value = btn.dataset.char;
+      } else if (btn.dataset.hex) {
+        searchInput.value = btn.dataset.hex;
+      }
+      doSearch();
+    });
+  });
+
+  // Init
+  init();
+})();
+</script>
+</body>
+</html>
