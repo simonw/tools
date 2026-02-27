@@ -30,7 +30,7 @@ h1 { font-size: 1.4rem; margin-bottom: 0.5rem; color: #fff; }
     border: 1px solid #333;
     border-radius: 6px;
     padding: 0.75rem;
-    font-size: 0.9rem;
+    font-size: 16px;
     resize: vertical;
     font-family: inherit;
 }
@@ -326,7 +326,7 @@ canvas {
     }
 
     // --- Rendering ---
-    function renderFrame(ctx, frames, upToIndex) {
+    function renderFrame(ctx, frames, upToIndex, isFinal) {
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
@@ -350,83 +350,85 @@ canvas {
             ctx.fillText(f.word, f.x, f.y);
         }
 
-        // Draw current probe attempt (ghost word + spiral indicator)
-        if (currentTry) {
-            // Draw faint ghost of the word being tried
+        if (!isFinal) {
+            // Draw current probe attempt (ghost word + spiral indicator)
+            if (currentTry) {
+                // Draw faint ghost of the word being tried
+                ctx.save();
+                ctx.globalAlpha = 0.35;
+                ctx.font = `bold ${currentTry.fontSize}px sans-serif`;
+                ctx.fillStyle = currentTry.color;
+                ctx.textBaseline = 'top';
+                ctx.fillText(currentTry.word, currentTry.x, currentTry.y);
+
+                // Draw bounding box
+                ctx.globalAlpha = 0.5;
+                ctx.strokeStyle = '#ff4444';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 3]);
+                ctx.strokeRect(currentTry.x - PADDING, currentTry.y - PADDING,
+                               currentTry.tw + 2 * PADDING, currentTry.th + 2 * PADDING);
+                ctx.setLineDash([]);
+
+                // Draw crosshair at center
+                const cx = currentTry.x + currentTry.tw / 2;
+                const cy = currentTry.y + currentTry.th / 2;
+                ctx.strokeStyle = '#ff444488';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
+                ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
+                ctx.stroke();
+
+                ctx.restore();
+
+                // Draw label
+                ctx.save();
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillStyle = '#ff8888';
+                ctx.textBaseline = 'bottom';
+                const label = `Trying: "${currentTry.word}" (collision)`;
+                ctx.fillText(label, 10, CANVAS_H - 10);
+                ctx.restore();
+            }
+
+            // Find current word being placed (from last frame)
+            const lastFrame = frames[upToIndex];
+            if (lastFrame && lastFrame.type === 'place') {
+                // Highlight the just-placed word
+                ctx.save();
+                ctx.strokeStyle = '#6c63ff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(lastFrame.x - 2, lastFrame.y - 2, lastFrame.tw + 4, lastFrame.th + 4);
+                ctx.restore();
+
+                ctx.save();
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillStyle = '#88ff88';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(`Placed: "${lastFrame.word}"`, 10, CANVAS_H - 10);
+                ctx.restore();
+            }
+
+            if (lastFrame && lastFrame.type === 'skip') {
+                ctx.save();
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillStyle = '#ff6666';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(`Skipped: "${lastFrame.word}" (no space found)`, 10, CANVAS_H - 10);
+                ctx.restore();
+            }
+
+            // Stats overlay
+            const placedCount = placed.length;
+            const totalWords = new Set(frames.map(f => f.wordIdx)).size;
             ctx.save();
-            ctx.globalAlpha = 0.35;
-            ctx.font = `bold ${currentTry.fontSize}px sans-serif`;
-            ctx.fillStyle = currentTry.color;
+            ctx.font = '11px sans-serif';
+            ctx.fillStyle = '#888';
             ctx.textBaseline = 'top';
-            ctx.fillText(currentTry.word, currentTry.x, currentTry.y);
-
-            // Draw bounding box
-            ctx.globalAlpha = 0.5;
-            ctx.strokeStyle = '#ff4444';
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([4, 3]);
-            ctx.strokeRect(currentTry.x - PADDING, currentTry.y - PADDING,
-                           currentTry.tw + 2 * PADDING, currentTry.th + 2 * PADDING);
-            ctx.setLineDash([]);
-
-            // Draw crosshair at center
-            const cx = currentTry.x + currentTry.tw / 2;
-            const cy = currentTry.y + currentTry.th / 2;
-            ctx.strokeStyle = '#ff444488';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
-            ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
-            ctx.stroke();
-
-            ctx.restore();
-
-            // Draw label
-            ctx.save();
-            ctx.font = 'bold 12px sans-serif';
-            ctx.fillStyle = '#ff8888';
-            ctx.textBaseline = 'bottom';
-            const label = `Trying: "${currentTry.word}" (collision)`;
-            ctx.fillText(label, 10, CANVAS_H - 10);
+            ctx.fillText(`Words placed: ${placedCount} / ${totalWords}`, 10, 10);
             ctx.restore();
         }
-
-        // Find current word being placed (from last frame)
-        const lastFrame = frames[upToIndex];
-        if (lastFrame && lastFrame.type === 'place') {
-            // Highlight the just-placed word
-            ctx.save();
-            ctx.strokeStyle = '#6c63ff';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(lastFrame.x - 2, lastFrame.y - 2, lastFrame.tw + 4, lastFrame.th + 4);
-            ctx.restore();
-
-            ctx.save();
-            ctx.font = 'bold 12px sans-serif';
-            ctx.fillStyle = '#88ff88';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText(`Placed: "${lastFrame.word}"`, 10, CANVAS_H - 10);
-            ctx.restore();
-        }
-
-        if (lastFrame && lastFrame.type === 'skip') {
-            ctx.save();
-            ctx.font = 'bold 12px sans-serif';
-            ctx.fillStyle = '#ff6666';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText(`Skipped: "${lastFrame.word}" (no space found)`, 10, CANVAS_H - 10);
-            ctx.restore();
-        }
-
-        // Stats overlay
-        const placedCount = placed.length;
-        const totalWords = new Set(frames.map(f => f.wordIdx)).size;
-        ctx.save();
-        ctx.font = '11px sans-serif';
-        ctx.fillStyle = '#888';
-        ctx.textBaseline = 'top';
-        ctx.fillText(`Words placed: ${placedCount} / ${totalWords}`, 10, 10);
-        ctx.restore();
     }
 
     // --- Animation controller ---
@@ -476,8 +478,14 @@ canvas {
             lastTime = timestamp;
             if (currentFrame < frames.length - 1) {
                 currentFrame++;
-                renderFrame(ctx, frames, currentFrame);
+                const isLast = currentFrame >= frames.length - 1;
+                renderFrame(ctx, frames, currentFrame, isLast);
                 updateControls();
+                if (isLast) {
+                    playing = false;
+                    updateControls();
+                    return;
+                }
             } else {
                 playing = false;
                 updateControls();
@@ -511,7 +519,8 @@ canvas {
         if (playing) return;
         if (currentFrame < frames.length - 1) {
             currentFrame++;
-            renderFrame(ctx, frames, currentFrame);
+            const isLast = currentFrame >= frames.length - 1;
+            renderFrame(ctx, frames, currentFrame, isLast);
             updateControls();
         }
     });
@@ -520,16 +529,22 @@ canvas {
         const wasPlaying = playing;
         if (playing) stopPlaying();
         currentFrame = parseInt(progressSlider.value);
-        renderFrame(ctx, frames, currentFrame);
+        const isLast = currentFrame >= frames.length - 1;
+        renderFrame(ctx, frames, currentFrame, isLast);
         updateControls();
         // Don't auto-resume; let user manually play again
     });
 
     btnDownload.addEventListener('click', () => {
+        // Render a clean frame (no overlays) for the PNG
+        renderFrame(ctx, frames, currentFrame, true);
         const link = document.createElement('a');
         link.download = 'wordcloud.png';
         link.href = canvas.toDataURL('image/png');
         link.click();
+        // Restore the normal view with overlays if not on last frame
+        const isLast = currentFrame >= frames.length - 1;
+        if (!isLast) renderFrame(ctx, frames, currentFrame, false);
     });
 
     function persistText(text) {
