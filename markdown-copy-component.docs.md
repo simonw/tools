@@ -1,0 +1,3 @@
+The `<markdown-copy>` web component renders markdown content with built-in controls for copying and viewing the source code. Users can toggle between the rendered markdown view and the raw markdown syntax using the menu button in the top-right corner, or copy the entire markdown text to their clipboard with a single click. The component automatically handles markdown formatting including headings, code blocks, tables, blockquotes, and lists.
+
+<!-- Generated from commit: 0ea588ed7f3dcc2e04ff2e88ff5fe7c75754e623 -->
