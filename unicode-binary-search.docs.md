@@ -1,3 +1,3 @@
-Search for Unicode characters and watch a binary search algorithm execute over HTTP in real time. Each search step fetches only the specific byte range needed from a Unicode database file using HTTP Range requests, visualizing how binary search minimizes data transfer. The network log displays every step of the algorithm, showing cached signpost lookups and fetched records with response times, along with a summary of total requests and bytes transferred.
+View Unicode characters and their properties through an interactive binary search algorithm that makes real HTTP Range requests to fetch individual records from a binary database. Enter a character or Unicode codepoint to see each step of the search visualized in a network log, including fetch times and comparisons. The tool supports both standard binary search and interpolation search, which estimates the target's position based on codepoint values rather than always splitting the middle, potentially reducing the number of network requests needed.
 
-<!-- Generated from commit: 8c53eb9de2281f32b12910889dd979ff8cc9c270 -->
+<!-- Generated from commit: 0beead964c12f300b6484a0126cb89cfe928a2ee -->
