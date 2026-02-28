@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>markdown-copy component</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 720px;
+    margin: 60px auto;
+    padding: 0 20px;
+    background: #f8f9fa;
+    color: #1a1a2e;
+  }
+  h1 { font-weight: 600; font-size: 1.4rem; margin-bottom: 0.3em; }
+  p.intro { color: #555; font-size: 0.95rem; margin-bottom: 2rem; }
+</style>
+</head>
+<body>
+
+<h1>&lt;markdown-copy&gt; demo</h1>
+<p class="intro">A web component that renders markdown, with copy &amp; view-source controls.</p>
+
+<markdown-copy>
+## Getting Started
+
+Welcome to the project! Here's what you need to know.
+
+### Installation
+
+```bash
+npm install my-cool-library
+```
+
+### Features
+
+- **Fast** — optimized for speed
+- **Lightweight** — under 5kb gzipped
+- **Extensible** — plugin architecture
+
+> "Simplicity is the ultimate sophistication." — Leonardo da Vinci
+
+### Usage
+
+```js
+import { render } from 'my-cool-library';
+
+render('#app', {
+  template: '<h1>Hello world</h1>'
+});
+```
+
+That's it — you're ready to go!
+</markdown-copy>
+
+<br>
+
+<markdown-copy>
+## Shopping List
+
+Things to pick up:
+
+- Sourdough bread
+- Olive oil (extra virgin)
+- Lemons × 4
+- Fresh basil
+- Mozzarella
+
+| Item | Qty | Aisle |
+|------|-----|-------|
+| Bread | 1 | Bakery |
+| Olive oil | 1 | 3 |
+| Lemons | 4 | Produce |
+
+*Don't forget the reusable bags!*
+</markdown-copy>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- Web Component Definition                     -->
+<!-- ════════════════════════════════════════════ -->
+<script type="module">
+import { marked } from 'https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.7/lib/marked.esm.js';
+
+class MarkdownCopy extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._showRaw = false;
+    this._menuOpen = false;
+  }
+
+  connectedCallback() {
+    /* ── grab raw markdown, dedent it ── */
+    this._raw = this._dedent(this.textContent);
+
+    /* ── render ── */
+    this.shadowRoot.innerHTML = `
+      <style>${MarkdownCopy.styles}</style>
+      <div class="wrap">
+        <!-- tag / menu -->
+        <div class="tag-area">
+          <button class="tag" aria-label="Markdown options">markdown</button>
+          <div class="menu hidden">
+            <button class="menu-btn" data-action="copy">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy
+            </button>
+            <button class="menu-btn" data-action="toggle">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              See code
+            </button>
+          </div>
+        </div>
+        <!-- content -->
+        <div class="rendered">${marked.parse(this._raw)}</div>
+        <pre class="raw hidden">${this._escapeHtml(this._raw)}</pre>
+      </div>
+    `;
+
+    /* ── wire events ── */
+    const tag = this.shadowRoot.querySelector('.tag');
+    const menu = this.shadowRoot.querySelector('.menu');
+
+    tag.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._menuOpen = !this._menuOpen;
+      menu.classList.toggle('hidden', !this._menuOpen);
+    });
+
+    this.shadowRoot.querySelector('[data-action="copy"]').addEventListener('click', () => {
+      navigator.clipboard.writeText(this._raw).then(() => {
+        const btn = this.shadowRoot.querySelector('[data-action="copy"]');
+        const orig = btn.innerHTML;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.innerHTML = orig, 1200);
+      });
+    });
+
+    this.shadowRoot.querySelector('[data-action="toggle"]').addEventListener('click', () => {
+      this._showRaw = !this._showRaw;
+      const rendered = this.shadowRoot.querySelector('.rendered');
+      const raw = this.shadowRoot.querySelector('.raw');
+      const btn = this.shadowRoot.querySelector('[data-action="toggle"]');
+      rendered.classList.toggle('hidden', this._showRaw);
+      raw.classList.toggle('hidden', !this._showRaw);
+      /* update label */
+      const svgIcon = btn.querySelector('svg')?.outerHTML || '';
+      btn.innerHTML = svgIcon + (this._showRaw ? ' See rendered' : ' See code');
+    });
+
+    /* close menu on outside click */
+    document.addEventListener('click', () => {
+      this._menuOpen = false;
+      menu.classList.add('hidden');
+    });
+
+    this.shadowRoot.addEventListener('click', (e) => {
+      if (!e.target.closest('.tag-area')) {
+        this._menuOpen = false;
+        menu.classList.add('hidden');
+      }
+    });
+  }
+
+  /* ── helpers ── */
+
+  _dedent(text) {
+    const lines = text.replace(/^\n+/, '').replace(/\n+$/, '').split('\n');
+    const indent = lines
+      .filter(l => l.trim().length > 0)
+      .reduce((min, l) => {
+        const leading = l.match(/^ */)[0].length;
+        return Math.min(min, leading);
+      }, Infinity);
+    return lines.map(l => l.slice(indent)).join('\n').trim();
+  }
+
+  _escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* ── styles ── */
+
+  static get styles() {
+    return /* css */`
+      :host { display: block; }
+
+      .wrap {
+        position: relative;
+        border: 1px solid #d0d5dd;
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        background: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: #1a1a2e;
+        line-height: 1.6;
+      }
+
+      /* ── rendered markdown ── */
+      .rendered { font-size: 0.95rem; }
+      .rendered h1, .rendered h2, .rendered h3 {
+        margin-top: 1.1em; margin-bottom: 0.4em; font-weight: 600;
+      }
+      .rendered h2 { font-size: 1.25rem; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+      .rendered h3 { font-size: 1.05rem; }
+      .rendered p { margin: 0.5em 0; }
+      .rendered ul, .rendered ol { padding-left: 1.4em; margin: 0.4em 0; }
+      .rendered li { margin: 0.2em 0; }
+      .rendered blockquote {
+        margin: 0.8em 0; padding: 0.4em 1em;
+        border-left: 3px solid #c5a3ff; background: #faf7ff;
+        color: #444; font-style: italic;
+      }
+      .rendered code {
+        background: #f0f0f5; padding: 0.15em 0.4em; border-radius: 4px;
+        font-size: 0.88em; font-family: 'SF Mono', Consolas, monospace;
+      }
+      .rendered pre {
+        background: #1e1e2e; color: #cdd6f4; padding: 1em;
+        border-radius: 8px; overflow-x: auto; font-size: 0.85rem;
+        line-height: 1.5;
+      }
+      .rendered pre code {
+        background: none; padding: 0; color: inherit;
+      }
+      .rendered table {
+        border-collapse: collapse; width: 100%; margin: 0.6em 0; font-size: 0.9rem;
+      }
+      .rendered th, .rendered td {
+        border: 1px solid #ddd; padding: 0.45em 0.8em; text-align: left;
+      }
+      .rendered th { background: #f5f5fa; font-weight: 600; }
+      .rendered img { max-width: 100%; border-radius: 6px; }
+
+      /* ── raw view ── */
+      .raw {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-family: 'SF Mono', Consolas, monospace;
+        font-size: 0.88rem;
+        line-height: 1.55;
+        margin: 0;
+        color: #374151;
+        background: #f9fafb;
+        padding: 0.8em;
+        border-radius: 6px;
+      }
+
+      /* ── tag & menu ── */
+      .tag-area {
+        position: absolute;
+        top: 10px; right: 12px;
+        display: flex; flex-direction: column; align-items: flex-end;
+        z-index: 2;
+        user-select: none;
+      }
+      .tag {
+        background: #eef0ff;
+        color: #5b5fc7;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 3px 10px;
+        border-radius: 6px;
+        border: 1px solid #d4d7ff;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.1s;
+        font-family: inherit;
+      }
+      .tag:hover { background: #dde0ff; }
+      .tag:active { transform: scale(0.96); }
+
+      .menu {
+        margin-top: 6px;
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+        overflow: hidden;
+        min-width: 140px;
+      }
+      .menu-btn {
+        display: flex; align-items: center; gap: 8px;
+        width: 100%;
+        padding: 8px 14px;
+        font-size: 0.82rem;
+        font-family: inherit;
+        color: #333;
+        background: none;
+        border: none;
+        cursor: pointer;
+        transition: background 0.12s;
+      }
+      .menu-btn:hover { background: #f3f4f6; }
+      .menu-btn + .menu-btn { border-top: 1px solid #f0f0f0; }
+      .menu-btn svg { flex-shrink: 0; opacity: 0.6; }
+
+      .hidden { display: none !important; }
+    `;
+  }
+}
+
+customElements.define('markdown-copy', MarkdownCopy);
+</script>
+
+</body>
+</html>
