@@ -22,7 +22,7 @@
 <h1>&lt;markdown-copy&gt; demo</h1>
 <p class="intro">A web component that renders markdown, with copy &amp; view-source controls.</p>
 
-<markdown-copy>
+<markdown-copy><textarea>
 ## Getting Started
 
 Welcome to the project! Here's what you need to know.
@@ -52,11 +52,11 @@ render('#app', {
 ```
 
 That's it — you're ready to go!
-</markdown-copy>
+</textarea></markdown-copy>
 
 <br>
 
-<markdown-copy>
+<markdown-copy><textarea>
 ## Shopping List
 
 Things to pick up:
@@ -74,7 +74,7 @@ Things to pick up:
 | Lemons | 4 | Produce |
 
 *Don't forget the reusable bags!*
-</markdown-copy>
+</textarea></markdown-copy>
 
 <!-- ════════════════════════════════════════════ -->
 <!-- Web Component Definition                     -->
@@ -92,7 +92,10 @@ class MarkdownCopy extends HTMLElement {
 
   connectedCallback() {
     /* ── grab raw markdown, dedent it ── */
-    this._raw = this._dedent(this.textContent);
+    const textarea = this.querySelector('textarea');
+    const source = textarea ? textarea.value : this.textContent;
+    this._raw = this._dedent(source);
+    if (textarea) textarea.remove();
 
     /* ── render ── */
     this.shadowRoot.innerHTML = `
@@ -102,13 +105,13 @@ class MarkdownCopy extends HTMLElement {
         <div class="tag-area">
           <button class="tag" aria-label="Markdown options">markdown</button>
           <div class="menu hidden">
-            <button class="menu-btn" data-action="copy">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              Copy
-            </button>
             <button class="menu-btn" data-action="toggle">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
               See code
+            </button>
+            <button class="menu-btn" data-action="copy">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy
             </button>
           </div>
         </div>
@@ -128,7 +131,8 @@ class MarkdownCopy extends HTMLElement {
       menu.classList.toggle('hidden', !this._menuOpen);
     });
 
-    this.shadowRoot.querySelector('[data-action="copy"]').addEventListener('click', () => {
+    this.shadowRoot.querySelector('[data-action="copy"]').addEventListener('click', (e) => {
+      e.stopPropagation();
       navigator.clipboard.writeText(this._raw).then(() => {
         const btn = this.shadowRoot.querySelector('[data-action="copy"]');
         const orig = btn.innerHTML;
@@ -198,6 +202,7 @@ class MarkdownCopy extends HTMLElement {
       }
 
       /* ── rendered markdown ── */
+      .rendered, .raw { padding-top: 1rem; }
       .rendered { font-size: 0.95rem; }
       .rendered h1, .rendered h2, .rendered h3 {
         margin-top: 1.1em; margin-bottom: 0.4em; font-weight: 600;
@@ -243,7 +248,7 @@ class MarkdownCopy extends HTMLElement {
         margin: 0;
         color: #374151;
         background: #f9fafb;
-        padding: 0.8em;
+        padding: 1.5rem 0.8em 0.8em;
         border-radius: 6px;
       }
 
