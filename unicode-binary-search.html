@@ -268,6 +268,47 @@
 
   .loading-msg.visible { display: block; }
 
+  /* Options row */
+  .options-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .options-row label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+  }
+
+  .options-row input[type="checkbox"] {
+    accent-color: var(--accent);
+  }
+
+  .options-row a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .options-row a:hover { text-decoration: underline; }
+
+  /* Footnotes */
+  .footnotes {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .footnotes a { color: var(--accent); text-decoration: none; }
+  .footnotes a:hover { text-decoration: underline; }
+
   @media (max-width: 600px) {
     .container { padding: 1rem 0.75rem; }
     .search-row { flex-direction: column; }
@@ -289,6 +330,10 @@
            placeholder="Paste a character or type a hex codepoint (e.g. 2665)"
            autocomplete="off" spellcheck="false">
     <button id="searchBtn" class="search-btn">Search</button>
+  </div>
+
+  <div class="options-row">
+    <label><input type="checkbox" id="interpolationCheck"> Use interpolation search<sup><a href="#fn-interpolation">1</a></sup></label>
   </div>
 
   <div id="resultCard" class="result-card">
@@ -336,6 +381,10 @@
     <div id="loadingMsg" class="loading-msg">Loading metadata&hellip;</div>
     <div id="summary" class="summary"></div>
   </div>
+
+  <div class="footnotes">
+    <p id="fn-interpolation"><sup>1</sup> Standard binary search always picks the middle record, ignoring the actual values. Interpolation search makes a smarter guess based on where the target codepoint falls proportionally between the known boundary values &mdash; like opening a phone book near the back for &ldquo;W&rdquo; rather than always opening to the middle. Within each signpost interval the codepoints are roughly evenly distributed, so the first guess is often very close, reducing the number of HTTP fetches needed.</p>
+  </div>
 </div>
 
 <script>
@@ -360,6 +409,7 @@
   const emptyState = document.getElementById('emptyState');
   const loadingMsg = document.getElementById('loadingMsg');
   const summaryEl = document.getElementById('summary');
+  const interpolationCheck = document.getElementById('interpolationCheck');
 
   // Category full names
   const CATEGORIES = {
@@ -493,8 +543,11 @@
     clearResults();
 
     const { recordWidth, totalRecords, signposts, totalBytes } = meta;
+    const useInterpolation = interpolationCheck.checked;
     let lo = 0;
     let hi = totalRecords - 1;
+    let loCP = 0;
+    let hiCP = 0x10FFFF;
     let step = 0;
     let fetchCount = 0;
     let bytesTransferred = 0;
@@ -534,17 +587,28 @@
 
       if (sp.cp < targetCP) {
         lo = sp.idx;
+        loCP = sp.cp;
       } else {
         hi = sp.idx;
+        hiCP = sp.cp;
         break; // signposts are sorted, no need to continue
       }
     }
 
-    // Phase 2: Binary search via Range requests
+    // Phase 2: Binary search (or interpolation search) via Range requests
     let found = false;
     while (lo <= hi) {
       step++;
-      const mid = Math.floor((lo + hi) / 2);
+      let mid;
+      if (useInterpolation && hiCP > loCP) {
+        // Estimate position proportionally between known boundary codepoints
+        const fraction = (targetCP - loCP) / (hiCP - loCP);
+        mid = lo + Math.floor(fraction * (hi - lo));
+        // Clamp to valid range
+        mid = Math.max(lo, Math.min(hi, mid));
+      } else {
+        mid = Math.floor((lo + hi) / 2);
+      }
       const byteStart = mid * recordWidth;
       const byteEnd = byteStart + recordWidth - 1;
       const rangeHeader = 'bytes=' + byteStart + '-' + byteEnd;
@@ -568,8 +632,10 @@
 
       if (record.cp < targetCP) {
         lo = mid + 1;
+        loCP = record.cp;
       } else {
         hi = mid - 1;
+        hiCP = record.cp;
       }
     }
 
