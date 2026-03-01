@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GIF Optimizer (gifsicle WASM)</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #fafafa;
+      color: #333;
+    }
+    h1 { margin: 0 0 4px; }
+    .subtitle { color: #666; margin: 0 0 20px; font-size: 0.95em; }
+    .subtitle a { color: #0066cc; }
+
+    #drop-zone {
+      border: 2px dashed #bbb;
+      border-radius: 16px;
+      min-height: 160px;
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      background: #fff;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    #drop-zone.dragover { background: #e8f4ff; border-color: #0088cc; }
+    #drop-zone p { color: #888; font-size: 1.1em; pointer-events: none; }
+    .visually-hidden-file {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+
+    #url-input-area {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+    #url-input-area input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.95em;
+    }
+    #url-input-area button {
+      padding: 8px 16px;
+      border: none;
+      background: #0066cc;
+      color: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.95em;
+    }
+    #url-input-area button:hover { background: #0055aa; }
+
+    #status { margin-top: 12px; color: #666; }
+    #original-info {
+      margin: 16px 0;
+      padding: 12px 16px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      display: none;
+    }
+    #original-info img {
+      max-width: 300px;
+      max-height: 200px;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      vertical-align: middle;
+      margin-right: 12px;
+    }
+
+    #presets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .preset-card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 16px;
+      position: relative;
+    }
+    .preset-card h3 { margin: 0 0 4px; font-size: 1em; }
+    .preset-card .description { color: #666; font-size: 0.85em; margin: 0 0 10px; }
+    .preset-card .settings-used { color: #999; font-size: 0.8em; font-family: monospace; margin: 0 0 8px; }
+    .preset-card .result-info {
+      font-size: 0.9em;
+      margin: 8px 0;
+    }
+    .preset-card .result-info .size { font-weight: bold; }
+    .preset-card .result-info .reduction { color: #2a8; }
+    .preset-card .result-info .increase { color: #c44; }
+    .preset-card .preview-img {
+      max-width: 100%;
+      max-height: 250px;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      display: block;
+      margin: 8px auto;
+    }
+    .preset-card .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .preset-card .actions button,
+    .preset-card .actions a {
+      padding: 6px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #f8f8f8;
+      color: #333;
+      cursor: pointer;
+      font-size: 0.85em;
+      text-decoration: none;
+    }
+    .preset-card .actions button:hover,
+    .preset-card .actions a:hover { background: #eee; }
+    .preset-card .actions .download-btn {
+      background: #0066cc;
+      color: #fff;
+      border-color: #0066cc;
+    }
+    .preset-card .actions .download-btn:hover { background: #0055aa; }
+    .preset-card.processing { opacity: 0.6; }
+    .preset-card .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #ddd;
+      border-top-color: #0066cc;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #manual-section {
+      margin-top: 24px;
+      padding: 16px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      display: none;
+    }
+    #manual-section h2 { margin: 0 0 12px; font-size: 1.1em; }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .control-group label {
+      display: block;
+      font-size: 0.85em;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .control-group select,
+    .control-group input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.9em;
+      box-sizing: border-box;
+    }
+    .control-group input[type="range"] {
+      padding: 0;
+    }
+    .range-value { font-size: 0.85em; color: #666; margin-left: 4px; }
+    #manual-run-btn {
+      padding: 10px 24px;
+      background: #0066cc;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.95em;
+    }
+    #manual-run-btn:hover { background: #0055aa; }
+    #manual-run-btn:disabled { background: #aaa; cursor: not-allowed; }
+
+    #manual-result {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f8f8f8;
+      border-radius: 8px;
+      display: none;
+    }
+    #manual-result img {
+      max-width: 100%;
+      max-height: 400px;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      display: block;
+      margin: 8px auto;
+    }
+
+    footer {
+      margin-top: 32px;
+      padding-top: 16px;
+      border-top: 1px solid #ddd;
+      color: #999;
+      font-size: 0.85em;
+    }
+    footer a { color: #0066cc; }
+  </style>
+</head>
+<body>
+  <h1>GIF Optimizer</h1>
+  <p class="subtitle">Powered by <a href="https://github.com/kohler/gifsicle">gifsicle</a> compiled to WebAssembly &mdash; all processing happens in your browser</p>
+
+  <label id="drop-zone" for="file-input">
+    <p>Drop an animated GIF here or click to select</p>
+    <input type="file" id="file-input" accept="image/gif" class="visually-hidden-file" />
+  </label>
+  <div id="url-input-area">
+    <input type="text" id="url-input" placeholder="Or paste a GIF URL..." />
+    <button id="url-load-btn">Load URL</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div id="original-info">
+    <img id="original-preview" alt="Original GIF" />
+    <span id="original-details"></span>
+  </div>
+
+  <div id="presets-grid"></div>
+
+  <div id="manual-section">
+    <h2>Manual Settings</h2>
+    <div class="controls-grid">
+      <div class="control-group">
+        <label for="opt-level">Optimization level</label>
+        <select id="opt-level">
+          <option value="">None</option>
+          <option value="-O1">-O1 (basic)</option>
+          <option value="-O2">-O2 (moderate)</option>
+          <option value="-O3" selected>-O3 (aggressive)</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="lossy-val">Lossy (0 = off, higher = more loss)</label>
+        <input type="range" id="lossy-val" min="0" max="200" value="0" />
+        <span class="range-value" id="lossy-display">0</span>
+      </div>
+      <div class="control-group">
+        <label for="colors-val">Colors (0 = unchanged)</label>
+        <input type="range" id="colors-val" min="0" max="256" value="0" step="1" />
+        <span class="range-value" id="colors-display">0</span>
+      </div>
+      <div class="control-group">
+        <label for="color-method">Color reduction method</label>
+        <select id="color-method">
+          <option value="">Default</option>
+          <option value="diversity">Diversity</option>
+          <option value="blend-diversity">Blend-Diversity</option>
+          <option value="median-cut">Median-Cut</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="scale-val">Scale (%)</label>
+        <input type="range" id="scale-val" min="10" max="100" value="100" step="5" />
+        <span class="range-value" id="scale-display">100%</span>
+      </div>
+      <div class="control-group">
+        <label for="dither-val">Dither</label>
+        <select id="dither-val">
+          <option value="">Default</option>
+          <option value="none">None</option>
+          <option value="ordered">Ordered</option>
+          <option value="floyd-steinberg">Floyd-Steinberg</option>
+        </select>
+      </div>
+    </div>
+    <button id="manual-run-btn" disabled>Optimize with these settings</button>
+    <div id="manual-result"></div>
+  </div>
+
+  <footer>
+    Built with <a href="https://github.com/kohler/gifsicle">gifsicle</a> by Eddie Kohler, compiled to WebAssembly.
+    gifsicle is released under the GNU General Public License, version 2.
+  </footer>
+
+<script>
+// ---- gifsicle WASM runner ----
+let wasmModule = null;
+let wasmBinaryCache = null;
+let inputGifData = null;
+let inputFileName = 'image.gif';
+
+async function loadWasmBinary() {
+  if (wasmBinaryCache) return wasmBinaryCache;
+  const resp = await fetch('lib/gifsicle/gifsicle.wasm');
+  wasmBinaryCache = await resp.arrayBuffer();
+  return wasmBinaryCache;
+}
+
+async function runGifsicle(gifBytes, args) {
+  // Load the JS module each time (fresh state)
+  if (!window._gifsicleScriptLoaded) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'lib/gifsicle/gifsicle.js';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    window._gifsicleScriptLoaded = true;
+  }
+
+  const binary = await loadWasmBinary();
+  let stdoutBuf = '';
+  let stderrBuf = '';
+
+  const mod = await createGifsicle({
+    wasmBinary: binary.slice(0),
+    print: (t) => { stdoutBuf += t + '\n'; },
+    printErr: (t) => { stderrBuf += t + '\n'; },
+  });
+
+  mod.FS.writeFile('/input.gif', new Uint8Array(gifBytes));
+
+  const fullArgs = ['gifsicle', ...args, '-o', '/output.gif', '/input.gif'];
+  const argv = mod._malloc((fullArgs.length + 1) * 4);
+  const ptrs = [];
+  for (let i = 0; i < fullArgs.length; i++) {
+    const p = mod.allocateUTF8(fullArgs[i]);
+    ptrs.push(p);
+    mod.HEAP32[(argv >> 2) + i] = p;
+  }
+  mod.HEAP32[(argv >> 2) + fullArgs.length] = 0;
+
+  let returnCode;
+  try {
+    returnCode = mod._run_gifsicle(fullArgs.length, argv);
+  } catch (e) {
+    returnCode = -1;
+  }
+
+  ptrs.forEach(p => mod._free(p));
+  mod._free(argv);
+
+  let outputBytes = null;
+  try {
+    outputBytes = mod.FS.readFile('/output.gif');
+  } catch (e) {
+    // output file may not exist if gifsicle failed
+  }
+
+  return { outputBytes, returnCode, stdout: stdoutBuf, stderr: stderrBuf };
+}
+
+// ---- Presets ----
+const presets = [
+  {
+    name: 'Lossless (-O3)',
+    description: 'Maximum lossless optimization',
+    args: ['-O3'],
+  },
+  {
+    name: 'Light lossy',
+    description: 'Slight quality loss for better compression',
+    args: ['-O3', '--lossy=30'],
+  },
+  {
+    name: 'Medium lossy',
+    description: 'Moderate quality loss, noticeably smaller',
+    args: ['-O3', '--lossy=80'],
+  },
+  {
+    name: 'Heavy lossy',
+    description: 'Aggressive quality loss for maximum compression',
+    args: ['-O3', '--lossy=200'],
+  },
+  {
+    name: '128 colors',
+    description: 'Reduce palette to 128 colors with optimization',
+    args: ['-O3', '--colors=128'],
+  },
+  {
+    name: '64 colors',
+    description: 'Reduce palette to 64 colors',
+    args: ['-O3', '--colors=64'],
+  },
+  {
+    name: '32 colors + lossy',
+    description: '32-color palette with lossy compression',
+    args: ['-O3', '--colors=32', '--lossy=80'],
+  },
+  {
+    name: 'Half size',
+    description: 'Scale down to 50% with optimization',
+    args: ['-O3', '--scale=0.5'],
+  },
+  {
+    name: 'Half size + lossy',
+    description: 'Scale to 50% with lossy compression',
+    args: ['-O3', '--scale=0.5', '--lossy=80'],
+  },
+];
+
+// ---- UI helpers ----
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function argsToDisplay(args) {
+  return 'gifsicle ' + args.join(' ');
+}
+
+function setManualControlsFromArgs(args) {
+  // Reset
+  document.getElementById('opt-level').value = '';
+  document.getElementById('lossy-val').value = '0';
+  document.getElementById('lossy-display').textContent = '0';
+  document.getElementById('colors-val').value = '0';
+  document.getElementById('colors-display').textContent = '0';
+  document.getElementById('color-method').value = '';
+  document.getElementById('scale-val').value = '100';
+  document.getElementById('scale-display').textContent = '100%';
+  document.getElementById('dither-val').value = '';
+
+  for (const arg of args) {
+    if (arg.match(/^-O\d$/)) {
+      document.getElementById('opt-level').value = arg;
+    } else if (arg.startsWith('--lossy=')) {
+      const v = arg.split('=')[1];
+      document.getElementById('lossy-val').value = v;
+      document.getElementById('lossy-display').textContent = v;
+    } else if (arg.startsWith('--colors=')) {
+      const v = arg.split('=')[1];
+      document.getElementById('colors-val').value = v;
+      document.getElementById('colors-display').textContent = v;
+    } else if (arg.startsWith('--color-method=')) {
+      document.getElementById('color-method').value = arg.split('=')[1];
+    } else if (arg.startsWith('--scale=')) {
+      const v = Math.round(parseFloat(arg.split('=')[1]) * 100);
+      document.getElementById('scale-val').value = v;
+      document.getElementById('scale-display').textContent = v + '%';
+    } else if (arg.startsWith('--dither=') || arg === '--dither') {
+      const v = arg.includes('=') ? arg.split('=')[1] : '';
+      document.getElementById('dither-val').value = v;
+    }
+  }
+
+  document.getElementById('manual-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function getManualArgs() {
+  const args = [];
+  const opt = document.getElementById('opt-level').value;
+  if (opt) args.push(opt);
+
+  const lossy = parseInt(document.getElementById('lossy-val').value);
+  if (lossy > 0) args.push('--lossy=' + lossy);
+
+  const colors = parseInt(document.getElementById('colors-val').value);
+  if (colors > 0) args.push('--colors=' + colors);
+
+  const method = document.getElementById('color-method').value;
+  if (method) args.push('--color-method=' + method);
+
+  const scale = parseInt(document.getElementById('scale-val').value);
+  if (scale < 100) args.push('--scale=' + (scale / 100).toFixed(2));
+
+  const dither = document.getElementById('dither-val').value;
+  if (dither) args.push('--dither=' + dither);
+
+  return args;
+}
+
+function downloadBlob(data, filename) {
+  const blob = new Blob([data], { type: 'image/gif' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// ---- Processing ----
+async function processPresets(gifData) {
+  const grid = document.getElementById('presets-grid');
+  grid.innerHTML = '';
+  document.getElementById('manual-section').style.display = 'block';
+  document.getElementById('manual-run-btn').disabled = false;
+
+  const inputSize = gifData.byteLength;
+
+  for (const preset of presets) {
+    const card = document.createElement('div');
+    card.className = 'preset-card processing';
+    card.innerHTML = `
+      <h3>${preset.name}</h3>
+      <p class="description">${preset.description}</p>
+      <p class="settings-used">${argsToDisplay(preset.args)}</p>
+      <p class="result-info"><span class="spinner"></span> Processing...</p>
+    `;
+    grid.appendChild(card);
+  }
+
+  // Process each preset
+  for (let i = 0; i < presets.length; i++) {
+    const preset = presets[i];
+    const card = grid.children[i];
+
+    try {
+      const result = await runGifsicle(gifData, preset.args);
+
+      if (result.outputBytes && result.outputBytes.length > 0) {
+        const outputSize = result.outputBytes.length;
+        const reduction = ((1 - outputSize / inputSize) * 100).toFixed(1);
+        const isSmaller = outputSize <= inputSize;
+
+        const blob = new Blob([result.outputBytes], { type: 'image/gif' });
+        const previewUrl = URL.createObjectURL(blob);
+        const baseName = inputFileName.replace(/\.gif$/i, '');
+        const downloadName = baseName + '-' + preset.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.gif';
+
+        card.className = 'preset-card';
+        card.innerHTML = `
+          <h3>${preset.name}</h3>
+          <p class="description">${preset.description}</p>
+          <p class="settings-used">${argsToDisplay(preset.args)}</p>
+          <img class="preview-img" src="${previewUrl}" alt="Preview: ${preset.name}" />
+          <p class="result-info">
+            <span class="size">${formatBytes(outputSize)}</span>
+            (original: ${formatBytes(inputSize)})
+            &mdash;
+            <span class="${isSmaller ? 'reduction' : 'increase'}">
+              ${isSmaller ? reduction + '% smaller' : Math.abs(reduction) + '% larger'}
+            </span>
+          </p>
+          <div class="actions">
+            <button class="download-btn" data-download="${downloadName}">Download</button>
+            <button class="tweak-btn">Tweak these settings</button>
+          </div>
+        `;
+
+        card.querySelector('.download-btn').onclick = () => downloadBlob(result.outputBytes, downloadName);
+        const argsForTweak = preset.args;
+        card.querySelector('.tweak-btn').onclick = () => setManualControlsFromArgs(argsForTweak);
+      } else {
+        card.className = 'preset-card';
+        card.querySelector('.result-info').innerHTML = '<span style="color:#c44">Failed</span>';
+        if (result.stderr) {
+          card.querySelector('.result-info').innerHTML += '<br><small>' + result.stderr.trim() + '</small>';
+        }
+      }
+    } catch (e) {
+      card.className = 'preset-card';
+      card.querySelector('.result-info').innerHTML = '<span style="color:#c44">Error: ' + e.message + '</span>';
+    }
+  }
+}
+
+// ---- File handling ----
+async function handleGifFile(file) {
+  if (!file || !file.type.startsWith('image/gif')) {
+    document.getElementById('status').textContent = 'Please select a GIF file.';
+    return;
+  }
+  inputFileName = file.name || 'image.gif';
+  const data = await file.arrayBuffer();
+  handleGifData(data);
+}
+
+function handleGifData(data) {
+  inputGifData = data;
+  const blob = new Blob([data], { type: 'image/gif' });
+  const url = URL.createObjectURL(blob);
+
+  const info = document.getElementById('original-info');
+  info.style.display = 'block';
+  document.getElementById('original-preview').src = url;
+  document.getElementById('original-details').innerHTML =
+    '<strong>' + inputFileName + '</strong> &mdash; ' + formatBytes(data.byteLength);
+
+  document.getElementById('status').textContent = 'Loading gifsicle WASM and processing...';
+  processPresets(data).then(() => {
+    document.getElementById('status').textContent = '';
+  });
+}
+
+// ---- Event listeners ----
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleGifFile(file);
+});
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files[0]) handleGifFile(e.target.files[0]);
+});
+
+// URL loading
+document.getElementById('url-load-btn').addEventListener('click', async () => {
+  const url = document.getElementById('url-input').value.trim();
+  if (!url) return;
+  document.getElementById('status').textContent = 'Fetching GIF from URL...';
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.arrayBuffer();
+    inputFileName = url.split('/').pop().split('?')[0] || 'image.gif';
+    if (!inputFileName.endsWith('.gif')) inputFileName += '.gif';
+    handleGifData(data);
+  } catch (e) {
+    document.getElementById('status').textContent = 'Failed to load URL: ' + e.message;
+  }
+});
+
+document.getElementById('url-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('url-load-btn').click();
+});
+
+// Manual controls
+document.getElementById('lossy-val').addEventListener('input', (e) => {
+  document.getElementById('lossy-display').textContent = e.target.value;
+});
+document.getElementById('colors-val').addEventListener('input', (e) => {
+  document.getElementById('colors-display').textContent = e.target.value;
+});
+document.getElementById('scale-val').addEventListener('input', (e) => {
+  document.getElementById('scale-display').textContent = e.target.value + '%';
+});
+
+document.getElementById('manual-run-btn').addEventListener('click', async () => {
+  if (!inputGifData) return;
+  const btn = document.getElementById('manual-run-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+
+  const resultDiv = document.getElementById('manual-result');
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = '<span class="spinner"></span> Processing...';
+
+  const args = getManualArgs();
+  try {
+    const result = await runGifsicle(inputGifData, args);
+    if (result.outputBytes && result.outputBytes.length > 0) {
+      const outputSize = result.outputBytes.length;
+      const inputSize = inputGifData.byteLength;
+      const reduction = ((1 - outputSize / inputSize) * 100).toFixed(1);
+      const isSmaller = outputSize <= inputSize;
+      const blob = new Blob([result.outputBytes], { type: 'image/gif' });
+      const previewUrl = URL.createObjectURL(blob);
+      const baseName = inputFileName.replace(/\.gif$/i, '');
+      const downloadName = baseName + '-custom.gif';
+
+      resultDiv.innerHTML = `
+        <p><strong>Command:</strong> <code>${argsToDisplay(args)}</code></p>
+        <img src="${previewUrl}" alt="Custom result" />
+        <p>
+          <strong>${formatBytes(outputSize)}</strong>
+          (original: ${formatBytes(inputSize)})
+          &mdash;
+          <span style="color:${isSmaller ? '#2a8' : '#c44'}">
+            ${isSmaller ? reduction + '% smaller' : Math.abs(reduction) + '% larger'}
+          </span>
+        </p>
+        <button class="download-btn" style="padding:8px 16px;background:#0066cc;color:#fff;border:none;border-radius:6px;cursor:pointer">Download</button>
+      `;
+      resultDiv.querySelector('.download-btn').onclick = () => downloadBlob(result.outputBytes, downloadName);
+    } else {
+      resultDiv.innerHTML = '<p style="color:#c44">Failed to process.</p>';
+      if (result.stderr) resultDiv.innerHTML += '<pre>' + result.stderr.trim() + '</pre>';
+    }
+  } catch (e) {
+    resultDiv.innerHTML = '<p style="color:#c44">Error: ' + e.message + '</p>';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Optimize with these settings';
+});
+
+// Handle GIF URL in query string
+const params = new URLSearchParams(location.search);
+if (params.get('url')) {
+  document.getElementById('url-input').value = params.get('url');
+  document.getElementById('url-load-btn').click();
+}
+</script>
+</body>
+</html>
