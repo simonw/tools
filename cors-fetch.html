@@ -444,12 +444,45 @@
       font-weight: 600;
     }
 
+    /* Body toolbar (format toggle + copy button) */
+    .body-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .copy-btn {
+      background: #e5e7eb;
+      color: #374151;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 30px;
+      transition: background 0.15s;
+    }
+
+    .copy-btn:hover {
+      background: #d1d5db;
+    }
+
+    .copy-btn.copied {
+      background: #dcfce7;
+      color: #166534;
+    }
+
     /* JSON format toggle */
     .format-toggle-row {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 8px;
     }
 
     .format-toggle-row label {
@@ -701,11 +734,17 @@ curl -X POST 'https://api.example.com/data' \
         Body
         <small>Shown as text (UTF-8)</small>
       </div>
-      <div id="format-toggle-container" class="format-toggle-row hidden">
-        <label>
-          <span id="format-toggle" class="toggle-switch active"></span>
-          <span>Format JSON</span>
-        </label>
+      <div class="body-toolbar">
+        <div id="format-toggle-container" class="format-toggle-row hidden">
+          <label>
+            <span id="format-toggle" class="toggle-switch active"></span>
+            <span>Format JSON</span>
+          </label>
+        </div>
+        <button type="button" class="copy-btn" id="copy-body-btn" title="Copy response body to clipboard">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span id="copy-body-label">Copy</span>
+        </button>
       </div>
       <pre id="body-output">// Response body will appear here</pre>
 
@@ -758,6 +797,10 @@ curl -X POST 'https://api.example.com/data' \
     const formatToggleContainer = document.getElementById("format-toggle-container");
     const formatToggle = document.getElementById("format-toggle");
 
+    // Copy button
+    const copyBodyBtn = document.getElementById("copy-body-btn");
+    const copyBodyLabel = document.getElementById("copy-body-label");
+
     // Inline images
     const inlineImagesSection = document.getElementById("inline-images-section");
     const inlineImagesGrid = document.getElementById("inline-images-grid");
@@ -782,6 +825,37 @@ curl -X POST 'https://api.example.com/data' \
       showFormatted = !showFormatted;
       formatToggle.classList.toggle("active", showFormatted);
       updateBodyDisplay();
+    });
+
+    // Copy body to clipboard
+    copyBodyBtn.addEventListener("click", async () => {
+      const text = bodyOutput.textContent;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBodyBtn.classList.add("copied");
+        copyBodyLabel.textContent = "Copied!";
+        setTimeout(() => {
+          copyBodyBtn.classList.remove("copied");
+          copyBodyLabel.textContent = "Copy";
+        }, 1500);
+      } catch {
+        // Fallback for older browsers or insecure contexts
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        copyBodyBtn.classList.add("copied");
+        copyBodyLabel.textContent = "Copied!";
+        setTimeout(() => {
+          copyBodyBtn.classList.remove("copied");
+          copyBodyLabel.textContent = "Copy";
+        }, 1500);
+      }
     });
 
     function updateBodyDisplay() {
