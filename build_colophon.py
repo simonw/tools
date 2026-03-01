@@ -67,6 +67,9 @@ def build_colophon():
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>tools.simonwillison.net colophon</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: "Helvetica Neue", helvetica, sans-serif;
             line-height: 1.4;
@@ -159,6 +162,34 @@ def build_colophon():
             overflow-wrap: break-word;
             font-size: 0.9rem;
             line-height: 1.4;
+        }
+        .body-f {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 15px;
+            line-height: 1.65;
+            color: #2a2a2a;
+            border: 1.5px solid #c4b5fd;
+            border-radius: 8px;
+            padding: 14px 16px;
+            position: relative;
+        }
+        .body-f .badge {
+            position: absolute;
+            top: -10px;
+            left: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #fff;
+            color: #7c3aed;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            letter-spacing: 0.3px;
+        }
+        .body-f .badge svg {
+            width: 12px;
+            height: 12px;
         }
         .urls {
             margin-top: 1rem;
@@ -279,8 +310,14 @@ def build_colophon():
                     docs_content = "\n".join(docs_lines)
                     # Render markdown to HTML
                     docs_html = markdown.markdown(docs_content)
-                    # Add docs above commits
-                    html_content += '<div class="docs">' + docs_html + "</div>"
+                    # Add docs above commits with AI badge
+                    html_content += '<div class="docs"><div class="body-f">'
+                    html_content += '<span class="badge">'
+                    html_content += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/></svg>'
+                    html_content += 'AI generated'
+                    html_content += '</span>'
+                    html_content += docs_html
+                    html_content += "</div></div>"
             except Exception as e:
                 print(f"Error reading {docs_file}: {e}")
 
