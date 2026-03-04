@@ -427,6 +427,45 @@
             color: white;
         }
 
+        .star-btn {
+            background: none;
+            border: none;
+            font-size: 1.3rem;
+            cursor: pointer;
+            padding: 2px 6px;
+            line-height: 1;
+            opacity: 0.3;
+            transition: opacity 0.2s, transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .star-btn:hover {
+            opacity: 0.6;
+            transform: scale(1.2);
+        }
+
+        .star-btn.starred {
+            opacity: 1;
+        }
+
+        .toolbar-btn.active {
+            background: rgba(255,255,255,0.85);
+            color: #1a237e;
+            font-weight: 600;
+        }
+
+        .starred-count {
+            font-size: 0.75rem;
+            background: rgba(255,255,255,0.3);
+            padding: 1px 6px;
+            border-radius: 8px;
+            margin-left: 4px;
+        }
+
+        .toolbar-btn.active .starred-count {
+            background: rgba(26,35,126,0.15);
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 15px;
@@ -466,6 +505,7 @@
         <div id="nowNext" class="now-next" style="display:none"></div>
 
         <div class="toolbar">
+            <button class="toolbar-btn" id="starredToggle" onclick="toggleStarredView()" aria-label="Show starred sessions only" aria-pressed="false">⭐ Starred <span class="starred-count" id="starredCount" role="status" aria-label="starred sessions count">0</span></button>
             <button class="toolbar-btn" onclick="downloadICS()" aria-label="Download calendar in ICS format">📅 Download ICS</button>
             <button class="toolbar-btn" onclick="downloadJSON()" aria-label="Download schedule JSON">💾 Download JSON</button>
         </div>
@@ -488,7 +528,7 @@
 
         <div class="loading" id="loading" role="status" aria-live="polite">Loading schedule...</div>
 
-        <div id="schedule-content"></div>
+        <div id="schedule-content" aria-live="polite" aria-atomic="false"></div>
     </div>
 
     <script>
@@ -499,10 +539,15 @@
         let speakerMap = {};
         let allSessions = [];
         let dayKeys = [];
+        let starredIds = new Set(JSON.parse(localStorage.getItem('nicar2026_starred') || '[]'));
+        let showStarredOnly = false;
 
         // Service worker registration
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('nicar-2026-sw.js').catch(err => {
+            navigator.serviceWorker.register('nicar-2026-sw.js', { updateViaCache: 'none' }).then(reg => {
+                // Check for SW updates every 5 minutes
+                setInterval(() => reg.update(), 5 * 60 * 1000);
+            }).catch(err => {
                 console.log('SW registration failed:', err);
             });
 
@@ -585,6 +630,9 @@
 
             // Build links section
             buildLinks();
+
+            // Update starred count
+            updateStarredCount();
         }
 
         function toConferenceDate(isoStr) {
@@ -620,7 +668,13 @@
             });
 
             const typeSelect = document.getElementById('filterType');
-            Array.from(types).sort().forEach(t => {
+            // Deduplicate case-insensitively, keeping the first-seen casing
+            const seenTypes = new Map();
+            types.forEach(t => {
+                const lower = t.toLowerCase();
+                if (!seenTypes.has(lower)) seenTypes.set(lower, t);
+            });
+            Array.from(seenTypes.values()).sort().forEach(t => {
                 typeSelect.innerHTML += `<option value="${t}">${t}</option>`;
             });
 
@@ -673,7 +727,8 @@
         }
 
         function sessionMatchesFilters(session, filters) {
-            if (filters.type && session.session_type !== filters.type) return false;
+            if (showStarredOnly && !starredIds.has(session.session_id)) return false;
+            if (filters.type && (session.session_type || '').toLowerCase() !== filters.type.toLowerCase()) return false;
             if (filters.track && !(session.tracks || []).includes(filters.track)) return false;
             if (filters.level && session.skill_level !== filters.level) return false;
             if (filters.search) {
@@ -763,6 +818,8 @@
             const roomInfo = conferenceData.rooms && conferenceData.rooms[session.room];
             const roomExtra = roomInfo ? ` · Floor ${roomInfo.level}${roomInfo.os && roomInfo.os !== 'BYO' ? ` · ${roomInfo.os}` : ''}` : '';
 
+            const isStarred = starredIds.has(session.session_id);
+
             return `<div class="session-card${canceledClass}">
                 <div class="session-header">
                     <div class="session-badges">
@@ -774,12 +831,38 @@
                     </div>
                     <span class="session-location">${session.room || 'TBD'}${roomExtra}</span>
                 </div>
-                <h3 class="session-title">${session.session_title}</h3>
+                <div style="display:flex;align-items:flex-start;gap:8px">
+                    <h3 class="session-title" style="flex:1">${session.session_title}</h3>
+                    <button class="star-btn${isStarred ? ' starred' : ''}" onclick="toggleStar(${session.session_id})" aria-label="${isStarred ? 'Unstar' : 'Star'} this session">${isStarred ? '⭐' : '☆'}</button>
+                </div>
                 ${session.description ? `<div class="session-description">${session.description}</div>` : ''}
                 ${tracksHtml ? `<div class="tracks">${tracksHtml}</div>` : ''}
                 ${speakersHtml ? `<div class="speakers">${speakersHtml}</div>` : ''}
                 ${session.cost && session.cost !== '0' ? `<p style="margin-top:8px;font-size:0.85rem;color:#888">Cost: $${session.cost}</p>` : ''}
             </div>`;
+        }
+
+        function toggleStar(sessionId) {
+            if (starredIds.has(sessionId)) {
+                starredIds.delete(sessionId);
+            } else {
+                starredIds.add(sessionId);
+            }
+            localStorage.setItem('nicar2026_starred', JSON.stringify([...starredIds]));
+            updateStarredCount();
+            renderSchedule();
+        }
+
+        function toggleStarredView() {
+            showStarredOnly = !showStarredOnly;
+            const btn = document.getElementById('starredToggle');
+            btn.classList.toggle('active', showStarredOnly);
+            btn.setAttribute('aria-pressed', showStarredOnly);
+            onFilterChange();
+        }
+
+        function updateStarredCount() {
+            document.getElementById('starredCount').textContent = starredIds.size;
         }
 
         function showDay(dateStr, btn) {
@@ -925,6 +1008,27 @@
         document.getElementById('filterType').addEventListener('change', onFilterChange);
         document.getElementById('filterTrack').addEventListener('change', onFilterChange);
         document.getElementById('filterLevel').addEventListener('change', onFilterChange);
+
+        // Keyboard navigation for tab list (arrow keys)
+        document.getElementById('dayTabs').addEventListener('keydown', e => {
+            const tabs = Array.from(document.querySelectorAll('.day-tab'));
+            const current = tabs.indexOf(document.activeElement);
+            if (current === -1) return;
+            let next = -1;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                next = (current + 1) % tabs.length;
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                next = (current - 1 + tabs.length) % tabs.length;
+            } else if (e.key === 'Home') {
+                next = 0;
+            } else if (e.key === 'End') {
+                next = tabs.length - 1;
+            }
+            if (next !== -1) {
+                e.preventDefault();
+                showDay(tabs[next].dataset.day, tabs[next]);
+            }
+        });
 
         // Periodically check for updates (every 5 minutes)
         setInterval(async () => {
