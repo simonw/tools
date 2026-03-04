@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NICAR 2026 Schedule</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        .visually-hidden {
+            position: absolute !important;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a237e 0%, #0d47a1 50%, #01579b 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 5px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .header .venue {
+            font-size: 0.95rem;
+            opacity: 0.8;
+        }
+
+        .header .venue a {
+            color: white;
+            text-decoration: underline;
+        }
+
+        .offline-badge {
+            display: none;
+            background: #ff9800;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-top: 8px;
+        }
+
+        .offline-badge.visible {
+            display: inline-block;
+        }
+
+        .update-banner {
+            display: none;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 15px;
+            cursor: pointer;
+            animation: slideDown 0.3s ease;
+        }
+
+        .update-banner.visible {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 15px 0;
+        }
+
+        .toolbar-btn {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            border-radius: 8px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s ease;
+        }
+
+        .toolbar-btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .day-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .day-tab {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .day-tab.active {
+            background: rgba(255,255,255,0.9);
+            color: #1a237e;
+            font-weight: 600;
+        }
+
+        .day-tab:hover:not(.active) {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .day-content {
+            display: none;
+        }
+
+        .day-content.active {
+            display: block;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: none;
+            margin-bottom: 15px;
+        }
+
+        .filters {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .filter-select {
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.15);
+            color: white;
+            font-size: 0.85rem;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        .filter-select option {
+            background: #1a237e;
+            color: white;
+        }
+
+        .meta-event {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            color: white;
+        }
+
+        .meta-event .meta-time {
+            font-weight: 600;
+            margin-right: 10px;
+        }
+
+        .meta-event .meta-type {
+            opacity: 0.85;
+            font-size: 0.9rem;
+        }
+
+        .meta-event .meta-room {
+            opacity: 0.7;
+            font-size: 0.85rem;
+        }
+
+        .session-card {
+            background: white;
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .session-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .session-card.canceled {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .session-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .session-time {
+            background: #1a237e;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .session-type-badge {
+            padding: 5px 10px;
+            border-radius: 16px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: white;
+        }
+
+        .type-demo { background: #e91e63; }
+        .type-panel { background: #9c27b0; }
+        .type-hands-on { background: #2196f3; }
+        .type-lightning-talk { background: #ff5722; }
+        .type-master-class { background: #f44336; }
+        .type-conversation { background: #009688; }
+        .type-workshop { background: #3f51b5; }
+        .type-other { background: #607d8b; }
+
+        .skill-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .skill-beginner { background: #e8f5e9; color: #2e7d32; }
+        .skill-intermediate { background: #fff3e0; color: #e65100; }
+        .skill-advanced { background: #fce4ec; color: #c62828; }
+
+        .session-location {
+            background: #f0f0f0;
+            padding: 5px 10px;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .session-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .session-description {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+        }
+
+        .session-description p {
+            margin: 0;
+        }
+
+        .tracks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .track-tag {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+        }
+
+        .speakers {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .speaker {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #f8f9fa;
+            padding: 6px 10px;
+            border-radius: 16px;
+            font-size: 0.85rem;
+        }
+
+        .speaker-affiliation {
+            color: #888;
+            font-size: 0.8rem;
+        }
+
+        .recorded-badge {
+            font-size: 0.75rem;
+            color: #d32f2f;
+            margin-left: 4px;
+        }
+
+        .now-next {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .now-next h2 {
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+
+        .now-next p {
+            font-size: 0.95rem;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2rem;
+            margin-top: 50px;
+        }
+
+        .day-heading {
+            display: none;
+            color: white;
+            text-align: center;
+            margin: 20px 0 10px;
+        }
+
+        .searching .day-tabs {
+            display: none;
+        }
+
+        .searching .day-heading {
+            display: block;
+        }
+
+        .time-group-heading {
+            color: #1a237e;
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 20px 0 10px;
+            padding: 6px 14px;
+            background: rgba(255,255,255,0.7);
+            border-radius: 8px;
+            display: inline-block;
+        }
+
+        .links-section {
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        .links-section a {
+            color: rgba(255,255,255,0.85);
+            text-decoration: underline;
+            font-size: 0.85rem;
+            margin: 0 8px;
+        }
+
+        .links-section a:hover {
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .session-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .day-tab {
+                padding: 8px 14px;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="#schedule-content" class="visually-hidden">Skip to main content</a>
+    <div class="container">
+        <div class="header">
+            <h1>NICAR 2026</h1>
+            <p class="subtitle">March 5–8, 2026 &middot; Indianapolis</p>
+            <p class="venue"><a href="https://maps.app.goo.gl/S95SMAxLhoPz4cpQ9">JW Marriott, 10 S. West St.</a></p>
+            <span class="offline-badge" id="offlineBadge">Offline – showing cached schedule</span>
+            <div class="links-section" id="linksSection"></div>
+        </div>
+
+        <div class="update-banner" id="updateBanner" onclick="location.reload()">
+            Schedule has been updated! Tap to refresh.
+        </div>
+
+        <div id="nowNext" class="now-next" style="display:none"></div>
+
+        <div class="toolbar">
+            <button class="toolbar-btn" onclick="downloadICS()" aria-label="Download calendar in ICS format">📅 Download ICS</button>
+            <button class="toolbar-btn" onclick="downloadJSON()" aria-label="Download schedule JSON">💾 Download JSON</button>
+        </div>
+
+        <input id="searchInput" class="search-input" type="search" placeholder="Search sessions, speakers, tracks..." aria-label="Search sessions">
+
+        <div class="filters">
+            <select class="filter-select" id="filterType" aria-label="Filter by session type">
+                <option value="">All types</option>
+            </select>
+            <select class="filter-select" id="filterTrack" aria-label="Filter by track">
+                <option value="">All tracks</option>
+            </select>
+            <select class="filter-select" id="filterLevel" aria-label="Filter by skill level">
+                <option value="">All levels</option>
+            </select>
+        </div>
+
+        <div class="day-tabs" role="tablist" id="dayTabs"></div>
+
+        <div class="loading" id="loading" role="status" aria-live="polite">Loading schedule...</div>
+
+        <div id="schedule-content"></div>
+    </div>
+
+    <script>
+        const SCHEDULE_URL = 'https://ire-nicar-conference-schedules.s3.us-east-2.amazonaws.com/nicar-2026/nicar-2026-schedule.json';
+        const TIMEZONE = 'America/New_York';
+
+        let conferenceData = null;
+        let speakerMap = {};
+        let allSessions = [];
+        let dayKeys = [];
+
+        // Service worker registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('nicar-2026-sw.js').catch(err => {
+                console.log('SW registration failed:', err);
+            });
+
+            navigator.serviceWorker.addEventListener('message', event => {
+                if (event.data && event.data.type === 'SCHEDULE_UPDATED') {
+                    document.getElementById('updateBanner').classList.add('visible');
+                }
+            });
+        }
+
+        // Offline detection
+        function updateOnlineStatus() {
+            const badge = document.getElementById('offlineBadge');
+            badge.classList.toggle('visible', !navigator.onLine);
+        }
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus();
+
+        async function loadSchedule() {
+            try {
+                const response = await fetch(SCHEDULE_URL);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                conferenceData = await response.json();
+                // Cache in localStorage as a fallback
+                try {
+                    localStorage.setItem('nicar2026_data', JSON.stringify(conferenceData));
+                    localStorage.setItem('nicar2026_updated', conferenceData.updated || '');
+                } catch (e) { /* localStorage might be full */ }
+            } catch (error) {
+                console.error('Error loading schedule:', error);
+                // Try localStorage fallback
+                const cached = localStorage.getItem('nicar2026_data');
+                if (cached) {
+                    conferenceData = JSON.parse(cached);
+                } else {
+                    document.getElementById('loading').textContent = 'Unable to load schedule. Please check your connection.';
+                    return;
+                }
+            }
+
+            initializeData();
+            renderAll();
+            updateNowAndNext();
+            setInterval(updateNowAndNext, 60000);
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function initializeData() {
+            // Build speaker lookup
+            speakerMap = {};
+            (conferenceData.speakers || []).forEach(s => {
+                speakerMap[s.id] = s;
+            });
+
+            // Determine day keys from sessions
+            const daySet = new Set();
+            (conferenceData.sessions || []).forEach(s => {
+                const dateStr = toConferenceDate(s.start_time);
+                daySet.add(dateStr);
+            });
+            // Also include meta_events days
+            if (conferenceData.meta_events) {
+                Object.keys(conferenceData.meta_events).forEach(d => daySet.add(d));
+            }
+            dayKeys = Array.from(daySet).sort();
+
+            // Build flat session list for now/next
+            allSessions = (conferenceData.sessions || [])
+                .filter(s => !s.canceled)
+                .map(s => ({
+                    ...s,
+                    _start: new Date(s.start_time),
+                    _end: new Date(s.end_time),
+                }))
+                .sort((a, b) => a._start - b._start);
+
+            // Populate filters
+            populateFilters();
+
+            // Build links section
+            buildLinks();
+        }
+
+        function toConferenceDate(isoStr) {
+            const d = new Date(isoStr);
+            return d.toLocaleDateString('en-CA', { timeZone: TIMEZONE }); // YYYY-MM-DD
+        }
+
+        function formatTime(isoStr) {
+            return new Date(isoStr).toLocaleTimeString('en-US', {
+                timeZone: TIMEZONE,
+                hour: 'numeric',
+                minute: '2-digit',
+            });
+        }
+
+        function formatTimeRange(startIso, endIso) {
+            return `${formatTime(startIso)} – ${formatTime(endIso)}`;
+        }
+
+        function dayLabel(dateStr) {
+            const d = new Date(dateStr + 'T12:00:00');
+            return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+        }
+
+        function populateFilters() {
+            const types = new Set();
+            const tracks = new Set();
+            const levels = new Set();
+            (conferenceData.sessions || []).forEach(s => {
+                if (s.session_type) types.add(s.session_type);
+                (s.tracks || []).forEach(t => tracks.add(t));
+                if (s.skill_level) levels.add(s.skill_level);
+            });
+
+            const typeSelect = document.getElementById('filterType');
+            Array.from(types).sort().forEach(t => {
+                typeSelect.innerHTML += `<option value="${t}">${t}</option>`;
+            });
+
+            const trackSelect = document.getElementById('filterTrack');
+            Array.from(tracks).sort().forEach(t => {
+                trackSelect.innerHTML += `<option value="${t}">${t}</option>`;
+            });
+
+            const levelSelect = document.getElementById('filterLevel');
+            ['Beginner', 'Intermediate', 'Advanced'].filter(l => levels.has(l)).forEach(l => {
+                levelSelect.innerHTML += `<option value="${l}">${l}</option>`;
+            });
+        }
+
+        function buildLinks() {
+            const links = conferenceData.additional_links || [];
+            if (!links.length) return;
+            const section = document.getElementById('linksSection');
+            section.innerHTML = links.map(l =>
+                `<a href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`
+            ).join(' · ');
+        }
+
+        function renderAll() {
+            // Build tabs
+            const tabsContainer = document.getElementById('dayTabs');
+            tabsContainer.innerHTML = dayKeys.map((dateStr, i) => {
+                const label = dayLabel(dateStr);
+                const active = i === 0 ? ' active' : '';
+                return `<button class="day-tab${active}" role="tab" data-day="${dateStr}" aria-selected="${i === 0}" onclick="showDay('${dateStr}', this)">${label}</button>`;
+            }).join('');
+
+            // Build day content containers
+            const content = document.getElementById('schedule-content');
+            content.innerHTML = dayKeys.map((dateStr, i) => {
+                const active = i === 0 ? ' active' : '';
+                return `<h2 class="day-heading">${dayLabel(dateStr)}</h2><div id="day-${dateStr}" class="day-content${active}" role="tabpanel"></div>`;
+            }).join('');
+
+            renderSchedule();
+        }
+
+        function getFilters() {
+            return {
+                search: document.getElementById('searchInput').value.toLowerCase().trim(),
+                type: document.getElementById('filterType').value,
+                track: document.getElementById('filterTrack').value,
+                level: document.getElementById('filterLevel').value,
+            };
+        }
+
+        function sessionMatchesFilters(session, filters) {
+            if (filters.type && session.session_type !== filters.type) return false;
+            if (filters.track && !(session.tracks || []).includes(filters.track)) return false;
+            if (filters.level && session.skill_level !== filters.level) return false;
+            if (filters.search) {
+                const speakerNames = (session.speakers || []).map(id => {
+                    const sp = speakerMap[id];
+                    return sp ? `${sp.first_name} ${sp.last_name} ${sp.affiliation || ''}` : '';
+                }).join(' ');
+                const combined = [
+                    session.session_title,
+                    session.description,
+                    session.room,
+                    session.session_type,
+                    session.skill_level,
+                    (session.tracks || []).join(' '),
+                    speakerNames,
+                ].join(' ').toLowerCase();
+                if (!combined.includes(filters.search)) return false;
+            }
+            return true;
+        }
+
+        function renderSchedule() {
+            const filters = getFilters();
+
+            dayKeys.forEach(dateStr => {
+                const container = document.getElementById(`day-${dateStr}`);
+                if (!container) return;
+
+                let html = '';
+
+                // Meta events for this day
+                const metaEvents = (conferenceData.meta_events && conferenceData.meta_events[dateStr]) || [];
+                if (metaEvents.length && !filters.search && !filters.type && !filters.track && !filters.level) {
+                    metaEvents.forEach(me => {
+                        const time = formatTimeRange(me.datetime_start, me.datetime_end);
+                        html += `<div class="meta-event">
+                            <span class="meta-time">${time}</span>
+                            <span class="meta-type">${me.type}</span>
+                            ${me.room ? `<span class="meta-room"> · ${me.room}</span>` : ''}
+                            ${me.description ? `<br><span class="meta-room">${me.description}</span>` : ''}
+                        </div>`;
+                    });
+                }
+
+                // Sessions for this day
+                const daySessions = (conferenceData.sessions || [])
+                    .filter(s => toConferenceDate(s.start_time) === dateStr)
+                    .filter(s => sessionMatchesFilters(s, filters))
+                    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+                if (daySessions.length === 0 && !metaEvents.length) {
+                    html = '<p style="color:white;text-align:center;padding:20px">No sessions match your filters.</p>';
+                }
+
+                // Group by time slot
+                let currentTime = '';
+                daySessions.forEach(session => {
+                    const timeSlot = formatTime(session.start_time);
+                    if (timeSlot !== currentTime) {
+                        currentTime = timeSlot;
+                        html += `<div class="time-group-heading">${timeSlot}</div>`;
+                    }
+                    html += renderSessionCard(session);
+                });
+
+                container.innerHTML = html;
+            });
+        }
+
+        function renderSessionCard(session) {
+            const timeRange = formatTimeRange(session.start_time, session.end_time);
+            const typeClass = 'type-' + (session.session_type || 'other').toLowerCase().replace(/[\s-]+/g, '-');
+            const skillClass = 'skill-' + (session.skill_level || '').toLowerCase();
+            const canceledClass = session.canceled ? ' canceled' : '';
+
+            const speakersHtml = (session.speakers || []).map(id => {
+                const sp = speakerMap[id];
+                if (!sp) return '';
+                const affil = sp.affiliation ? `<span class="speaker-affiliation">(${sp.affiliation})</span>` : '';
+                return `<div class="speaker"><span>${sp.first_name} ${sp.last_name}</span> ${affil}</div>`;
+            }).filter(Boolean).join('');
+
+            const tracksHtml = (session.tracks || []).map(t =>
+                `<span class="track-tag">${t}</span>`
+            ).join('');
+
+            const roomInfo = conferenceData.rooms && conferenceData.rooms[session.room];
+            const roomExtra = roomInfo ? ` · Floor ${roomInfo.level}${roomInfo.os && roomInfo.os !== 'BYO' ? ` · ${roomInfo.os}` : ''}` : '';
+
+            return `<div class="session-card${canceledClass}">
+                <div class="session-header">
+                    <div class="session-badges">
+                        <span class="session-time">${timeRange}</span>
+                        <span class="session-type-badge ${typeClass}">${session.session_type || 'Session'}</span>
+                        ${session.skill_level ? `<span class="skill-badge ${skillClass}">${session.skill_level}</span>` : ''}
+                        ${session.recorded ? '<span class="recorded-badge">⏺ Recorded</span>' : ''}
+                        ${session.canceled ? '<span class="skill-badge" style="background:#ffebee;color:#c62828">Canceled</span>' : ''}
+                    </div>
+                    <span class="session-location">${session.room || 'TBD'}${roomExtra}</span>
+                </div>
+                <h3 class="session-title">${session.session_title}</h3>
+                ${session.description ? `<div class="session-description">${session.description}</div>` : ''}
+                ${tracksHtml ? `<div class="tracks">${tracksHtml}</div>` : ''}
+                ${speakersHtml ? `<div class="speakers">${speakersHtml}</div>` : ''}
+                ${session.cost && session.cost !== '0' ? `<p style="margin-top:8px;font-size:0.85rem;color:#888">Cost: $${session.cost}</p>` : ''}
+            </div>`;
+        }
+
+        function showDay(dateStr, btn) {
+            document.querySelectorAll('.day-content').forEach(el => {
+                el.classList.remove('active');
+                el.setAttribute('aria-hidden', 'true');
+            });
+            document.querySelectorAll('.day-tab').forEach(tab => {
+                tab.classList.remove('active');
+                tab.setAttribute('aria-selected', 'false');
+            });
+
+            const panel = document.getElementById(`day-${dateStr}`);
+            if (panel) {
+                panel.classList.add('active');
+                panel.setAttribute('aria-hidden', 'false');
+            }
+            btn.classList.add('active');
+            btn.setAttribute('aria-selected', 'true');
+            btn.focus();
+        }
+
+        function updateNowAndNext() {
+            if (!allSessions.length) return;
+            const now = new Date();
+            const container = document.getElementById('nowNext');
+
+            let current = [];
+            let next = null;
+
+            for (const session of allSessions) {
+                if (now >= session._start && now < session._end) {
+                    current.push(session);
+                } else if (session._start > now && !next) {
+                    next = session;
+                }
+            }
+
+            if (!current.length && !next) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            let html = '';
+            if (current.length) {
+                html += '<h2>Happening Now</h2>';
+                current.forEach(s => {
+                    html += `<p>${formatTime(s.start_time)} – ${s.session_title} (${s.room})</p>`;
+                });
+            }
+            if (next) {
+                const diff = Math.round((next._start - now) / 60000);
+                const timeLabel = diff < 60 ? `in ${diff} min` : `in ${Math.floor(diff/60)}h ${diff%60}m`;
+                html += `<h2 style="margin-top:8px">Up Next (${timeLabel})</h2>`;
+                html += `<p>${formatTime(next.start_time)} – ${next.session_title} (${next.room})</p>`;
+            }
+            container.innerHTML = html;
+
+            // Auto-switch to current day tab
+            if (current.length || next) {
+                const relevantSession = current[0] || next;
+                const dateStr = toConferenceDate(relevantSession.start_time);
+                const tab = document.querySelector(`.day-tab[data-day="${dateStr}"]`);
+                if (tab && !tab.classList.contains('active') && !document.getElementById('searchInput').value) {
+                    showDay(dateStr, tab);
+                }
+            }
+        }
+
+        function downloadICS() {
+            if (!conferenceData) return;
+
+            let ics = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//NICAR//NICAR 2026//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nX-WR-CALNAME:NICAR 2026\r\nX-WR-TIMEZONE:America/New_York\r\n`;
+
+            (conferenceData.sessions || []).filter(s => !s.canceled).forEach(session => {
+                const dtStart = new Date(session.start_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+                const dtEnd = new Date(session.end_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+
+                const speakers = (session.speakers || []).map(id => {
+                    const sp = speakerMap[id];
+                    return sp ? `${sp.first_name} ${sp.last_name}` : '';
+                }).filter(Boolean).join(', ');
+
+                const desc = (session.description || '')
+                    .replace(/<[^>]+>/g, '')
+                    .replace(/\r?\n/g, '\\n')
+                    .replace(/,/g, '\\,')
+                    .replace(/;/g, '\\;');
+                const fullDesc = speakers ? `${desc}\\n\\nSpeakers: ${speakers}` : desc;
+
+                const summary = (session.session_title || '').replace(/,/g, '\\,').replace(/;/g, '\\;');
+
+                ics += `BEGIN:VEVENT\r\nDTSTART:${dtStart}\r\nDTEND:${dtEnd}\r\nSUMMARY:${summary}\r\nDESCRIPTION:${fullDesc}\r\nLOCATION:${session.room || ''}\r\nUID:nicar2026-${session.session_id}@ire.org\r\nDTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}\r\nEND:VEVENT\r\n`;
+            });
+
+            ics += 'END:VCALENDAR';
+            const blob = new Blob([ics], { type: 'text/calendar' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'nicar-2026-schedule.ics';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        }
+
+        function downloadJSON() {
+            if (!conferenceData) return;
+            const blob = new Blob([JSON.stringify(conferenceData, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'nicar-2026-schedule.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        }
+
+        // Search and filter handlers
+        function onFilterChange() {
+            const filters = getFilters();
+            const isFiltering = filters.search || filters.type || filters.track || filters.level;
+
+            const container = document.querySelector('.container');
+            if (isFiltering) {
+                container.classList.add('searching');
+                document.querySelectorAll('.day-content').forEach(el => {
+                    el.classList.add('active');
+                    el.setAttribute('aria-hidden', 'false');
+                });
+            } else {
+                container.classList.remove('searching');
+                const activeTab = document.querySelector('.day-tab.active');
+                if (activeTab) {
+                    showDay(activeTab.dataset.day, activeTab);
+                }
+            }
+            renderSchedule();
+        }
+
+        document.getElementById('searchInput').addEventListener('input', onFilterChange);
+        document.getElementById('filterType').addEventListener('change', onFilterChange);
+        document.getElementById('filterTrack').addEventListener('change', onFilterChange);
+        document.getElementById('filterLevel').addEventListener('change', onFilterChange);
+
+        // Periodically check for updates (every 5 minutes)
+        setInterval(async () => {
+            try {
+                const response = await fetch(SCHEDULE_URL);
+                if (!response.ok) return;
+                const fresh = await response.json();
+                if (fresh.updated !== localStorage.getItem('nicar2026_updated')) {
+                    document.getElementById('updateBanner').classList.add('visible');
+                }
+            } catch (e) { /* offline, ignore */ }
+        }, 5 * 60 * 1000);
+
+        loadSchedule();
+    </script>
+</body>
+</html>
