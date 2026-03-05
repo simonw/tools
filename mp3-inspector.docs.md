@@ -1,0 +1,3 @@
+Extract ID3 metadata and file information from MP3 audio files using this browser-based tool. Upload an MP3 file by dragging it onto the drop zone or selecting it through the file picker, and the inspector will parse and display all available tags including title, artist, album art, technical encoding details, and embedded URLs. The tool organizes metadata into categorized sections and provides a raw JSON view for advanced inspection of the complete tag data.
+
+<!-- Generated from commit: f0459f33e119d4e5aa757fb58b00798d8290a4c6 -->
