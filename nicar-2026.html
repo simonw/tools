@@ -432,8 +432,16 @@
         }
 
         .now-next-card .star-btn {
-            color: white;
+            color: rgba(255,255,255,0.5);
             flex-shrink: 0;
+        }
+
+        .now-next-card .star-btn:hover {
+            color: #f5c518;
+        }
+
+        .now-next-card .star-btn.starred {
+            color: #f5c518;
         }
 
         .now-next-time-label {
@@ -499,18 +507,18 @@
             cursor: pointer;
             padding: 2px 6px;
             line-height: 1;
-            opacity: 0.3;
-            transition: opacity 0.2s, transform 0.2s;
+            color: #ccc;
+            transition: color 0.2s, transform 0.2s;
             flex-shrink: 0;
         }
 
         .star-btn:hover {
-            opacity: 0.6;
+            color: #f5c518;
             transform: scale(1.2);
         }
 
         .star-btn.starred {
-            opacity: 1;
+            color: #f5c518;
         }
 
         .toolbar-btn.active {
@@ -570,7 +578,7 @@
         <div id="nowNext" class="now-next" style="display:none"></div>
 
         <div class="toolbar">
-            <button class="toolbar-btn" id="starredToggle" onclick="toggleStarredView()" aria-label="Show starred sessions only" aria-pressed="false">⭐ Starred <span class="starred-count" id="starredCount" role="status" aria-label="starred sessions count">0</span></button>
+            <button class="toolbar-btn" id="starredToggle" onclick="toggleStarredView()" aria-label="Show starred sessions only" aria-pressed="false"><span style="color:#f5c518">★</span> Starred <span class="starred-count" id="starredCount" role="status" aria-label="starred sessions count">0</span></button>
             <button class="toolbar-btn" onclick="downloadICS()" aria-label="Download calendar in ICS format">📅 Download ICS</button>
             <button class="toolbar-btn" onclick="downloadJSON()" aria-label="Download schedule JSON">💾 Download JSON</button>
         </div>
@@ -898,7 +906,7 @@
                 </div>
                 <div style="display:flex;align-items:flex-start;gap:8px">
                     <h3 class="session-title" style="flex:1">${session.session_title}</h3>
-                    <button class="star-btn${isStarred ? ' starred' : ''}" onclick="toggleStar(${session.session_id})" aria-label="${isStarred ? 'Unstar' : 'Star'} this session">${isStarred ? '⭐' : '☆'}</button>
+                    <button class="star-btn${isStarred ? ' starred' : ''}" onclick="toggleStar(${session.session_id})" aria-label="${isStarred ? 'Unstar' : 'Star'} this session">${isStarred ? '★' : '☆'}</button>
                 </div>
                 ${session.description ? `<div class="session-description">${session.description}</div>` : ''}
                 ${tracksHtml ? `<div class="tracks">${tracksHtml}</div>` : ''}
@@ -916,6 +924,7 @@
             localStorage.setItem('nicar2026_starred', JSON.stringify([...starredIds]));
             updateStarredCount();
             renderSchedule();
+            updateNowAndNext();
         }
 
         function toggleStarredView() {
@@ -959,7 +968,7 @@
                     <div class="nn-title">${liveDot}${session.session_title}</div>
                     <div class="nn-meta">${formatTime(session.start_time)} · ${session.room || 'TBD'}${session.session_type ? ' · ' + session.session_type : ''}</div>
                 </div>
-                <button class="star-btn${isStarred ? ' starred' : ''}" onclick="toggleStar(${session.session_id})" aria-label="${isStarred ? 'Unstar' : 'Star'} this session">${isStarred ? '⭐' : '☆'}</button>
+                <button class="star-btn${isStarred ? ' starred' : ''}" onclick="toggleStar(${session.session_id})" aria-label="${isStarred ? 'Unstar' : 'Star'} this session">${isStarred ? '★' : '☆'}</button>
             </div>`;
         }
 
@@ -1005,19 +1014,29 @@
             // Happening Now section
             if (current.length) {
                 html += '<h2>Happening Now</h2>';
-                current.forEach(s => {
+                // Sort: starred first, then by start time
+                const sortedCurrent = [...current].sort((a, b) => {
+                    const aStarred = starredIds.has(a.session_id);
+                    const bStarred = starredIds.has(b.session_id);
+                    if (aStarred !== bStarred) return aStarred ? -1 : 1;
+                    return a._start - b._start;
+                });
+                sortedCurrent.forEach(s => {
                     html += renderNowNextCard(s, true);
                 });
             }
 
-            // Up Next section - show all sessions, with any already-started ones sorted to top
+            // Up Next section - show all sessions, starred first, then already-started, then by time
             if (upcoming.length) {
                 const diff = Math.round((upcoming[0]._start - now) / 60000);
                 const timeLabel = diff < 60 ? `in ${diff} min` : `in ${Math.floor(diff/60)}h ${diff%60}m`;
                 html += `<h2${current.length ? ' style="margin-top:12px"' : ''}>Up Next (${timeLabel})</h2>`;
 
-                // Sort: already-started sessions first, then by start time
+                // Sort: starred first, then already-started, then by start time
                 const sorted = [...upcoming].sort((a, b) => {
+                    const aStarred = starredIds.has(a.session_id);
+                    const bStarred = starredIds.has(b.session_id);
+                    if (aStarred !== bStarred) return aStarred ? -1 : 1;
                     const aStarted = now >= a._start;
                     const bStarted = now >= b._start;
                     if (aStarted !== bStarted) return aStarted ? -1 : 1;
