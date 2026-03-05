@@ -894,7 +894,7 @@
 
             const isStarred = starredIds.has(session.session_id);
 
-            return `<div class="session-card${canceledClass}">
+            return `<div class="session-card${canceledClass}" id="session-${session.session_id}">
                 <div class="session-header">
                     <div class="session-badges">
                         <span class="session-time">${timeRange}</span>
@@ -964,12 +964,12 @@
             const isStarred = starredIds.has(session.session_id);
             const liveClass = isLive ? ' is-live' : '';
             const liveDot = isLive ? '<span class="nn-live-dot"></span>' : '';
-            return `<div class="now-next-card${liveClass}">
+            return `<div class="now-next-card${liveClass}" onclick="jumpToSession(${session.session_id})" style="cursor:pointer">
                 <div class="nn-info">
                     <div class="nn-title">${liveDot}${session.session_title}</div>
                     <div class="nn-meta">${formatTime(session.start_time)} · ${session.room || 'TBD'}${session.session_type ? ' · ' + session.session_type : ''}</div>
                 </div>
-                <button class="star-btn${isStarred ? ' starred' : ''}" onclick="toggleStar(${session.session_id})" aria-label="${isStarred ? 'Unstar' : 'Star'} this session">${isStarred ? '★' : '☆'}</button>
+                <button class="star-btn${isStarred ? ' starred' : ''}" onclick="event.stopPropagation();toggleStar(${session.session_id})" aria-label="${isStarred ? 'Unstar' : 'Star'} this session">${isStarred ? '★' : '☆'}</button>
             </div>`;
         }
 
@@ -1060,6 +1060,23 @@
                 if (tab && !tab.classList.contains('active') && !document.getElementById('searchInput').value) {
                     showDay(dateStr, tab);
                 }
+            }
+        }
+
+        function jumpToSession(sessionId) {
+            // Find the session's day and switch to that tab
+            const session = allSessions.find(s => s.session_id === sessionId);
+            if (session) {
+                const dateStr = toConferenceDate(session.start_time);
+                const tab = document.querySelector(`.day-tab[data-day="${dateStr}"]`);
+                if (tab) showDay(dateStr, tab);
+            }
+            const el = document.getElementById(`session-${sessionId}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.style.transition = 'box-shadow 0.3s';
+                el.style.boxShadow = '0 0 0 3px #1a237e';
+                setTimeout(() => { el.style.boxShadow = ''; }, 2000);
             }
         }
 

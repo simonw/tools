@@ -1,5 +1,5 @@
 // IMPORTANT: Bump this version number whenever nicar-2026.html or this file changes
-const CACHE_NAME = 'nicar-2026-v2';
+const CACHE_NAME = 'nicar-2026-v3';
 const SCHEDULE_URL = 'https://ire-nicar-conference-schedules.s3.us-east-2.amazonaws.com/nicar-2026/nicar-2026-schedule.json';
 const ASSETS_TO_CACHE = [
     'nicar-2026.html',
