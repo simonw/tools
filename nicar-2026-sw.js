@@ -1,5 +1,5 @@
 // IMPORTANT: Bump this version number whenever nicar-2026.html or this file changes
-const CACHE_NAME = 'nicar-2026-v3';
+const CACHE_NAME = 'nicar-2026-v4';
 const SCHEDULE_URL = 'https://ire-nicar-conference-schedules.s3.us-east-2.amazonaws.com/nicar-2026/nicar-2026-schedule.json';
 const ASSETS_TO_CACHE = [
     'nicar-2026.html',
@@ -74,9 +74,13 @@ self.addEventListener('fetch', event => {
     }
 
     // Cache-first for same-origin assets (the HTML page itself)
+    // GitHub Pages serves pretty URLs: /nicar-2026 returns nicar-2026.html
+    // so we need to try both the exact URL and the .html variant as cache keys
     if (url.origin === self.location.origin) {
         event.respondWith(
-            caches.match(event.request).then(cached => {
+            (async () => {
+                const cached = await caches.match(event.request)
+                    || await caches.match(event.request.url + '.html');
                 if (cached) {
                     // Background update
                     fetch(event.request).then(response => {
@@ -86,14 +90,13 @@ self.addEventListener('fetch', event => {
                     }).catch(() => {});
                     return cached;
                 }
-                return fetch(event.request).then(response => {
-                    if (response.ok) {
-                        const clone = response.clone();
-                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-                    }
-                    return response;
-                });
-            })
+                const response = await fetch(event.request);
+                if (response.ok) {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                }
+                return response;
+            })()
         );
         return;
     }
