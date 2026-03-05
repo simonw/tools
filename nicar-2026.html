@@ -364,18 +364,83 @@
             color: white;
             padding: 15px;
             border-radius: 12px;
-            text-align: center;
             margin-bottom: 15px;
             backdrop-filter: blur(10px);
         }
 
         .now-next h2 {
             font-size: 1.1rem;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
+            text-align: center;
         }
 
-        .now-next p {
+        .now-next-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            transition: background 0.2s;
+        }
+
+        .now-next-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .now-next-card:hover {
+            background: rgba(255,255,255,0.18);
+        }
+
+        .now-next-card.is-live {
+            background: rgba(76, 175, 80, 0.25);
+            border-left: 3px solid #4CAF50;
+        }
+
+        .now-next-card .nn-live-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #4CAF50;
+            border-radius: 50%;
+            margin-right: 4px;
+            animation: pulse-dot 1.5s ease-in-out infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .now-next-card .nn-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .now-next-card .nn-title {
+            font-weight: 600;
             font-size: 0.95rem;
+            line-height: 1.3;
+        }
+
+        .now-next-card .nn-meta {
+            font-size: 0.85rem;
+            opacity: 0.85;
+            margin-top: 2px;
+        }
+
+        .now-next-card .star-btn {
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .now-next-time-label {
+            text-align: center;
+            font-size: 0.85rem;
+            opacity: 0.7;
+            margin-bottom: 6px;
         }
 
         .loading {
@@ -885,46 +950,91 @@
             btn.focus();
         }
 
+        function renderNowNextCard(session, isLive) {
+            const isStarred = starredIds.has(session.session_id);
+            const liveClass = isLive ? ' is-live' : '';
+            const liveDot = isLive ? '<span class="nn-live-dot"></span>' : '';
+            return `<div class="now-next-card${liveClass}">
+                <div class="nn-info">
+                    <div class="nn-title">${liveDot}${session.session_title}</div>
+                    <div class="nn-meta">${formatTime(session.start_time)} · ${session.room || 'TBD'}${session.session_type ? ' · ' + session.session_type : ''}</div>
+                </div>
+                <button class="star-btn${isStarred ? ' starred' : ''}" onclick="toggleStar(${session.session_id})" aria-label="${isStarred ? 'Unstar' : 'Star'} this session">${isStarred ? '⭐' : '☆'}</button>
+            </div>`;
+        }
+
         function updateNowAndNext() {
             if (!allSessions.length) return;
             const now = new Date();
             const container = document.getElementById('nowNext');
 
             let current = [];
-            let next = null;
+            let upcoming = [];
 
+            // Find all happening-now sessions
             for (const session of allSessions) {
                 if (now >= session._start && now < session._end) {
                     current.push(session);
-                } else if (session._start > now && !next) {
-                    next = session;
                 }
             }
 
-            if (!current.length && !next) {
+            // Find all sessions in the next upcoming time slot
+            let nextSlotTime = null;
+            for (const session of allSessions) {
+                if (session._start > now) {
+                    if (!nextSlotTime) {
+                        nextSlotTime = session._start.getTime();
+                    }
+                    // Include all sessions that start within 5 minutes of the first upcoming one
+                    if (Math.abs(session._start.getTime() - nextSlotTime) < 5 * 60000) {
+                        upcoming.push(session);
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            if (!current.length && !upcoming.length) {
                 container.style.display = 'none';
                 return;
             }
 
             container.style.display = 'block';
             let html = '';
+
+            // Happening Now section
             if (current.length) {
                 html += '<h2>Happening Now</h2>';
                 current.forEach(s => {
-                    html += `<p>${formatTime(s.start_time)} – ${s.session_title} (${s.room})</p>`;
+                    html += renderNowNextCard(s, true);
                 });
             }
-            if (next) {
-                const diff = Math.round((next._start - now) / 60000);
+
+            // Up Next section - show all sessions, with any already-started ones sorted to top
+            if (upcoming.length) {
+                const diff = Math.round((upcoming[0]._start - now) / 60000);
                 const timeLabel = diff < 60 ? `in ${diff} min` : `in ${Math.floor(diff/60)}h ${diff%60}m`;
-                html += `<h2 style="margin-top:8px">Up Next (${timeLabel})</h2>`;
-                html += `<p>${formatTime(next.start_time)} – ${next.session_title} (${next.room})</p>`;
+                html += `<h2${current.length ? ' style="margin-top:12px"' : ''}>Up Next (${timeLabel})</h2>`;
+
+                // Sort: already-started sessions first, then by start time
+                const sorted = [...upcoming].sort((a, b) => {
+                    const aStarted = now >= a._start;
+                    const bStarted = now >= b._start;
+                    if (aStarted !== bStarted) return aStarted ? -1 : 1;
+                    return a._start - b._start;
+                });
+
+                sorted.forEach(s => {
+                    const isLive = now >= s._start && now < s._end;
+                    html += renderNowNextCard(s, isLive);
+                });
             }
+
             container.innerHTML = html;
 
             // Auto-switch to current day tab
-            if (current.length || next) {
-                const relevantSession = current[0] || next;
+            const relevantSession = current[0] || upcoming[0];
+            if (relevantSession) {
                 const dateStr = toConferenceDate(relevantSession.start_time);
                 const tab = document.querySelector(`.day-tab[data-day="${dateStr}"]`);
                 if (tab && !tab.classList.contains('active') && !document.getElementById('searchInput').value) {
