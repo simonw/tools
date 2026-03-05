@@ -474,6 +474,10 @@
             display: block;
         }
 
+        .all-days .day-heading {
+            display: block;
+        }
+
         .time-group-heading {
             color: #1a237e;
             font-size: 1rem;
@@ -779,7 +783,7 @@
                 const label = dayLabel(dateStr);
                 const active = i === 0 ? ' active' : '';
                 return `<button class="day-tab${active}" role="tab" data-day="${dateStr}" aria-selected="${i === 0}" onclick="showDay('${dateStr}', this)">${label}</button>`;
-            }).join('');
+            }).join('') + `<button class="day-tab" role="tab" data-day="all" aria-selected="false" onclick="showAllDays(this)">All Days</button>`;
 
             // Build day content containers
             const content = document.getElementById('schedule-content');
@@ -941,6 +945,7 @@
         }
 
         function showDay(dateStr, btn) {
+            document.querySelector('.container').classList.remove('all-days');
             document.querySelectorAll('.day-content').forEach(el => {
                 el.classList.remove('active');
                 el.setAttribute('aria-hidden', 'true');
@@ -958,6 +963,29 @@
             btn.classList.add('active');
             btn.setAttribute('aria-selected', 'true');
             btn.focus();
+        }
+
+        function showAllDays(btn) {
+            document.querySelectorAll('.day-content').forEach(el => {
+                el.classList.add('active');
+                el.setAttribute('aria-hidden', 'false');
+            });
+            document.querySelectorAll('.day-tab').forEach(tab => {
+                tab.classList.remove('active');
+                tab.setAttribute('aria-selected', 'false');
+            });
+            if (btn) {
+                btn.classList.add('active');
+                btn.setAttribute('aria-selected', 'true');
+                btn.focus();
+            } else {
+                const allBtn = document.querySelector('.day-tab[data-day="all"]');
+                if (allBtn) {
+                    allBtn.classList.add('active');
+                    allBtn.setAttribute('aria-selected', 'true');
+                }
+            }
+            document.querySelector('.container').classList.add('all-days');
         }
 
         function renderNowNextCard(session, isLive) {
@@ -1064,13 +1092,8 @@
         }
 
         function jumpToSession(sessionId) {
-            // Find the session's day and switch to that tab
-            const session = allSessions.find(s => s.session_id === sessionId);
-            if (session) {
-                const dateStr = toConferenceDate(session.start_time);
-                const tab = document.querySelector(`.day-tab[data-day="${dateStr}"]`);
-                if (tab) showDay(dateStr, tab);
-            }
+            // Switch to All Days view so the session card is guaranteed to be on the page
+            showAllDays();
             const el = document.getElementById(`session-${sessionId}`);
             if (el) {
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1143,9 +1166,14 @@
                 });
             } else {
                 container.classList.remove('searching');
+                container.classList.remove('all-days');
                 const activeTab = document.querySelector('.day-tab.active');
                 if (activeTab) {
-                    showDay(activeTab.dataset.day, activeTab);
+                    if (activeTab.dataset.day === 'all') {
+                        showAllDays(activeTab);
+                    } else {
+                        showDay(activeTab.dataset.day, activeTab);
+                    }
                 }
             }
             renderSchedule();
