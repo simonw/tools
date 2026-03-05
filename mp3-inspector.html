@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MP3 Inspector</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0e0e0f;
+    --surface: #161618;
+    --border: #2a2a2e;
+    --accent: #e8ff47;
+    --accent2: #47c4ff;
+    --muted: #555560;
+    --text: #d8d8e0;
+    --label: #888898;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    padding: 40px 24px;
+    line-height: 1.5;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 36px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+  }
+
+  header h1 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  header span {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  #drop-zone {
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    background: var(--surface);
+  }
+
+  #drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(232, 255, 71, 0.04);
+  }
+
+  #drop-zone .drop-icon {
+    font-size: 32px;
+    margin-bottom: 16px;
+    opacity: 0.4;
+    display: block;
+  }
+
+  #drop-zone p {
+    font-size: 12px;
+    color: var(--label);
+    letter-spacing: 0.08em;
+  }
+
+  #drop-zone p strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  #drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  #drop-zone .browse-hint {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  #drop-zone .browse-hint span {
+    color: var(--accent2);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  #results {
+    margin-top: 32px;
+    display: none;
+  }
+
+  .file-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+  }
+
+  .file-header .filename {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .file-header .filesize {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .section {
+    margin-bottom: 24px;
+  }
+
+  .section-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 6px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title::before {
+    content: '//';
+    color: var(--accent);
+    font-weight: 300;
+  }
+
+  .tag-grid {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 0;
+    font-size: 12px;
+  }
+
+  .tag-row {
+    display: contents;
+  }
+
+  .tag-row .key {
+    padding: 7px 12px 7px 0;
+    color: var(--label);
+    border-bottom: 1px solid rgba(42,42,46,0.6);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 8px;
+  }
+
+  .tag-row .val {
+    padding: 7px 0 7px 12px;
+    color: var(--text);
+    border-bottom: 1px solid rgba(42,42,46,0.6);
+    border-left: 1px solid var(--border);
+    word-break: break-word;
+  }
+
+  .tag-row .val.highlight {
+    color: var(--accent2);
+  }
+
+  .tag-row .val.accent {
+    color: var(--accent);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    background: rgba(232,255,71,0.12);
+    color: var(--accent);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    border-radius: 2px;
+    margin-right: 6px;
+  }
+
+  .badge.blue {
+    background: rgba(71,196,255,0.1);
+    color: var(--accent2);
+  }
+
+  .no-data {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 12px 0;
+    font-style: italic;
+  }
+
+  .artwork-section {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+
+  #artwork-img {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    display: none;
+    flex-shrink: 0;
+  }
+
+  .artwork-meta {
+    flex: 1;
+  }
+
+  .error-msg {
+    padding: 16px;
+    background: rgba(255, 80, 80, 0.08);
+    border: 1px solid rgba(255, 80, 80, 0.2);
+    border-left: 3px solid #ff5050;
+    color: #ff8080;
+    font-size: 12px;
+    margin-top: 16px;
+  }
+
+  .raw-toggle {
+    font-size: 10px;
+    color: var(--muted);
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--label);
+    padding: 4px 10px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 12px;
+  }
+
+  .raw-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  #raw-dump {
+    margin-top: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 16px;
+    font-size: 10px;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow-y: auto;
+    display: none;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .tag-version-pill {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: auto;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MP3 Inspector</h1>
+  <span>ID3 tag &amp; file metadata reader</span>
+</header>
+
+<div id="drop-zone">
+  <span class="drop-icon">🎵</span>
+  <p><strong>Drop an MP3 file here</strong></p>
+  <p class="browse-hint">or <span>click to browse</span></p>
+  <input type="file" id="file-input" accept=".mp3,audio/mpeg">
+</div>
+
+<div id="results"></div>
+
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const results = document.getElementById('results');
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) processFile(e.target.files[0]);
+});
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(2) + ' MB';
+}
+
+function formatDate(d) {
+  if (!d) return null;
+  return new Date(d).toLocaleString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+}
+
+function safeStr(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v).trim() || null;
+}
+
+function processFile(file) {
+  results.style.display = 'block';
+  results.innerHTML = '<div class="loading">READING FILE...</div>';
+
+  const fileInfo = {
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    lastModified: file.lastModified
+  };
+
+  jsmediatags.read(file, {
+    onSuccess: tag => renderResults(fileInfo, tag),
+    onError: err => renderResults(fileInfo, null, err)
+  });
+}
+
+function row(key, val, cls = '') {
+  if (val === null || val === undefined || val === '') return '';
+  return `<div class="tag-row">
+    <div class="key">${key}</div>
+    <div class="val ${cls}">${val}</div>
+  </div>`;
+}
+
+function section(title, content) {
+  return `<div class="section">
+    <div class="section-title">${title}</div>
+    ${content || '<p class="no-data">No data found</p>'}
+  </div>`;
+}
+
+function renderResults(fileInfo, tag, err) {
+  let html = '';
+
+  // File header
+  html += `<div class="file-header">
+    <div class="filename">${fileInfo.name}</div>
+    <div class="filesize">${formatBytes(fileInfo.size)}</div>
+  </div>`;
+
+  // File System Metadata
+  let fsMeta = '<div class="tag-grid">';
+  fsMeta += row('File Name', fileInfo.name);
+  fsMeta += row('File Size', formatBytes(fileInfo.size) + ` <span style="color:var(--muted)">(${fileInfo.size.toLocaleString()} bytes)</span>`);
+  fsMeta += row('MIME Type', fileInfo.type || 'audio/mpeg');
+  fsMeta += row('Last Modified', fileInfo.lastModified ? formatDate(fileInfo.lastModified) : null, 'highlight');
+  fsMeta += '</div>';
+  html += section('File System', fsMeta);
+
+  if (err) {
+    html += `<div class="error-msg">⚠ Could not parse ID3 tags: ${err.type || err.message || 'Unknown error'}. The file may not contain ID3 metadata, or may not be a valid MP3.</div>`;
+    results.innerHTML = html;
+    return;
+  }
+
+  const tags = tag.tags;
+  const version = tag.type || 'ID3';
+
+  // Core tags
+  const coreFields = [
+    ['Title', 'title'],
+    ['Artist', 'artist'],
+    ['Album', 'album'],
+    ['Album Artist', 'TPE2'],
+    ['Year', 'year'],
+    ['Track', 'track'],
+    ['Disc', 'TPOS'],
+    ['Genre', 'genre'],
+    ['Composer', 'TCOM'],
+    ['Comment', 'comment'],
+    ['BPM', 'TBPM'],
+    ['Key', 'TKEY'],
+    ['Language', 'TLAN'],
+    ['Lyrics', 'USLT'],
+  ];
+
+  let coreMeta = `<div class="tag-grid">`;
+  coreMeta += row('Tag Format', `<span class="badge">${version}</span>`);
+  let hasCore = false;
+  for (const [label, key] of coreFields) {
+    let v = tags[key];
+    if (v && typeof v === 'object' && v.text) v = v.text;
+    if (v && typeof v === 'object' && v.data) v = '[binary data]';
+    const s = safeStr(v);
+    if (s) { coreMeta += row(label, s); hasCore = true; }
+  }
+  coreMeta += '</div>';
+  html += section(`ID3 Tags <span class="tag-version-pill">${version}</span>`, hasCore ? coreMeta : null);
+
+  // Timing / dating tags
+  const dateFields = [
+    ['Recording Date (TDRC)', 'TDRC'],
+    ['Release Date (TDRL)', 'TDRL'],
+    ['Original Release (TDOR)', 'TDOR'],
+    ['Encoding Time (TDEN)', 'TDEN'],
+    ['Tagging Time (TDTG)', 'TDTG'],
+    ['Year (legacy)', 'year'],
+    ['Original Year (TORY)', 'TORY'],
+    ['Playlist Delay (TDLY)', 'TDLY'],
+  ];
+
+  let dateMeta = '<div class="tag-grid">';
+  let hasDate = false;
+  for (const [label, key] of dateFields) {
+    let v = tags[key];
+    if (v && typeof v === 'object' && v.text) v = v.text;
+    const s = safeStr(v);
+    if (s) { dateMeta += row(label, s, 'accent'); hasDate = true; }
+  }
+  dateMeta += '</div>';
+  html += section('Dating &amp; Timing', hasDate ? dateMeta : null);
+
+  // Technical / encoding info
+  const techFields = [
+    ['Encoder (TSSE)', 'TSSE'],
+    ['Encoding Settings (TENC)', 'TENC'],
+    ['File Type (TFLT)', 'TFLT'],
+    ['Media Type (TMED)', 'TMED'],
+    ['Length (TLEN)', 'TLEN'],
+    ['Playlist (TPLS)', 'TPLS'],
+    ['ISRC (TSRC)', 'TSRC'],
+    ['Publisher (TPUB)', 'TPUB'],
+    ['Copyright (TCOP)', 'TCOP'],
+    ['Produced Notice (TPRO)', 'TPRO'],
+    ['Set Subtitle (TSST)', 'TSST'],
+    ['Involved People (TIPL)', 'TIPL'],
+    ['Musician Credits (TMCL)', 'TMCL'],
+    ['Internet Radio Station (TRSN)', 'TRSN'],
+    ['Owner (TOWN)', 'TOWN'],
+    ['File Owner (TRSO)', 'TRSO'],
+    ['Mood (TMOO)', 'TMOO'],
+  ];
+
+  let techMeta = '<div class="tag-grid">';
+  let hasTech = false;
+  for (const [label, key] of techFields) {
+    let v = tags[key];
+    if (v && typeof v === 'object' && v.text) v = v.text;
+    const s = safeStr(v);
+    if (s) { techMeta += row(label, s, 'highlight'); hasTech = true; }
+  }
+  techMeta += '</div>';
+  html += section('Technical &amp; Rights', hasTech ? techMeta : null);
+
+  // Artwork
+  const pic = tags.picture || tags.APIC;
+  let artworkHtml = '';
+  if (pic) {
+    const { data, format } = pic;
+    if (data && format) {
+      const blob = new Blob([new Uint8Array(data)], { type: format });
+      const url = URL.createObjectURL(blob);
+      artworkHtml = `<div class="artwork-section">
+        <img id="artwork-img" src="${url}" style="display:block">
+        <div class="artwork-meta"><div class="tag-grid">
+          ${row('Format', format)}
+          ${row('Size', formatBytes(data.length))}
+          ${pic.description ? row('Description', pic.description) : ''}
+          ${pic.type !== undefined ? row('Picture Type', pic.type) : ''}
+        </div></div>
+      </div>`;
+    }
+  }
+  html += section('Embedded Artwork', artworkHtml || null);
+
+  // URLs
+  const urlFields = [
+    ['Audio Source (WOAS)', 'WOAS'],
+    ['Official Website (WOAF)', 'WOAF'],
+    ['Artist URL (WOAR)', 'WOAR'],
+    ['Commercial Info (WCOM)', 'WCOM'],
+    ['Copyright URL (WCOP)', 'WCOP'],
+    ['Publisher URL (WPUB)', 'WPUB'],
+    ['Payment URL (WPAY)', 'WPAY'],
+    ['Radio URL (WORS)', 'WORS'],
+    ['User URL (WXXX)', 'WXXX'],
+  ];
+
+  let urlMeta = '<div class="tag-grid">';
+  let hasUrl = false;
+  for (const [label, key] of urlFields) {
+    let v = tags[key];
+    if (v && typeof v === 'object' && v.url) v = v.url;
+    const s = safeStr(v);
+    if (s) { urlMeta += row(label, `<a href="${s}" style="color:var(--accent2);text-decoration:none" target="_blank">${s}</a>`); hasUrl = true; }
+  }
+  urlMeta += '</div>';
+  html += section('URLs', hasUrl ? urlMeta : null);
+
+  // Raw dump
+  html += `<div class="section">
+    <div class="section-title">Raw Tag Data</div>
+    <button class="raw-toggle" onclick="toggleRaw(this)">Hide Raw JSON</button>
+    <pre id="raw-dump" style="display:block">${JSON.stringify(
+      Object.fromEntries(
+        Object.entries(tags)
+          .filter(([k]) => k !== 'picture' && k !== 'APIC')
+          .map(([k, v]) => {
+            if (v && typeof v === 'object' && v.data && Array.isArray(v.data)) {
+              // binary data — show hex preview + metadata without the full array
+              const { data, ...rest } = v;
+              const hex = Array.from(data.slice(0, 64)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+              return [k, { ...rest, data: `[${data.length} bytes] ${hex}${data.length > 64 ? '...' : ''}` }];
+            }
+            return [k, v];
+          })
+      ), null, 2
+    )}</pre>
+  </div>`;
+
+  results.innerHTML = html;
+}
+
+function toggleRaw(btn) {
+  const dump = document.getElementById('raw-dump');
+  const visible = dump.style.display === 'block';
+  dump.style.display = visible ? 'none' : 'block';
+  btn.textContent = visible ? 'Show Raw JSON' : 'Hide Raw JSON';
+}
+</script>
+</body>
+</html>
