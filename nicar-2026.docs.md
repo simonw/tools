@@ -1,5 +1,3 @@
-# NICAR 2026 Schedule Viewer
+Browse the NICAR 2026 conference schedule for March 5–8 in Indianapolis with real-time session information, speaker details, and track filtering. Search and filter sessions by type, skill level, and topic, then star your favorites for easy access and download the schedule in ICS or JSON format. The schedule automatically updates when new information becomes available and works offline using cached data.
 
-Browse the complete conference schedule for NICAR 2026 in Indianapolis, featuring sessions organized by day with full details on speakers, tracks, and skill levels. The schedule offers powerful search and filtering capabilities, allowing attendees to find sessions by topic, type, or speaker, while the starred sessions feature enables creating a personalized itinerary that persists across browser sessions. The application works offline using cached data and service workers, ensuring access to the schedule even without an internet connection.
-
-<!-- Generated from commit: 7777036de675993b663f884df60951564fc0eec3 -->
+<!-- Generated from commit: 3e56e8595658c8831d35adea6a819f56ca1840fa -->
