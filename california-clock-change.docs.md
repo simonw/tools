@@ -1,3 +1,3 @@
-Track upcoming and recent Daylight Saving Time changes for California's Pacific Time zone (PST/PDT). The page automatically detects your timezone and displays when clocks will spring forward or fall back, along with the current DST status and helpful reminders about how the time change affects daily routines. Users outside California can still view the information by enabling a pretend mode.
+Track California's Daylight Saving Time changes with this tool that displays the most recent clock adjustment and alerts you to the next one. The page automatically detects your timezone and restricts functionality to Pacific Time users, while offering detailed information about when clocks spring forward or fall back, along with a note about how the change might affect your dog's internal schedule. An embedded test suite verifies the accuracy of DST date calculations for multiple years.
 
-<!-- Generated from commit: a06149f0e006313813c7e2acac7b796be57127a3 -->
+<!-- Generated from commit: 181166fe79f697569e96f05e44f71d9a652146ff -->
