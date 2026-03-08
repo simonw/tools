@@ -125,6 +125,10 @@
         <div id="future-change"></div>
         <div id="body-clock"></div>
         <div id="current-dst"></div>
+        <details style="margin-top: 2rem;">
+            <summary style="cursor: pointer; color: #a0aec0; font-size: 0.8rem;">Tests</summary>
+            <pre id="test-results" style="text-align: left; font-size: 0.75rem; color: #718096; margin: 0.5rem 0;"></pre>
+        </details>
     </div>
 
     <script>
@@ -149,10 +153,12 @@
             
             // Get changes for current and adjacent years to handle year boundaries
             function getYearChanges(y) {
-                // Second Sunday in March
-                const springForward = new Date(y, 2, 1 + (14 - new Date(y, 2, 1).getDay()));
+                // Second Sunday in March (treat Sunday as 7 so the formula works when the 1st is a Sunday)
+                const marchDay = new Date(y, 2, 1).getDay() || 7;
+                const springForward = new Date(y, 2, 1 + (14 - marchDay));
                 // First Sunday in November
-                const fallBack = new Date(y, 10, 1 + (7 - new Date(y, 10, 1).getDay()));
+                const novDay = new Date(y, 10, 1).getDay() || 7;
+                const fallBack = new Date(y, 10, 1 + (7 - novDay));
                 return [
                     { date: springForward, isSpringForward: true },
                     { date: fallBack, isSpringForward: false }
@@ -288,9 +294,81 @@
         }
 
         updateInfo();
-        
+
         // Update the times every minute
         setInterval(updateInfo, 60000);
+
+        // Automated tests
+        function runTests() {
+            const results = [];
+            let passed = 0;
+            let failed = 0;
+
+            function assert(name, actual, expected) {
+                if (actual === expected) {
+                    passed++;
+                    results.push(`✓ ${name}`);
+                } else {
+                    failed++;
+                    results.push(`✗ ${name}\n  Expected: ${expected}\n  Got:      ${actual}`);
+                }
+            }
+
+            function dateStr(d) {
+                return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            }
+
+            // Helper to compute DST changes for a given year (mirrors getYearChanges)
+            function changesForYear(y) {
+                const marchDay = new Date(y, 2, 1).getDay() || 7;
+                const springForward = new Date(y, 2, 1 + (14 - marchDay));
+                const novDay = new Date(y, 10, 1).getDay() || 7;
+                const fallBack = new Date(y, 10, 1 + (7 - novDay));
+                return { springForward, fallBack };
+            }
+
+            // Test known DST dates for several years
+            // 2024: Mar 10, Nov 3
+            const c2024 = changesForYear(2024);
+            assert('2024 spring forward', dateStr(c2024.springForward), '2024-03-10');
+            assert('2024 fall back', dateStr(c2024.fallBack), '2024-11-03');
+
+            // 2025: Mar 9, Nov 2
+            const c2025 = changesForYear(2025);
+            assert('2025 spring forward', dateStr(c2025.springForward), '2025-03-09');
+            assert('2025 fall back', dateStr(c2025.fallBack), '2025-11-02');
+
+            // 2026: Mar 8, Nov 1 (both 1st of month are Sundays - the bug case)
+            const c2026 = changesForYear(2026);
+            assert('2026 spring forward', dateStr(c2026.springForward), '2026-03-08');
+            assert('2026 fall back', dateStr(c2026.fallBack), '2026-11-01');
+
+            // 2027: Mar 14, Nov 7
+            const c2027 = changesForYear(2027);
+            assert('2027 spring forward', dateStr(c2027.springForward), '2027-03-14');
+            assert('2027 fall back', dateStr(c2027.fallBack), '2027-11-07');
+
+            // 2028: Mar 12, Nov 5
+            const c2028 = changesForYear(2028);
+            assert('2028 spring forward', dateStr(c2028.springForward), '2028-03-12');
+            assert('2028 fall back', dateStr(c2028.fallBack), '2028-11-05');
+
+            // All results are Sundays
+            for (const y of [2024, 2025, 2026, 2027, 2028]) {
+                const c = changesForYear(y);
+                assert(`${y} spring forward is Sunday`, c.springForward.getDay(), 0);
+                assert(`${y} fall back is Sunday`, c.fallBack.getDay(), 0);
+            }
+
+            const summary = `${passed} passed, ${failed} failed`;
+            const el = document.getElementById('test-results');
+            el.textContent = results.join('\n') + '\n\n' + summary;
+            el.parentElement.querySelector('summary').textContent = `Tests: ${summary}`;
+            if (failed > 0) el.parentElement.open = true;
+        }
+
+        runTests();
     </script>
+
 </body>
 </html>
