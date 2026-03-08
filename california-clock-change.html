@@ -125,6 +125,10 @@
         <div id="future-change"></div>
         <div id="body-clock"></div>
         <div id="current-dst"></div>
+        <details style="margin-top: 2rem;">
+            <summary style="cursor: pointer; color: #a0aec0; font-size: 0.8rem;">Tests</summary>
+            <pre id="test-results" style="text-align: left; font-size: 0.75rem; color: #718096; margin: 0.5rem 0;"></pre>
+        </details>
     </div>
 
     <script>
@@ -149,10 +153,12 @@
             
             // Get changes for current and adjacent years to handle year boundaries
             function getYearChanges(y) {
-                // Second Sunday in March
-                const springForward = new Date(y, 2, 1 + (14 - new Date(y, 2, 1).getDay()));
+                // Second Sunday in March (treat Sunday as 7 so the formula works when the 1st is a Sunday)
+                const marchDay = new Date(y, 2, 1).getDay() || 7;
+                const springForward = new Date(y, 2, 1 + (14 - marchDay));
                 // First Sunday in November
-                const fallBack = new Date(y, 10, 1 + (7 - new Date(y, 10, 1).getDay()));
+                const novDay = new Date(y, 10, 1).getDay() || 7;
+                const fallBack = new Date(y, 10, 1 + (7 - novDay));
                 return [
                     { date: springForward, isSpringForward: true },
                     { date: fallBack, isSpringForward: false }
@@ -288,9 +294,94 @@
         }
 
         updateInfo();
-        
+
         // Update the times every minute
         setInterval(updateInfo, 60000);
+
+        // Automated tests
+        function runTests() {
+            const results = [];
+            let passed = 0;
+            let failed = 0;
+
+            let currentGroup = null;
+
+            function group(name) {
+                currentGroup = name;
+                results.push({ type: 'group', name });
+            }
+
+            function assert(name, actual, expected) {
+                if (actual === expected) {
+                    passed++;
+                    results.push({ type: 'pass', name, actual });
+                } else {
+                    failed++;
+                    results.push({ type: 'fail', name, actual, expected });
+                }
+            }
+
+            function dateStr(d) {
+                return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            }
+
+            function friendlyDate(d) {
+                const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+            }
+
+            // Helper to compute DST changes for a given year (mirrors getYearChanges)
+            function changesForYear(y) {
+                const marchDay = new Date(y, 2, 1).getDay() || 7;
+                const springForward = new Date(y, 2, 1 + (14 - marchDay));
+                const novDay = new Date(y, 10, 1).getDay() || 7;
+                const fallBack = new Date(y, 10, 1 + (7 - novDay));
+                return { springForward, fallBack };
+            }
+
+            // Test known DST dates for several years
+            const knownDates = [
+                { year: 2024, spring: '2024-03-10', fall: '2024-11-03' },
+                { year: 2025, spring: '2025-03-09', fall: '2025-11-02' },
+                { year: 2026, spring: '2026-03-08', fall: '2026-11-01', note: '1st is Sunday' },
+                { year: 2027, spring: '2027-03-14', fall: '2027-11-07' },
+                { year: 2028, spring: '2028-03-12', fall: '2028-11-05' },
+            ];
+
+            for (const { year, spring, fall, note } of knownDates) {
+                const label = note ? `${year} (${note})` : `${year}`;
+                group(label);
+                const c = changesForYear(year);
+                assert(`Spring forward = ${spring}`, dateStr(c.springForward), spring);
+                assert(`Fall back = ${fall}`, dateStr(c.fallBack), fall);
+                assert(`Spring forward (${friendlyDate(c.springForward)}) is Sunday`, c.springForward.getDay(), 0);
+                assert(`Fall back (${friendlyDate(c.fallBack)}) is Sunday`, c.fallBack.getDay(), 0);
+            }
+
+            // Render results
+            const el = document.getElementById('test-results');
+            const lines = [];
+            for (const r of results) {
+                if (r.type === 'group') {
+                    lines.push(`\n── ${r.name} ──`);
+                } else if (r.type === 'pass') {
+                    lines.push(`  ✓ ${r.name}`);
+                } else {
+                    lines.push(`  ✗ ${r.name}`);
+                    lines.push(`    expected: ${r.expected}`);
+                    lines.push(`    got:      ${r.actual}`);
+                }
+            }
+            const summary = `${passed} passed, ${failed} failed of ${passed + failed} tests`;
+            lines.push(`\n${summary}`);
+            el.textContent = lines.join('\n');
+            el.parentElement.querySelector('summary').textContent = `Tests: ${summary}`;
+            if (failed > 0) el.parentElement.open = true;
+        }
+
+        runTests();
     </script>
+
 </body>
 </html>
