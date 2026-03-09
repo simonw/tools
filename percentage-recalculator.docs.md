@@ -1,3 +1,3 @@
-Calculate and rescale percentage values in real time with this interactive tool. Enter up to four percentages and optionally mark any as ignored to exclude them from the recalculation, which automatically normalizes the remaining active percentages to sum to 100%. The interface displays both the original values and their recalculated equivalents, making it useful for adjusting weighted distributions or normalizing survey responses.
+Calculate and normalize multiple percentages to sum to 100%, with the option to exclude specific values from the recalculation. Enter up to four percentage values and check the "Ignore this" box next to any percentages you want to exclude; the tool will automatically recalculate the remaining percentages proportionally so they add up to 100%.
 
-<!-- Generated from commit: 119146a6484b7876c008d78e400b3c49ff3b48c0 -->
+<!-- Generated from commit: 417e7ad6970acf77842caa52d1eb00c4761f1c5f -->
