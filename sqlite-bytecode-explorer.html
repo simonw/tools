@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQLite Bytecode Explorer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/sql-wasm.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+            color: #1a1a2e;
+            line-height: 1.6;
+        }
+        h1 {
+            margin: 0 0 4px 0;
+            font-size: 1.6rem;
+            color: #1a1a2e;
+        }
+        .subtitle {
+            color: #666;
+            margin: 0 0 20px 0;
+            font-size: 0.95rem;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .input-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .schema-section {
+            margin-bottom: 16px;
+        }
+        .schema-section summary {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #555;
+            user-select: none;
+            padding: 4px 0;
+        }
+        .schema-section summary:hover {
+            color: #2563eb;
+        }
+        .schema-textarea {
+            width: 100%;
+            height: 80px;
+            font-family: "SF Mono", "Cascadia Code", "Fira Code", "Consolas", monospace;
+            font-size: 13px;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            resize: vertical;
+            margin-top: 8px;
+            background: #fafbfc;
+        }
+        .schema-hint {
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 4px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            color: #555;
+        }
+        .query-textarea {
+            width: 100%;
+            height: 70px;
+            font-family: "SF Mono", "Cascadia Code", "Fira Code", "Consolas", monospace;
+            font-size: 14px;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            resize: vertical;
+            background: #fafbfc;
+        }
+        .query-textarea:focus, .schema-textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+        }
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: #fff;
+        }
+        .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        .btn-secondary:hover:not(:disabled) { background: #d1d5db; }
+        .examples-dropdown {
+            position: relative;
+        }
+        .examples-dropdown select {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+            background: #fff;
+            cursor: pointer;
+        }
+        .error-msg {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin-top: 16px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 0.95rem;
+        }
+        /* Results */
+        .results-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .results-header h2 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+        .opcode-count {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        /* Bytecode table */
+        .bytecode-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .bytecode-table th {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .bytecode-table td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: top;
+        }
+        .bytecode-table tr:hover {
+            background: #f0f7ff;
+        }
+        .bytecode-table tr.highlighted {
+            background: #dbeafe;
+        }
+        .col-addr { width: 50px; color: #94a3b8; font-family: monospace; text-align: right; }
+        .col-opcode {
+            font-family: monospace;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .col-p1, .col-p2, .col-p3, .col-p4, .col-p5 {
+            font-family: monospace;
+            text-align: right;
+            white-space: nowrap;
+        }
+        .col-p4 { text-align: left; }
+        .col-comment {
+            color: #64748b;
+            font-style: italic;
+            font-size: 12px;
+        }
+        .col-explanation {
+            font-size: 12px;
+            color: #475569;
+            max-width: 350px;
+            line-height: 1.5;
+        }
+        /* Color-coded opcode categories */
+        .op-cursor { color: #7c3aed; }
+        .op-movement { color: #0891b2; }
+        .op-column { color: #059669; }
+        .op-result { color: #d97706; }
+        .op-control { color: #dc2626; }
+        .op-function { color: #2563eb; }
+        .op-transaction { color: #be185d; }
+        .op-comparison { color: #9333ea; }
+        .op-arithmetic { color: #0d9488; }
+        .op-register { color: #6366f1; }
+        .op-string { color: #ea580c; }
+        .op-table { color: #4f46e5; }
+        .op-index { color: #0e7490; }
+        .op-sort { color: #b45309; }
+        .op-aggregate { color: #7e22ce; }
+        .op-subprogram { color: #be123c; }
+        .jump-link {
+            cursor: pointer;
+            text-decoration: underline;
+            text-decoration-style: dotted;
+        }
+        .jump-link:hover {
+            text-decoration-style: solid;
+        }
+        /* Legend */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 12px;
+            font-size: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        /* Overview panel */
+        .overview-panel {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+        }
+        .overview-panel h3 {
+            margin: 0 0 8px 0;
+            font-size: 0.95rem;
+        }
+        .overview-panel ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .overview-panel li {
+            margin-bottom: 4px;
+        }
+        /* Info tooltip */
+        .info-section {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 20px;
+            font-size: 0.85rem;
+            line-height: 1.7;
+        }
+        .info-section h3 {
+            margin: 0 0 8px 0;
+            font-size: 0.95rem;
+            color: #92400e;
+        }
+        .info-section code {
+            background: #fef3c7;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .bytecode-table { font-size: 11px; }
+            .col-explanation { max-width: 200px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>SQLite Bytecode Explorer</h1>
+    <p class="subtitle">Visualize and understand the virtual machine instructions SQLite generates for your SQL queries</p>
+
+    <div class="info-section">
+        <h3>How SQLite Executes Queries</h3>
+        <p>
+            SQLite compiles every SQL statement into a program for its built-in <strong>Virtual Database Engine (VDBE)</strong>.
+            The VDBE is a register-based virtual machine &mdash; each instruction (opcode) operates on numbered registers (like <code>r[2]</code>)
+            rather than a stack. When you call <code>sqlite3_prepare_v2()</code>, SQLite parses your SQL and generates this bytecode program.
+            Then <code>sqlite3_step()</code> executes it one instruction at a time.
+        </p>
+        <p>
+            Use <code>EXPLAIN</code> before any SQL statement to see its bytecode. This tool runs <code>EXPLAIN</code> for you
+            and annotates each opcode with a human-readable explanation.
+        </p>
+    </div>
+
+    <div class="input-section">
+        <details class="schema-section">
+            <summary>Schema Setup (optional &mdash; define tables/indexes so EXPLAIN can reference them)</summary>
+            <textarea class="schema-textarea" id="schemaInput" spellcheck="false" placeholder="CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT);&#10;CREATE INDEX idx_email ON users(email);">CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, age INTEGER);
+CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), product TEXT, amount REAL, created DATE);
+CREATE INDEX idx_orders_user ON orders(user_id);
+CREATE INDEX idx_orders_date ON orders(created);</textarea>
+            <div class="schema-hint">These CREATE TABLE / CREATE INDEX statements set up the database schema so that EXPLAIN output reflects real query plans.</div>
+        </details>
+
+        <label for="queryInput">SQL Query</label>
+        <textarea class="query-textarea" id="queryInput" spellcheck="false" placeholder="SELECT * FROM users WHERE email = 'test@example.com';">SELECT users.name, orders.product, orders.amount FROM users JOIN orders ON users.id = orders.user_id WHERE users.age > 25 ORDER BY orders.amount DESC;</textarea>
+
+        <div class="button-row">
+            <button class="btn-primary" id="explainBtn" disabled>Explain Bytecode</button>
+            <button class="btn-secondary" id="explainQueryPlanBtn" disabled>EXPLAIN QUERY PLAN</button>
+            <div class="examples-dropdown">
+                <select id="exampleSelect">
+                    <option value="">Load example...</option>
+                    <option value="simple-select">Simple SELECT</option>
+                    <option value="where-clause">WHERE with index</option>
+                    <option value="join">JOIN query</option>
+                    <option value="aggregate">GROUP BY / aggregate</option>
+                    <option value="subquery">Subquery</option>
+                    <option value="insert">INSERT</option>
+                    <option value="update">UPDATE</option>
+                    <option value="delete">DELETE</option>
+                    <option value="create-index">Index scan vs table scan</option>
+                    <option value="correlated-subquery">Correlated subquery</option>
+                </select>
+            </div>
+        </div>
+        <div id="errorBox" class="error-msg" style="display: none;"></div>
+    </div>
+
+    <div id="loadingMsg" class="loading">Loading SQLite WASM...</div>
+    <div id="resultsArea" style="display: none;"></div>
+</div>
+
+<script>
+// Opcode category classification
+const OPCODE_CATEGORIES = {
+    // Cursor operations
+    'OpenRead': 'cursor', 'OpenWrite': 'cursor', 'OpenAutoindex': 'cursor',
+    'OpenEphemeral': 'cursor', 'Close': 'cursor', 'OpenPseudo': 'cursor',
+    'ColumnsUsed': 'cursor', 'OpenDup': 'cursor',
+
+    // Movement / seeking
+    'Rewind': 'movement', 'Next': 'movement', 'Prev': 'movement',
+    'SeekGE': 'movement', 'SeekGT': 'movement', 'SeekLE': 'movement',
+    'SeekLT': 'movement', 'SeekRowid': 'movement', 'NotExists': 'movement',
+    'Last': 'movement', 'SeekEnd': 'movement', 'DeferredSeek': 'movement',
+    'SeekScan': 'movement', 'Found': 'movement', 'NotFound': 'movement',
+    'SeekHit': 'movement', 'IfSmaller': 'movement',
+
+    // Column access
+    'Column': 'column', 'Rowid': 'column', 'NullRow': 'column',
+    'VColumn': 'column', 'Offset': 'column',
+
+    // Result output
+    'ResultRow': 'result', 'Copy': 'result', 'SCopy': 'result',
+    'IntCopy': 'result', 'Move': 'result',
+
+    // Control flow
+    'Init': 'control', 'Goto': 'control', 'Halt': 'control',
+    'If': 'control', 'IfNot': 'control', 'Once': 'control',
+    'Gosub': 'control', 'Return': 'control', 'Yield': 'control',
+    'EndCoroutine': 'control', 'InitCoroutine': 'control',
+
+    // Comparison / jumps
+    'Eq': 'comparison', 'Ne': 'comparison', 'Lt': 'comparison',
+    'Le': 'comparison', 'Gt': 'comparison', 'Ge': 'comparison',
+    'IsNull': 'comparison', 'NotNull': 'comparison',
+    'IfPos': 'comparison', 'IfNotZero': 'comparison',
+    'Compare': 'comparison', 'Jump': 'comparison',
+    'ElseEq': 'comparison',
+
+    // Register / value operations
+    'Integer': 'register', 'Int64': 'register', 'Real': 'register',
+    'String8': 'register', 'String': 'register', 'Null': 'register',
+    'Blob': 'register', 'Variable': 'register', 'SoftNull': 'register',
+    'Affinity': 'register', 'Cast': 'register', 'MustBeInt': 'register',
+    'RealAffinity': 'register',
+
+    // Arithmetic
+    'Add': 'arithmetic', 'Subtract': 'arithmetic', 'Multiply': 'arithmetic',
+    'Divide': 'arithmetic', 'Remainder': 'arithmetic', 'BitAnd': 'arithmetic',
+    'BitOr': 'arithmetic', 'ShiftLeft': 'arithmetic', 'ShiftRight': 'arithmetic',
+    'BitNot': 'arithmetic', 'Concat': 'arithmetic', 'Noop': 'arithmetic',
+    'Not': 'arithmetic',
+
+    // Functions
+    'Function': 'function', 'AggStep': 'function', 'AggFinal': 'function',
+    'AggValue': 'function', 'BuiltinFunction0': 'function',
+    'PureFunc': 'function', 'AggStep0': 'function',
+
+    // Transaction / savepoint
+    'Transaction': 'transaction', 'AutoCommit': 'transaction',
+    'Savepoint': 'transaction', 'ReadCookie': 'transaction',
+    'SetCookie': 'transaction', 'TableLock': 'transaction',
+
+    // Table modification
+    'MakeRecord': 'table', 'Insert': 'table', 'Delete': 'table',
+    'NewRowid': 'table', 'RowSetAdd': 'table', 'RowSetRead': 'table',
+    'RowSetTest': 'table', 'CreateBtree': 'table', 'SqlExec': 'table',
+    'ParseSchema': 'table', 'Count': 'table',
+
+    // Index
+    'IdxInsert': 'index', 'IdxDelete': 'index', 'IdxRowid': 'index',
+    'IdxGE': 'index', 'IdxGT': 'index', 'IdxLE': 'index',
+    'IdxLT': 'index', 'Sequence': 'index',
+
+    // Sorting
+    'SorterOpen': 'sort', 'SorterInsert': 'sort', 'SorterSort': 'sort',
+    'SorterNext': 'sort', 'SorterData': 'sort', 'Sort': 'sort',
+
+    // Aggregation specific
+    'AggInverse': 'aggregate', 'AggStep1': 'aggregate',
+    'AggFinal': 'aggregate',
+
+    // Subroutines
+    'Program': 'subprogram', 'Param': 'subprogram', 'FkCounter': 'subprogram',
+    'FkIfZero': 'subprogram', 'IfNotOpen': 'subprogram',
+};
+
+const CATEGORY_COLORS = {
+    cursor: '#7c3aed',
+    movement: '#0891b2',
+    column: '#059669',
+    result: '#d97706',
+    control: '#dc2626',
+    function: '#2563eb',
+    transaction: '#be185d',
+    comparison: '#9333ea',
+    arithmetic: '#0d9488',
+    register: '#6366f1',
+    string: '#ea580c',
+    table: '#4f46e5',
+    index: '#0e7490',
+    sort: '#b45309',
+    aggregate: '#7e22ce',
+    subprogram: '#be123c',
+};
+
+const CATEGORY_LABELS = {
+    cursor: 'Cursor',
+    movement: 'Seek / Move',
+    column: 'Column Access',
+    result: 'Result / Copy',
+    control: 'Control Flow',
+    function: 'Function Call',
+    transaction: 'Transaction',
+    comparison: 'Comparison',
+    arithmetic: 'Arithmetic',
+    register: 'Register Load',
+    table: 'Table Modify',
+    index: 'Index',
+    sort: 'Sorting',
+    aggregate: 'Aggregation',
+    subprogram: 'Subprogram',
+};
+
+// Comprehensive opcode explanations
+const OPCODE_EXPLANATIONS = {
+    'Init': (p1, p2) => `Jump to instruction ${p2} to begin the program. P1=${p1} is used for "once" flags. Every VDBE program starts with Init.`,
+    'Transaction': (p1, p2) => `Begin a ${p2 ? 'write' : 'read'} transaction on database ${p1}. Required before any database access.`,
+    'TableLock': (p1, p2, p3, p4) => `Acquire a ${p3 ? 'write' : 'read'} lock on table "${p4}" (root page ${p2}) in database ${p1}.`,
+    'Goto': (p1, p2) => `Unconditional jump to instruction ${p2}. Used for loops and skipping over sections of code.`,
+    'OpenRead': (p1, p2, p3, p4) => `Open a read cursor #${p1} on the b-tree rooted at page ${p2} with ${p3} columns${p4 ? ' (index: ' + p4 + ')' : ''}. The cursor is used to iterate over rows.`,
+    'OpenWrite': (p1, p2, p3, p4) => `Open a write cursor #${p1} on the b-tree rooted at page ${p2} with ${p3} columns${p4 ? ' (' + p4 + ')' : ''}. Allows inserting, updating, and deleting rows.`,
+    'OpenEphemeral': (p1, p2) => `Open cursor #${p1} on a temporary (in-memory) table with ${p2} columns. Used for sorting, deduplication, and intermediate results.`,
+    'OpenAutoindex': (p1, p2) => `Open cursor #${p1} on a temporary automatic index with ${p2} columns. SQLite builds these on-the-fly when it estimates a temp index will speed up a join.`,
+    'OpenPseudo': (p1, p2, p3) => `Open pseudo-cursor #${p1} on register r[${p2}]. It reads columns from a single record stored in a register, not from a real table.`,
+    'ColumnsUsed': (p1) => `Hint to cursor #${p1} about which columns will actually be accessed. Allows the storage engine to skip loading unused columns.`,
+    'Rewind': (p1, p2) => `Move cursor #${p1} to the first entry. If the table is empty, jump to instruction ${p2} (skip the loop body).`,
+    'Next': (p1, p2) => `Advance cursor #${p1} to the next row. If there is a next row, jump back to instruction ${p2} (loop continues). Otherwise, fall through (loop ends).`,
+    'Prev': (p1, p2) => `Move cursor #${p1} to the previous row. If there is one, jump to ${p2}. Used for reverse iteration.`,
+    'Last': (p1, p2) => `Move cursor #${p1} to the last entry. If the table is empty, jump to ${p2}.`,
+    'SeekRowid': (p1, p2, p3) => `Look up the row with rowid=r[${p3}] using cursor #${p1}. If not found, jump to ${p2}. This is a fast O(log n) lookup by primary key.`,
+    'NotExists': (p1, p2, p3) => `Check if rowid r[${p3}] exists in cursor #${p1}. If it does NOT exist, jump to ${p2}. Used for existence checks.`,
+    'SeekGE': (p1, p2, p3, p4) => `Position cursor #${p1} to the first entry >= the key in r[${p3}]..r[${p3}+${p4}-1]. If no such entry exists, jump to ${p2}. Used for range scans.`,
+    'SeekGT': (p1, p2, p3, p4) => `Position cursor #${p1} to the first entry > the key in r[${p3}]. If none, jump to ${p2}.`,
+    'SeekLE': (p1, p2, p3, p4) => `Position cursor #${p1} to the last entry <= the key. If none, jump to ${p2}.`,
+    'SeekLT': (p1, p2, p3, p4) => `Position cursor #${p1} to the last entry < the key. If none, jump to ${p2}.`,
+    'SeekEnd': (p1) => `Position cursor #${p1} at the end of the btree, for appending. Faster than seeking to a specific spot when inserting in order.`,
+    'SeekScan': (p1, p2) => `Incrementally scan cursor #${p1} up to ${p2} rows forward, looking for a match. Falls back to a binary seek if no match is found within that limit.`,
+    'SeekHit': (p1, p2, p3) => `Set the "seek hit" flag on cursor #${p1}. This is an optimization hint that tells subsequent DeferredSeek that the cursor is already positioned correctly.`,
+    'DeferredSeek': (p1, p2, p3) => `Record that cursor #${p3} (the table) needs to seek to the rowid found via index cursor #${p1}. The actual seek is deferred until a Column opcode needs data — saving work if the row is filtered out first.`,
+    'Found': (p1, p2, p3, p4) => `Search cursor #${p1} for a record matching the key in r[${p3}]..r[${p3}+${p4}-1]. If found, jump to ${p2}.`,
+    'NotFound': (p1, p2, p3, p4) => `Search cursor #${p1} for a record matching the key. If NOT found, jump to ${p2}.`,
+    'Column': (p1, p2, p3) => `Extract column #${p2} from the row pointed to by cursor #${p1} and store the value in register r[${p3}].`,
+    'Rowid': (p1, p2) => `Read the rowid (primary key) of the current row in cursor #${p1} and store it in register r[${p2}].`,
+    'NullRow': (p1) => `Set cursor #${p1} to a "null row" state — all Column reads will return NULL. Used for LEFT JOIN when no matching right row exists.`,
+    'ResultRow': (p1, p2) => `Return a single result row to the application, using registers r[${p1}]..r[${p1}+${p2}-1] as the column values. This is what sqlite3_step() returns.`,
+    'Halt': (p1, p2) => `Terminate the VDBE program. P1=${p1} is the result code (0=SQLITE_OK). P2=${p2} is used for ON CONFLICT behavior.`,
+    'Integer': (p1, p2) => `Store the integer value ${p1} into register r[${p2}].`,
+    'Int64': (p1, p2, p3, p4) => `Store the 64-bit integer value ${p4} into register r[${p2}].`,
+    'Real': (p1, p2, p3, p4) => `Store the floating-point value ${p4} into register r[${p2}].`,
+    'String8': (p1, p2, p3, p4) => `Store the string "${p4}" into register r[${p2}].`,
+    'String': (p1, p2) => `Store a string of length ${p1} into register r[${p2}].`,
+    'Null': (p1, p2, p3) => `Set register${p3 > 0 ? 's r[' + p2 + ']..r[' + p3 + ']' : ' r[' + p2 + ']'} to NULL. ${p1 ? 'Also set the "cleared" flag.' : ''}`,
+    'Blob': (p1, p2) => `Store a blob of ${p1} bytes into register r[${p2}].`,
+    'Variable': (p1, p2, p3, p4) => `Read SQL parameter ${p4 || '?' + p1} into register r[${p2}]. This is how bound parameters (from sqlite3_bind_*) enter the program.`,
+    'Move': (p1, p2, p3) => `Move the values of ${p3} registers from r[${p1}]..r[${p1}+${p3}-1] to r[${p2}]..r[${p2}+${p3}-1], clearing the source registers.`,
+    'Copy': (p1, p2, p3) => `Copy ${(p3||0)+1} register(s) from r[${p1}] to r[${p2}]. The source is not cleared (unlike Move).`,
+    'SCopy': (p1, p2) => `Shallow-copy register r[${p1}] into r[${p2}]. A shallow copy shares the same underlying data until one is modified ("copy-on-write").`,
+    'IntCopy': (p1, p2) => `Copy the integer value from register r[${p1}] into r[${p2}]. Faster than SCopy when we know the type.`,
+    'Eq': (p1, p2, p3) => `If r[${p1}] == r[${p3}], jump to instruction ${p2}. Used for equality checks in WHERE clauses and JOIN conditions.`,
+    'Ne': (p1, p2, p3) => `If r[${p1}] != r[${p3}], jump to instruction ${p2}.`,
+    'Lt': (p1, p2, p3) => `If r[${p3}] < r[${p1}], jump to instruction ${p2}.`,
+    'Le': (p1, p2, p3) => `If r[${p3}] <= r[${p1}], jump to instruction ${p2}.`,
+    'Gt': (p1, p2, p3) => `If r[${p3}] > r[${p1}], jump to instruction ${p2}.`,
+    'Ge': (p1, p2, p3) => `If r[${p3}] >= r[${p1}], jump to instruction ${p2}.`,
+    'Compare': (p1, p2, p3) => `Compare ${p3} register(s) starting at r[${p1}] against those at r[${p2}]. The result is used by the subsequent Jump instruction.`,
+    'Jump': (p1, p2, p3) => `Based on the result of the preceding Compare: jump to ${p1} if less than, ${p2} if equal, ${p3} if greater than.`,
+    'If': (p1, p2) => `If register r[${p1}] is true (nonzero), jump to instruction ${p2}.`,
+    'IfNot': (p1, p2) => `If register r[${p1}] is false (zero or NULL), jump to instruction ${p2}.`,
+    'IsNull': (p1, p2) => `If register r[${p1}] is NULL, jump to ${p2}. Used to handle NULL values in comparisons and expressions.`,
+    'NotNull': (p1, p2) => `If register r[${p1}] is NOT NULL, jump to ${p2}.`,
+    'IfPos': (p1, p2) => `If r[${p1}] > 0, subtract ${p2 || 0} from it and jump. Used for LIMIT counting.`,
+    'IfNotZero': (p1, p2) => `If r[${p1}] is not zero, subtract 1 and jump to ${p2}. Used for counting.`,
+    'Once': (p1, p2) => `If this instruction has been executed before during the current program run, jump to ${p2}. Otherwise continue. Used for one-time initialization.`,
+    'MustBeInt': (p1, p2) => `Force r[${p1}] to be an integer. If it cannot be converted, jump to ${p2} or raise an error.`,
+    'RealAffinity': (p1) => `If r[${p1}] holds an integer that can be losslessly converted to a real, do so. Used for REAL affinity columns.`,
+    'Affinity': (p1, p2, p3, p4) => `Apply type affinities "${p4}" to registers r[${p1}]..r[${p1}+${p2}-1]. Affinities: A=BLOB, B=TEXT, C=NUMERIC, D=INTEGER, E=REAL.`,
+    'MakeRecord': (p1, p2, p3) => `Combine ${p2} registers starting at r[${p1}] into a single binary record (the on-disk format) and store it in r[${p3}]. This is how rows are packed before being inserted.`,
+    'Insert': (p1, p2, p3) => `Insert the record in r[${p2}] with key r[${p3}] into the table opened by cursor #${p1}.`,
+    'Delete': (p1) => `Delete the row that cursor #${p1} is currently pointing to.`,
+    'NewRowid': (p1, p2) => `Generate a new unique rowid for cursor #${p1} and store it in r[${p2}]. Uses a random algorithm to avoid conflicts.`,
+    'Count': (p1, p2) => `Store the total number of rows in the table/index at cursor #${p1} into r[${p2}]. Used for COUNT(*) optimization.`,
+    'IdxInsert': (p1, p2) => `Insert the index key from r[${p2}] into the index at cursor #${p1}.`,
+    'IdxDelete': (p1, p2, p3) => `Delete the index entry formed by ${p3} registers starting at r[${p2}] from index cursor #${p1}.`,
+    'IdxRowid': (p1, p2) => `Read the rowid from the current index entry in cursor #${p1} and store it in r[${p2}]. This rowid is then used to look up the actual table row.`,
+    'IdxGE': (p1, p2, p3, p4) => `If the current index entry in cursor #${p1} >= key in r[${p3}], jump to ${p2}. Used to terminate index range scans.`,
+    'IdxGT': (p1, p2, p3, p4) => `If the current index entry in cursor #${p1} > key, jump to ${p2}.`,
+    'IdxLE': (p1, p2, p3, p4) => `If current index key <= target key, jump to ${p2}.`,
+    'IdxLT': (p1, p2, p3, p4) => `If current index key < target key, jump to ${p2}.`,
+    'Sequence': (p1, p2) => `Store an auto-incrementing sequence number for cursor #${p1} into r[${p2}]. Each call returns a larger number. Used for ORDER BY to maintain sort stability.`,
+    'SorterOpen': (p1, p2) => `Open a sorter object as cursor #${p1} with ${p2} columns. The sorter efficiently handles ORDER BY using an external merge sort algorithm.`,
+    'SorterInsert': (p1, p2) => `Insert the record in r[${p2}] into the sorter at cursor #${p1}. Records accumulate until SorterSort is called.`,
+    'SorterSort': (p1, p2) => `Sort all records accumulated in sorter cursor #${p1}. If the sorter is empty, jump to ${p2}. After this, use SorterNext to iterate in sorted order.`,
+    'SorterNext': (p1, p2) => `Advance to the next record in sorted order from sorter cursor #${p1}. If there is one, jump to ${p2}. Otherwise fall through (iteration complete).`,
+    'SorterData': (p1, p2) => `Copy the current sorter record (cursor #${p1}) into register r[${p2}]. Used to read data back from the sorter.`,
+    'Sort': (p1, p2) => `This is a no-op that marks the point in the code where the output from a sort begins. Jump to ${p2} if cursor #${p1} is empty.`,
+    'Function': (p1, p2, p3, p4) => `Call the SQL function "${p4}" with arguments from registers near r[${p2}], storing the result in r[${p3}].`,
+    'PureFunc': (p1, p2, p3, p4) => `Call pure (deterministic) SQL function "${p4}" with arguments, result in r[${p3}]. Pure functions can be cached and optimized.`,
+    'AggStep': (p1, p2, p3, p4) => `Call the step function of aggregate "${p4}" with arguments near r[${p2}], accumulating into r[${p3}]. Called once per input row.`,
+    'AggStep0': (p1, p2, p3, p4) => `Same as AggStep but for the first invocation: initialize and step aggregate "${p4}".`,
+    'AggFinal': (p1, p2, p3, p4) => `Finalize aggregate "${p4 || ''}" and store the final result in r[${p1}]. For example, this computes the final average for avg().`,
+    'AggValue': (p1, p2) => `Read the current intermediate value of aggregate accumulator r[${p1}] into r[${p2}] without finalizing. Used for window functions.`,
+    'Gosub': (p1, p2) => `Save the current address in r[${p1}] and jump to subroutine at instruction ${p2}. Used for code reuse within the VDBE program.`,
+    'Return': (p1) => `Return from a subroutine by jumping to the address stored in r[${p1}] + 1. The counterpart to Gosub.`,
+    'Yield': (p1, p2) => `Swap the program counter with the value in r[${p1}]. This implements coroutines — used for subqueries that produce rows one at a time.`,
+    'InitCoroutine': (p1, p2, p3) => `Set up a coroutine: store the return address in r[${p1}] and jump to ${p3}. The coroutine generates rows via Yield.`,
+    'EndCoroutine': (p1) => `End the coroutine whose return address is in r[${p1}]. Jump back to the instruction after the last Yield.`,
+    'Close': (p1) => `Close cursor #${p1} and release all resources associated with it.`,
+    'AutoCommit': (p1, p2) => `Set auto-commit mode to ${p1}. P2=${p2} is the rollback flag. This commits or rolls back the transaction.`,
+    'ReadCookie': (p1, p2, p3) => `Read database cookie #${p3} from database ${p1} and store it in r[${p2}]. Cookies track schema version and format.`,
+    'SetCookie': (p1, p2, p3) => `Set database cookie #${p2} in database ${p1} to value ${p3}.`,
+    'Add': (p1, p2, p3) => `Compute r[${p1}] + r[${p2}] and store the result in r[${p3}].`,
+    'Subtract': (p1, p2, p3) => `Compute r[${p2}] - r[${p1}] and store the result in r[${p3}].`,
+    'Multiply': (p1, p2, p3) => `Compute r[${p1}] * r[${p2}] and store the result in r[${p3}].`,
+    'Divide': (p1, p2, p3) => `Compute r[${p2}] / r[${p1}] and store the result in r[${p3}].`,
+    'Remainder': (p1, p2, p3) => `Compute r[${p2}] % r[${p1}] and store the result in r[${p3}].`,
+    'Concat': (p1, p2, p3) => `Concatenate r[${p2}] and r[${p1}] (in that order) and store the resulting string in r[${p3}].`,
+    'Not': (p1, p2) => `Compute the logical NOT of r[${p1}] and store in r[${p2}].`,
+    'BitAnd': (p1, p2, p3) => `Compute r[${p1}] & r[${p2}] (bitwise AND) and store in r[${p3}].`,
+    'BitOr': (p1, p2, p3) => `Compute r[${p1}] | r[${p2}] (bitwise OR) and store in r[${p3}].`,
+    'BitNot': (p1, p2) => `Compute ~r[${p1}] (bitwise NOT) and store in r[${p2}].`,
+    'ShiftLeft': (p1, p2, p3) => `Compute r[${p2}] << r[${p1}] and store in r[${p3}].`,
+    'ShiftRight': (p1, p2, p3) => `Compute r[${p2}] >> r[${p1}] and store in r[${p3}].`,
+    'Cast': (p1, p2) => `Force register r[${p1}] to have affinity type ${p2}.`,
+    'Noop': () => `No operation. This instruction does nothing. Used as a placeholder or for debugging.`,
+    'Explain': () => `Meta-instruction that marks the start of a subprogram for display purposes.`,
+    'Program': (p1, p2, p3) => `Execute a trigger sub-program. The sub-program's instructions follow. P3 references the triggering row.`,
+    'Param': (p1, p2) => `Used within trigger programs to access the old.* or new.* values of the triggering row.`,
+    'FkCounter': (p1, p2) => `Increment the foreign key constraint counter by ${p2}. Tracks deferred FK violations.`,
+    'FkIfZero': (p1, p2) => `If the FK constraint counter is zero (no violations), jump to ${p2}.`,
+    'IfNotOpen': (p1, p2) => `If cursor #${p1} is not open, jump to ${p2}. Used for optimizations that skip unused cursor operations.`,
+    'SoftNull': (p1) => `Set r[${p1}] to NULL but mark it as a "soft" null that can be overwritten.`,
+    'CreateBtree': (p1, p2, p3) => `Allocate a new b-tree in database ${p1} and store its root page number in r[${p2}]. P3: table (1) or index (2).`,
+    'SqlExec': (p1, p2, p3, p4) => `Execute the SQL statement "${p4}".`,
+    'ParseSchema': (p1) => `Re-read and parse the schema from database ${p1}. Updates the internal schema cache.`,
+    'RowSetAdd': (p1, p2) => `Add integer r[${p2}] to the RowSet in r[${p1}]. RowSets are used for OR-connected index lookups.`,
+    'RowSetRead': (p1, p2, p3) => `Read and remove the smallest integer from RowSet r[${p1}] into r[${p3}]. Jump to ${p2} if empty.`,
+    'RowSetTest': (p1, p2, p3) => `If integer r[${p3}] is already in RowSet r[${p1}], jump to ${p2} (duplicate elimination).`,
+};
+
+function getExplanation(opcode, p1, p2, p3, p4, p5) {
+    const fn = OPCODE_EXPLANATIONS[opcode];
+    if (fn) return fn(p1, p2, p3, p4, p5);
+    return `Executes the ${opcode} operation.`;
+}
+
+function getCategory(opcode) {
+    return OPCODE_CATEGORIES[opcode] || null;
+}
+
+function getCategoryClass(opcode) {
+    const cat = getCategory(opcode);
+    return cat ? `op-${cat}` : '';
+}
+
+const EXAMPLES = {
+    'simple-select': {
+        schema: 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, age INTEGER);',
+        query: 'SELECT name, email FROM users;',
+    },
+    'where-clause': {
+        schema: 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, age INTEGER);\nCREATE INDEX idx_email ON users(email);',
+        query: "SELECT * FROM users WHERE email = 'test@example.com';",
+    },
+    'join': {
+        schema: 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, age INTEGER);\nCREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), product TEXT, amount REAL, created DATE);\nCREATE INDEX idx_orders_user ON orders(user_id);',
+        query: 'SELECT users.name, orders.product, orders.amount FROM users JOIN orders ON users.id = orders.user_id WHERE users.age > 25 ORDER BY orders.amount DESC;',
+    },
+    'aggregate': {
+        schema: 'CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER, product TEXT, amount REAL, created DATE);',
+        query: 'SELECT product, COUNT(*) as order_count, SUM(amount) as total FROM orders GROUP BY product HAVING COUNT(*) > 5 ORDER BY total DESC;',
+    },
+    'subquery': {
+        schema: 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, age INTEGER);\nCREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER, product TEXT, amount REAL);',
+        query: 'SELECT name FROM users WHERE id IN (SELECT DISTINCT user_id FROM orders WHERE amount > 100);',
+    },
+    'insert': {
+        schema: 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, age INTEGER);',
+        query: "INSERT INTO users (name, email, age) VALUES ('Alice', 'alice@example.com', 30);",
+    },
+    'update': {
+        schema: 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, age INTEGER);\nCREATE INDEX idx_email ON users(email);',
+        query: "UPDATE users SET age = age + 1 WHERE email = 'alice@example.com';",
+    },
+    'delete': {
+        schema: 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, age INTEGER);',
+        query: 'DELETE FROM users WHERE age < 18;',
+    },
+    'create-index': {
+        schema: 'CREATE TABLE logs (id INTEGER PRIMARY KEY, level TEXT, message TEXT, timestamp DATETIME);\nCREATE INDEX idx_level ON logs(level);',
+        query: "SELECT * FROM logs WHERE level = 'ERROR' AND timestamp > '2024-01-01';",
+    },
+    'correlated-subquery': {
+        schema: 'CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT, department TEXT, salary REAL);',
+        query: 'SELECT name, salary, department FROM employees e1 WHERE salary > (SELECT AVG(salary) FROM employees e2 WHERE e2.department = e1.department);',
+    },
+};
+
+let db = null;
+
+async function initDB() {
+    const SQL = await initSqlJs({
+        locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/${file}`
+    });
+    db = new SQL.Database();
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('explainBtn').disabled = false;
+    document.getElementById('explainQueryPlanBtn').disabled = false;
+}
+
+function applySchema(schemaSQL) {
+    // Reset DB each time
+    const SQL = db.constructor;
+    db.close();
+    db = new SQL.prototype.constructor();
+
+    if (schemaSQL.trim()) {
+        const statements = schemaSQL.split(';').filter(s => s.trim());
+        for (const stmt of statements) {
+            try {
+                db.run(stmt.trim() + ';');
+            } catch (e) {
+                throw new Error(`Schema error: ${e.message}\n\nIn statement: ${stmt.trim()}`);
+            }
+        }
+    }
+}
+
+function runExplain(query, isQueryPlan) {
+    const prefix = isQueryPlan ? 'EXPLAIN QUERY PLAN ' : 'EXPLAIN ';
+    const results = db.exec(prefix + query);
+    if (!results.length) return { columns: [], rows: [] };
+    return { columns: results[0].columns, rows: results[0].values };
+}
+
+function analyzeProgram(rows) {
+    // Detect features of the bytecode program
+    const features = [];
+    const opcodes = rows.map(r => r[1]);
+    const uniqueOpcodes = new Set(opcodes);
+
+    if (uniqueOpcodes.has('OpenRead') || uniqueOpcodes.has('OpenWrite')) {
+        const cursors = rows.filter(r => r[1] === 'OpenRead' || r[1] === 'OpenWrite');
+        features.push(`Opens ${cursors.length} cursor(s) for table/index access`);
+    }
+    if (uniqueOpcodes.has('SorterOpen')) features.push('Uses an external sorter for ORDER BY');
+    if (uniqueOpcodes.has('OpenEphemeral')) features.push('Creates temporary table(s) for intermediate results');
+    if (uniqueOpcodes.has('OpenAutoindex')) features.push('Builds an automatic index to speed up a join');
+    if (uniqueOpcodes.has('AggStep') || uniqueOpcodes.has('AggStep0')) features.push('Computes aggregate functions (COUNT, SUM, AVG, etc.)');
+    if (uniqueOpcodes.has('SeekGE') || uniqueOpcodes.has('SeekLE') || uniqueOpcodes.has('SeekGT') || uniqueOpcodes.has('SeekLT')) features.push('Performs index range scan(s)');
+    if (uniqueOpcodes.has('SeekRowid')) features.push('Does direct rowid lookup(s) — fast primary key access');
+    if (uniqueOpcodes.has('Rewind') && uniqueOpcodes.has('Next')) features.push('Iterates through table rows using a scan loop');
+    if (uniqueOpcodes.has('DeferredSeek')) features.push('Uses deferred seek optimization (lazy table lookup from index)');
+    if (uniqueOpcodes.has('InitCoroutine') || uniqueOpcodes.has('Yield')) features.push('Uses coroutines for subquery evaluation');
+    if (uniqueOpcodes.has('Transaction')) features.push('Begins a database transaction');
+    if (uniqueOpcodes.has('NullRow')) features.push('Handles LEFT JOIN null rows');
+    if (uniqueOpcodes.has('Insert') || uniqueOpcodes.has('Delete') || uniqueOpcodes.has('NewRowid')) features.push('Modifies table data (insert/delete)');
+
+    const loops = [];
+    for (const row of rows) {
+        if (row[1] === 'Next' || row[1] === 'Prev' || row[1] === 'SorterNext') {
+            loops.push({ type: row[1], jumpBack: row[2] });
+        }
+    }
+    if (loops.length > 1) features.push(`Contains ${loops.length} loops (nested loop join or multi-pass scan)`);
+
+    return { features, totalOps: rows.length, uniqueOpcodeCount: uniqueOpcodes.size };
+}
+
+function renderBytecodeResults(rows) {
+    const analysis = analyzeProgram(rows);
+
+    // Build jump target set for highlighting
+    const jumpTargets = new Set();
+    for (const row of rows) {
+        const opcode = row[1];
+        const p2 = row[3];
+        // Most jump opcodes use P2 as target
+        if (['Goto', 'If', 'IfNot', 'Rewind', 'Next', 'Prev', 'SeekGE', 'SeekGT',
+             'SeekLE', 'SeekLT', 'SeekRowid', 'NotExists', 'Last', 'IsNull', 'NotNull',
+             'Eq', 'Ne', 'Lt', 'Le', 'Gt', 'Ge', 'Once', 'Gosub', 'Init', 'SorterSort',
+             'SorterNext', 'Found', 'NotFound', 'IfPos', 'IfNotZero', 'Sort',
+             'IfNotOpen', 'FkIfZero', 'RowSetRead', 'RowSetTest', 'InitCoroutine',
+             'MustBeInt', 'IfSmaller', 'SeekScan', 'ElseEq'].includes(opcode)) {
+            if (p2 !== 0 || opcode === 'Goto') jumpTargets.add(p2);
+        }
+        if (opcode === 'Jump') {
+            jumpTargets.add(row[2]); // p1
+            jumpTargets.add(row[3]); // p2
+            jumpTargets.add(row[4]); // p3
+        }
+    }
+
+    // Determine which categories are used
+    const usedCategories = new Set();
+    for (const row of rows) {
+        const cat = getCategory(row[1]);
+        if (cat) usedCategories.add(cat);
+    }
+
+    let html = '';
+
+    // Overview
+    html += '<div class="overview-panel">';
+    html += `<h3>Program Overview</h3>`;
+    html += `<p>This bytecode program has <strong>${analysis.totalOps} instructions</strong> using <strong>${analysis.uniqueOpcodeCount} distinct opcodes</strong>.</p>`;
+    if (analysis.features.length) {
+        html += '<ul>';
+        for (const f of analysis.features) {
+            html += `<li>${f}</li>`;
+        }
+        html += '</ul>';
+    }
+    html += '</div>';
+
+    // Legend
+    html += '<div class="legend">';
+    for (const [cat, label] of Object.entries(CATEGORY_LABELS)) {
+        if (!usedCategories.has(cat)) continue;
+        html += `<span class="legend-item"><span class="legend-dot" style="background:${CATEGORY_COLORS[cat]}"></span>${label}</span>`;
+    }
+    html += '</div>';
+
+    // Table
+    html += '<div style="overflow-x: auto;">';
+    html += '<table class="bytecode-table">';
+    html += '<thead><tr><th>Addr</th><th>Opcode</th><th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>P5</th><th>Comment</th><th>Explanation</th></tr></thead>';
+    html += '<tbody>';
+
+    for (const row of rows) {
+        const [addr, opcode, p1, p2, p3, p4, p5, ...rest] = row;
+        const comment = rest.length ? rest[rest.length - 1] : (row.length > 7 ? row[7] : '');
+        const catClass = getCategoryClass(opcode);
+        const isJumpTarget = jumpTargets.has(addr);
+        const explanation = getExplanation(opcode, p1, p2, p3, p4, p5);
+
+        // Make P2 a clickable jump link for jump opcodes
+        let p2Display = p2;
+        if (['Goto', 'If', 'IfNot', 'Rewind', 'Next', 'Prev', 'SeekGE', 'SeekGT',
+             'SeekLE', 'SeekLT', 'SeekRowid', 'NotExists', 'Last', 'IsNull', 'NotNull',
+             'Eq', 'Ne', 'Lt', 'Le', 'Gt', 'Ge', 'Once', 'Gosub', 'Init', 'SorterSort',
+             'SorterNext', 'Found', 'NotFound', 'IfPos', 'IfNotZero', 'Sort',
+             'IfNotOpen', 'FkIfZero', 'RowSetRead', 'RowSetTest', 'InitCoroutine',
+             'MustBeInt', 'IfSmaller', 'SeekScan', 'ElseEq'].includes(opcode) && (p2 !== 0 || opcode === 'Goto' || opcode === 'Init')) {
+            p2Display = `<span class="jump-link" onclick="jumpTo(${p2})" title="Jump to addr ${p2}">&rarr; ${p2}</span>`;
+        }
+
+        // For Jump opcode, all three params are jump targets
+        let p1Display = p1, p3Display = p3;
+        if (opcode === 'Jump') {
+            p1Display = `<span class="jump-link" onclick="jumpTo(${p1})" title="Jump to addr ${p1}">&rarr; ${p1}</span>`;
+            p2Display = `<span class="jump-link" onclick="jumpTo(${p2})" title="Jump to addr ${p2}">&rarr; ${p2}</span>`;
+            p3Display = `<span class="jump-link" onclick="jumpTo(${p3})" title="Jump to addr ${p3}">&rarr; ${p3}</span>`;
+        }
+
+        html += `<tr id="addr-${addr}"${isJumpTarget ? ' class="highlighted"' : ''}>`;
+        html += `<td class="col-addr">${addr}</td>`;
+        html += `<td class="col-opcode ${catClass}">${opcode}</td>`;
+        html += `<td class="col-p1">${p1Display}</td>`;
+        html += `<td class="col-p2">${p2Display}</td>`;
+        html += `<td class="col-p3">${p3Display}</td>`;
+        html += `<td class="col-p4">${p4 !== null && p4 !== undefined ? p4 : ''}</td>`;
+        html += `<td class="col-p5">${p5 ? ('0x' + Number(p5).toString(16).padStart(2, '0')) : ''}</td>`;
+        html += `<td class="col-comment">${comment || ''}</td>`;
+        html += `<td class="col-explanation">${explanation}</td>`;
+        html += '</tr>';
+    }
+
+    html += '</tbody></table></div>';
+    return html;
+}
+
+function renderQueryPlanResults(columns, rows) {
+    let html = '<div class="overview-panel">';
+    html += '<h3>Query Plan</h3>';
+    html += '<p>EXPLAIN QUERY PLAN shows the high-level strategy SQLite will use, including which tables and indexes are scanned and in what order.</p>';
+    html += '</div>';
+    html += '<table class="bytecode-table"><thead><tr>';
+    for (const col of columns) {
+        html += `<th>${col}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    for (const row of rows) {
+        html += '<tr>';
+        for (const val of row) {
+            html += `<td>${val !== null && val !== undefined ? val : ''}</td>`;
+        }
+        html += '</tr>';
+    }
+    html += '</tbody></table>';
+    return html;
+}
+
+window.jumpTo = function(addr) {
+    const el = document.getElementById(`addr-${addr}`);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.transition = 'background 0.2s';
+        el.style.background = '#bfdbfe';
+        setTimeout(() => { el.style.background = ''; }, 1500);
+    }
+};
+
+function doExplain(isQueryPlan) {
+    const schemaSQL = document.getElementById('schemaInput').value;
+    const querySQL = document.getElementById('queryInput').value.trim();
+    const errorBox = document.getElementById('errorBox');
+    const resultsArea = document.getElementById('resultsArea');
+
+    errorBox.style.display = 'none';
+    resultsArea.style.display = 'none';
+
+    if (!querySQL) {
+        errorBox.textContent = 'Please enter a SQL query.';
+        errorBox.style.display = 'block';
+        return;
+    }
+
+    try {
+        applySchema(schemaSQL);
+    } catch (e) {
+        errorBox.textContent = e.message;
+        errorBox.style.display = 'block';
+        return;
+    }
+
+    try {
+        const result = runExplain(querySQL, isQueryPlan);
+        if (!result.rows.length) {
+            errorBox.textContent = 'No bytecode generated. Check your query syntax.';
+            errorBox.style.display = 'block';
+            return;
+        }
+
+        let html = '<div class="results-section">';
+        html += '<div class="results-header">';
+        html += `<h2>${isQueryPlan ? 'Query Plan' : 'VDBE Bytecode'}</h2>`;
+        html += `<span class="opcode-count">${result.rows.length} ${isQueryPlan ? 'step(s)' : 'instruction(s)'}</span>`;
+        html += '</div>';
+
+        if (isQueryPlan) {
+            html += renderQueryPlanResults(result.columns, result.rows);
+        } else {
+            html += renderBytecodeResults(result.rows);
+        }
+
+        html += '</div>';
+        resultsArea.innerHTML = html;
+        resultsArea.style.display = 'block';
+    } catch (e) {
+        errorBox.textContent = e.message;
+        errorBox.style.display = 'block';
+    }
+}
+
+// Event listeners
+document.getElementById('explainBtn').addEventListener('click', () => doExplain(false));
+document.getElementById('explainQueryPlanBtn').addEventListener('click', () => doExplain(true));
+
+document.getElementById('queryInput').addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        doExplain(false);
+    }
+});
+
+document.getElementById('exampleSelect').addEventListener('change', (e) => {
+    const key = e.target.value;
+    if (key && EXAMPLES[key]) {
+        document.getElementById('schemaInput').value = EXAMPLES[key].schema;
+        document.getElementById('queryInput').value = EXAMPLES[key].query;
+        // Open schema details if it has content
+        const details = document.querySelector('.schema-section');
+        if (EXAMPLES[key].schema.trim()) details.open = true;
+        e.target.value = '';
+    }
+});
+
+// Initialize
+initDB().catch(err => {
+    document.getElementById('loadingMsg').textContent = 'Failed to load SQLite: ' + err.message;
+});
+</script>
+</body>
+</html>
