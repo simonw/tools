@@ -1,3 +1,3 @@
-Visualize and compare different sorting algorithms as they organize data in real time. Watch each algorithm's approach through animated bar charts, tracking comparisons and swaps while learning how bubble sort, selection sort, insertion sort, merge sort, quick sort, heap sort, and Timsort differ in performance. Run multiple algorithms simultaneously to see which performs best on your chosen dataset size and speed.
+Explore and compare different sorting algorithms through interactive animated visualizations that display how each algorithm organizes data in real-time. The tool allows you to adjust dataset size and animation speed, run individual algorithms step-by-step or continuously, and race multiple algorithms simultaneously to see which performs best. Each algorithm includes detailed complexity analysis and visual indicators for comparisons, swaps, and sorted elements.
 
-<!-- Generated from commit: bd8d072ff47cddc9e3a253ea69f28396ab15b751 -->
+<!-- Generated from commit: b51391b96ee15458ac9cce4b58fb4c5136b02243 -->
