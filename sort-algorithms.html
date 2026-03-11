@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sorting algorithms</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #f5f3ef;
+  --surface: #ffffff;
+  --surface2: #edeae4;
+  --border: #ddd8d0;
+  --text: #1a1a1a;
+  --text-dim: #7a756d;
+  --accent: #2563eb;
+  --accent-light: #dbeafe;
+  --accent-hover: #1d4ed8;
+  --compare: #e11d48;
+  --swap: #d97706;
+  --sorted: #7c3aed;
+  --pivot: #ea580c;
+  --bar-default: #b8b3ab;
+  --bar-default-top: #9a958d;
+  --radius: 10px;
+}
+
+body {
+  font-family: 'DM Sans', Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+input, textarea {
+  font-size: 16px;
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+header h1 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+header p {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* ── Algorithm selector pills ── */
+.algorithms-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.algo-btn {
+  font-family: 'DM Sans', Helvetica, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 100px;
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.algo-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.algo-btn.active {
+  border-color: var(--accent);
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+/* ── Visualizer panel ── */
+.visualizer-wrapper {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px 24px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.bars-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 320px;
+  padding: 0 4px;
+}
+
+.bar {
+  flex: 1;
+  min-width: 2px;
+  max-width: 28px;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.06s ease, background 0.12s ease, box-shadow 0.12s ease;
+  background: linear-gradient(180deg, var(--bar-default-top), var(--bar-default));
+}
+
+.bar.comparing {
+  background: var(--compare);
+  box-shadow: 0 0 8px rgba(225, 29, 72, 0.25);
+}
+
+.bar.swapping {
+  background: var(--swap);
+  box-shadow: 0 0 8px rgba(217, 119, 6, 0.25);
+}
+
+.bar.sorted {
+  background: linear-gradient(180deg, #8b5cf6, var(--sorted));
+  box-shadow: 0 0 4px rgba(124, 58, 237, 0.15);
+}
+
+.bar.pivot {
+  background: var(--pivot);
+  box-shadow: 0 0 8px rgba(234, 88, 12, 0.25);
+}
+
+.bar.active-range {
+  background: linear-gradient(180deg, #94a3b8, #cbd5e1);
+}
+
+/* ── Controls ── */
+.controls-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+}
+
+.control-group label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.control-group input[type="range"] {
+  width: 100px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.control-group .value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* ── Buttons ── */
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  font-family: 'DM Sans', Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 24px;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-run-all {
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  color: #fff;
+}
+
+.btn-run-all:hover:not(:disabled) {
+  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-run-all:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Stats ── */
+.stats-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+}
+
+.stat-card .stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.stat-card .stat-label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.stat-card .stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.legend {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* ── Info panel ── */
+.info-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin-top: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.info-panel h3 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.info-panel p {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.info-panel .complexity {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.info-panel .complexity span {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 4px 10px;
+  background: var(--surface2);
+  border-radius: 6px;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+/* ── Run-all grid ── */
+#runAllView {
+  display: none;
+}
+
+#runAllView.visible {
+  display: block;
+}
+
+#singleView.hidden {
+  display: none;
+}
+
+.grid-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.grid-header h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.grid-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: box-shadow 0.3s;
+}
+
+.grid-card.done {
+  box-shadow: 0 0 0 2px var(--sorted), 0 2px 12px rgba(124, 58, 237, 0.12);
+}
+
+.grid-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.grid-card-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.grid-card-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.grid-card-badge.finished {
+  background: rgba(124, 58, 237, 0.08);
+  color: var(--sorted);
+  border-color: var(--sorted);
+}
+
+.grid-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 140px;
+  margin-bottom: 10px;
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 8px 6px 4px;
+}
+
+.grid-bars .bar {
+  border-radius: 1px 1px 0 0;
+  min-width: 1px;
+}
+
+.grid-card-stats {
+  display: flex;
+  gap: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.grid-card-stats strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .app {
+    padding: 20px 12px 36px;
+  }
+  header h1 {
+    font-size: 21px;
+  }
+  .bars-container {
+    height: 220px;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .control-group input[type="range"] {
+    width: 70px;
+  }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Sorting algorithms</h1>
+    <p>Watch how different algorithms organize data, step by step</p>
+  </header>
+
+  <!-- ─── Single algorithm view ─── -->
+  <div id="singleView">
+    <div class="algorithms-row" id="algoButtons"></div>
+
+    <div class="visualizer-wrapper">
+      <div class="bars-container" id="barsContainer"></div>
+    </div>
+
+    <div class="controls-row">
+      <div class="control-group">
+        <label>Size</label>
+        <input type="range" id="sizeSlider" min="10" max="120" value="50">
+        <span class="value" id="sizeValue">50</span>
+      </div>
+      <div class="control-group">
+        <label>Speed</label>
+        <input type="range" id="speedSlider" min="1" max="100" value="60">
+        <span class="value" id="speedValue">60</span>
+      </div>
+    </div>
+
+    <div class="action-buttons">
+      <button class="btn btn-primary" id="startBtn">Start</button>
+      <button class="btn btn-secondary" id="stepBtn">Step</button>
+      <button class="btn btn-secondary" id="resetBtn">Shuffle</button>
+      <button class="btn btn-run-all" id="runAllBtn">Run all</button>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-dot" style="background:var(--compare)"></div>
+        <span class="stat-label">Comparisons</span>
+        <span class="stat-value" id="compCount">0</span>
+      </div>
+      <div class="stat-card">
+        <div class="stat-dot" style="background:var(--swap)"></div>
+        <span class="stat-label">Swaps</span>
+        <span class="stat-value" id="swapCount">0</span>
+      </div>
+      <div class="stat-card">
+        <div class="stat-dot" style="background:var(--sorted)"></div>
+        <span class="stat-label">Status</span>
+        <span class="stat-value" id="statusText">Ready</span>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--compare)"></div>Comparing</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--swap)"></div>Swapping</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--pivot)"></div>Pivot</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--sorted)"></div>Sorted</div>
+    </div>
+
+    <div class="info-panel" id="infoPanel"></div>
+  </div>
+
+  <!-- ─── Run-all grid view ─── -->
+  <div id="runAllView">
+    <div class="grid-header">
+      <h2>All algorithms racing</h2>
+      <button class="btn btn-secondary" id="backBtn">Back to single</button>
+    </div>
+
+    <div class="controls-row" style="margin-bottom:18px">
+      <div class="control-group">
+        <label>Size</label>
+        <input type="range" id="gridSizeSlider" min="10" max="120" value="50">
+        <span class="value" id="gridSizeValue">50</span>
+      </div>
+      <div class="control-group">
+        <label>Speed</label>
+        <input type="range" id="gridSpeedSlider" min="1" max="100" value="85">
+        <span class="value" id="gridSpeedValue">85</span>
+      </div>
+      <button class="btn btn-run-all" id="gridStartBtn">Start race</button>
+      <button class="btn btn-secondary" id="gridResetBtn">Shuffle</button>
+    </div>
+
+    <div class="legend" style="margin-bottom:18px">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--compare)"></div>Comparing</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--swap)"></div>Swapping</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--pivot)"></div>Pivot</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--sorted)"></div>Sorted</div>
+    </div>
+
+    <div class="grid" id="gridContainer"></div>
+  </div>
+</div>
+
+<script type="module">
+// ─── Algorithm metadata ───
+const algorithms = [
+  { id: 'bubble', name: 'Bubble sort' },
+  { id: 'selection', name: 'Selection sort' },
+  { id: 'insertion', name: 'Insertion sort' },
+  { id: 'merge', name: 'Merge sort' },
+  { id: 'quick', name: 'Quick sort' },
+  { id: 'heap', name: 'Heap sort' },
+  { id: 'tim', name: 'Timsort' },
+];
+
+const algoInfo = {
+  bubble: {
+    desc: 'Repeatedly steps through the list, compares adjacent elements and swaps them if they are in the wrong order. Simple but inefficient for large datasets.',
+    best: 'O(n)', avg: 'O(n\u00b2)', worst: 'O(n\u00b2)', space: 'O(1)'
+  },
+  selection: {
+    desc: 'Finds the minimum element from the unsorted portion and places it at the beginning. Always performs O(n\u00b2) comparisons regardless of input.',
+    best: 'O(n\u00b2)', avg: 'O(n\u00b2)', worst: 'O(n\u00b2)', space: 'O(1)'
+  },
+  insertion: {
+    desc: 'Builds the sorted array one item at a time by inserting each element into its correct position. Efficient for small or nearly sorted datasets.',
+    best: 'O(n)', avg: 'O(n\u00b2)', worst: 'O(n\u00b2)', space: 'O(1)'
+  },
+  merge: {
+    desc: 'Divides the array in half, recursively sorts each half, then merges them back together. Guarantees O(n log n) but uses extra memory.',
+    best: 'O(n log n)', avg: 'O(n log n)', worst: 'O(n log n)', space: 'O(n)'
+  },
+  quick: {
+    desc: 'Picks a pivot element and partitions the array around it so smaller elements go left and larger go right, then recurses. Fast in practice.',
+    best: 'O(n log n)', avg: 'O(n log n)', worst: 'O(n\u00b2)', space: 'O(log n)'
+  },
+  heap: {
+    desc: 'Builds a max-heap from the data, then repeatedly extracts the maximum element. In-place with guaranteed O(n log n) performance.',
+    best: 'O(n log n)', avg: 'O(n log n)', worst: 'O(n log n)', space: 'O(1)'
+  },
+  tim: {
+    desc: 'Python\u2019s default sort (designed by Tim Peters). An adaptive, stable, natural mergesort that identifies pre-existing runs, extends short runs with binary insertion sort to a minimum run length, then merges using galloping to exploit structure in partially ordered data.',
+    best: 'O(n)', avg: 'O(n log n)', worst: 'O(n log n)', space: 'O(n)'
+  },
+};
+
+// ─── Utility ───
+function shuffleArray(size) {
+  const a = [];
+  for (let i = 1; i <= size; i++) a.push(i);
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ════════════════════════════════════════════════════════
+// SortContext: one independent sort visualization instance
+// ════════════════════════════════════════════════════════
+class SortContext {
+  constructor(container, getDelay) {
+    this.container = container;
+    this.getDelay = getDelay;
+    this.arr = [];
+    this.barEls = [];
+    this.comparisons = 0;
+    this.swaps = 0;
+    this.cancelled = false;
+    this.stepping = false;
+    this.stepResolve = null;
+    this.onStats = null;
+  }
+
+  setArray(a) {
+    this.arr = [...a];
+    this.comparisons = 0;
+    this.swaps = 0;
+    this.cancelled = false;
+    this.renderBars();
+    if (this.onStats) this.onStats();
+  }
+
+  renderBars() {
+    this.container.innerHTML = '';
+    this.barEls = [];
+    const max = Math.max(...this.arr);
+    this.arr.forEach(val => {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.style.height = `${(val / max) * 100}%`;
+      this.container.appendChild(bar);
+      this.barEls.push(bar);
+    });
+  }
+
+  updateBar(i) {
+    this.barEls[i].style.height = `${(this.arr[i] / this.arr.length) * 100}%`;
+  }
+
+  clearClasses() {
+    for (let i = 0; i < this.barEls.length; i++) this.barEls[i].className = 'bar';
+  }
+
+  sleep(ms) {
+    if (this.stepping) return new Promise(r => { this.stepResolve = r; });
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  async highlight(indices, cls, duration) {
+    if (this.cancelled) throw 'cancelled';
+    this.clearClasses();
+    for (let k = 0; k < indices.length; k++) {
+      if (this.barEls[indices[k]]) this.barEls[indices[k]].classList.add(cls);
+    }
+    if (duration !== 0) await this.sleep(duration || this.getDelay());
+  }
+
+  async compareAt(i, j) {
+    this.comparisons++;
+    if (this.onStats) this.onStats();
+    await this.highlight([i, j], 'comparing', this.getDelay());
+  }
+
+  async swapAt(i, j) {
+    this.swaps++;
+    if (this.onStats) this.onStats();
+    [this.arr[i], this.arr[j]] = [this.arr[j], this.arr[i]];
+    this.updateBar(i);
+    this.updateBar(j);
+    await this.highlight([i, j], 'swapping', this.getDelay());
+  }
+
+  markAllSorted() {
+    this.clearClasses();
+    for (let i = 0; i < this.barEls.length; i++) this.barEls[i].classList.add('sorted');
+  }
+
+  // ─── Bubble sort ───
+  async bubbleSort() {
+    const n = this.arr.length;
+    for (let i = 0; i < n - 1; i++) {
+      for (let j = 0; j < n - i - 1; j++) {
+        await this.compareAt(j, j + 1);
+        if (this.arr[j] > this.arr[j + 1]) await this.swapAt(j, j + 1);
+      }
+      this.clearClasses();
+      for (let k = n - i - 1; k < n; k++) this.barEls[k].classList.add('sorted');
+    }
+    this.markAllSorted();
+  }
+
+  // ─── Selection sort ───
+  async selectionSort() {
+    const n = this.arr.length;
+    for (let i = 0; i < n - 1; i++) {
+      let minIdx = i;
+      for (let j = i + 1; j < n; j++) {
+        await this.compareAt(minIdx, j);
+        if (this.arr[j] < this.arr[minIdx]) minIdx = j;
+      }
+      if (minIdx !== i) await this.swapAt(i, minIdx);
+      this.clearClasses();
+      for (let k = 0; k <= i; k++) this.barEls[k].classList.add('sorted');
+    }
+    this.markAllSorted();
+  }
+
+  // ─── Insertion sort ───
+  async insertionSort() {
+    const n = this.arr.length;
+    for (let i = 1; i < n; i++) {
+      let j = i;
+      while (j > 0) {
+        await this.compareAt(j - 1, j);
+        if (this.arr[j - 1] > this.arr[j]) { await this.swapAt(j - 1, j); j--; }
+        else break;
+      }
+      this.clearClasses();
+      for (let k = 0; k <= i; k++) this.barEls[k].classList.add('sorted');
+    }
+    this.markAllSorted();
+  }
+
+  // ─── Merge sort ───
+  async mergeSort() {
+    const self = this;
+    async function merge(left, mid, right) {
+      const temp = self.arr.slice(left, right + 1);
+      let i = 0, j = mid - left + 1, k = left;
+      while (i <= mid - left && j <= right - left) {
+        self.comparisons++; if (self.onStats) self.onStats();
+        self.clearClasses();
+        self.barEls[left + i].classList.add('comparing');
+        self.barEls[left + j].classList.add('comparing');
+        await self.sleep(self.getDelay());
+        if (temp[i] <= temp[j]) { self.arr[k] = temp[i]; self.updateBar(k); i++; }
+        else { self.arr[k] = temp[j]; self.updateBar(k); j++; }
+        self.swaps++; if (self.onStats) self.onStats();
+        self.barEls[k].className = 'bar swapping';
+        await self.sleep(self.getDelay());
+        k++;
+      }
+      while (i <= mid - left) {
+        self.arr[k] = temp[i]; self.updateBar(k);
+        self.clearClasses(); self.barEls[k].classList.add('swapping');
+        await self.sleep(self.getDelay()); i++; k++;
+      }
+      while (j <= right - left) {
+        self.arr[k] = temp[j]; self.updateBar(k);
+        self.clearClasses(); self.barEls[k].classList.add('swapping');
+        await self.sleep(self.getDelay()); j++; k++;
+      }
+    }
+    async function sort(l, r) {
+      if (self.cancelled) throw 'cancelled';
+      if (l >= r) return;
+      const m = (l + r) >> 1;
+      await sort(l, m); await sort(m + 1, r); await merge(l, m, r);
+    }
+    await sort(0, this.arr.length - 1);
+    this.markAllSorted();
+  }
+
+  // ─── Quick sort ───
+  async quickSort() {
+    const self = this;
+    async function partition(low, high) {
+      const piv = self.arr[high];
+      self.clearClasses(); self.barEls[high].classList.add('pivot');
+      await self.sleep(self.getDelay());
+      let i = low - 1;
+      for (let j = low; j < high; j++) {
+        self.comparisons++; if (self.onStats) self.onStats();
+        self.clearClasses(); self.barEls[high].classList.add('pivot');
+        self.barEls[j].classList.add('comparing');
+        await self.sleep(self.getDelay());
+        if (self.arr[j] < piv) {
+          i++;
+          if (i !== j) { await self.swapAt(i, j); self.clearClasses(); self.barEls[high].classList.add('pivot'); }
+        }
+      }
+      if (i + 1 !== high) await self.swapAt(i + 1, high);
+      return i + 1;
+    }
+    async function sort(low, high) {
+      if (self.cancelled) throw 'cancelled';
+      if (low >= high) return;
+      const pi = await partition(low, high);
+      self.clearClasses(); self.barEls[pi].classList.add('sorted');
+      await sort(low, pi - 1); await sort(pi + 1, high);
+    }
+    await sort(0, this.arr.length - 1);
+    this.markAllSorted();
+  }
+
+  // ─── Heap sort ───
+  async heapSort() {
+    const self = this;
+    const n = this.arr.length;
+    async function heapify(size, root) {
+      let largest = root;
+      const l = 2 * root + 1, r = 2 * root + 2;
+      if (l < size) { await self.compareAt(l, largest); if (self.arr[l] > self.arr[largest]) largest = l; }
+      if (r < size) { await self.compareAt(r, largest); if (self.arr[r] > self.arr[largest]) largest = r; }
+      if (largest !== root) { await self.swapAt(root, largest); await heapify(size, largest); }
+    }
+    for (let i = (n >> 1) - 1; i >= 0; i--) { if (this.cancelled) throw 'cancelled'; await heapify(n, i); }
+    for (let i = n - 1; i > 0; i--) {
+      if (this.cancelled) throw 'cancelled';
+      await this.swapAt(0, i);
+      this.clearClasses();
+      for (let k = i; k < n; k++) this.barEls[k].classList.add('sorted');
+      await heapify(i, 0);
+    }
+    this.markAllSorted();
+  }
+
+  // ─── Timsort ───
+  async timSort() {
+    const self = this;
+    const n = this.arr.length;
+    if (n < 2) { this.markAllSorted(); return; }
+
+    const MIN_MERGE = 32;
+    let minGallop = 7;
+
+    function computeMinrun(n) {
+      let r = 0;
+      while (n >= MIN_MERGE) { r |= (n & 1); n >>= 1; }
+      return n + r;
+    }
+    const minrun = computeMinrun(n);
+
+    function showRun(lo, hi, cls) {
+      for (let i = lo; i < hi; i++) if (self.barEls[i]) self.barEls[i].classList.add(cls || 'active-range');
+    }
+
+    async function countRunAndMakeAscending(lo) {
+      if (self.cancelled) throw 'cancelled';
+      let hi = lo + 1;
+      if (hi >= n) return 1;
+      self.comparisons++; if (self.onStats) self.onStats();
+      self.clearClasses();
+      self.barEls[lo].classList.add('comparing'); self.barEls[hi].classList.add('comparing');
+      await self.sleep(self.getDelay());
+
+      if (self.arr[hi] < self.arr[lo]) {
+        hi++;
+        while (hi < n) {
+          self.comparisons++; if (self.onStats) self.onStats();
+          self.clearClasses(); self.barEls[hi - 1].classList.add('comparing'); self.barEls[hi].classList.add('comparing');
+          await self.sleep(self.getDelay());
+          if (self.arr[hi] < self.arr[hi - 1]) hi++; else break;
+        }
+        let left = lo, right = hi - 1;
+        while (left < right) {
+          self.swaps++; if (self.onStats) self.onStats();
+          [self.arr[left], self.arr[right]] = [self.arr[right], self.arr[left]];
+          self.updateBar(left); self.updateBar(right);
+          self.clearClasses(); self.barEls[left].classList.add('swapping'); self.barEls[right].classList.add('swapping');
+          await self.sleep(self.getDelay());
+          left++; right--;
+        }
+      } else {
+        hi++;
+        while (hi < n) {
+          self.comparisons++; if (self.onStats) self.onStats();
+          self.clearClasses(); self.barEls[hi - 1].classList.add('comparing'); self.barEls[hi].classList.add('comparing');
+          await self.sleep(self.getDelay());
+          if (self.arr[hi] >= self.arr[hi - 1]) hi++; else break;
+        }
+      }
+      return hi - lo;
+    }
+
+    async function binaryInsertionSort(lo, start, hi) {
+      if (start <= lo) start = lo + 1;
+      for (; start < hi; start++) {
+        if (self.cancelled) throw 'cancelled';
+        const pivot = self.arr[start];
+        let left = lo, right = start;
+        while (left < right) {
+          const mid = (left + right) >>> 1;
+          self.comparisons++; if (self.onStats) self.onStats();
+          self.clearClasses(); showRun(lo, hi, 'active-range');
+          self.barEls[start].classList.add('pivot'); self.barEls[mid].classList.add('comparing');
+          await self.sleep(self.getDelay());
+          if (pivot < self.arr[mid]) right = mid; else left = mid + 1;
+        }
+        const moveCount = start - left;
+        if (moveCount > 0) {
+          self.swaps += moveCount; if (self.onStats) self.onStats();
+          for (let i = start; i > left; i--) { self.arr[i] = self.arr[i - 1]; self.updateBar(i); }
+          self.arr[left] = pivot; self.updateBar(left);
+          self.clearClasses(); showRun(lo, hi, 'active-range'); self.barEls[left].classList.add('swapping');
+          await self.sleep(self.getDelay());
+        }
+      }
+    }
+
+    function gallopLeft(key, base, len, hint) {
+      let lastOfs = 0, ofs = 1;
+      if (self.arr[base + hint] < key) {
+        const maxOfs = len - hint;
+        while (ofs < maxOfs && self.arr[base + hint + ofs] < key) { lastOfs = ofs; ofs = (ofs << 1) + 1; if (ofs <= 0) ofs = maxOfs; self.comparisons++; if (self.onStats) self.onStats(); }
+        if (ofs > maxOfs) ofs = maxOfs; lastOfs += hint; ofs += hint;
+      } else {
+        const maxOfs = hint + 1;
+        while (ofs < maxOfs && !(self.arr[base + hint - ofs] < key)) { lastOfs = ofs; ofs = (ofs << 1) + 1; if (ofs <= 0) ofs = maxOfs; self.comparisons++; if (self.onStats) self.onStats(); }
+        if (ofs > maxOfs) ofs = maxOfs; const tmp = lastOfs; lastOfs = hint - ofs; ofs = hint - tmp;
+      }
+      lastOfs++;
+      while (lastOfs < ofs) { const m = lastOfs + ((ofs - lastOfs) >>> 1); self.comparisons++; if (self.onStats) self.onStats(); if (self.arr[base + m] < key) lastOfs = m + 1; else ofs = m; }
+      return ofs;
+    }
+
+    function gallopRight(key, base, len, hint) {
+      let lastOfs = 0, ofs = 1;
+      if (key < self.arr[base + hint]) {
+        const maxOfs = hint + 1;
+        while (ofs < maxOfs && key < self.arr[base + hint - ofs]) { lastOfs = ofs; ofs = (ofs << 1) + 1; if (ofs <= 0) ofs = maxOfs; self.comparisons++; if (self.onStats) self.onStats(); }
+        if (ofs > maxOfs) ofs = maxOfs; const tmp = lastOfs; lastOfs = hint - ofs; ofs = hint - tmp;
+      } else {
+        const maxOfs = len - hint;
+        while (ofs < maxOfs && !(key < self.arr[base + hint + ofs])) { lastOfs = ofs; ofs = (ofs << 1) + 1; if (ofs <= 0) ofs = maxOfs; self.comparisons++; if (self.onStats) self.onStats(); }
+        if (ofs > maxOfs) ofs = maxOfs; lastOfs += hint; ofs += hint;
+      }
+      lastOfs++;
+      while (lastOfs < ofs) { const m = lastOfs + ((ofs - lastOfs) >>> 1); self.comparisons++; if (self.onStats) self.onStats(); if (key < self.arr[base + m]) ofs = m; else lastOfs = m + 1; }
+      return ofs;
+    }
+
+    async function mergeLo(base1, len1, base2, len2) {
+      const tmp = self.arr.slice(base1, base1 + len1);
+      let c1 = 0, c2 = base2, dest = base1;
+      while (c1 < len1 && c2 < base2 + len2) {
+        if (self.cancelled) throw 'cancelled';
+        self.comparisons++; if (self.onStats) self.onStats();
+        self.clearClasses(); self.barEls[dest].classList.add('comparing');
+        if (c2 < n) self.barEls[c2].classList.add('comparing');
+        await self.sleep(self.getDelay());
+        if (self.arr[c2] < tmp[c1]) {
+          self.arr[dest] = self.arr[c2]; self.updateBar(dest);
+          self.swaps++; if (self.onStats) self.onStats();
+          self.clearClasses(); self.barEls[dest].classList.add('swapping');
+          await self.sleep(self.getDelay());
+          c2++; dest++;
+        } else {
+          self.arr[dest] = tmp[c1]; self.updateBar(dest);
+          self.swaps++; if (self.onStats) self.onStats();
+          self.clearClasses(); self.barEls[dest].classList.add('swapping');
+          await self.sleep(self.getDelay());
+          c1++; dest++;
+        }
+      }
+      while (c1 < len1) { self.arr[dest] = tmp[c1]; self.updateBar(dest); c1++; dest++; }
+      minGallop = Math.max(minGallop, 1);
+    }
+
+    async function mergeRuns(base1, len1, base2, len2) {
+      if (self.cancelled) throw 'cancelled';
+      const k = gallopRight(self.arr[base2], base1, len1, 0);
+      base1 += k; len1 -= k;
+      if (len1 === 0) return;
+      len2 = gallopLeft(self.arr[base1 + len1 - 1], base2, len2, len2 - 1);
+      if (len2 === 0) return;
+      await mergeLo(base1, len1, base2, len2);
+    }
+
+    // Main timsort loop
+    const runStack = [];
+    let lo = 0;
+
+    while (lo < n) {
+      if (self.cancelled) throw 'cancelled';
+      let runLen = await countRunAndMakeAscending(lo);
+      const force = Math.min(minrun, n - lo);
+      if (runLen < force) {
+        self.clearClasses(); showRun(lo, lo + force, 'active-range');
+        await self.sleep(self.getDelay());
+        await binaryInsertionSort(lo, lo + runLen, lo + force);
+        runLen = force;
+      }
+      runStack.push({ base: lo, len: runLen });
+      lo += runLen;
+
+      while (runStack.length > 1) {
+        let idx = runStack.length - 2;
+        if (idx > 0 && runStack[idx - 1].len <= runStack[idx].len + runStack[idx + 1].len) {
+          if (runStack[idx - 1].len < runStack[idx + 1].len) idx--;
+          self.clearClasses();
+          showRun(runStack[idx].base, runStack[idx].base + runStack[idx].len, 'comparing');
+          showRun(runStack[idx + 1].base, runStack[idx + 1].base + runStack[idx + 1].len, 'pivot');
+          await self.sleep(self.getDelay());
+          await mergeRuns(runStack[idx].base, runStack[idx].len, runStack[idx + 1].base, runStack[idx + 1].len);
+          runStack[idx].len += runStack[idx + 1].len; runStack.splice(idx + 1, 1);
+        } else if (runStack[idx].len <= runStack[idx + 1].len) {
+          self.clearClasses();
+          showRun(runStack[idx].base, runStack[idx].base + runStack[idx].len, 'comparing');
+          showRun(runStack[idx + 1].base, runStack[idx + 1].base + runStack[idx + 1].len, 'pivot');
+          await self.sleep(self.getDelay());
+          await mergeRuns(runStack[idx].base, runStack[idx].len, runStack[idx + 1].base, runStack[idx + 1].len);
+          runStack[idx].len += runStack[idx + 1].len; runStack.splice(idx + 1, 1);
+        } else break;
+      }
+    }
+
+    while (runStack.length > 1) {
+      if (self.cancelled) throw 'cancelled';
+      let idx = runStack.length - 2;
+      if (idx > 0 && runStack[idx - 1].len < runStack[idx + 1].len) idx--;
+      self.clearClasses();
+      showRun(runStack[idx].base, runStack[idx].base + runStack[idx].len, 'comparing');
+      showRun(runStack[idx + 1].base, runStack[idx + 1].base + runStack[idx + 1].len, 'pivot');
+      await self.sleep(self.getDelay());
+      await mergeRuns(runStack[idx].base, runStack[idx].len, runStack[idx + 1].base, runStack[idx + 1].len);
+      runStack[idx].len += runStack[idx + 1].len; runStack.splice(idx + 1, 1);
+    }
+    this.markAllSorted();
+  }
+}
+
+// Map algo ID to method name
+const sortMethodMap = {
+  bubble: 'bubbleSort', selection: 'selectionSort', insertion: 'insertionSort',
+  merge: 'mergeSort', quick: 'quickSort', heap: 'heapSort', tim: 'timSort',
+};
+
+// ═══════════════════════════════════════════════════════
+// SINGLE-ALGORITHM VIEW
+// ═══════════════════════════════════════════════════════
+const singleView = document.getElementById('singleView');
+const runAllView = document.getElementById('runAllView');
+const barsContainer = document.getElementById('barsContainer');
+const sizeSlider = document.getElementById('sizeSlider');
+const speedSlider = document.getElementById('speedSlider');
+const sizeValue = document.getElementById('sizeValue');
+const speedValue = document.getElementById('speedValue');
+const startBtn = document.getElementById('startBtn');
+const stepBtn = document.getElementById('stepBtn');
+const resetBtn = document.getElementById('resetBtn');
+const runAllBtn = document.getElementById('runAllBtn');
+const compCount = document.getElementById('compCount');
+const swapCount = document.getElementById('swapCount');
+const statusText = document.getElementById('statusText');
+const infoPanel = document.getElementById('infoPanel');
+const algoButtonsContainer = document.getElementById('algoButtons');
+
+let currentAlgo = 'bubble';
+let singleRunning = false;
+let singleSorted = false;
+
+const singleCtx = new SortContext(barsContainer, () => {
+  const s = parseInt(speedSlider.value);
+  return Math.max(1, Math.round(500 / s));
+});
+
+singleCtx.onStats = () => {
+  compCount.textContent = singleCtx.comparisons;
+  swapCount.textContent = singleCtx.swaps;
+};
+
+function updateInfoPanel() {
+  const info = algoInfo[currentAlgo];
+  const algo = algorithms.find(a => a.id === currentAlgo);
+  infoPanel.innerHTML = `<h3>${algo.name}</h3><p>${info.desc}</p>
+    <div class="complexity"><span>Best: ${info.best}</span><span>Avg: ${info.avg}</span><span>Worst: ${info.worst}</span><span>Space: ${info.space}</span></div>`;
+}
+
+function renderAlgoButtons() {
+  algoButtonsContainer.innerHTML = '';
+  algorithms.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = `algo-btn${a.id === currentAlgo ? ' active' : ''}`;
+    btn.textContent = a.name;
+    btn.addEventListener('click', () => {
+      if (singleRunning) return;
+      currentAlgo = a.id;
+      document.querySelectorAll('.algo-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      updateInfoPanel();
+    });
+    algoButtonsContainer.appendChild(btn);
+  });
+}
+
+function singleReset() {
+  singleCtx.cancelled = true;
+  singleCtx.stepping = false;
+  singleRunning = false;
+  singleSorted = false;
+  if (singleCtx.stepResolve) { singleCtx.stepResolve(); singleCtx.stepResolve = null; }
+  singleCtx.setArray(shuffleArray(parseInt(sizeSlider.value)));
+  statusText.textContent = 'Ready';
+  startBtn.textContent = 'Start';
+}
+
+async function singleRun(stepMode) {
+  if (singleSorted) singleReset();
+  await new Promise(r => setTimeout(r, 20));
+  singleCtx.cancelled = false;
+  singleCtx.stepping = stepMode;
+  singleRunning = true;
+  startBtn.textContent = 'Pause';
+  statusText.textContent = 'Sorting\u2026';
+  try {
+    await singleCtx[sortMethodMap[currentAlgo]]();
+    singleRunning = false;
+    singleSorted = true;
+    statusText.textContent = 'Complete';
+    startBtn.textContent = 'Start';
+  } catch (e) { if (e !== 'cancelled') console.error(e); }
+  singleRunning = false;
+}
+
+startBtn.addEventListener('click', () => {
+  if (singleRunning && !singleCtx.stepping) {
+    singleCtx.cancelled = true; singleRunning = false;
+    startBtn.textContent = 'Start'; statusText.textContent = 'Paused'; return;
+  }
+  if (singleCtx.stepping) {
+    singleCtx.stepping = false;
+    if (singleCtx.stepResolve) { singleCtx.stepResolve(); singleCtx.stepResolve = null; }
+    return;
+  }
+  singleRun(false);
+});
+
+stepBtn.addEventListener('click', () => {
+  if (singleRunning && singleCtx.stepping && singleCtx.stepResolve) {
+    singleCtx.stepResolve(); singleCtx.stepResolve = null; return;
+  }
+  if (singleRunning) return;
+  singleRun(true);
+});
+
+resetBtn.addEventListener('click', singleReset);
+sizeSlider.addEventListener('input', () => { sizeValue.textContent = sizeSlider.value; if (!singleRunning) singleReset(); });
+speedSlider.addEventListener('input', () => { speedValue.textContent = speedSlider.value; });
+
+// ═══════════════════════════════════════════════════════
+// RUN-ALL GRID VIEW
+// ═══════════════════════════════════════════════════════
+const gridContainer = document.getElementById('gridContainer');
+const gridSizeSlider = document.getElementById('gridSizeSlider');
+const gridSpeedSlider = document.getElementById('gridSpeedSlider');
+const gridSizeValue = document.getElementById('gridSizeValue');
+const gridSpeedValue = document.getElementById('gridSpeedValue');
+const gridStartBtn = document.getElementById('gridStartBtn');
+const gridResetBtn = document.getElementById('gridResetBtn');
+const backBtn = document.getElementById('backBtn');
+
+let gridContexts = [];
+let gridRunning = false;
+let finishCounter = 0;
+
+function getGridDelay() {
+  const s = parseInt(gridSpeedSlider.value);
+  return Math.max(1, Math.round(500 / s));
+}
+
+function buildGrid() {
+  gridContainer.innerHTML = '';
+  gridContexts = [];
+  finishCounter = 0;
+  const baseArr = shuffleArray(parseInt(gridSizeSlider.value));
+
+  algorithms.forEach(algo => {
+    const card = document.createElement('div');
+    card.className = 'grid-card';
+    card.innerHTML = `<div class="grid-card-header"><span class="grid-card-title">${algo.name}</span><span class="grid-card-badge" data-badge>Ready</span></div><div class="grid-bars"></div><div class="grid-card-stats"><span>Comparisons: <strong data-comp>0</strong></span><span>Swaps: <strong data-swap>0</strong></span></div>`;
+    gridContainer.appendChild(card);
+
+    const barsEl = card.querySelector('.grid-bars');
+    const compEl = card.querySelector('[data-comp]');
+    const swapEl = card.querySelector('[data-swap]');
+    const badgeEl = card.querySelector('[data-badge]');
+
+    const ctx = new SortContext(barsEl, getGridDelay);
+    ctx.algoId = algo.id;
+    ctx.card = card;
+    ctx.badgeEl = badgeEl;
+    ctx.onStats = () => { compEl.textContent = ctx.comparisons; swapEl.textContent = ctx.swaps; };
+    ctx.setArray(baseArr);
+    gridContexts.push(ctx);
+  });
+}
+
+function gridReset() {
+  gridContexts.forEach(ctx => { ctx.cancelled = true; });
+  gridRunning = false;
+  gridStartBtn.textContent = 'Start race';
+  buildGrid();
+}
+
+async function gridStart() {
+  if (gridRunning) {
+    gridContexts.forEach(ctx => { ctx.cancelled = true; });
+    gridRunning = false;
+    gridStartBtn.textContent = 'Start race';
+    return;
+  }
+
+  // Rebuild if all done
+  const allDone = gridContexts.length && gridContexts.every(c => c.barEls.every(b => b.classList.contains('sorted')));
+  if (allDone) { gridReset(); await new Promise(r => setTimeout(r, 30)); }
+
+  gridRunning = true;
+  finishCounter = 0;
+  gridStartBtn.textContent = 'Stop';
+  gridContexts.forEach(ctx => {
+    ctx.cancelled = false;
+    ctx.badgeEl.textContent = 'Sorting\u2026';
+    ctx.badgeEl.classList.remove('finished');
+    ctx.card.classList.remove('done');
+  });
+
+  const promises = gridContexts.map(async ctx => {
+    try {
+      await ctx[sortMethodMap[ctx.algoId]]();
+      finishCounter++;
+      ctx.badgeEl.textContent = `#${finishCounter}`;
+      ctx.badgeEl.classList.add('finished');
+      ctx.card.classList.add('done');
+    } catch (e) {
+      if (e !== 'cancelled') console.error(e);
+      ctx.badgeEl.textContent = 'Stopped';
+    }
+  });
+
+  await Promise.all(promises);
+  gridRunning = false;
+  gridStartBtn.textContent = 'Start race';
+}
+
+runAllBtn.addEventListener('click', () => {
+  if (singleRunning) { singleCtx.cancelled = true; singleRunning = false; }
+  singleView.classList.add('hidden');
+  runAllView.classList.add('visible');
+  buildGrid();
+});
+
+backBtn.addEventListener('click', () => {
+  gridContexts.forEach(ctx => { ctx.cancelled = true; });
+  gridRunning = false;
+  runAllView.classList.remove('visible');
+  singleView.classList.remove('hidden');
+});
+
+gridStartBtn.addEventListener('click', gridStart);
+gridResetBtn.addEventListener('click', gridReset);
+gridSizeSlider.addEventListener('input', () => { gridSizeValue.textContent = gridSizeSlider.value; if (!gridRunning) gridReset(); });
+gridSpeedSlider.addEventListener('input', () => { gridSpeedValue.textContent = gridSpeedSlider.value; });
+
+// ─── Init ───
+renderAlgoButtons();
+updateInfoPanel();
+singleReset();
+</script>
+</body>
+</html>
