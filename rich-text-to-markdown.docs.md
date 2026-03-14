@@ -1,3 +1,3 @@
-Convert rich text from your clipboard into properly formatted Markdown by pasting content into the input area. The tool automatically detects formatting such as bold text and converts it to Markdown syntax while removing unnecessary leading spaces from each line. Supports rich text format (RTF) from terminal output, HTML from web pages, and plain text input.
+Convert rich text formats into properly formatted Markdown by pasting content into the text area. The tool automatically detects and converts formatting such as bold, italic, links, code blocks, headings, and lists while removing unnecessary leading spaces from each line. Supports rich text from multiple sources including RTF, HTML, and plain text formats.
 
-<!-- Generated from commit: 139aebd747b7cee9fe25c830096417736643eb40 -->
+<!-- Generated from commit: bf0b1ef22effa52bfdd620c1f82c7e1dd1aedd10 -->
