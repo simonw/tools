@@ -115,7 +115,7 @@ button.copied {
   <h1>Rich Text to Markdown</h1>
 
   <div class="instructions">
-    <strong>Instructions:</strong> Paste rich text below. Bold text will be converted to <code>**markdown bold**</code>, links will be converted to <code>[text](url)</code>, and leading spaces will be removed.
+    <strong>Instructions:</strong> Paste rich text below. Formatting (bold, italic, links, code, headings, lists) will be converted to Markdown and leading spaces will be removed.
   </div>
 
   <textarea class="paste-area" placeholder="Click here and paste your rich text (Cmd+V or Ctrl+V)..."></textarea>
@@ -314,7 +314,7 @@ function htmlToMarkdown(html) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
-  function processNode(node) {
+  function processNode(node, listDepth = 0) {
     if (node.nodeType === Node.TEXT_NODE) {
       return node.textContent;
     }
@@ -324,9 +324,17 @@ function htmlToMarkdown(html) {
     }
 
     const tag = node.tagName.toLowerCase();
+
+    // For <pre>, grab raw text content and wrap in a fenced code block
+    if (tag === 'pre') {
+      const code = node.querySelector('code');
+      const text = (code || node).textContent;
+      return '\n```\n' + text.replace(/\n$/, '') + '\n```\n';
+    }
+
     let childContent = '';
     for (const child of node.childNodes) {
-      childContent += processNode(child);
+      childContent += processNode(child, listDepth);
     }
 
     // Check for bold - either tag or style
@@ -338,11 +346,29 @@ function htmlToMarkdown(html) {
       ));
 
     if (isBold && childContent.trim()) {
-      // Preserve spacing around the bold content
       const leadingSpace = childContent.match(/^\s*/)[0];
       const trailingSpace = childContent.match(/\s*$/)[0];
       const trimmed = childContent.trim();
       return `${leadingSpace}**${trimmed}**${trailingSpace}`;
+    }
+
+    // Check for italic - either tag or style
+    const isItalic = tag === 'em' || tag === 'i' ||
+      (node.style && node.style.fontStyle === 'italic');
+
+    if (isItalic && childContent.trim()) {
+      const leadingSpace = childContent.match(/^\s*/)[0];
+      const trailingSpace = childContent.match(/\s*$/)[0];
+      const trimmed = childContent.trim();
+      return `${leadingSpace}*${trimmed}*${trailingSpace}`;
+    }
+
+    // Handle inline code
+    if (tag === 'code') {
+      if (childContent.trim()) {
+        return '`' + childContent.trim() + '`';
+      }
+      return childContent;
     }
 
     // Handle links
@@ -351,6 +377,39 @@ function htmlToMarkdown(html) {
       if (href && childContent.trim()) {
         return `[${childContent.trim()}](${href})`;
       }
+      return childContent;
+    }
+
+    // Handle headings
+    const headingMatch = tag.match(/^h([1-6])$/);
+    if (headingMatch && childContent.trim()) {
+      const level = parseInt(headingMatch[1]);
+      const prefix = '#'.repeat(level);
+      return `\n${prefix} ${childContent.trim()}\n`;
+    }
+
+    // Handle lists
+    if (tag === 'ul' || tag === 'ol') {
+      let result = '';
+      let index = 1;
+      for (const child of node.children) {
+        if (child.tagName.toLowerCase() === 'li') {
+          const indent = '  '.repeat(listDepth);
+          const bullet = tag === 'ul' ? '-' : `${index}.`;
+          let liContent = '';
+          for (const liChild of child.childNodes) {
+            liContent += processNode(liChild, listDepth + 1);
+          }
+          // Trim trailing newlines from the li content but keep one newline at the end
+          result += `${indent}${bullet} ${liContent.trim()}\n`;
+          index++;
+        }
+      }
+      return (listDepth === 0 ? '\n' : '') + result + (listDepth === 0 ? '\n' : '');
+    }
+
+    // Skip <li> processed by parent list handler
+    if (tag === 'li') {
       return childContent;
     }
 
