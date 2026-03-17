@@ -58,7 +58,7 @@
             font-size: 12px;
             color: var(--muted);
         }
-        #version-select {
+        #version-select, #python-select {
             background: var(--surface);
             color: var(--text);
             border: 1px solid var(--border);
@@ -68,7 +68,7 @@
             font-size: 12px;
             cursor: pointer;
         }
-        #version-select:focus {
+        #version-select:focus, #python-select:focus {
             outline: none;
             border-color: var(--accent);
         }
@@ -228,23 +228,14 @@
             <div id="header-top">
                 <h1>Pyodide REPL</h1>
                 <div id="version-picker">
-                    <label for="version-select">Pyodide</label>
-                    <select id="version-select">
-                        <option value="0.27.5">v0.27.5</option>
-                        <option value="0.27.4">v0.27.4</option>
-                        <option value="0.27.3">v0.27.3</option>
-                        <option value="0.27.2">v0.27.2</option>
-                        <option value="0.27.1">v0.27.1</option>
-                        <option value="0.27.0">v0.27.0</option>
-                        <option value="0.26.4">v0.26.4</option>
-                        <option value="0.26.3">v0.26.3</option>
-                        <option value="0.26.2">v0.26.2</option>
-                        <option value="0.26.1">v0.26.1</option>
-                        <option value="0.26.0">v0.26.0</option>
-                        <option value="0.25.1" selected>v0.25.1</option>
-                        <option value="0.25.0">v0.25.0</option>
-                        <option value="0.24.1">v0.24.1</option>
+                    <label for="python-select">Python</label>
+                    <select id="python-select">
+                        <option value="3.13">3.13</option>
+                        <option value="3.12">3.12</option>
+                        <option value="3.11">3.11</option>
                     </select>
+                    <label for="version-select">Pyodide</label>
+                    <select id="version-select"></select>
                 </div>
             </div>
             <div class="subtitle">Python in the browser &mdash; mobile friendly</div>
@@ -281,20 +272,84 @@
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingText = document.getElementById('loading-text');
         const versionSelect = document.getElementById('version-select');
+        const pythonSelect = document.getElementById('python-select');
 
-        // Version selection from URL parameter
+        // Pyodide version -> Python version mapping
+        const pyodideVersions = [
+            { v: '0.29.3', py: '3.13' },
+            { v: '0.29.2', py: '3.13' },
+            { v: '0.29.1', py: '3.13' },
+            { v: '0.29.0', py: '3.13' },
+            { v: '0.28.3', py: '3.13' },
+            { v: '0.28.2', py: '3.13' },
+            { v: '0.28.1', py: '3.13' },
+            { v: '0.28.0', py: '3.13' },
+            { v: '0.27.7', py: '3.12' },
+            { v: '0.27.6', py: '3.12' },
+            { v: '0.27.5', py: '3.12' },
+            { v: '0.27.4', py: '3.12' },
+            { v: '0.27.3', py: '3.12' },
+            { v: '0.27.2', py: '3.12' },
+            { v: '0.27.1', py: '3.12' },
+            { v: '0.27.0', py: '3.12' },
+            { v: '0.26.4', py: '3.12' },
+            { v: '0.26.3', py: '3.12' },
+            { v: '0.26.2', py: '3.12' },
+            { v: '0.26.1', py: '3.12' },
+            { v: '0.26.0', py: '3.12' },
+            { v: '0.25.1', py: '3.11' },
+            { v: '0.25.0', py: '3.11' },
+            { v: '0.24.1', py: '3.11' },
+        ];
+
+        function populatePyodideVersions(pythonVersion) {
+            versionSelect.innerHTML = '';
+            for (const entry of pyodideVersions) {
+                if (entry.py === pythonVersion) {
+                    const opt = document.createElement('option');
+                    opt.value = entry.v;
+                    opt.textContent = 'v' + entry.v;
+                    versionSelect.appendChild(opt);
+                }
+            }
+        }
+
+        // Read URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const urlVersion = urlParams.get('v');
+        const urlPython = urlParams.get('python');
+
+        // Determine initial Python version
+        if (urlPython && ['3.11', '3.12', '3.13'].includes(urlPython)) {
+            pythonSelect.value = urlPython;
+        } else if (urlVersion) {
+            const entry = pyodideVersions.find(e => e.v === urlVersion);
+            if (entry) pythonSelect.value = entry.py;
+        }
+
+        // Populate Pyodide versions for selected Python
+        populatePyodideVersions(pythonSelect.value);
+
+        // Set Pyodide version from URL if valid
         if (urlVersion && versionSelect.querySelector(`option[value="${CSS.escape(urlVersion)}"]`)) {
             versionSelect.value = urlVersion;
         }
         const selectedVersion = versionSelect.value;
 
-        versionSelect.addEventListener('change', () => {
-            const newVersion = versionSelect.value;
+        function navigateWithParams() {
             const url = new URL(window.location);
-            url.searchParams.set('v', newVersion);
+            url.searchParams.set('v', versionSelect.value);
+            url.searchParams.set('python', pythonSelect.value);
             window.location.href = url.toString();
+        }
+
+        pythonSelect.addEventListener('change', () => {
+            populatePyodideVersions(pythonSelect.value);
+            navigateWithParams();
+        });
+
+        versionSelect.addEventListener('change', () => {
+            navigateWithParams();
         });
 
         let pyodide = null;
