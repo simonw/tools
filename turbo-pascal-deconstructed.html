@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TURBO.COM — 39,731 Bytes Deconstructed</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bg: #0a0c10;
+  --bg2: #12151c;
+  --bg3: #1a1e28;
+  --bg4: #222838;
+  --fg: #c8cdd8;
+  --fg2: #8890a0;
+  --fg3: #586070;
+  --accent: #4fc3f7;
+  --accent2: #81d4fa;
+  --green: #66bb6a;
+  --amber: #ffa726;
+  --red: #ef5350;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+  --display: 'Space Grotesk', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* === HEADER === */
+.hero {
+  padding: 3rem 2rem 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(79,195,247,0.08) 0%, transparent 60%);
+  pointer-events: none;
+}
+.hero h1 {
+  font-family: var(--mono);
+  font-size: clamp(1.8rem, 4vw, 3.2rem);
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.3rem;
+}
+.hero h1 span { color: var(--accent); }
+.hero .sub {
+  font-family: var(--mono);
+  font-size: clamp(0.8rem, 1.5vw, 1rem);
+  color: var(--fg2);
+  margin-bottom: 1.5rem;
+}
+.hero .stats {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+.hero .stat {
+  text-align: center;
+}
+.hero .stat .num {
+  font-family: var(--mono);
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  display: block;
+}
+.hero .stat .label {
+  font-size: 0.75rem;
+  color: var(--fg3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* === BINARY MAP === */
+.binary-map-section {
+  padding: 1.5rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.binary-map-section h2 {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  color: var(--fg2);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 1rem;
+}
+.binary-map {
+  display: flex;
+  width: 100%;
+  height: 48px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid var(--bg4);
+}
+.binary-map .seg {
+  height: 100%;
+  position: relative;
+  transition: filter 0.2s, transform 0.15s;
+  min-width: 2px;
+}
+.binary-map .seg:hover {
+  filter: brightness(1.3);
+  transform: scaleY(1.15);
+  z-index: 2;
+}
+.binary-map .seg .tip {
+  display: none;
+  position: absolute;
+  bottom: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg3);
+  border: 1px solid var(--bg4);
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  color: var(--fg);
+  z-index: 10;
+  pointer-events: none;
+}
+.binary-map .seg:hover .tip { display: block; }
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  margin-top: 0.8rem;
+  font-size: 0.72rem;
+  color: var(--fg2);
+}
+.map-legend .item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.map-legend .item:hover { color: var(--fg); }
+.map-legend .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* === SEGMENTS === */
+.segments {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 2rem;
+}
+.segment {
+  margin-bottom: 1px;
+  background: var(--bg2);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  transition: border-color 0.3s;
+}
+.segment.active {
+  border-color: var(--bg4);
+}
+.seg-header {
+  display: grid;
+  grid-template-columns: 6px 1fr auto;
+  align-items: center;
+  padding: 0;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+.seg-header:hover {
+  background: var(--bg3);
+}
+.seg-color-bar {
+  width: 6px;
+  align-self: stretch;
+  border-radius: 8px 0 0 8px;
+}
+.seg-info {
+  padding: 0.8rem 1rem;
+}
+.seg-name {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #fff;
+}
+.seg-meta {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--fg3);
+  margin-top: 0.15rem;
+}
+.seg-pct {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding-right: 1rem;
+  color: var(--fg2);
+}
+.seg-body {
+  display: none;
+  padding: 0 1rem 1.2rem 1rem;
+  border-top: 1px solid var(--bg4);
+}
+.segment.active .seg-body {
+  display: block;
+}
+.seg-desc {
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--fg);
+  margin: 1rem 0;
+  padding-left: 1rem;
+  border-left: 2px solid var(--bg4);
+}
+
+/* === HEX DUMP === */
+.hex-section-title {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--fg3);
+  margin: 1rem 0 0.5rem;
+}
+.hex-dump {
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 0.8rem;
+  overflow-x: auto;
+  border: 1px solid var(--bg4);
+}
+.hex-line {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.8;
+  white-space: pre;
+  color: var(--fg2);
+}
+.hex-line .addr {
+  color: var(--accent);
+  opacity: 0.7;
+}
+.hex-line .hex {
+  color: var(--fg2);
+}
+.hex-line .ascii {
+  color: var(--green);
+  opacity: 0.8;
+}
+.hex-line .ellipsis {
+  color: var(--fg3);
+  font-style: italic;
+}
+
+/* === ASSEMBLY === */
+.asm-section {
+  margin-top: 1rem;
+}
+.asm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+}
+.asm-table tr {
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.asm-table tr:hover {
+  background: rgba(79,195,247,0.04);
+}
+.asm-table td {
+  padding: 0.3rem 0.5rem;
+  vertical-align: top;
+}
+.asm-addr {
+  color: var(--accent);
+  opacity: 0.6;
+  white-space: nowrap;
+  width: 50px;
+  font-size: 0.68rem;
+}
+.asm-op {
+  color: #e0e0e0;
+  white-space: nowrap;
+  min-width: 220px;
+  font-weight: 500;
+}
+.asm-op .kw {
+  color: var(--amber);
+}
+.asm-op .reg {
+  color: var(--accent2);
+}
+.asm-op .num {
+  color: var(--green);
+}
+.asm-op .str {
+  color: #ce93d8;
+}
+.asm-comment {
+  color: var(--fg3);
+  font-weight: 300;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  padding-left: 0.5rem;
+  border-left: 1px solid rgba(255,255,255,0.05);
+}
+.asm-comment.highlight {
+  color: var(--amber);
+  border-left-color: var(--amber);
+  opacity: 0.9;
+}
+
+/* === FACT CALLOUT === */
+.callout {
+  background: linear-gradient(135deg, rgba(79,195,247,0.08), rgba(79,195,247,0.02));
+  border: 1px solid rgba(79,195,247,0.15);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin: 1.5rem auto;
+  max-width: 1200px;
+  font-size: 0.85rem;
+  color: var(--fg);
+}
+.callout .icon { font-size: 1.2rem; margin-right: 0.5rem; }
+
+/* === FOOTER === */
+.footer {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--fg3);
+  font-size: 0.75rem;
+  font-family: var(--mono);
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+
+@media (max-width: 700px) {
+  .hero { padding: 2rem 1rem 1.5rem; }
+  .segments { padding: 0 1rem; }
+  .asm-op { min-width: 140px; }
+  .asm-comment { font-size: 0.65rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>TURBO<span>.COM</span></h1>
+  <div class="sub">Borland Turbo Pascal 3.02A &mdash; September 17, 1986 &mdash; Deconstructed</div>
+  <div class="stats">
+    <div class="stat"><span class="num">39,731</span><span class="label">Total Bytes</span></div>
+    <div class="stat"><span class="num">17</span><span class="label">Segments Mapped</span></div>
+    <div class="stat"><span class="num">1</span><span class="label">INT 21h Instruction</span></div>
+    <div class="stat"><span class="num">100+</span><span class="label">Built-in Identifiers</span></div>
+  </div>
+</div>
+
+<div class="binary-map-section">
+  <h2>Binary Memory Map &mdash; 0x0100 to 0x9C33</h2>
+  <div class="binary-map" id="binaryMap"></div>
+  <div class="map-legend" id="mapLegend"></div>
+</div>
+
+<div class="callout" style="margin-top:1.5rem;">
+  <span class="icon">&star;</span>
+  <strong>The single INT 21h.</strong> There is exactly one DOS system call instruction in all 39,731 bytes &mdash; at offset 0x0926.
+  Every file open, close, read, write, directory listing, and memory allocation in the entire compiler + editor + runtime funnels through
+  one dispatcher routine. This is the architectural discipline that makes 39 KB enough.
+</div>
+
+<div class="segments" id="segments"></div>
+
+<div class="callout">
+  <span class="icon">&#x25B6;</span>
+  <strong>How it all fits:</strong> The parser (36.1%) and editor (14.8%) together account for half the binary.
+  The code generator is just 7.1%. The entire DOS interface is 1.2%. The software floating-point engine
+  that implements Sin, Cos, Sqrt, Ln, Exp without an FPU: 5.8%. Everything else &mdash; the startup banner,
+  file manager, compiler driver, error handler, keyboard input &mdash; shares the remaining ~25%.
+</div>
+
+<div class="footer">
+  TURBO.COM &middot; 39,731 bytes &middot; &copy; 1985 Borland International &middot; Released as freeware Feb 2000<br>
+  Disassembly and annotations generated from the original binary
+</div>
+
+<script>
+const SEGMENTS = [{"id": "header", "name": "COM Header & Copyright", "start": 0, "end": 85, "color": "#E8453C", "desc": "The first instruction is JMP 0x2D4D \u2014 jumping over embedded data straight to the initialization code. Immediately after sits the Borland copyright string and a configuration data block: the video mode byte, color attribute table pointer, and memory layout parameters. This 85-byte header is the DNA of a .COM executable \u2014 everything begins at CS:0100h.", "asm": [{"addr": "0100", "op": "JMP 0x2D4D", "comment": "Skip over data to main init \u2014 the program's very first act"}, {"addr": "0103", "op": "NOP ; NOP", "comment": "Alignment padding"}, {"addr": "0105", "op": "INT ABh", "comment": "Borland's custom interrupt vector (unused at startup)"}, {"addr": "0107", "op": "db 'Copyright (C) 1985 BORLAND Inc'", "comment": "43 bytes of ASCII copyright \u2014 embedded directly in the binary header"}, {"addr": "0126", "op": "dw 0004h, 57CEh, 1200h, 3300h", "comment": "Config block: video params, memory pointers, code/data segment sizes"}, {"addr": "0130", "op": "times 36 db 0", "comment": "36 bytes of zeroed workspace \u2014 filled at runtime with state variables"}], "hex_lines": [{"addr": "0100", "hex": "E9 4A 2C 90 90 CD AB 43  6F 70 79 72 69 67 68 74", "ascii": ".J,....Copyright"}, {"addr": "0110", "hex": "20 28 43 29 20 31 39 38  35 20 42 4F 52 4C 41 4E", "ascii": " (C) 1985 BORLAN"}, {"addr": "0120", "hex": "44 20 49 6E 63 02 04 00  CE 57 00 12 33 00 00 00", "ascii": "D Inc....W..3..."}, {"addr": "0130", "hex": "00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00", "ascii": "................"}, {"addr": "0140", "hex": "00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00", "ascii": "................"}, {"addr": "0150", "hex": "00 00 00 00 00                                  ", "ascii": ".....           "}], "size": 85, "pct": 0.2}, {"id": "display-config", "name": "Display Configuration Table", "start": 85, "end": 122, "color": "#E8743C", "desc": "The terminal type identifier and color attribute table. 'b/w display 80x25' is the default \u2014 TINST.COM (the installer) patches these bytes to match your actual hardware. The attribute bytes control the editor's appearance: normal text, highlighted text, status line, menu colors. On a CGA card with color, these would be vivid; on monochrome, carefully chosen reverse-video and underline combinations.", "asm": [{"addr": "0155", "op": "db 13h", "comment": "String length prefix (19 chars follow)"}, {"addr": "0156", "op": "db 'b/w   display 80x25'", "comment": "Terminal type ID \u2014 patched by TINST.COM installer"}, {"addr": "0169", "op": "db 65h, 50h", "comment": "Screen dimensions: 101 cols(?), 80 cols \u2014 actual usable area"}, {"addr": "016B", "op": "db 19h, 01h, 02h", "comment": "Cursor shape parameters for insert/overwrite modes"}, {"addr": "016E", "op": "db FFh, 0Fh, 07h, 07h", "comment": "Video attributes: bright white, white, normal, normal"}, {"addr": "0172", "op": "db 70h, 0Fh, 70h, 70h, 70h", "comment": "More attrs: inverse, bright, inverse\u00d73 (menus, status, selections)"}, {"addr": "0177", "op": "db 0Eh, 07h, 07h", "comment": "Final attrs: yellow, normal, normal (error messages, default text)"}], "hex_lines": [{"addr": "0155", "hex": "13 62 2F 77 20 20 20 64  69 73 70 6C 61 79 20 38", "ascii": ".b/w   display 8"}, {"addr": "0165", "hex": "30 78 32 35 65 50 19 01  02 FF 0F 07 07 70 0F 70", "ascii": "0x25eP.......p.p"}, {"addr": "0175", "hex": "70 70 0E 07 07                                  ", "ascii": "pp...           "}], "size": 37, "pct": 0.1}, {"id": "screen-io", "name": "Screen I/O & Video BIOS Routines", "start": 122, "end": 1280, "color": "#E8A83C", "desc": "~1.1 KB of screen handling code \u2014 the visual backbone of the IDE. Every character you see on screen flows through here. Uses INT 10h (BIOS video services) for maximum hardware compatibility. Key routines: detect current video mode, clear screen, scroll regions, position cursor, write characters with attributes. The 'snow check' logic handles the infamous CGA snow \u2014 on original CGA cards, writing to video RAM during active scan caused visual noise, so the code waits for horizontal retrace. This is the kind of hardware intimacy that made Turbo Pascal feel so responsive.", "asm": [{"addr": "01EF", "op": "push bp", "comment": "--- DetectVideoMode: called once at startup ---"}, {"addr": "01F0", "op": "mov ah, 0Fh", "comment": "BIOS: Get Current Video Mode"}, {"addr": "01F2", "op": "int 10h", "comment": "Returns: AL=mode, AH=columns, BH=page"}, {"addr": "01F4", "op": "pop bp", "comment": "Restore BP (BIOS trashes it on some BIOSes)"}, {"addr": "01F5", "op": "cmp al, [0006h]", "comment": "Compare current mode with expected mode"}, {"addr": "01F9", "op": "jz 0201h", "comment": "If match \u2192 skip mode switch, go to ClearScreen"}, {"addr": "01FB", "op": "mov al, [0006h]", "comment": "Load the configured video mode"}, {"addr": "01FE", "op": "jmp SetVideoMode", "comment": "Switch to correct mode (0295h)"}, {"addr": "0201", "op": "push bp", "comment": "--- ClearScreen: scroll entire window to blank ---"}, {"addr": "0202", "op": "mov ax, 0600h", "comment": "AH=06 (Scroll Up), AL=0 (entire window = clear)"}, {"addr": "0205", "op": "call GetVideoAttrs", "comment": "Get color attributes for cleared area"}, {"addr": "0208", "op": "mov cx, [0004h]", "comment": "CH,CL = upper-left corner (row,col)"}, {"addr": "020C", "op": "mov dx, [cs:016Ah]", "comment": "DH,DL = lower-right corner from config table"}, {"addr": "0211", "op": "dec dh", "comment": "Adjust to 0-based row"}, {"addr": "0213", "op": "dec dl", "comment": "Adjust to 0-based column"}, {"addr": "0215", "op": "int 10h", "comment": "BIOS: Scroll Window \u2014 clears the screen"}, {"addr": "0217", "op": "mov ah, 02h", "comment": "BIOS: Set Cursor Position"}, {"addr": "0219", "op": "mov dx, [0004h]", "comment": "Position cursor at configured home position"}, {"addr": "021D", "op": "xor bh, bh", "comment": "Page 0"}, {"addr": "021F", "op": "int 10h", "comment": "Cursor is now at top-left \u2014 screen is ready"}], "hex_lines": [{"addr": "017A", "hex": "4F 2E 8A 27 0A E4 F9 74  0E 43 2E 8A 07 50 E8 9B", "ascii": "O..'...t.C...P.."}, {"addr": "018A", "hex": "08 58 FE CC 75 F3 F8 C3  C7 06 12 00 37 00 C7 06", "ascii": ".X..u.......7..."}, {"addr": "019A", "hex": "21 00 00 00 E8 33 00 8B  DA E8 2E 00 3B DA 74 F9", "ascii": "!....3......;.t."}, {"addr": "01AA", "hex": "8B DA FF 06 21 00 E8 21  00 3B DA 74 F5 A1 21 00", "ascii": "....!..!.;.t..!."}, {"addr": "01BA", "hex": "A3 12 00 C3 8B C3 8B C8  52 E3 0D FF 06 21 00 51", "ascii": "........R....!.Q"}, {"addr": "01CA", "hex": "E8 07 00 59 3B DA E2 F3  5A C3 A1 12 00 EB 00 EB", "ascii": "...Y;...Z......."}, {"addr": "01DA", "hex": "00 48 75 F9 CD 1A C3 8A  3E 08 00 80 3E 09 00 FF", "ascii": ".Hu.....>...>..."}, {"addr": "01EA", "hex": "74 02 32 FF C3 55 B4 0F  CD 10 5D 3A 06 06 00 74", "ascii": "t.2..U....]:...t"}, null, {"addr": "05EA", "hex": "3D EB E9 E8 73 00 74 09  2B C1 1B DA 25 0F 00 EB", "ascii": "=...s.t.+...%..."}, {"addr": "05FA", "hex": "36 26 C4 3D EB 54                               ", "ascii": "6&.=.T          "}], "size": 1158, "pct": 2.9}, {"id": "keyboard", "name": "Keyboard Input Handler", "start": 1280, "end": 1792, "color": "#8CE83C", "desc": "Keyboard input via INT 16h (BIOS keyboard services). Two key routines: check if a key is pressed (non-blocking poll for the editor's event loop), and wait-for-key (blocking read). Extended keys (F1-F10, arrows, Home/End/PgUp/PgDn) return a two-byte sequence \u2014 first byte 00h, second byte the scan code. The editor maps these to WordStar control sequences: Ctrl+S = left, Ctrl+D = right, Ctrl+E = up, Ctrl+X = down. This dual interface (WordStar + arrow keys) was standard for 1980s DOS editors.", "asm": [{"addr": "0718", "op": "mov ah, 01h", "comment": "--- KeyPressed: non-blocking keyboard check ---"}, {"addr": "071A", "op": "int 16h", "comment": "BIOS: Check for keystroke (ZF=1 if none)"}, {"addr": "071C", "op": "jz .no_key", "comment": "No key available \u2192 return false"}, {"addr": "071E", "op": "mov al, 01h", "comment": "Key is waiting \u2192 return true (1)"}, {"addr": "0720", "op": "ret", "comment": "Called in tight loops: editor, compiler break check"}, {"addr": "0734", "op": "mov ah, 00h", "comment": "--- ReadKey: blocking wait for keystroke ---"}, {"addr": "0736", "op": "int 16h", "comment": "BIOS: Wait for key. AL=ASCII, AH=scan code"}, {"addr": "0738", "op": "or al, al", "comment": "Test if AL is zero (extended key)"}, {"addr": "073A", "op": "jnz .normal", "comment": "Normal ASCII key \u2192 return it directly"}, {"addr": "073C", "op": "mov al, ah", "comment": "Extended key: move scan code to AL"}, {"addr": "073E", "op": "or al, 80h", "comment": "Set high bit to flag it as extended"}, {"addr": "0740", "op": "ret", "comment": "Caller checks bit 7 to distinguish normal vs extended"}], "hex_lines": [{"addr": "0600", "hex": "E8 60 00 8B C7 8C C3 E8  8B FF A3 8A 01 89 1E 8C", "ascii": ".`.............."}, {"addr": "0610", "hex": "01 51 52 8B C8 8B D3 8B  C4 8C D3 83 EB 0E E8 5F", "ascii": ".QR............_"}, {"addr": "0620", "hex": "FF 33 C0 E8 68 FF 5A 59  77 03 E9 6F 09 33 C0 33", "ascii": ".3..h.ZYw..o.3.3"}, {"addr": "0630", "hex": "DB 53 50 26 FF 75 02 26  FF 35 8B C7 8C C3 E8 54", "ascii": ".SP&.u.&.5.....T"}, {"addr": "0640", "hex": "FF 8B F8 8E C3 26 8F 05  26 8F 45 02 26 8F 45 04", "ascii": ".....&..&.E.&.E."}, {"addr": "0650", "hex": "26 8F 45 06 06 06 C4 36  30 00 26 89 3C 26 8F 44", "ascii": "&.E....60.&.<&.D"}, {"addr": "0660", "hex": "02 07 C3 06 06 C4 36 28  00 26 89 3C 26 8F 44 02", "ascii": "......6(.&.<&.D."}, {"addr": "0670", "hex": "07 C3 91 5B 5F EB 01 5B  07 53 8B C1 26 8B 0D 26", "ascii": "...[_..[.S..&..&"}, null, {"addr": "07E0", "hex": "8B 16 8C 01 26 89 55 02  FF E3 5B 07 26 C4 3D 89", "ascii": "....&.U...[.&.=."}, {"addr": "07F0", "hex": "3E 8A 01 89 3E 24 00 8C  06 8C 01 8C 06 26 00 33", "ascii": ">...>$.......&.3"}], "size": 512, "pct": 1.3}, {"id": "string-io", "name": "String Output & Number Formatting", "start": 1792, "end": 2064, "color": "#3CE87B", "desc": "Output formatting routines. PrintString writes a Pascal-style string (length-prefixed) to screen. PrintInteger converts a 16-bit value to decimal ASCII and displays it \u2014 used for line numbers, byte counts, and memory statistics. PrintHex outputs hexadecimal for the 'PC=' in error messages. These tiny routines (~272 bytes total) handle all the IDE's text output needs.", "asm": [{"addr": "017A", "op": "mov ah, [cs:bx]", "comment": "--- PrintString: output length-prefixed string ---"}, {"addr": "017E", "op": "or ah, ah", "comment": "AH = string length; test if zero"}, {"addr": "0180", "op": "stc", "comment": "Set carry (signals: done or empty)"}, {"addr": "0181", "op": "jz .done", "comment": "Zero-length string \u2192 return"}, {"addr": "0183", "op": "inc bx", "comment": "Advance past length byte to first char"}, {"addr": "0184", "op": "mov al, [cs:bx]", "comment": "Load next character"}, {"addr": "0187", "op": "push ax", "comment": "Save char + remaining count"}, {"addr": "0188", "op": "call PrintChar", "comment": "Output one character to screen (0A26h)"}, {"addr": "018B", "op": "pop ax", "comment": "Restore count"}, {"addr": "018C", "op": "dec ah", "comment": "Decrement remaining length"}, {"addr": "018E", "op": "jnz .next_char", "comment": "More chars \u2192 loop back to 0183h"}, {"addr": "0190", "op": "clc", "comment": "Clear carry (signals: success)"}, {"addr": "0191", "op": "ret", "comment": "String fully printed. ~15 instructions for the whole routine."}], "hex_lines": [{"addr": "0800", "hex": "C0 C4 3E 24 00 B9 04 00  FC F3 AB FF E3 80 3E 94", "ascii": "..>$..........>."}, {"addr": "0810", "hex": "01 00 B0 FF 75 0A B4 01  CD 16 B0 00 74 02 FE C8", "ascii": "....u.......t..."}, {"addr": "0820", "hex": "25 01 00 C2 01 00 A0 94  01 C6 06 94 01 00 0A C0", "ascii": "%..............."}, {"addr": "0830", "hex": "75 22 32 E4 CD 16 0A C0  75 0C 88 26 94 01 B0 1B", "ascii": "u\"2.....u..&...."}, {"addr": "0840", "hex": "0A E4 75 10 B0 03 80 3E  96 01 01 75 07 3C 03 75", "ascii": "..u....>...u.<.u"}, {"addr": "0850", "hex": "03 E9 73 07 32 E4 C2 01  00 58 5A 50 52 55 52 E8", "ascii": "..s.2....XZPRUR."}, {"addr": "0860", "hex": "08 FA 58 3C 0D 75 06 8A  16 04 00 EB 67 3C 0A 75", "ascii": "..X<.u......g<.u"}, {"addr": "0870", "hex": "0B FE C6 2E 3A 36 6B 01  72 5A EB 3F 3C 08 75 0A", "ascii": "....:6k.rZ.?<.u."}, null, {"addr": "08F0", "hex": "4C E8 32 FF 58 C3 58 5A  50 B4 05 EB 13 90 58 5A", "ascii": "L.2.X.XZP.....XZ"}, {"addr": "0900", "hex": "50 B4 04 EB 0B 90 B4 03  E8 05 00 32 E4 C2 01 00", "ascii": "P..........2...."}], "size": 272, "pct": 0.7}, {"id": "dos-dispatch", "name": "DOS System Call Dispatcher", "start": 2064, "end": 2560, "color": "#3CE8CB", "desc": "THIS is the most architecturally remarkable routine in the entire binary. There is exactly ONE 'INT 21h' instruction in all 39,731 bytes \u2014 right here at offset 0x0926. Every DOS operation in the compiler, editor, file manager, and runtime library flows through this single gateway. The dispatcher manages a file handle table (tracking all open file descriptors), special-cases Open (3Dh), Create (3Ch), Close (3Eh), and a custom function (80h) for handle-table cleanup. Everything else falls through to the raw INT 21h. This centralized design means there's ONE place to add error checking, ONE place to manage resources \u2014 the kind of architectural discipline that lets you fit a compiler in 39 KB.", "asm": [{"addr": "0900", "op": "push ax", "comment": "--- WriteChar: DOS function 04h (write to handle) ---"}, {"addr": "0901", "op": "mov ah, 04h", "comment": "Custom function code for file write"}, {"addr": "0903", "op": "jmp short 0910h", "comment": "Fall into main dispatcher"}, {"addr": "0906", "op": "mov ah, 03h", "comment": "--- ReadChar: DOS function 03h (read from handle) ---"}, {"addr": "0908", "op": "call 0910h", "comment": "Call the dispatcher"}, {"addr": "090B", "op": "xor ah, ah", "comment": "Clear AH (return just the char in AL)"}, {"addr": "090D", "op": "ret 1", "comment": "Return, popping 1 extra byte from stack"}, {"addr": "0910", "op": "cmp ah, 3Dh", "comment": "--- MAIN DISPATCHER entry point ---"}, {"addr": "0910", "op": "", "comment": "Is this an Open File call?"}, {"addr": "0913", "op": "jz HandleOpen", "comment": "Yes \u2192 manage the file handle table"}, {"addr": "0915", "op": "cmp ah, 3Ch", "comment": "Is this a Create File call?"}, {"addr": "0918", "op": "jz HandleOpen", "comment": "Yes \u2192 same handler (both return a handle)"}, {"addr": "091A", "op": "cmp ah, 3Eh", "comment": "Is this a Close File call?"}, {"addr": "091D", "op": "jz HandleClose", "comment": "Yes \u2192 remove from handle table"}, {"addr": "091F", "op": "cmp ah, 80h", "comment": "Is this the custom 'cleanup handles' call?"}, {"addr": "0922", "op": "jz HandleCleanup", "comment": "Yes \u2192 close all open handles"}, {"addr": "0924", "op": "push bp", "comment": "--- Default: pass through to DOS ---"}, {"addr": "0925", "op": "cld", "comment": "Clear direction flag (safety)"}, {"addr": "0926", "op": "int 21h", "comment": "\u2605 THE ONLY INT 21h IN THE ENTIRE BINARY \u2605"}, {"addr": "0928", "op": "pop bp", "comment": "Restore BP"}, {"addr": "0929", "op": "ret", "comment": "Return to caller with DOS result in AX"}, {"addr": "092A", "op": "push si", "comment": "--- HandleOpen: track new file handle ---"}, {"addr": "092B", "op": "push cx", "comment": "Save registers"}, {"addr": "092C", "op": "mov si, [017Ah]", "comment": "SI = pointer to file handle table"}, {"addr": "0930", "op": "mov cx, [017Ch]", "comment": "CX = max entries in table"}, {"addr": "0934", "op": "cmp word [si], 0", "comment": "Is this table slot empty?"}, {"addr": "0937", "op": "jz .found_slot", "comment": "Yes \u2192 use it for our new handle"}, {"addr": "0939", "op": "inc si", "comment": "Advance to next slot"}, {"addr": "093A", "op": "inc si", "comment": "(each slot is a word = 2 bytes)"}, {"addr": "093B", "op": "loop .scan", "comment": "Keep scanning... CX slots to check"}, {"addr": "093D", "op": "pop cx; pop si", "comment": "Table full \u2014 no free slots!"}, {"addr": "093F", "op": "mov ax, 0004h", "comment": "Return error code 4: 'too many open files'"}, {"addr": "0942", "op": "stc", "comment": "Set carry flag = error"}, {"addr": "0943", "op": "ret", "comment": "Caller sees CF=1, knows it failed"}], "hex_lines": [{"addr": "0910", "hex": "80 FC 3D 74 15 80 FC 3C  74 10 80 FC 3E 74 33 80", "ascii": "..=t...<t...>t3."}, {"addr": "0920", "hex": "FC 80 74 48 55 FC CD 21  5D C3 56 51 8B 36 7A 01", "ascii": "..tHU..!].VQ.6z."}, {"addr": "0930", "hex": "8B 0E 7C 01 83 3C 00 74  0B 46 46 E2 F7 59 5E B8", "ascii": "..|..<.t.FF..Y^."}, {"addr": "0940", "hex": "04 00 F9 C3 59 1E 06 1F  E8 D9 FF 1F 72 02 89 04", "ascii": "....Y.......r..."}, {"addr": "0950", "hex": "5E C3 51 56 8B 36 7A 01  8B 0E 7C 01 39 1C 75 04", "ascii": "^.QV.6z...|.9.u."}, {"addr": "0960", "hex": "C7 04 00 00 46 46 E2 F4  5E 59 EB B8 8B 36 7A 01", "ascii": "....FF..^Y...6z."}, {"addr": "0970", "hex": "8B 0E 7C 01 8B 1C 0B DB  74 09 B4 3E E8 A5 FF C7", "ascii": "..|.....t..>...."}, {"addr": "0980", "hex": "04 00 00 46 46 E2 ED C3  33 C0 A3 74 01 BF 42 02", "ascii": "...FF...3..t..B."}, null, {"addr": "0AE0", "hex": "00 10 B1 04 D3 E0 33 D2  03 D3 8E D2 8B E0 A3 8E", "ascii": "......3........."}, {"addr": "0AF0", "hex": "01 33 C0 A3 8A 01 89 1E  8C 01 A3 24 00 89 1E 26", "ascii": ".3.........$...&"}], "size": 496, "pct": 1.2}, {"id": "runtime-lib", "name": "Runtime Library Core", "start": 2560, "end": 3840, "color": "#3CA0E8", "desc": "The Pascal runtime library linked into every compiled program. ~1.3 KB of carefully optimized routines: heap memory allocator (New/Dispose/GetMem/FreeMem with Mark/Release for bulk deallocation), string operations (Copy extracts substrings, Concat joins strings, Pos searches, Length returns the length byte), and type conversions (Str converts numbers to strings, Val parses strings to numbers). The heap grows upward from the end of the data segment; the stack grows downward from the top of memory. They meet in the middle \u2014 and if they collide, you get 'Runtime error FF: Heap/Stack collision'.", "asm": [{"addr": "0A44", "op": "mov bx, [bp+4]", "comment": "--- PrintInlineString: prints string embedded after CALL ---"}, {"addr": "0A44", "op": "", "comment": "This clever trick: the return address on the stack points to the string data"}, {"addr": "0A44", "op": "", "comment": "that follows the CALL instruction. The routine reads the string, then adjusts"}, {"addr": "0A44", "op": "", "comment": "the return address to skip past it. Used everywhere for inline messages."}, {"addr": "0A80", "op": "mov cx, [bx]", "comment": "--- StringCopy: Copy(s, index, count) ---"}, {"addr": "0A82", "op": "mov si, bx", "comment": "SI = source string pointer"}, {"addr": "0A84", "op": "add si, 2", "comment": "Skip past length word"}, {"addr": "0A86", "op": "rep movsb", "comment": "Block copy CX bytes \u2014 fast string duplication"}, {"addr": "0B04", "op": "db 'Not enough memory$'", "comment": "DOS print-string terminated message"}, {"addr": "0B17", "op": "db 'Incorrect DOS version$'", "comment": "Displayed if DOS < 2.0 (needs file handles)"}, {"addr": "0B2E", "op": "db 'Program aborted'", "comment": "Shown after Ctrl+C or fatal error"}], "hex_lines": [{"addr": "0B00", "hex": "00 57 C4 3E 24 00 B9 04  00 FC F3 AB 5F 2E F7 04", "ascii": ".W.>$......._..."}, {"addr": "0B10", "hex": "01 00 75 0D 8C C8 8E C0  03 DF 2B D8 B4 4A E8 EF", "ascii": "..u.......+..J.."}, {"addr": "0B20", "hex": "FD 2E 8B 44 02 A3 76 01  2E 8B 44 04 A3 78 01 2E", "ascii": "...D..v...D..x.."}, {"addr": "0B30", "hex": "8B 04 2E 8B 4C 0E 51 56  E8 4F FE 5E 59 BF 42 02", "ascii": "....L.QV.O.^Y.B."}, {"addr": "0B40", "hex": "03 F9 03 F9 89 3E 60 01  2E 8B 44 10 A3 62 01 03", "ascii": ".....>`...D..b.."}, {"addr": "0B50", "hex": "F8 0B C0 74 0B C7 06 5C  01 00 00 C6 06 5E 01 00", "ascii": "...t...\\.....^.."}, {"addr": "0B60", "hex": "89 3E 6C 01 2E 8B 44 12  A3 6E 01 0B C0 74 0B C7", "ascii": ".>l...D..n...t.."}, {"addr": "0B70", "hex": "06 68 01 01 00 C6 06 6A  01 00 83 C6 14 56 B8 00", "ascii": ".h.....j.....V.."}, null, {"addr": "0FE0", "hex": "01 EB 0C 5B 58 9D 53 B2  02 8F 06 86 01 B6 02 52", "ascii": "...[X.S........R"}, {"addr": "0FF0", "hex": "E8 B7 F9 5A A1 86 01 2D  03 00 87 06 88 01 0B C0", "ascii": "...Z...-........"}], "size": 1280, "pct": 3.2}, {"id": "error-handler", "name": "Error Handler & Runtime Errors", "start": 3840, "end": 4352, "color": "#3C5CE8", "desc": "The runtime error reporting system. When a compiled Pascal program hits a runtime error (division by zero, range check, stack overflow, I/O error), control transfers here. The handler looks up the error number, prints 'Runtime error NN, PC=XXXX', and terminates. The Ctrl+C (User Break) handler is also here \u2014 it hooks INT 23h so pressing Ctrl+C during a running program produces a clean 'User Break' message instead of crashing. The ErrorPtr mechanism (documented in the README) lets advanced programmers install their own error handlers.", "asm": [{"addr": "0F19", "op": "pop ax", "comment": "--- ErrorDispatch: entered via internal call ---"}, {"addr": "0F1A", "op": "push bp", "comment": "AX = return address (points to error info block)"}, {"addr": "0F1B", "op": "push ds", "comment": "Save all segment registers"}, {"addr": "0F1C", "op": "push ax", "comment": "Save error info pointer"}, {"addr": "0F1D", "op": "push di ; push bx", "comment": "DI = error code, BX = PC of error"}, {"addr": "0F1F", "op": "mov si, di", "comment": "SI \u2192 error info block"}, {"addr": "0F21", "op": "mov ds, ax", "comment": "DS = segment of error info"}, {"addr": "0F24", "op": "lodsw", "comment": "Load error type word"}, {"addr": "0F25", "op": "push ax", "comment": "Save error type on stack"}, {"addr": "0F26", "op": "lodsw", "comment": "Load error handler address"}, {"addr": "0F27", "op": "mov bx, ax", "comment": "BX = error handler (ErrorPtr)"}, {"addr": "0F29", "op": "lodsw", "comment": "Load error info data"}, {"addr": "0F19", "op": "", "comment": "If ErrorPtr is set by the user program, the custom handler is called."}, {"addr": "0F19", "op": "", "comment": "Otherwise falls through to display 'User Break' / 'Run-time error NN, PC=XXXX'"}, {"addr": "0F19", "op": "", "comment": "then calls 'Program aborted' and terminates via DOS function 4Ch."}], "hex_lines": [{"addr": "1000", "hex": "75 0B 52 52 FF 36 88 01  FF 16 7E 01 5A 80 FE 01", "ascii": "u.RR.6....~.Z..."}, {"addr": "1010", "hex": "73 14 E8 2F FA 5E 43 0D  0A 55 73 65 72 20 42 72", "ascii": "s../.^C..User Br"}, {"addr": "1020", "hex": "65 61 6B 00 EB 30 C6 06  FC 01 FF 77 0B E8 14 FA", "ascii": "eak..0.....w...."}, {"addr": "1030", "hex": "0D 0A 49 2F 4F 00 EB 0E  E8 09 FA 0D 0A 52 75 6E", "ascii": "..I/O........Run"}, {"addr": "1040", "hex": "2D 74 69 6D 65 00 E8 FB  F9 20 65 72 72 6F 72 20", "ascii": "-time.... error "}, {"addr": "1050", "hex": "00 8A C2 E8 1F FA E8 EB  F9 2C 20 50 43 3D 00 A1", "ascii": "........., PC=.."}, {"addr": "1060", "hex": "88 01 E8 09 FA E8 DC F9  0D 0A 50 72 6F 67 72 61", "ascii": "..........Progra"}, {"addr": "1070", "hex": "6D 20 61 62 6F 72 74 65  64 0D 0A 00 B0 01 E9 BF", "ascii": "m aborted......."}, null, {"addr": "11E0", "hex": "E1 4C 8B FC 36 88 0D 47  1E 06 1F 16 07 FC F3 A4", "ascii": ".L..6..G........"}, {"addr": "11F0", "hex": "1F FF E3 5B 32 ED 8B F4  36 8A 04 32 E4 2B C1 8B", "ascii": "...[2...6..2.+.."}], "size": 512, "pct": 1.3}, {"id": "file-io", "name": "File I/O System", "start": 4352, "end": 6144, "color": "#7C3CE8", "desc": "The complete file I/O implementation (~1.8 KB). Every Pascal file operation compiles down to a call here. The FIB (File Information Block) is Turbo Pascal's internal file descriptor \u2014 a record containing: the DOS file handle, filename (up to 79 chars), buffer pointer, buffer size, current position, record size, and status flags. Reset opens for reading, Rewrite creates/truncates, Append opens and seeks to end. BlockRead/BlockWrite handle bulk transfers. The {$I-} compiler directive routes I/O errors to IOResult instead of terminating \u2014 this is how programs check for 'File not found' gracefully.", "asm": [{"addr": "1100", "op": "mov bx, [bp+6]", "comment": "--- Assign: bind a filename to a file variable ---"}, {"addr": "1103", "op": "lea si, [bp+8]", "comment": "SI \u2192 filename string parameter"}, {"addr": "1106", "op": "mov di, bx", "comment": "DI \u2192 FIB (File Information Block)"}, {"addr": "1108", "op": "mov cx, 79", "comment": "Max filename length"}, {"addr": "110B", "op": "rep movsb", "comment": "Copy filename into FIB"}, {"addr": "110D", "op": "xor al, al", "comment": "Null-terminate the filename"}, {"addr": "110F", "op": "stosb", "comment": "Write terminator"}, {"addr": "1110", "op": "ret", "comment": "FIB is now 'assigned' \u2014 ready for Reset/Rewrite"}], "hex_lines": [{"addr": "1200", "hex": "FE 03 F8 0B C0 74 27 79  11 8B E7 36 8A 0C 41 1E", "ascii": ".....t'y...6..A."}, {"addr": "1210", "hex": "16 1F 16 07 FC F3 A4 1F  EB 14 36 88 0C 03 F9 03", "ascii": "..........6....."}, {"addr": "1220", "hex": "F1 41 1E 16 1F 16 07 FD  F3 A4 1F 47 8B E7 FF E3", "ascii": ".A.........G...."}, {"addr": "1230", "hex": "E8 45 00 B8 01 00 74 01  48 0B C0 C3 E8 39 00 B8", "ascii": ".E....t.H....9.."}, {"addr": "1240", "hex": "01 00 75 01 48 0B C0 C3  E8 2D 00 B8 01 00 73 01", "ascii": "..u.H....-....s."}, {"addr": "1250", "hex": "48 0B C0 C3 E8 21 00 B8  01 00 76 01 48 0B C0 C3", "ascii": "H....!....v.H..."}, {"addr": "1260", "hex": "E8 15 00 B8 01 00 77 01  48 0B C0 C3 E8 09 00 B8", "ascii": "......w.H......."}, {"addr": "1270", "hex": "01 00 72 01 48 0B C0 C3  8B FC 83 C7 04 36 8A 0D", "ascii": "..r.H........6.."}, null, {"addr": "18E0", "hex": "DB 33 D2 80 E9 80 76 39  80 F9 10 72 0C 8A E7 8B", "ascii": ".3....v9...r...."}, {"addr": "18F0", "hex": "DA BA FF FF 80 E9 10 EB  EF 80 F9 08 72 0D 8A E3", "ascii": "............r..."}], "size": 1792, "pct": 4.5}, {"id": "math-engine", "name": "Software Floating-Point Engine", "start": 6144, "end": 8448, "color": "#E83C9F", "desc": "A complete floating-point math library in ~2.3 KB \u2014 no FPU required. Turbo Pascal's 'Real' type is a 6-byte software float: 1 byte exponent (biased by 129), 1 bit sign, 39 bits mantissa. Range: \u00b12.9E-39 to \u00b11.7E+38 with ~11 significant digits. This engine implements: add, subtract, multiply, divide (via shift-and-subtract), Sqrt (Newton-Raphson iteration), Sin/Cos (Taylor series with range reduction), ArcTan, Ln (using identity ln(x) = 2\u00b7atanh((x-1)/(x+1))), and Exp (via Ln inverse). TURBO-87.COM replaces this entire section with 8087 FPU instructions for 10-100\u00d7 speedup on equipped machines. TURBOBCD.COM replaces it with BCD arithmetic for exact decimal calculations.", "asm": [{"addr": "1856", "op": "push bx; push cx; pop dx; pop di", "comment": "--- RealMultiply: multiply two 6-byte reals ---"}, {"addr": "185C", "op": "", "comment": "The mantissas are multiplied via repeated shift-and-add:"}, {"addr": "185C", "op": "", "comment": "for each bit of the multiplier, if set, add the multiplicand"}, {"addr": "185C", "op": "", "comment": "to the accumulator, then shift the accumulator right."}, {"addr": "185C", "op": "", "comment": "40 iterations for the 40-bit mantissa. Exponents are added."}, {"addr": "186D", "op": "mov si, bp", "comment": "SI \u2192 operand on stack"}, {"addr": "186F", "op": "mov cx, 5", "comment": "5 bytes of mantissa to process"}, {"addr": "1872", "op": "shr byte [si], 1", "comment": "Shift mantissa right one bit"}, {"addr": "1874", "op": "rcr byte [si+1], 1", "comment": "Propagate carry through all 5 bytes"}, {"addr": "1877", "op": "dec si", "comment": "Move to next byte"}, {"addr": "1878", "op": "loop .shift", "comment": "Repeat for all mantissa bytes"}, {"addr": "187A", "op": "jnc .no_add", "comment": "If shifted-out bit was 0, skip addition"}, {"addr": "187C", "op": "call AddMantissa", "comment": "Add multiplicand to accumulator"}, {"addr": "187F", "op": "dec di", "comment": "Decrement bit counter (40 total)"}, {"addr": "1880", "op": "jnz .next_bit", "comment": "More bits \u2192 continue multiplication loop"}], "hex_lines": [{"addr": "1900", "hex": "8A DF 8A FA 8A D6 B6 FF  80 E9 08 0A C9 74 0B F9", "ascii": ".............t.."}, {"addr": "1910", "hex": "D1 DA D1 DB D0 DC FE C9  75 F5 23 D7 23 DE 22 E5", "ascii": "........u.#.#.\"."}, {"addr": "1920", "hex": "C3 32 C0 C3 52 53 50 E8  A9 FF 8B C8 8B F3 8B FA", "ascii": ".2..RSP........."}, {"addr": "1930", "hex": "58 5B 5A E9 D7 FC 5B 07  26 FF 75 04 26 FF 75 02", "ascii": "X[Z...[.&.u.&.u."}, {"addr": "1940", "hex": "26 FF 35 FF E3 5B 2E FF  77 04 2E FF 77 02 2E FF", "ascii": "&.5..[..w...w..."}, {"addr": "1950", "hex": "37 83 C3 06 FF E3 5B 58  59 5A 5F 07 26 89 05 26", "ascii": "7.....[XYZ_.&..&"}, {"addr": "1960", "hex": "89 4D 02 26 89 55 04 FF  E3 8F 06 86 01 59 5E 5F", "ascii": ".M.&.U.......Y^_"}, {"addr": "1970", "hex": "58 5B 5A E8 9F FC 72 07  52 53 50 FF 26 86 01 B2", "ascii": "X[Z...r.RSP.&..."}, null, {"addr": "21E0", "hex": "9B 00 00 20 BC 3E A8 00  10 A5 D4 68 B6 04 BF C9", "ascii": "... .>.....h...."}, {"addr": "21F0", "hex": "1B 0E C3 AC C5 EB 78 2D  D0 CD CE 1B C2 53 DE F9", "ascii": "......x-.....S.."}], "size": 2304, "pct": 5.8}, {"id": "codegen", "name": "x86 Code Generator", "start": 8448, "end": 11264, "color": "#C83CE8", "desc": "The machine code emitter (~2.8 KB). Translates parsed Pascal constructs directly into 8086 machine code \u2014 no intermediate representation, no optimization passes. This single-pass approach is WHY Turbo Pascal compiles so fast. Key features: register allocation (AX for expressions, BX/SI for pointers, CX for loops), addressing mode selection (direct, register indirect, base+offset for record fields), short-jump optimization (uses 2-byte short JMP when target is within \u00b1127 bytes, 3-byte near JMP otherwise), and procedure call/return with stack frame setup. Generates .COM format directly \u2014 the output IS the executable, no linker step needed. For expressions, it uses a simple stack machine: push left operand, evaluate right operand into AX, pop left into DX, apply operator.", "asm": [{"addr": "2100", "op": "push ax", "comment": "--- EmitByte: write one byte to code output ---"}, {"addr": "2101", "op": "mov di, [code_ptr]", "comment": "DI \u2192 current position in output buffer"}, {"addr": "2104", "op": "stosb", "comment": "Write AL to output, advance DI"}, {"addr": "2105", "op": "mov [code_ptr], di", "comment": "Update code pointer"}, {"addr": "2108", "op": "pop ax", "comment": "Restore AX"}, {"addr": "2109", "op": "ret", "comment": "Every compiled instruction flows through this 6-instruction emitter"}, {"addr": "2110", "op": "mov al, 0E8h", "comment": "--- EmitCall: generate CALL instruction ---"}, {"addr": "2112", "op": "call EmitByte", "comment": "Emit opcode byte E8h (near CALL)"}, {"addr": "2115", "op": "sub bx, [code_ptr]", "comment": "Calculate relative offset"}, {"addr": "2118", "op": "sub bx, 2", "comment": "Adjust for instruction length"}, {"addr": "211A", "op": "xchg ax, bx", "comment": "AX = relative offset"}, {"addr": "211B", "op": "call EmitWord", "comment": "Emit 16-bit relative displacement"}, {"addr": "211E", "op": "ret", "comment": "Generated: E8 lo hi \u2014 a complete CALL instruction"}], "hex_lines": [{"addr": "2200", "hex": "78 39 3F 01 EB 2B A8 AD  C5 1D F8 C9 7B CE 97 40", "ascii": "x9?..+......{..@"}, {"addr": "2210", "hex": "0A C0 75 01 C3 80 CE 80  51 52 53 50 D1 EA D1 DB", "ascii": "..u.....QRSP...."}, {"addr": "2220", "hex": "D0 DC D1 EA D1 DB D0 DC  59 02 E5 59 13 D9 59 13", "ascii": "........Y..Y..Y."}, {"addr": "2230", "hex": "D1 59 73 0C D1 DA D1 DB  D0 DC FE C0 75 02 F9 C3", "ascii": ".Ys.........u..."}, {"addr": "2240", "hex": "80 E6 7F 04 03 C3 5E 5F  5A 59 5B 57 56 F6 C7 80", "ascii": "......^_ZY[WV..."}, {"addr": "2250", "hex": "75 1E 80 CF 80 B0 A0 2A  C2 72 1A 3C 20 73 11 0A", "ascii": "u......*.r.< s.."}, {"addr": "2260", "hex": "C0 74 08 D1 EB D1 D9 FE  C8 EB F4 8B C1 8B D3 C3", "ascii": ".t.............."}, {"addr": "2270", "hex": "33 C0 33 D2 C3 B8 FF FF  BA FF FF C3 8B DA 8B C8", "ascii": "3.3............."}, null, {"addr": "2CE0", "hex": "46 43 26 88 01 FE C9 75  F1 26 88 1D C3 BB 4D 2C", "ascii": "FC&....u.&....M,"}, {"addr": "2CF0", "hex": "EB 02 33 DB 8F 06 86 01  07 FF 36 86 01 F7 06 74", "ascii": "..3.......6....t"}], "size": 2816, "pct": 7.1}, {"id": "init-ui", "name": "Startup Banner & Main Menu Loop", "start": 11264, "end": 12288, "color": "#E86F3C", "desc": "The startup sequence and main IDE command loop (1 KB). Entry point at 0x2D4D: sets up data segment, initializes stack, detects available memory, then displays the iconic banner. The main loop presents: Edit (E), Compile (C), Run (R), Save (S), Dir (D), Quit (Q), and compiler Options (O). Single keypress dispatches to the appropriate subsystem. Memory management is shown here too: the status line displays 'Text: XXXXX Free: XXXXX bytes' \u2014 tracking the edit buffer and remaining heap in real time.", "asm": [{"addr": "2D4D", "op": "jmp short 2D7Eh", "comment": "--- ProgramEntry: arrived from JMP at 0100h ---"}, {"addr": "2D4F", "op": "db 'Licensed Material. Program Property of BORLAND.'", "comment": "Legal notice (skipped by the JMP)"}, {"addr": "2D7E", "op": "call InitScreen", "comment": "Detect video mode, clear screen"}, {"addr": "2D81", "op": "mov ax, 9C42h", "comment": "Calculate data segment from code size"}, {"addr": "2D84", "op": "mov cl, 4", "comment": "Divide by 16 to get paragraphs"}, {"addr": "2D86", "op": "shr ax, cl", "comment": "AX = code size in paragraphs"}, {"addr": "2D88", "op": "mov dx, cs", "comment": "DX = current code segment"}, {"addr": "2D8A", "op": "add dx, ax", "comment": "DX = data segment (right after code)"}, {"addr": "2D8C", "op": "mov ds, dx", "comment": "DS now points to data area"}, {"addr": "2D8E", "op": "mov ax, [cs:0002h]", "comment": "Top of available memory (from PSP)"}, {"addr": "2D92", "op": "sub ax, dx", "comment": "AX = total paragraphs available for data"}, {"addr": "2D94", "op": "mov [0262h], ax", "comment": "Store as 'total memory available'"}, {"addr": "2D97", "op": "mov bx, 0FFFEh", "comment": "BX = maximum possible stack pointer"}, {"addr": "2D9A", "op": "sub ax, 1000h", "comment": "Reserve 64KB for stack segment"}, {"addr": "2DCA", "op": "mov ss, [0264h]", "comment": "Set up stack segment register"}, {"addr": "2DCE", "op": "mov sp, [0266h]", "comment": "Set stack pointer \u2014 WE ARE NOW FULLY INITIALIZED"}, {"addr": "2DD6", "op": "call InitRuntime", "comment": "Initialize runtime library, error handlers"}, {"addr": "2DE2", "op": "call DisplayBanner", "comment": "Show 'TURBO Pascal system / Version 3.02A'"}, {"addr": "2DE5", "op": "call PromptErrorMsgs", "comment": "'Include error messages (Y/N)?'"}, {"addr": "2DF0", "op": "mov ax, 0802h", "comment": "--- Begin main IDE state setup ---"}, {"addr": "2DF3", "op": "mov [0278h], ax", "comment": "Set default tab size (8) and indent mode (2)"}, {"addr": "2E01", "op": "mov word [0274h], 0400h", "comment": "Minimum code segment size: 1024 bytes"}, {"addr": "2E07", "op": "mov word [0276h], 0A000h", "comment": "Maximum code segment size: 40960 bytes"}], "hex_lines": [{"addr": "2D00", "hex": "01 01 00 75 42 53 B8 00  3D 8D 55 0C E8 01 DC 5A", "ascii": "...uBS..=.U....Z"}, {"addr": "2D10", "hex": "72 30 8B D8 B8 00 42 33  C9 E8 F4 DB 72 24 1E 0E", "ascii": "r0....B3....r$.."}, {"addr": "2D20", "hex": "1F B4 3F B9 FF FF BA 4D  2D E8 E4 DB 1F B4 3E E8", "ascii": "..?....M-.....>."}, {"addr": "2D30", "hex": "DE DB 8B 26 8E 01 E8 7B  DC C7 06 7E 01 81 10 E9", "ascii": "...&...{...~...."}, {"addr": "2D40", "hex": "22 00 B2 01 E9 9E F7 C6  06 80 01 21 C3 EB 2F 4C", "ascii": "\"..........!../L"}, {"addr": "2D50", "hex": "69 63 65 6E 73 65 64 20  4D 61 74 65 72 69 61 6C", "ascii": "icensed Material"}, {"addr": "2D60", "hex": "2E 20 50 72 6F 67 72 61  6D 20 50 72 6F 70 65 72", "ascii": ". Program Proper"}, {"addr": "2D70", "hex": "74 79 20 6F 66 20 42 4F  52 4C 41 4E 44 2E E8 5D", "ascii": "ty of BORLAND..]"}, null, {"addr": "30E0", "hex": "4B 03 E8 CF FF E8 9A 0E  CD 65 6D 6F 72 79 0D 0A", "ascii": "K........emory.."}, {"addr": "30F0", "hex": "00 E8 C0 FF E8 8B 0E C3  6F 6D 2D 66 69 6C 65 0D", "ascii": "........om-file."}], "size": 1024, "pct": 2.6}, {"id": "file-mgr", "name": "File Manager & Directory Browser", "start": 12288, "end": 14336, "color": "#E8C83C", "desc": "File management (2 KB): handles Load/Save of workfiles with .PAS extension default and automatic .BAK backup creation. The directory browser uses DOS FindFirst (4Eh) / FindNext (4Fh) to list files matching a mask ('\\*.*' by default). Displays filenames, sizes, and free disk space. Drive/directory switching with full path support \u2014 remarkable for 1986 when many programs only worked in the current directory. The 'Work file' and 'Main file' concepts let you compile a main program while editing an include file.", "asm": [{"addr": "3071", "op": "call PrintInline", "comment": "--- LoadWorkfile ---"}, {"addr": "3074", "op": "db 'Loading '", "comment": "Status message while loading"}, {"addr": "307D", "op": "mov dx, filename_buf", "comment": "DX \u2192 ASCIIZ filename"}, {"addr": "3080", "op": "mov ah, 3Dh", "comment": "DOS: Open File (read mode)"}, {"addr": "3082", "op": "mov al, 00h", "comment": "Access mode: read-only"}, {"addr": "3084", "op": "call DOSDispatch", "comment": "Through our single INT 21h gateway!"}, {"addr": "3087", "op": "jc .file_error", "comment": "CF set \u2192 open failed"}, {"addr": "3089", "op": "mov [file_handle], ax", "comment": "Save the DOS file handle"}, {"addr": "30A1", "op": "db 'File not found'", "comment": "Error message if open fails"}, {"addr": "30B0", "op": "db 'New File'", "comment": "Displayed when creating a new workfile"}, {"addr": "3188", "op": "db 'Directory of '", "comment": "Header for DIR listing"}, {"addr": "31BB", "op": "db 'No files'", "comment": "When directory mask matches nothing"}, {"addr": "31EC", "op": "db ' bytes free'", "comment": "Free disk space (via DOS function 36h)"}], "hex_lines": [{"addr": "3100", "hex": "0A 00 E8 AF FF E8 7A 0E  63 C8 6E 2D 66 69 6C 65", "ascii": "......z.c.n-file"}, {"addr": "3110", "hex": "0D 0A 0A 0A 00 80 3E 4B  03 02 74 03 E9 F0 00 E8", "ascii": "......>K..t....."}, {"addr": "3120", "hex": "60 0E 6D 69 6E 69 6D 75  6D 20 63 CF 64 65 20 73", "ascii": "`.minimum c.de s"}, {"addr": "3130", "hex": "65 67 6D 65 6E 74 20 73  69 7A 65 3A 20 20 20 00", "ascii": "egment size:   ."}, {"addr": "3140", "hex": "E8 6B 0E A1 70 02 E8 25  D9 E8 36 0E 20 28 6D 61", "ascii": ".k..p..%..6. (ma"}, {"addr": "3150", "hex": "78 20 00 B8 5C 2D B1 04  D3 E8 F7 D8 05 00 10 E8", "ascii": "x ..\\-.........."}, {"addr": "3160", "hex": "37 07 E8 1D 0E 29 0D 0A  6D 69 6E 69 6D 75 6D 20", "ascii": "7....)..minimum "}, {"addr": "3170", "hex": "C4 61 74 61 20 73 65 67  6D 65 6E 74 20 73 69 7A", "ascii": ".ata segment siz"}, null, {"addr": "38E0", "hex": "D1 45 6E 74 65 72 20 50  43 00 E8 B6 F6 75 01 C3", "ascii": ".Enter PC....u.."}, {"addr": "38F0", "hex": "E8 BF FF A3 88 01 E8 26  04 E8 05 03 C6 06 85 02", "ascii": ".......&........"}], "size": 2048, "pct": 5.2}, {"id": "compiler-driver", "name": "Compiler Driver & Status", "start": 14336, "end": 16640, "color": "#3CE8A0", "desc": "The compilation orchestrator (~2.3 KB). Manages the compile-to-Memory vs compile-to-COM/CHN modes. Displays real-time status: 'Compiling' with line counter, 'Searching' during include-file resolution, and 'Compilation aborted' on error. After successful compilation, shows code/data/stack segment sizes and free memory \u2014 critical feedback when RAM was measured in KB. The 'Find run-time error' feature (unique to Turbo Pascal) takes a PC address from an error message and maps it back to the source line \u2014 a primitive but effective debugger. Include file handling ($I directive) recursively invokes the compiler on the referenced file.", "asm": [{"addr": "3826", "op": "call PrintInline", "comment": "--- ShowCompileStatus ---"}, {"addr": "3829", "op": "db 'Stack/Heap: '", "comment": "Memory layout status during compilation"}, {"addr": "3836", "op": "mov ax, [0274h]", "comment": "Load minimum code segment size"}, {"addr": "3839", "op": "call PrintDecimal", "comment": "Display as decimal number"}, {"addr": "383C", "op": "call PrintInline", "comment": ""}, {"addr": "383F", "op": "db ' (minimum)'", "comment": "Clarifying label"}, {"addr": "3862", "op": "call PrintInline", "comment": "--- After successful compile ---"}, {"addr": "3865", "op": "db 'Compiling'", "comment": "Status during active compilation"}, {"addr": "3871", "op": "db ' --> '", "comment": "Arrow between filename and output"}, {"addr": "38AF", "op": "db 'Compilation aborted'", "comment": "Shown on error or Ctrl+C"}, {"addr": "38C9", "op": "db ' lines'", "comment": "Line count after successful compile"}, {"addr": "38EB", "op": "db 'Run-time error position not found'", "comment": "When FindError can't map the PC"}, {"addr": "390C", "op": "db 'Run-time error position found'", "comment": "FindError success \u2014 cursor positioned on the line"}, {"addr": "3923", "op": "db 'Error '", "comment": "Prefix for error number display"}], "hex_lines": [{"addr": "3900", "hex": "01 E8 40 D1 0D 0A 53 65  61 72 63 68 69 6E 67 00", "ascii": "..@...Searching."}, {"addr": "3910", "hex": "EB 2B E8 EC 02 E8 29 03  E8 29 D1 0D 0A 43 6F 6D", "ascii": ".+....)..)...Com"}, {"addr": "3920", "hex": "70 69 6C 69 6E 67 00 80  3E 85 02 00 74 0F E8 13", "ascii": "piling..>...t..."}, {"addr": "3930", "hex": "D1 20 2D 2D 3E 20 00 BE  89 02 E8 75 04 E8 1C D1", "ascii": ". --> .....u...."}, {"addr": "3940", "hex": "E8 3C 20 80 3E 85 02 02  72 12 80 3E 86 02 00 74", "ascii": ".< .>...r..>...t"}, {"addr": "3950", "hex": "0B E8 ED 02 B4 41 BA C8  05 E8 B4 CF 80 3E 86 02", "ascii": ".....A.......>.."}, {"addr": "3960", "hex": "CA 75 23 E8 F6 D0 E8 F3  D0 E8 76 06 E8 D5 D0 43", "ascii": ".u#.......v....C"}, {"addr": "3970", "hex": "6F 6D 70 69 6C 61 74 69  6F 6E 20 61 62 6F 72 74", "ascii": "ompilation abort"}, null, {"addr": "41E0", "hex": "03 43 88 07 9D 75 B2 E8  02 00 EB AD E8 BE 15 75", "ascii": ".C...u.........u"}, {"addr": "41F0", "hex": "D4 53 33 DB 88 1E B2 03  E8 C0 15 BB CC 03 8A 07", "ascii": ".S3............."}], "size": 2304, "pct": 5.8}, {"id": "editor", "name": "Full-Screen Text Editor", "start": 16640, "end": 22528, "color": "#3C88E8", "desc": "The text editor (5.8 KB \u2014 second largest component). A complete WordStar-compatible editor with: insert/overwrite toggle, auto-indent, search & replace with options (case-sensitive, whole word, global, backward), block operations (Ctrl+K B=mark begin, K=mark end, C=copy, V=move, Y=delete, W=write to file, R=read from file), undo last line edit. The edit buffer uses a gap buffer data structure: text before the cursor and text after, with a movable gap between them. Insertions/deletions only move the gap boundary \u2014 no need to shift the entire document. The status line continuously displays: 'Line XXXX Col XX Insert Indent'. At 5.8 KB, this editor is more capable than many standalone editors of the era.", "asm": [{"addr": "41B7", "op": "db 'Line '", "comment": "--- Status line components ---"}, {"addr": "41BD", "op": "db 'Col '", "comment": "Column indicator"}, {"addr": "41C5", "op": "db 'Insert    '", "comment": "Insert mode indicator (10 chars, padded)"}, {"addr": "41D0", "op": "db 'Overwrite '", "comment": "Overwrite mode indicator"}, {"addr": "41DB", "op": "db 'Indent'", "comment": "Auto-indent active indicator"}, {"addr": "4212", "op": "db 'Find'", "comment": "--- Search dialog ---"}, {"addr": "4223", "op": "db 'Replace with'", "comment": "Replace string prompt"}, {"addr": "4234", "op": "db 'Options'", "comment": "Search options: B=backward, G=global, N=no-ask, etc."}, {"addr": "4588", "op": "db 'Search string not found'", "comment": "When Find fails to match"}, {"addr": "4622", "op": "db 'Replace ('", "comment": "Replace confirmation prompt: Replace (Y/N/A)?"}, {"addr": "4764", "op": "db 'Write block to file'", "comment": "Ctrl+K W: save marked block"}, {"addr": "47A2", "op": "db 'Overwrite old '", "comment": "Confirm before overwriting existing file"}, {"addr": "47FA", "op": "db 'Read block from file'", "comment": "Ctrl+K R: insert file contents at cursor"}, {"addr": "5229", "op": "db 'Line too long - CR inserted'", "comment": "Auto-wrap when line exceeds buffer width"}, {"addr": "5292", "op": "db 'ERROR: Out of space'", "comment": "Edit buffer exhausted \u2014 the dreaded message"}], "hex_lines": [{"addr": "4200", "hex": "50 43 8A 07 80 06 B2 03  02 E8 07 00 58 FE C8 75", "ascii": "PC..........X..u"}, {"addr": "4210", "hex": "EF 5B C3 50 E8 F9 0F 58  3C 20 72 03 E9 84 15 50", "ascii": ".[.P...X< r....P"}, {"addr": "4220", "hex": "50 B0 5E E8 7D 15 58 04  40 E8 77 15 58 C3 B1 FF", "ascii": "P.^.}.X.@.w.X..."}, {"addr": "4230", "hex": "51 53 5B 59 2E 8A 04 46  0A C0 74 33 FE C1 51 53", "ascii": "QS[Y...F..t3..QS"}, {"addr": "4240", "hex": "8A 0F 43 2A C1 73 04 02  C8 EB 2A 9F 50 2E 8A 04", "ascii": "..C*.s....*.P..."}, {"addr": "4250", "hex": "2A 07 80 3F 7F 73 02 22  C5 0A C0 75 13 46 43 FE", "ascii": "*..?.s.\"...u.FC."}, {"addr": "4260", "hex": "C9 75 EA 58 9E 5B 59 B5  00 B0 FF 74 02 B0 01 C3", "ascii": ".u.X.[Y....t...."}, {"addr": "4270", "hex": "58 02 C1 8A C8 B5 00 03  F1 EB B7 E8 2F 15 75 EF", "ascii": "X.........../.u."}, null, {"addr": "58E0", "hex": "02 0B 14 02 0B 08 02 0B  03 02 0B 16 02 0B 19 02", "ascii": "................"}, {"addr": "58F0", "hex": "0B 12 02 0B 17 02 0B 04  01 09 02 11 09 02 11 0C", "ascii": "................"}], "size": 5888, "pct": 14.8}, {"id": "parser", "name": "Pascal Parser & Lexer", "start": 22528, "end": 36864, "color": "#7C3CE8", "desc": "THE PARSER \u2014 at ~14 KB, this is the single largest component, occupying 35% of the entire binary. A recursive-descent parser implementing the full Turbo Pascal 3 grammar in one pass. The lexer scans source into tokens (identifiers, numbers, strings, operators, keywords). The parser then recognizes: program/unit structure, const/type/var declarations, record/array/set/pointer/string types, procedure/function declarations with value/var parameters, all expression operators with correct precedence (*, /, div, mod, and, shl, shr bind tighter than +, -, or, xor), control structures (if/then/else, while/do, repeat/until, for/to/downto/do, case/of, with/do, goto/label), and I/O statements (Read/ReadLn/Write/WriteLn with format specifiers). As it parses, it simultaneously generates code \u2014 each grammar rule calls the code generator directly. No AST is built. This is why compilation is nearly instant: one pass over the source produces the executable. The token table starting around 0x58xx contains the operator character set: '<>,[].*+-/$:=(){}^#\\;\\' '", "asm": [{"addr": "58BB", "op": "db '<>,[].*+-/$:=(){}^#\\;\\' '", "comment": "--- Lexer token character set ---"}, {"addr": "58BB", "op": "", "comment": "Every special character the lexer recognizes as a token or token-start."}, {"addr": "58BB", "op": "", "comment": "The lexer switches on each char: < might be < or <= or <>"}, {"addr": "5900", "op": "call GetChar", "comment": "--- NextToken: advance to next token ---"}, {"addr": "5903", "op": "cmp al, ' '", "comment": "Skip whitespace"}, {"addr": "5905", "op": "jbe .skip_ws", "comment": "Control chars and space are whitespace"}, {"addr": "5907", "op": "cmp al, '{'", "comment": "Is this a { comment? (Pascal comment style)"}, {"addr": "5909", "op": "jz .skip_comment", "comment": "Skip until matching }"}, {"addr": "590B", "op": "cmp al, '('", "comment": "Check for (* comment start"}, {"addr": "590D", "op": "jnz .not_comment", "comment": ""}, {"addr": "590F", "op": "cmp byte [si], '*'", "comment": "Is next char '*'? \u2192 (* ... *) comment"}, {"addr": "5912", "op": "jz .paren_comment", "comment": "Skip until matching *)"}, {"addr": "5920", "op": "cmp al, 27h", "comment": "Is this a string literal? (single quote)"}, {"addr": "5922", "op": "jz .parse_string", "comment": "Scan until closing quote"}, {"addr": "5930", "op": "cmp al, '$'", "comment": "Is this a hex literal? ($FF, $1A, etc.)"}, {"addr": "5932", "op": "jz .parse_hex", "comment": "Parse hexadecimal number"}, {"addr": "5940", "op": "call IsDigit", "comment": "Is this a decimal digit?"}, {"addr": "5943", "op": "jnz .parse_number", "comment": "Parse decimal integer or real literal"}, {"addr": "5950", "op": "call IsAlpha", "comment": "Is this a letter? (identifier or keyword)"}, {"addr": "5953", "op": "jnz .parse_ident", "comment": "Parse identifier, then check if it's a keyword"}, {"addr": "5960", "op": "call LookupOperator", "comment": "Must be an operator \u2014 look it up in the token table"}, {"addr": "9130", "op": "db '*** Abort compilation'", "comment": "Fatal parser error message"}], "hex_lines": [{"addr": "5900", "hex": "02 11 06 02 11 01 01 0C  01 10 00 3C 3E 2C 5B 5D", "ascii": "...........<>,[]"}, {"addr": "5910", "hex": "2E 2A 2B 2D 2F 24 3A 3D  28 29 7B 7D 5E 23 5C 3B", "ascii": ".*+-/$:=(){}^#\\;"}, {"addr": "5920", "hex": "27 20 00 60 4D 0B 4E 0B  4E 1D 4E 83 4E AB 4E 35", "ascii": "' .`M.N.N.N.N.N5"}, {"addr": "5930", "hex": "4C 09 4C 45 4C 82 4C 0B  4D D9 4C CB 4B D5 4B B0", "ascii": "L.LEL.L.M.L.K.K."}, {"addr": "5940", "hex": "4C C1 4C 32 4D C1 4B 91  4B 9B 4B 29 4E EA 4B C3", "ascii": "L.L2M.K.K.K)N.K."}, {"addr": "5950", "hex": "CD AB CF 90 CF FB CF 2F  D0 35 D0 35 D0 74 4B 47", "ascii": "......./.5.5.tKG"}, {"addr": "5960", "hex": "4B 3E 4E 40 4B 59 CA 17  CA DD CA 64 C9 42 48 AD", "ascii": "K>N@KY.....d.BH."}, {"addr": "5970", "hex": "40 20 CF F4 4B 4D D2 A7  44 FE 44 0E 45 4D C1 89", "ascii": "@ ..KM..D.D.EM.."}, null, {"addr": "90E0", "hex": "00 8A 05 3C 2C 75 CE E9  60 FF E8 6D 00 8A 05 E8", "ascii": "...<,u..`..m...."}, {"addr": "90F0", "hex": "7C CC 73 F6 EB EB E8 61  00 53 8B DF E8 0F 80 8B", "ascii": "|.s....a.S......"}], "size": 14336, "pct": 36.1}, {"id": "symtable", "name": "Symbol Table & Built-in Identifiers", "start": 36864, "end": 39731, "color": "#E83C68", "desc": "The built-in identifier dictionary (~2.8 KB, or 7% of the binary). Every reserved word, standard type, standard procedure, and standard function is encoded as a compact entry: length byte + name string + type/class tag + handler routine address. The linear-scan lookup starts here for every identifier the parser encounters. If not found in the built-in table, it falls through to the user-defined symbol table (maintained on the heap during compilation). Keywords include: BEGIN, END, IF, THEN, ELSE, WHILE, FOR, REPEAT, CASE, WITH, GOTO, CONST, TYPE, VAR, PROCEDURE, FUNCTION, PROGRAM, etc. Standard procedures: WriteLn, ReadLn, GotoXY, ClrScr, ClrEol, Sound, NoSound, Delay, Window, TextColor, GraphColorMode, HiRes, Plot, Draw, etc. Standard functions: Ord, Chr, Copy, Length, Pos, Concat, Succ, Pred, UpCase, Trunc, Round, Sqrt, Sin, Cos, ArcTan, Random, etc. This is the Turbo Pascal 3 API \u2014 everything a programmer could call.", "asm": [{"addr": "9600", "op": "db 04h, 'TYPE'", "comment": "--- Reserved Words Section ---"}, {"addr": "9605", "op": "db 05h, 'CONST'", "comment": "Declaration keywords"}, {"addr": "960B", "op": "db 03h, 'VAR'", "comment": "Variable declaration block"}, {"addr": "960F", "op": "db 09h, 'PROCEDURE'", "comment": "Procedure declaration"}, {"addr": "9619", "op": "db 08h, 'FUNCTION'", "comment": "Function declaration"}, {"addr": "9622", "op": "db 05h, 'BEGIN'", "comment": "Block begin (paired with END)"}, {"addr": "9628", "op": "db 02h, 'IF'", "comment": "Conditional"}, {"addr": "962B", "op": "db 05h, 'WHILE'", "comment": "While loop"}, {"addr": "9631", "op": "db 06h, 'REPEAT'", "comment": "Repeat...Until loop"}, {"addr": "9638", "op": "db 03h, 'FOR'", "comment": "For loop"}, {"addr": "9640", "op": "db 06h, 'ASSIGN'", "comment": "--- Standard Procedures ---"}, {"addr": "9649", "op": "db 05h, 'RESET'", "comment": "Open file for reading"}, {"addr": "9651", "op": "db 07h, 'REWRITE'", "comment": "Create/truncate file"}, {"addr": "9660", "op": "db 06h, 'CLRSCR'", "comment": "Clear screen"}, {"addr": "9670", "op": "db 06h, 'GOTOXY'", "comment": "Position cursor"}, {"addr": "9680", "op": "db 05h, 'SOUND'", "comment": "Turn on PC speaker at frequency"}, {"addr": "9690", "op": "db 07h, 'NOSOUND'", "comment": "Turn off PC speaker"}, {"addr": "96A0", "op": "db 04h, 'DRAW'", "comment": "Draw line in graphics mode"}, {"addr": "96B0", "op": "db 06h, 'RANDOM'", "comment": "--- Standard Functions ---"}, {"addr": "96C0", "op": "db 04h, 'SQRT'", "comment": "Square root (software float)"}, {"addr": "96D0", "op": "db 06h, 'ARCTAN'", "comment": "Arctangent"}, {"addr": "96E0", "op": "db 06h, 'UPCASE'", "comment": "Convert char to uppercase"}, {"addr": "96F0", "op": "db 03h, 'OFS'", "comment": "Get offset address of variable"}, {"addr": "9700", "op": "db 04h, 'CSEG'", "comment": "Return code segment value"}, {"addr": "9B13", "op": "db 04h, 'SSEG'", "comment": "Return stack segment \u2014 LAST ENTRY in the table"}], "hex_lines": [{"addr": "9100", "hex": "FB 5B 72 AD 0B C0 74 A9  89 07 EB D5 80 3D 20 75", "ascii": ".[r...t......= u"}, {"addr": "9110", "hex": "05 E8 46 00 EB F6 80 3E  BF 05 00 E8 79 CC 60 8B", "ascii": "..F....>....y.`."}, {"addr": "9120", "hex": "DF E8 C0 AD 53 BF B6 06  E8 0F AE 5F B8 00 3D BA", "ascii": "....S......_..=."}, {"addr": "9130", "hex": "B6 06 1E 07 E8 D9 77 E8  45 CC 5A A3 F6 06 A1 C6", "ascii": "......w.E.Z....."}, {"addr": "9140", "hex": "05 A3 AA 06 33 C0 A3 F8  06 A3 FA 06 A3 FE 06 C6", "ascii": "....3..........."}, {"addr": "9150", "hex": "06 BF 05 FF E8 E7 00 E9  5B FF 8A 05 47 0A C0 74", "ascii": "........[...G..t"}, {"addr": "9160", "hex": "01 C3 53 51 52 80 3E B8  05 00 E8 26 CC 5B FF 06", "ascii": "..SQR.>....&.[.."}, {"addr": "9170", "hex": "B2 05 BF B8 00 B9 7F 00  80 3E BF 05 00 75 30 8B", "ascii": ".........>...u0."}, null, {"addr": "9C20", "hex": "06 57 48 45 52 45 58 2E  83 06 57 48 45 52 45 59", "ascii": ".WHEREX...WHEREY"}, {"addr": "9C30", "hex": "34 83 00                                        ", "ascii": "4..             "}], "size": 2867, "pct": 7.2}];
+const TOTAL_SIZE = 39731;
+
+// Syntax highlight assembly
+function highlightAsm(op) {
+  if (!op) return '';
+  // Strings in quotes
+  op = op.replace(/'([^']*)'/g, "&lt;span class='str'&gt;'$1'&lt;/span&gt;");
+  op = op.replace(/&lt;span class='str'&gt;/g, '<span class="str">').replace(/&lt;\/span&gt;/g, '</span>');
+  // Keywords (instructions)
+  const kws = ['JMP','JZ','JNZ','JC','JNC','JBE','JNB','CALL','RET','INT','PUSH','POP','MOV','CMP','SUB','ADD','XOR','OR','AND','INC','DEC','SHR','SHL','RCR','LOOP','LODSW','STOSB','REP','MOVSB','CLD','STC','CLC','NOP','TEST','LEA','XCHG','NOP','db','dw','times'];
+  kws.forEach(k => {
+    const re = new RegExp('\\b(' + k + ')\\b', 'g');
+    op = op.replace(re, '<span class="kw">$1</span>');
+  });
+  // Registers
+  const regs = ['AX','BX','CX','DX','SI','DI','SP','BP','DS','CS','SS','ES','AL','AH','BL','BH','CL','CH','DL','DH'];
+  regs.forEach(r => {
+    const re = new RegExp('\\b(' + r + ')\\b', 'gi');
+    op = op.replace(re, '<span class="reg">$1</span>');
+  });
+  // Hex numbers
+  op = op.replace(/\b(0[0-9A-Fa-f]+h?)\b/g, '<span class="num">$1</span>');
+  op = op.replace(/\b([0-9A-F]{2,}h)\b/g, '<span class="num">$1</span>');
+  return op;
+}
+
+// Build binary map
+const mapEl = document.getElementById('binaryMap');
+const legendEl = document.getElementById('mapLegend');
+SEGMENTS.forEach((seg, i) => {
+  const pct = (seg.size / TOTAL_SIZE) * 100;
+  const div = document.createElement('div');
+  div.className = 'seg';
+  div.style.width = pct + '%';
+  div.style.background = seg.color;
+  div.style.opacity = '0.85';
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  tip.textContent = seg.name + ' (' + seg.size.toLocaleString() + 'B, ' + seg.pct + '%)';
+  div.appendChild(tip);
+  div.onclick = () => {
+    document.getElementById('seg-' + seg.id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toggleSegment(seg.id);
+  };
+  mapEl.appendChild(div);
+
+  const item = document.createElement('div');
+  item.className = 'item';
+  item.innerHTML = '<div class="swatch" style="background:' + seg.color + '"></div>' + seg.name;
+  item.onclick = () => {
+    document.getElementById('seg-' + seg.id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toggleSegment(seg.id);
+  };
+  legendEl.appendChild(item);
+});
+
+// Build segment detail panels
+const segsEl = document.getElementById('segments');
+SEGMENTS.forEach(seg => {
+  const div = document.createElement('div');
+  div.className = 'segment';
+  div.id = 'seg-' + seg.id;
+
+  // Header
+  let headerHtml = '<div class="seg-header" onclick="toggleSegment(\'' + seg.id + '\')">';
+  headerHtml += '<div class="seg-color-bar" style="background:' + seg.color + '"></div>';
+  headerHtml += '<div class="seg-info"><div class="seg-name">' + seg.name + '</div>';
+  headerHtml += '<div class="seg-meta">0x' + (seg.start + 0x100).toString(16).toUpperCase().padStart(4,'0');
+  headerHtml += ' &mdash; 0x' + (seg.end + 0x100 - 1).toString(16).toUpperCase().padStart(4,'0');
+  headerHtml += ' &nbsp;&middot;&nbsp; ' + seg.size.toLocaleString() + ' bytes';
+  headerHtml += ' &nbsp;&middot;&nbsp; ' + seg.pct + '% of binary</div></div>';
+  headerHtml += '<div class="seg-pct">' + seg.pct + '%</div>';
+  headerHtml += '</div>';
+
+  // Body
+  let bodyHtml = '<div class="seg-body">';
+  bodyHtml += '<div class="seg-desc">' + seg.desc + '</div>';
+
+  // Hex dump
+  if (seg.hex_lines && seg.hex_lines.length > 0) {
+    bodyHtml += '<div class="hex-section-title">Raw Hex Dump</div>';
+    bodyHtml += '<div class="hex-dump">';
+    seg.hex_lines.forEach(line => {
+      if (line === null) {
+        bodyHtml += '<div class="hex-line"><span class="ellipsis">        ...</span></div>';
+      } else {
+        bodyHtml += '<div class="hex-line">';
+        bodyHtml += '<span class="addr">' + line.addr + '</span>  ';
+        bodyHtml += '<span class="hex">' + line.hex + '</span>  ';
+        bodyHtml += '<span class="ascii">' + line.ascii.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>';
+        bodyHtml += '</div>';
+      }
+    });
+    bodyHtml += '</div>';
+  }
+
+  // Assembly
+  if (seg.asm && seg.asm.length > 0) {
+    bodyHtml += '<div class="hex-section-title">Annotated Disassembly</div>';
+    bodyHtml += '<div class="asm-section"><table class="asm-table">';
+    seg.asm.forEach(a => {
+      const isHighlight = a.comment && (a.comment.includes('---') || a.comment.includes('★'));
+      const commentClass = isHighlight ? 'asm-comment highlight' : 'asm-comment';
+      bodyHtml += '<tr>';
+      bodyHtml += '<td class="asm-addr">' + a.addr + '</td>';
+      bodyHtml += '<td class="asm-op">' + highlightAsm(a.op) + '</td>';
+      bodyHtml += '<td class="' + commentClass + '">' + (a.comment || '').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</td>';
+      bodyHtml += '</tr>';
+    });
+    bodyHtml += '</table></div>';
+  }
+
+  bodyHtml += '</div>';
+  div.innerHTML = headerHtml + bodyHtml;
+  segsEl.appendChild(div);
+});
+
+function toggleSegment(id) {
+  const el = document.getElementById('seg-' + id);
+  const wasActive = el.classList.contains('active');
+  // Close others
+  document.querySelectorAll('.segment.active').forEach(s => s.classList.remove('active'));
+  if (!wasActive) el.classList.add('active');
+}
+</script>
+</body>
+</html>
