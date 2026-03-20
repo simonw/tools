@@ -339,6 +339,31 @@ function isDistInfoFile(filename) {
     return /\.dist-info\//.test(filename);
 }
 
+const BINARY_EXTENSIONS = new Set([
+    '.so', '.pyd', '.dylib', '.dll', '.exe', '.wasm',
+    '.png', '.jpg', '.jpeg', '.gif', '.ico', '.bmp', '.webp',
+    '.zip', '.gz', '.bz2', '.xz', '.tar', '.whl',
+    '.pyc', '.pyo', '.o', '.a', '.lib',
+    '.ttf', '.otf', '.woff', '.woff2', '.eot',
+    '.pdf', '.sqlite', '.db',
+]);
+
+const MAX_FILE_SIZE_FOR_DIFF = 512 * 1024; // 512KB
+
+function isBinaryFilename(name) {
+    const lower = name.toLowerCase();
+    for (const ext of BINARY_EXTENSIONS) {
+        if (lower.endsWith(ext)) return true;
+    }
+    return false;
+}
+
+function looksLikeBinary(content) {
+    // Check first 8KB for null bytes — reliable binary indicator
+    const sample = content.slice(0, 8192);
+    return sample.indexOf('\0') !== -1;
+}
+
 async function fetchWheelContents(version) {
     const info = versionWheels[version];
     if (!info) throw new Error(`No wheel found for version ${version}`);
@@ -350,8 +375,19 @@ async function fetchWheelContents(version) {
     const files = {};
     for (const [name, file] of Object.entries(zip.files)) {
         if (!file.dir) {
+            if (isBinaryFilename(name)) {
+                files[name] = '[Binary file]';
+                continue;
+            }
             try {
-                files[name] = await file.async('text');
+                const content = await file.async('text');
+                if (looksLikeBinary(content)) {
+                    files[name] = '[Binary file]';
+                } else if (content.length > MAX_FILE_SIZE_FOR_DIFF) {
+                    files[name] = '[Large file: ' + (content.length / 1024).toFixed(0) + 'KB]';
+                } else {
+                    files[name] = content;
+                }
             } catch (e) {
                 files[name] = '[Binary file]';
             }
@@ -457,8 +493,10 @@ async function showDiff(oldVersion, newVersion, btn) {
 
             if (oldContent === newContent && !isRename) continue;
 
-            // Skip binary files
-            if (oldContent === '[Binary file]' || newContent === '[Binary file]') {
+            // Skip binary and large files
+            const oldSkip = oldContent.startsWith('[Binary file]') || oldContent.startsWith('[Large file:');
+            const newSkip = newContent.startsWith('[Binary file]') || newContent.startsWith('[Large file:');
+            if (oldSkip || newSkip) {
                 const displayName = newName || oldName;
                 fullDiff += `diff --git a/${displayName} b/${displayName}\n`;
                 fullDiff += `Binary files differ\n`;
@@ -624,8 +662,10 @@ async function showArbitraryDiff(oldVersion, newVersion) {
 
             if (oldContent === newContent && !isRename) continue;
 
-            // Skip binary files
-            if (oldContent === '[Binary file]' || newContent === '[Binary file]') {
+            // Skip binary and large files
+            const oldSkip = oldContent.startsWith('[Binary file]') || oldContent.startsWith('[Large file:');
+            const newSkip = newContent.startsWith('[Binary file]') || newContent.startsWith('[Large file:');
+            if (oldSkip || newSkip) {
                 const displayName = newName || oldName;
                 fullDiff += `diff --git a/${displayName} b/${displayName}\n`;
                 fullDiff += `Binary files differ\n`;
