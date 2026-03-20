@@ -87,6 +87,12 @@ p code {
 .file-item:active {
   background: #e8e8e8;
 }
+.file-size {
+  color: #999;
+  font-size: 0.75rem;
+  margin-left: 0.5em;
+  white-space: nowrap;
+}
 .file-item.selected {
   background: #e7f1ff;
   border-bottom: none;
@@ -357,8 +363,14 @@ async function fetchAndUnpackFile() {
         files.forEach((file, index) => {
             const fileEl = document.createElement('div');
             fileEl.className = 'file-item';
-            fileEl.textContent = file.name;
             fileEl.dataset.filename = file.name;
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = file.name;
+            const sizeSpan = document.createElement('span');
+            sizeSpan.className = 'file-size';
+            sizeSpan.textContent = formatFileSize(file.size);
+            fileEl.appendChild(nameSpan);
+            fileEl.appendChild(sizeSpan);
             fileEl.onclick = () => selectFile(file.name, null);
             fileListEl.appendChild(fileEl);
         });
@@ -377,12 +389,19 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function formatFileSize(bytes) {
+    if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return bytes + ' bytes';
+}
+
 async function extractFiles(arrayBuffer, url) {
     const files = [];
     const zip = await JSZip.loadAsync(arrayBuffer);
     for (const [name, file] of Object.entries(zip.files)) {
         const content = await file.async('text');
-        files.push({ name, content });
+        const rawBytes = await file.async('uint8array');
+        files.push({ name, content, size: rawBytes.byteLength });
     }
     return files;
 }
