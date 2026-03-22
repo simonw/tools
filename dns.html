@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNS Lookup</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #f0f2f5;
+  color: #1a1a1a;
+  min-height: 100vh;
+}
+.container { max-width: 960px; margin: 0 auto; padding: 20px; }
+h1 { font-size: 1.6rem; margin-bottom: 4px; }
+.subtitle { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+
+/* Form */
+.form-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  margin-bottom: 20px;
+}
+.form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: end;
+}
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 0.8rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.03em; }
+.form-group.domain { flex: 1; min-width: 200px; }
+input[type="text"] {
+  padding: 9px 12px;
+  border: 1.5px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: 'Consolas', 'Monaco', 'Menlo', monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input[type="text"]:focus { border-color: #3b82f6; }
+select {
+  padding: 9px 12px;
+  border: 1.5px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+select:focus { border-color: #3b82f6; }
+button {
+  padding: 9px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  font-weight: 500;
+}
+button:active { transform: scale(0.97); }
+.btn-primary { background: #3b82f6; color: #fff; }
+.btn-primary:hover { background: #2563eb; }
+.btn-primary:disabled { background: #93c5fd; cursor: not-allowed; transform: none; }
+.btn-secondary { background: #e5e7eb; color: #374151; }
+.btn-secondary:hover { background: #d1d5db; }
+
+/* Options row */
+.options-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #555;
+}
+.checkbox-group input[type="checkbox"] { cursor: pointer; }
+.checkbox-group label { cursor: pointer; }
+
+/* Resolver info */
+.resolver-info {
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  font-size: 0.82rem;
+  color: #555;
+  line-height: 1.5;
+  border: 1px solid #e2e8f0;
+}
+.resolver-info strong { color: #1a1a1a; }
+
+/* Results */
+.results-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.results-header h2 { font-size: 1rem; }
+.results-tabs {
+  display: flex;
+  gap: 2px;
+  background: #f0f0f0;
+  border-radius: 6px;
+  padding: 2px;
+}
+.results-tabs button {
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  background: transparent;
+  color: #666;
+}
+.results-tabs button.active {
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+.results-body { padding: 0; }
+
+/* Flags */
+.flags-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.78rem;
+}
+.flag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+.flag-on { background: #dcfce7; color: #166534; }
+.flag-off { background: #f1f5f9; color: #94a3b8; }
+.flag-error { background: #fef2f2; color: #991b1b; }
+
+/* Table view */
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.results-table th {
+  text-align: left;
+  padding: 10px 20px;
+  border-bottom: 2px solid #f0f0f0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  font-weight: 600;
+}
+.results-table td {
+  padding: 10px 20px;
+  border-bottom: 1px solid #f5f5f5;
+  font-family: 'Consolas', 'Monaco', 'Menlo', monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+.results-table tr:last-child td { border-bottom: none; }
+.results-table tr:hover td { background: #f8fafc; }
+.type-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.ttl-val { color: #888; }
+.section-label {
+  padding: 8px 20px;
+  background: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* JSON view */
+.json-view {
+  padding: 16px 20px;
+  display: none;
+}
+.json-view pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  font-family: 'Consolas', 'Monaco', 'Menlo', monospace;
+  line-height: 1.5;
+  position: relative;
+}
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  background: #334155;
+  color: #94a3b8;
+  border-radius: 4px;
+}
+.copy-btn:hover { background: #475569; color: #e2e8f0; }
+
+/* Table view container */
+.table-view { display: block; }
+
+/* Status/error messages */
+.status-msg {
+  padding: 40px 20px;
+  text-align: center;
+  color: #888;
+  font-size: 0.9rem;
+}
+.error-msg {
+  padding: 16px 20px;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 6px;
+  margin: 16px 20px;
+  font-size: 0.9rem;
+}
+.comment-msg {
+  padding: 10px 20px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.85rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* Query all results */
+.query-all-section { margin-bottom: 20px; }
+.record-group {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.record-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  user-select: none;
+}
+.record-group-header:hover { background: #f1f5f9; }
+.record-group-header h3 { font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+.record-count {
+  font-size: 0.75rem;
+  padding: 1px 7px;
+  background: #e0e7ff;
+  color: #3730a3;
+  border-radius: 10px;
+  font-weight: 500;
+}
+.no-records { color: #aaa; font-size: 0.8rem; font-style: italic; }
+.record-group-body { display: block; }
+.record-group-body.collapsed { display: none; }
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #93c5fd;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Permalink */
+.permalink-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #f0f0f0;
+  font-size: 0.78rem;
+}
+.permalink-bar a {
+  color: #3b82f6;
+  text-decoration: none;
+  font-family: 'Consolas', 'Monaco', monospace;
+  word-break: break-all;
+}
+.permalink-bar a:hover { text-decoration: underline; }
+
+/* Query duration */
+.query-meta { font-size: 0.78rem; color: #999; }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .form-row { flex-direction: column; }
+  .form-group.domain { min-width: 100%; }
+  .results-header { flex-direction: column; align-items: flex-start; }
+  .options-row { flex-direction: column; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>DNS Lookup</h1>
+  <p class="subtitle">Query DNS records using Cloudflare's DNS-over-HTTPS API</p>
+
+  <div class="resolver-info">
+    <strong>1.1.1.1</strong> — Standard DNS resolver. No filtering.<br>
+    <strong>1.1.1.2</strong> — Blocks malware domains. Returns <code>0.0.0.0</code> for known threats.<br>
+    <strong>1.1.1.3</strong> — Blocks malware <em>and</em> adult content.
+  </div>
+
+  <div class="form-card">
+    <div class="form-row">
+      <div class="form-group domain">
+        <label for="domain">Domain</label>
+        <input type="text" id="domain" placeholder="example.com" spellcheck="false" autocapitalize="off" autocorrect="off">
+      </div>
+      <div class="form-group">
+        <label for="type">Type</label>
+        <select id="type">
+          <option value="A">A</option>
+          <option value="AAAA">AAAA</option>
+          <option value="CNAME">CNAME</option>
+          <option value="MX">MX</option>
+          <option value="NS">NS</option>
+          <option value="TXT">TXT</option>
+          <option value="SOA">SOA</option>
+          <option value="CAA">CAA</option>
+          <option value="SRV">SRV</option>
+          <option value="PTR">PTR</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="resolver">Resolver</label>
+        <select id="resolver">
+          <option value="1.1.1.1">1.1.1.1</option>
+          <option value="1.1.1.2">1.1.1.2 (malware)</option>
+          <option value="1.1.1.3">1.1.1.3 (family)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <button class="btn-primary" id="lookupBtn" onclick="doLookup()">Lookup</button>
+      </div>
+      <div class="form-group">
+        <button class="btn-secondary" id="queryAllBtn" onclick="doQueryAll()">Query All Types</button>
+      </div>
+    </div>
+    <div class="options-row">
+      <div class="checkbox-group">
+        <input type="checkbox" id="cd">
+        <label for="cd">CD — skip DNSSEC validation</label>
+      </div>
+      <div class="checkbox-group">
+        <input type="checkbox" id="do">
+        <label for="do">DO — request DNSSEC data</label>
+      </div>
+    </div>
+  </div>
+
+  <div id="results"></div>
+</div>
+
+<script>
+const TYPE_NAMES = {
+  1:'A', 2:'NS', 5:'CNAME', 6:'SOA', 12:'PTR', 15:'MX', 16:'TXT',
+  28:'AAAA', 33:'SRV', 257:'CAA', 43:'DS', 46:'RRSIG', 47:'NSEC',
+  48:'DNSKEY', 50:'NSEC3', 51:'NSEC3PARAM', 52:'TLSA', 99:'SPF', 255:'ANY'
+};
+const STATUS_NAMES = {0:'NOERROR', 1:'FORMERR', 2:'SERVFAIL', 3:'NXDOMAIN', 4:'NOTIMP', 5:'REFUSED'};
+const ALL_TYPES = ['A','AAAA','CNAME','MX','NS','TXT','SOA','CAA','SRV','PTR'];
+
+function getParams() {
+  return {
+    domain: document.getElementById('domain').value.trim(),
+    type: document.getElementById('type').value,
+    resolver: document.getElementById('resolver').value,
+    cd: document.getElementById('cd').checked,
+    do: document.getElementById('do').checked
+  };
+}
+
+function setParams(p) {
+  if (p.domain !== undefined) document.getElementById('domain').value = p.domain;
+  if (p.type !== undefined) document.getElementById('type').value = p.type;
+  if (p.resolver !== undefined) document.getElementById('resolver').value = p.resolver;
+  if (p.cd !== undefined) document.getElementById('cd').checked = p.cd === 'true' || p.cd === true;
+  if (p.do !== undefined) document.getElementById('do').checked = p.do === 'true' || p.do === true;
+}
+
+function updateHash(extra) {
+  const p = getParams();
+  const params = new URLSearchParams();
+  params.set('d', p.domain);
+  if (extra && extra.type) params.set('t', extra.type);
+  else params.set('t', p.type);
+  params.set('r', p.resolver);
+  if (p.cd) params.set('cd', '1');
+  if (p.do) params.set('do', '1');
+  if (extra && extra.all) params.set('all', '1');
+  history.replaceState(null, '', '#' + params.toString());
+}
+
+function readHash() {
+  const hash = location.hash.slice(1);
+  if (!hash) return null;
+  const params = new URLSearchParams(hash);
+  return {
+    domain: params.get('d') || '',
+    type: params.get('t') || 'A',
+    resolver: params.get('r') || '1.1.1.1',
+    cd: params.get('cd') === '1',
+    do: params.get('do') === '1',
+    all: params.get('all') === '1'
+  };
+}
+
+async function fetchDNS(domain, type, resolver, cd, doFlag) {
+  const url = new URL('https://' + resolver + '/dns-query');
+  url.searchParams.set('name', domain);
+  url.searchParams.set('type', type);
+  if (cd) url.searchParams.set('cd', '1');
+  if (doFlag) url.searchParams.set('do', '1');
+  const resp = await fetch(url, { headers: { 'Accept': 'application/dns-json' } });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return resp.json();
+}
+
+function typeName(num) { return TYPE_NAMES[num] || ('TYPE' + num); }
+function statusName(code) { return STATUS_NAMES[code] || ('RCODE' + code); }
+
+function formatTTL(seconds) {
+  if (seconds < 60) return seconds + 's';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + (seconds % 60 ? (seconds % 60) + 's' : '');
+  if (seconds < 86400) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return h + 'h' + (m ? ' ' + m + 'm' : '');
+  }
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  return d + 'd' + (h ? ' ' + h + 'h' : '');
+}
+
+function renderFlags(data) {
+  const flags = [
+    ['Status', statusName(data.Status), data.Status === 0 ? 'on' : 'error'],
+    ['RD', data.RD, data.RD ? 'on' : 'off'],
+    ['RA', data.RA, data.RA ? 'on' : 'off'],
+    ['AD', data.AD, data.AD ? 'on' : 'off'],
+    ['CD', data.CD, data.CD ? 'on' : 'off'],
+    ['TC', data.TC, data.TC ? 'error' : 'off'],
+  ];
+  return '<div class="flags-bar">' +
+    flags.map(([name, val, cls]) =>
+      `<span class="flag flag-${cls}" title="${name}">${name}: ${typeof val === 'boolean' ? (val ? 'Yes' : 'No') : val}</span>`
+    ).join('') + '</div>';
+}
+
+function renderRecordTable(records, sectionName) {
+  if (!records || records.length === 0) return '';
+  let html = '';
+  if (sectionName) html += `<div class="section-label">${sectionName}</div>`;
+  html += '<table class="results-table"><thead><tr><th>Name</th><th>Type</th><th>TTL</th><th>Data</th></tr></thead><tbody>';
+  for (const r of records) {
+    html += `<tr>
+      <td>${esc(r.name)}</td>
+      <td><span class="type-badge">${esc(typeName(r.type))}</span></td>
+      <td class="ttl-val" title="${r.TTL} seconds">${formatTTL(r.TTL)}</td>
+      <td>${esc(r.data)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function renderSingleResult(data, domain, type, resolver, durationMs) {
+  let html = '<div class="results-card">';
+
+  // Header
+  html += '<div class="results-header">';
+  html += `<div><h2>${esc(domain)} <span class="type-badge">${esc(type)}</span></h2>
+    <span class="query-meta">${esc(resolver)} · ${durationMs}ms</span></div>`;
+  html += `<div class="results-tabs">
+    <button class="active" onclick="switchTab(this, 'table')">Table</button>
+    <button onclick="switchTab(this, 'json')">JSON</button>
+  </div>`;
+  html += '</div>';
+
+  // Flags
+  html += renderFlags(data);
+
+  // Comments (e.g. EDE from filtered resolvers)
+  if (data.Comment) {
+    for (const c of data.Comment) {
+      html += `<div class="comment-msg">${esc(c)}</div>`;
+    }
+  }
+
+  // Table view
+  html += '<div class="table-view">';
+  const hasAnswer = data.Answer && data.Answer.length > 0;
+  const hasAuthority = data.Authority && data.Authority.length > 0;
+  if (hasAnswer) html += renderRecordTable(data.Answer, hasAuthority ? 'Answer' : null);
+  if (hasAuthority) html += renderRecordTable(data.Authority, 'Authority');
+  if (!hasAnswer && !hasAuthority) {
+    html += `<div class="status-msg">No records found</div>`;
+  }
+  html += '</div>';
+
+  // JSON view
+  html += `<div class="json-view"><pre>${esc(JSON.stringify(data, null, 2))}<button class="copy-btn" onclick="copyJSON(this)">Copy</button></pre></div>`;
+
+  // Permalink
+  html += `<div class="permalink-bar"><span>Link:</span> <a href="${location.href}">${esc(location.href)}</a></div>`;
+
+  html += '</div>';
+  return html;
+}
+
+function switchTab(btn, view) {
+  const card = btn.closest('.results-card') || btn.closest('.record-group');
+  card.querySelectorAll('.results-tabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const tv = card.querySelector('.table-view');
+  const jv = card.querySelector('.json-view');
+  if (view === 'table') { tv.style.display = 'block'; jv.style.display = 'none'; }
+  else { tv.style.display = 'none'; jv.style.display = 'block'; }
+}
+
+function copyJSON(btn) {
+  const pre = btn.parentElement;
+  const text = pre.textContent.replace('Copy', '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+
+function setLoading(loading) {
+  document.getElementById('lookupBtn').disabled = loading;
+  document.getElementById('queryAllBtn').disabled = loading;
+}
+
+async function doLookup() {
+  const p = getParams();
+  if (!p.domain) { document.getElementById('domain').focus(); return; }
+  updateHash();
+  setLoading(true);
+  const el = document.getElementById('results');
+  el.innerHTML = `<div class="status-msg"><span class="spinner"></span> Looking up ${esc(p.domain)}...</div>`;
+
+  try {
+    const t0 = performance.now();
+    const data = await fetchDNS(p.domain, p.type, p.resolver, p.cd, p.do);
+    const ms = Math.round(performance.now() - t0);
+    el.innerHTML = renderSingleResult(data, p.domain, p.type, p.resolver, ms);
+  } catch (err) {
+    el.innerHTML = `<div class="error-msg">Error: ${esc(err.message)}</div>`;
+  }
+  setLoading(false);
+}
+
+async function doQueryAll() {
+  const p = getParams();
+  if (!p.domain) { document.getElementById('domain').focus(); return; }
+  updateHash({ all: true });
+  setLoading(true);
+  const el = document.getElementById('results');
+  el.innerHTML = `<div class="status-msg"><span class="spinner"></span> Querying all record types for ${esc(p.domain)}...</div>`;
+
+  try {
+    const t0 = performance.now();
+    const results = await Promise.all(
+      ALL_TYPES.map(type => fetchDNS(p.domain, type, p.resolver, p.cd, p.do).then(data => ({ type, data })))
+    );
+    const totalMs = Math.round(performance.now() - t0);
+
+    let html = `<div class="results-card"><div class="results-header">
+      <div><h2>All records for ${esc(p.domain)}</h2>
+      <span class="query-meta">${esc(p.resolver)} · ${totalMs}ms · ${ALL_TYPES.length} queries</span></div>
+      <div class="results-tabs">
+        <button class="active" onclick="switchTab(this, 'table')">Table</button>
+        <button onclick="switchTab(this, 'json')">JSON</button>
+      </div>
+    </div>`;
+    html += '<div class="table-view">';
+
+    const allData = {};
+    let anyRecords = false;
+
+    for (const { type, data } of results) {
+      allData[type] = data;
+      const answers = data.Answer || [];
+      const count = answers.length;
+      if (count > 0) anyRecords = true;
+
+      html += `<div class="record-group-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+        <h3><span class="type-badge">${type}</span> ${count > 0 ? `<span class="record-count">${count} record${count !== 1 ? 's' : ''}</span>` : '<span class="no-records">No records</span>'}</h3>
+        ${data.Comment ? '<span style="color:#92400e;font-size:0.8rem">' + esc(data.Comment.join(', ')) + '</span>' : ''}
+      </div>`;
+      html += `<div class="record-group-body${count === 0 ? ' collapsed' : ''}">`;
+      if (count > 0) {
+        html += renderRecordTable(answers);
+      }
+      html += '</div>';
+    }
+
+    if (!anyRecords) {
+      html += `<div class="status-msg">No records found for any type</div>`;
+    }
+    html += '</div>';
+
+    // JSON view for all
+    html += `<div class="json-view"><pre>${esc(JSON.stringify(allData, null, 2))}<button class="copy-btn" onclick="copyJSON(this)">Copy</button></pre></div>`;
+    html += `<div class="permalink-bar"><span>Link:</span> <a href="${location.href}">${esc(location.href)}</a></div>`;
+    html += '</div>';
+
+    el.innerHTML = html;
+  } catch (err) {
+    el.innerHTML = `<div class="error-msg">Error: ${esc(err.message)}</div>`;
+  }
+  setLoading(false);
+}
+
+// Enter key
+document.getElementById('domain').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLookup();
+});
+
+// Init from hash
+window.addEventListener('DOMContentLoaded', () => {
+  const p = readHash();
+  if (p) {
+    setParams(p);
+    if (p.all) doQueryAll();
+    else doLookup();
+  } else {
+    document.getElementById('domain').focus();
+  }
+});
+
+// Handle back/forward
+window.addEventListener('hashchange', () => {
+  const p = readHash();
+  if (p) {
+    setParams(p);
+    if (p.all) doQueryAll();
+    else doLookup();
+  }
+});
+</script>
+
+</body>
+</html>
