@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Merge State Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+<style>
+/* ── Reset & variables ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+--ink:    #1a1208;
+--paper:  #f5eed8;
+--warm:   #e8dcc0;
+--warm2:  #d4c8a0;
+--warm3:  #c0b488;
+--rule:   #b8a878;
+--dim:    #8a7a58;
+--ghost:  #c8ba94;
+--amber:  #c07820;
+--red:    #b03020;
+--green:  #286830;
+--blue:   #204880;
+--teal:   #186858;
+--punch:  #a03010;
+--live-bg:  #e8f0e0;
+--dead-bg:  #f0e0dc;
+--live-bdr: #8ab888;
+--dead-bdr: #d09088;
+--a-bg:   #e0e8f4;
+--b-bg:   #f4eee0;
+--a-bdr:  #8098c8;
+--b-bdr:  #c89048;
+--m-bg:   #e4f0e8;
+--m-bdr:  #78a888;
+--ff-mono: 'IBM Plex Mono', monospace;
+--ff-sans: 'IBM Plex Sans', sans-serif;
+}
+
+html { font-size: 14px; }
+body {
+font-family: var(--ff-mono);
+background: var(--paper);
+color: var(--ink);
+min-height: 100vh;
+font-size: 12px;
+}
+
+/* ── Loading overlay ───────────────────────────────────── */
+#loading {
+position: fixed; inset: 0;
+background: var(--paper);
+display: flex; flex-direction: column;
+align-items: center; justify-content: center;
+gap: 16px; z-index: 9999;
+}
+.load-logo {
+font-size: 28px; font-weight: 700;
+color: var(--ink); letter-spacing: -1px;
+}
+.load-sub { font-size: 11px; color: var(--dim); }
+.load-bar {
+width: 220px; height: 2px;
+background: var(--warm2);
+overflow: hidden; border-radius: 1px;
+}
+.load-fill {
+height: 100%; width: 0;
+background: var(--amber);
+animation: fill 3s ease-in-out forwards;
+}
+@keyframes fill { 0%{width:0} 40%{width:60%} 80%{width:85%} 100%{width:92%} }
+.load-msg { font-size: 10px; color: var(--dim); letter-spacing: .3px; }
+
+/* ── Top bar ───────────────────────────────────────────── */
+#topbar {
+background: var(--ink); color: var(--paper);
+padding: 0 16px;
+display: flex; align-items: center; gap: 12px;
+height: 44px; position: sticky; top: 0; z-index: 100;
+border-bottom: 2px solid var(--amber);
+}
+.tb-title {
+font-size: 13px; font-weight: 700;
+letter-spacing: -.3px; white-space: nowrap;
+}
+.tb-title span { color: var(--amber); }
+.tb-sub {
+font-size: 10px; color: #998870;
+flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tb-badge {
+font-size: 9px; padding: 2px 6px;
+border: 1px solid #404030;
+border-radius: 2px; color: #887060;
+white-space: nowrap;
+}
+#py-status { color: var(--amber); }
+
+/* ── Scenario bar ─────────────────────────────────────── */
+#scenbar {
+background: var(--warm); border-bottom: 1px solid var(--rule);
+padding: 7px 14px;
+display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.scen-label {
+font-size: 9px; font-weight: 600; letter-spacing: 1.2px;
+text-transform: uppercase; color: var(--dim); white-space: nowrap;
+}
+.scen-btn {
+font-family: var(--ff-mono); font-size: 10px; font-weight: 500;
+padding: 4px 10px; cursor: pointer;
+border: 1px solid var(--rule); border-radius: 2px;
+background: var(--paper); color: var(--dim);
+transition: all .12s; letter-spacing: .2px;
+}
+.scen-btn:hover { border-color: var(--amber); color: var(--amber); background: #fdf8ec; }
+.scen-btn.active { border-color: var(--amber); background: var(--amber); color: var(--paper); }
+
+/* ── Mobile tabs ──────────────────────────────────────── */
+#mobile-tabs {
+display: none;
+background: var(--warm); border-bottom: 1px solid var(--rule);
+}
+.mob-tab {
+flex: 1; font-family: var(--ff-mono); font-size: 11px; font-weight: 600;
+padding: 10px 4px; border: none; background: transparent; cursor: pointer;
+border-bottom: 3px solid transparent; transition: all .12s;
+color: var(--dim); letter-spacing: .3px;
+}
+.mob-tab.a-tab { color: var(--blue); }
+.mob-tab.b-tab { color: var(--amber); }
+.mob-tab.m-tab { color: var(--green); }
+.mob-tab.active { border-bottom-color: currentColor; background: var(--paper); }
+
+@media (max-width: 800px) {
+#mobile-tabs { display: flex; }
+.col-a, .col-b, .col-m { display: none !important; }
+.col-a.tab-show, .col-b.tab-show, .col-m.tab-show { display: block !important; }
+}
+
+/* ── Main layout ──────────────────────────────────────── */
+#main {
+display: grid;
+grid-template-columns: 1fr 1fr;
+grid-template-rows: auto auto;
+min-height: calc(100vh - 44px);
+}
+.col-a, .col-b {
+border-right: 1px solid var(--rule);
+border-bottom: 1px solid var(--rule);
+overflow: hidden;
+}
+.col-b { border-right: none; }
+.col-m {
+grid-column: 1 / -1;
+border-bottom: 1px solid var(--rule);
+}
+
+@media (max-width: 800px) {
+#main { grid-template-columns: 1fr; }
+.col-a, .col-b, .col-m { grid-column: 1; border-right: none; }
+}
+
+/* ── Column headers ───────────────────────────────────── */
+.col-header {
+padding: 10px 16px;
+display: flex; align-items: center; gap: 8px;
+border-bottom: 1px solid var(--rule);
+position: sticky; top: 44px; z-index: 50;
+}
+.col-a .col-header { background: var(--a-bg); }
+.col-b .col-header { background: var(--b-bg); }
+.col-m .col-header { background: var(--m-bg); }
+.col-pip {
+width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.col-a .col-pip { background: var(--blue); }
+.col-b .col-pip { background: var(--amber); }
+.col-m .col-pip { background: var(--teal); }
+.col-title {
+font-size: 11px; font-weight: 700;
+letter-spacing: 1px; text-transform: uppercase;
+}
+.col-a .col-title { color: var(--blue); }
+.col-b .col-title { color: var(--amber); }
+.col-m .col-title { color: var(--teal); }
+.col-desc { font-family: var(--ff-sans); font-size: 10px; color: var(--dim); flex: 1; }
+.col-stats { font-size: 9px; color: var(--dim); }
+
+/* ── Section labels ───────────────────────────────────── */
+.sect {
+font-size: 9px; font-weight: 600;
+letter-spacing: 1.4px; text-transform: uppercase;
+color: var(--dim); padding: 12px 16px 5px;
+display: flex; align-items: baseline; gap: 6px;
+border-top: 1px solid var(--warm2);
+}
+.sect:first-child { border-top: none; padding-top: 14px; }
+.sect-note {
+font-weight: 400; letter-spacing: .3px;
+text-transform: none; color: var(--ghost); font-size: 9px;
+}
+.sect-count {
+margin-left: auto; font-size: 9px; color: var(--amber); font-weight: 700;
+}
+
+/* ── Document editor ──────────────────────────────────── */
+.editor-wrap { padding: 0 16px 8px; }
+.doc-ta {
+width: 100%; min-height: 80px; max-height: 180px;
+font-family: var(--ff-mono); font-size: 12px;
+padding: 10px 12px; line-height: 1.75;
+background: white; color: var(--ink);
+border: 1px solid var(--rule); border-radius: 3px;
+resize: vertical; outline: none;
+transition: border-color .15s;
+}
+.doc-ta:focus { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(192,120,32,.1); }
+.editor-row {
+display: flex; align-items: center; gap: 8px;
+margin-top: 7px; flex-wrap: wrap;
+}
+.apply-btn {
+font-family: var(--ff-mono); font-size: 10px; font-weight: 700;
+letter-spacing: .5px; padding: 6px 14px;
+border: none; border-radius: 2px; cursor: pointer;
+transition: opacity .12s; text-transform: uppercase;
+}
+.apply-btn:disabled { opacity: .35; cursor: not-allowed; }
+.apply-btn:not(:disabled):hover { opacity: .82; }
+.apply-btn.a-btn { background: var(--blue); color: white; }
+.apply-btn.b-btn { background: var(--amber); color: white; }
+.merge-btn {
+font-family: var(--ff-mono); font-size: 11px; font-weight: 700;
+letter-spacing: .8px; padding: 8px 22px;
+border: none; border-radius: 2px; cursor: pointer;
+background: var(--teal); color: white;
+text-transform: uppercase; transition: opacity .12s;
+}
+.merge-btn:disabled { opacity: .35; cursor: not-allowed; }
+.merge-btn:not(:disabled):hover { opacity: .82; }
+.flash-msg {
+font-size: 10px; color: var(--green);
+animation: flash-fade 2.5s ease forwards;
+}
+.flash-err { color: var(--red); }
+@keyframes flash-fade { 0%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
+
+/* ── Live lines display ───────────────────────────────── */
+.lines-list { padding: 0 16px 2px; display: flex; flex-direction: column; gap: 3px; }
+.line-row {
+display: flex; align-items: center; gap: 8px;
+padding: 4px 10px; border-radius: 3px;
+background: var(--live-bg); border: 1px solid var(--live-bdr);
+animation: row-in .15s ease;
+}
+@keyframes row-in { from{opacity:0;transform:translateX(-4px)} to{opacity:1;transform:none} }
+.line-num { font-size: 9px; color: var(--ghost); min-width: 16px; text-align: right; }
+.line-content { font-size: 12px; color: var(--ink); flex: 1; }
+.line-empty { color: var(--ghost); font-style: italic; }
+.lines-none { font-size: 10px; color: var(--ghost); font-style: italic; padding: 4px 16px 8px; }
+
+/* ── State table ─────────────────────────────────────── */
+.state-wrap { padding: 0 16px 12px; }
+.state-legend {
+display: flex; gap: 10px; flex-wrap: wrap;
+margin-bottom: 6px;
+}
+.sleg-item {
+display: flex; align-items: center; gap: 4px;
+font-size: 9px; color: var(--dim);
+}
+.sleg-swatch {
+width: 10px; height: 10px; border-radius: 2px;
+border: 1px solid transparent;
+}
+.state-table { display: flex; flex-direction: column; gap: 3px; }
+.st-head {
+display: grid;
+grid-template-columns: 8px 24px 22px 38px 26px 1fr;
+gap: 6px; padding: 3px 8px;
+font-size: 8px; color: var(--ghost);
+letter-spacing: .8px; text-transform: uppercase;
+}
+.st-row {
+display: grid;
+grid-template-columns: 8px 24px 22px 38px 26px 1fr;
+gap: 6px; align-items: center;
+padding: 6px 8px; border-radius: 3px;
+border: 1px solid transparent;
+cursor: help;
+transition: background .1s;
+animation: row-in .15s ease;
+position: relative;
+}
+.st-row:hover { z-index: 5; }
+.st-row.is-live {
+background: var(--live-bg); border-color: var(--live-bdr);
+border-left: 3px solid var(--green);
+}
+.st-row.is-dead {
+background: var(--dead-bg); border-color: var(--dead-bdr);
+border-left: 3px solid var(--red); opacity: .7;
+}
+.st-live-dot {
+width: 7px; height: 7px; border-radius: 50%;
+}
+.is-live .st-live-dot { background: var(--green); }
+.is-dead .st-live-dot { background: var(--red); }
+.st-chip {
+font-size: 9px; font-weight: 600; padding: 1px 4px;
+border-radius: 2px; text-align: center; white-space: nowrap;
+}
+.chip-depth { background: #dde4f0; color: var(--blue); }
+.chip-anc   { background: #f0dde4; color: var(--punch); font-size: 11px; }
+.chip-count { border: 1px solid var(--rule); background: var(--paper); color: var(--dim); }
+.chip-count.live { background: #d4ead4; color: var(--green); border-color: var(--live-bdr); }
+.chip-count.dead { background: #ead4d0; color: var(--red); border-color: var(--dead-bdr); }
+.chip-gen   { font-size: 8px; color: var(--dim); }
+.st-content { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.is-dead .st-content { text-decoration: line-through; color: var(--ghost); }
+.st-empty-content { color: var(--ghost); font-style: italic; }
+
+/* Tooltip */
+.tooltip {
+position: fixed; z-index: 1000; pointer-events: none;
+background: var(--ink); color: var(--paper);
+font-size: 10px; line-height: 1.6;
+padding: 10px 12px; border-radius: 4px;
+max-width: 260px;
+box-shadow: 0 4px 16px rgba(0,0,0,.3);
+opacity: 0; transition: opacity .1s;
+}
+.tooltip.show { opacity: 1; }
+.tt-field { color: #997755; }
+.tt-val { color: #f0e0b0; }
+.tt-explain { color: #887060; font-size: 9px; margin-top: 3px; }
+
+/* ── History ─────────────────────────────────────────── */
+.history-list {
+padding: 0 16px 14px;
+display: flex; flex-direction: column; gap: 5px;
+max-height: 200px; overflow-y: auto;
+}
+.hist-item {
+border: 1px solid var(--warm2); border-radius: 3px; overflow: hidden;
+cursor: pointer; transition: border-color .12s;
+}
+.hist-item:hover { border-color: var(--amber); }
+.hist-head {
+display: flex; align-items: center; gap: 8px;
+padding: 4px 10px; background: var(--warm);
+font-size: 9px; color: var(--dim);
+}
+.hist-ver { font-weight: 700; color: var(--ink); font-size: 10px; }
+.hist-stats { display: flex; gap: 6px; margin-left: auto; }
+.hist-live { color: var(--green); font-weight: 600; }
+.hist-dead { color: var(--red); }
+.hist-preview {
+padding: 4px 10px;
+font-size: 10px; color: var(--dim);
+white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+background: white;
+}
+.hist-none { font-style: italic; color: var(--ghost); font-size: 10px; padding: 6px 16px 8px; }
+
+/* ── Merge panel ─────────────────────────────────────── */
+.merge-inner {
+display: grid;
+grid-template-columns: 1fr 1fr 1fr;
+gap: 0;
+}
+.merge-inner > div {
+border-right: 1px solid var(--rule);
+padding-bottom: 14px;
+}
+.merge-inner > div:last-child { border-right: none; }
+.merge-controls {
+padding: 14px 16px 12px;
+display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+border-bottom: 1px solid var(--warm2);
+background: var(--m-bg);
+grid-column: 1/-1;
+}
+@media (max-width: 800px) {
+.merge-inner { grid-template-columns: 1fr; }
+.merge-inner > div { border-right: none; border-bottom: 1px solid var(--rule); }
+}
+
+/* ── Conflict output ──────────────────────────────────── */
+.conflict-out { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+.conf-line {
+font-size: 11px; padding: 3px 9px; border-radius: 2px;
+border-left: 3px solid transparent;
+animation: row-in .12s ease;
+font-family: var(--ff-mono);
+}
+.conf-peace { background: var(--live-bg); color: var(--ink); border-color: transparent; }
+.conf-empty { color: var(--ghost); font-style: italic; }
+.conf-mark {
+font-size: 9px; font-weight: 700; letter-spacing: .4px;
+padding: 4px 9px; border-radius: 2px;
+}
+.c-al { background: #e0e8f8; color: var(--blue); border-color: var(--blue); }
+.c-ar { background: #f8f0e0; color: var(--amber); border-color: var(--amber); }
+.c-ab { background: #ece0f0; color: #6040a0; border-color: #9060d0; }
+.c-dl { background: #e8f0f8; color: #5070a0; border-color: #8090c0; font-style: italic; }
+.c-dr { background: #f8ece0; color: #a07040; border-color: #c09050; font-style: italic; }
+.c-sep { background: var(--warm); color: var(--dim); font-size: 9px; border-color: var(--rule); }
+.c-end { background: var(--warm); color: var(--dim); font-size: 9px; border-color: transparent; }
+.conf-mark.c-al::before { content: “◂ “; }
+.conf-mark.c-ar::before { content: “▸ “; }
+.conf-mark.c-ab::before { content: “◆ “; }
+.conf-mark.c-dl::before { content: “✕ “; }
+.conf-mark.c-dr::before { content: “✕ “; }
+
+/* ── Conflict key ────────────────────────────────────── */
+.conf-key { padding: 0 16px 14px; }
+.conf-key-grid { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+
+/* ── Explain banner ───────────────────────────────────── */
+#explain-bar {
+background: var(--warm); border-top: 1px solid var(--rule);
+padding: 9px 16px;
+font-size: 10px; color: var(--dim);
+font-family: var(--ff-sans); line-height: 1.5;
+}
+#explain-bar strong { color: var(--ink); font-weight: 600; }
+
+/* ── Diff view ───────────────────────────────────────── */
+.diff-row { display: flex; gap: 4px; align-items: flex-start; }
+.diff-sym {
+width: 14px; text-align: center; font-weight: 700; flex-shrink: 0; font-size: 11px;
+}
+.diff-add .diff-sym { color: var(--green); }
+.diff-del .diff-sym { color: var(--red); }
+.diff-eq  .diff-sym { color: var(--ghost); }
+.diff-content { font-size: 11px; }
+.diff-add .diff-content { color: var(--green); }
+.diff-del .diff-content { color: var(--red); text-decoration: line-through; }
+.diff-eq  .diff-content { color: var(--ghost); }
+
+/* ── Generation badge ────────────────────────────────── */
+.gen-explain {
+font-size: 9px; color: var(--ghost); margin-top: 1px;
+padding: 2px 8px;
+}
+</style>
+
+</head>
+<body>
+
+<!-- Loading -->
+
+<div id="loading">
+  <div class="load-logo">⊕ crdt merge</div>
+  <div class="load-sub">generation-counting merge state visualizer</div>
+  <div class="load-bar"><div class="load-fill"></div></div>
+  <div class="load-msg" id="load-msg">Fetching Pyodide runtime (~12 MB)…</div>
+</div>
+
+<!-- Top bar -->
+
+<div id="topbar">
+  <div class="tb-title">⊕ <span>merge</span> state viz</div>
+  <div class="tb-sub">CRDT-like versioned merge engine · live Python via Pyodide</div>
+  <div class="tb-badge" id="py-status">● loading</div>
+</div>
+
+<!-- Scenario bar -->
+
+<div id="scenbar">
+  <span class="scen-label">scenario →</span>
+  <button class="scen-btn" id="sc-conflict" onclick="loadScenario('conflict')">both add in same gap</button>
+  <button class="scen-btn" id="sc-delete"   onclick="loadScenario('delete')">delete vs extend</button>
+  <button class="scen-btn" id="sc-regen"    onclick="loadScenario('regen')">re-add (gen counting)</button>
+  <button class="scen-btn" id="sc-clean"    onclick="loadScenario('clean')">clean merge</button>
+  <button class="scen-btn" id="sc-blank"    onclick="loadScenario('blank')">start blank</button>
+</div>
+
+<!-- Mobile tabs -->
+
+<div id="mobile-tabs">
+  <button class="mob-tab a-tab active" onclick="mobTab('a')">Branch A</button>
+  <button class="mob-tab b-tab"        onclick="mobTab('b')">Branch B</button>
+  <button class="mob-tab m-tab"        onclick="mobTab('m')">Merge</button>
+</div>
+
+<!-- Main grid -->
+
+<div id="main">
+
+  <!-- ── Branch A ─────────────────────────────────────── -->
+
+  <div class="col-a tab-show" id="col-a">
+    <div class="col-header">
+      <div class="col-pip"></div>
+      <div class="col-title">Branch A</div>
+      <div class="col-desc">edit the textarea, then apply</div>
+      <div class="col-stats" id="stats-a">— entries</div>
+    </div>
+
+<div class="sect">Document text
+  <span class="sect-note">one line per line</span>
+</div>
+<div class="editor-wrap">
+  <textarea class="doc-ta" id="ta-a" placeholder="Type lines here…"></textarea>
+  <div class="editor-row">
+    <button class="apply-btn a-btn" id="btn-a" onclick="applyEdit('a')" disabled>▶ Apply to A</button>
+    <span id="msg-a"></span>
+  </div>
+</div>
+
+<div class="sect">Live lines
+  <span class="sect-note">count is odd → present in document</span>
+  <span class="sect-count" id="lcount-a">0</span>
+</div>
+<div id="lines-a" class="lines-list">
+  <div class="lines-none">—</div>
+</div>
+
+<div class="sect">State entries
+  <span class="sect-note">(content:str, depth:int, anchored_right:bool, count:int)</span>
+  <span class="sect-count" id="ecount-a">0</span>
+</div>
+<div class="state-wrap">
+  <div class="state-legend">
+    <div class="sleg-item"><div class="sleg-swatch" style="background:var(--live-bg);border-color:var(--live-bdr)"></div>live (odd count)</div>
+    <div class="sleg-item"><div class="sleg-swatch" style="background:var(--dead-bg);border-color:var(--dead-bdr)"></div>deleted (even count)</div>
+    <div class="sleg-item" style="font-style:italic">hover row for details</div>
+  </div>
+  <div class="st-head">
+    <div></div><div>d</div><div>anc</div><div>count</div><div></div><div>content</div>
+  </div>
+  <div class="state-table" id="st-a"></div>
+</div>
+
+<div class="sect">Edit history
+  <span class="sect-note">click to inspect any snapshot</span>
+</div>
+<div class="history-list" id="hist-a">
+  <div class="hist-none">no edits yet</div>
+</div>
+
+  </div>
+
+  <!-- ── Branch B ─────────────────────────────────────── -->
+
+  <div class="col-b" id="col-b">
+    <div class="col-header">
+      <div class="col-pip"></div>
+      <div class="col-title">Branch B</div>
+      <div class="col-desc">edit independently of A</div>
+      <div class="col-stats" id="stats-b">— entries</div>
+    </div>
+
+<div class="sect">Document text
+  <span class="sect-note">one line per line</span>
+</div>
+<div class="editor-wrap">
+  <textarea class="doc-ta" id="ta-b" placeholder="Type lines here…"></textarea>
+  <div class="editor-row">
+    <button class="apply-btn b-btn" id="btn-b" onclick="applyEdit('b')" disabled>▶ Apply to B</button>
+    <span id="msg-b"></span>
+  </div>
+</div>
+
+<div class="sect">Live lines
+  <span class="sect-note">count is odd → present in document</span>
+  <span class="sect-count" id="lcount-b">0</span>
+</div>
+<div id="lines-b" class="lines-list">
+  <div class="lines-none">—</div>
+</div>
+
+<div class="sect">State entries
+  <span class="sect-note">(content:str, depth:int, anchored_right:bool, count:int)</span>
+  <span class="sect-count" id="ecount-b">0</span>
+</div>
+<div class="state-wrap">
+  <div class="state-legend">
+    <div class="sleg-item"><div class="sleg-swatch" style="background:var(--live-bg);border-color:var(--live-bdr)"></div>live (odd count)</div>
+    <div class="sleg-item"><div class="sleg-swatch" style="background:var(--dead-bg);border-color:var(--dead-bdr)"></div>deleted (even count)</div>
+    <div class="sleg-item" style="font-style:italic">hover row for details</div>
+  </div>
+  <div class="st-head">
+    <div></div><div>d</div><div>anc</div><div>count</div><div></div><div>content</div>
+  </div>
+  <div class="state-table" id="st-b"></div>
+</div>
+
+<div class="sect">Edit history
+  <span class="sect-note">click to inspect any snapshot</span>
+</div>
+<div class="history-list" id="hist-b">
+  <div class="hist-none">no edits yet</div>
+</div>
+
+  </div>
+
+  <!-- ── Merge ─────────────────────────────────────────── -->
+
+  <div class="col-m" id="col-m">
+    <div class="col-header">
+      <div class="col-pip"></div>
+      <div class="col-title">Merge  A ⊕ B</div>
+      <div class="col-desc">deterministic, commutative — merge(A,B) = merge(B,A)</div>
+      <div class="col-stats" id="stats-m">—</div>
+    </div>
+    <div class="merge-inner">
+      <div style="grid-column:1/-1">
+        <div class="merge-controls">
+          <button class="merge-btn" id="btn-m" onclick="doMerge()" disabled>⊕ Merge A + B</button>
+          <span id="msg-m" style="font-size:10px;color:var(--green)"></span>
+        </div>
+      </div>
+
+  <div>
+    <div class="sect">Merged live lines
+      <span class="sect-count" id="lcount-m">0</span>
+    </div>
+    <div id="lines-m" class="lines-list">
+      <div class="lines-none">run merge first</div>
+    </div>
+
+    <div class="sect">Merged state entries
+      <span class="sect-note">all entries incl. deleted</span>
+      <span class="sect-count" id="ecount-m">0</span>
+    </div>
+    <div class="state-wrap">
+      <div class="st-head">
+        <div></div><div>d</div><div>anc</div><div>count</div><div></div><div>content</div>
+      </div>
+      <div class="state-table" id="st-m"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sect">Conflict-annotated output
+      <span class="sect-note">git-style diff markers</span>
+    </div>
+    <div class="conflict-out" id="conf-out">
+      <div class="lines-none">—</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sect">Conflict key</div>
+    <div class="conf-key">
+      <div class="conf-key-grid">
+        <div class="conf-mark c-al conf-line">added left — line inserted only in A</div>
+        <div class="conf-mark c-ar conf-line">added right — line inserted only in B</div>
+        <div class="conf-mark c-ab conf-line">added both — same insertion in both branches</div>
+        <div class="conf-mark c-dl conf-line">deleted left — line deleted in A, kept in B</div>
+        <div class="conf-mark c-dr conf-line">deleted right — line deleted in B, kept in A</div>
+      </div>
+      <div class="sect" style="margin-top:14px">How generation counting works</div>
+      <div style="padding:0 0 6px;font-size:10px;color:var(--dim);line-height:1.7;font-family:var(--ff-sans)">
+        Every state entry carries a <strong>count</strong> field.<br>
+        <strong>Odd count</strong> = line is <em>live</em> (present).<br>
+        <strong>Even count</strong> = line is <em>deleted</em>.<br>
+        Adding re-increments count: 1→2→3→…<br>
+        On merge, <strong>max(countA, countB)</strong> wins —
+        so a re-add (count=3) beats a delete (count=2).
+        The parity of the max determines the final state.
+      </div>
+      <div class="sect">Anchor direction</div>
+      <div style="padding:0 0 6px;font-size:10px;color:var(--dim);line-height:1.7;font-family:var(--ff-sans)">
+        <strong>◂ left-anchored</strong>: line was inserted above its parent in the tree.<br>
+        <strong>▸ right-anchored</strong>: line was inserted below its parent in the tree.<br>
+        This resolves insertion-order ambiguity when two branches add lines
+        in the same position.
+      </div>
+    </div>
+  </div>
+</div>
+
+  </div>
+</div>
+
+<!-- Explain bar -->
+
+<div id="explain-bar">Hover over any state row for a full explanation of that entry's fields.</div>
+
+<div style="padding:10px 16px;font-size:11px;color:var(--dim);font-family:var(--ff-sans);line-height:1.6;border-top:1px solid var(--rule);background:var(--warm)">
+  Based on <a href="https://bramcohen.com/p/manyana" style="color:var(--blue);text-decoration:underline">Manyana</a> by Bram Cohen.
+  <a href="https://github.com/bramcohen/manyana" style="color:var(--blue);text-decoration:underline">Source on GitHub</a>.
+</div>
+
+<!-- Tooltip -->
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// Python source
+// ═══════════════════════════════════════════════════════════════
+const PY_SRC = `
+import json
+from difflib import SequenceMatcher
+
+def initial_state(lines):
+    return serialize_state([(line, i, False, 1) for i, line in enumerate(lines)])
+
+def current_lines(raw_state):
+    state = deserialize_state(raw_state)
+    return [line for (line, depth, anchored_right, count) in state if count % 2]
+
+def update_state(raw_state, lines):
+    state = deserialize_state(raw_state)
+    if not state:
+        return initial_state(lines)
+    deletions, insertions = get_deletions_and_insertions([x[0] for x in state], lines)
+    for deletion in deletions:
+        if state[deletion][3] % 2:
+            state[deletion][3] += 1
+    deleted_set = set(deletions)
+    for i in range(len(state)):
+        if i not in deleted_set and state[i][3] % 2 == 0:
+            state[i][3] += 1
+    result = []
+    pos_in_insertions = 0
+    for pos in range(len(state)+1):
+        if pos_in_insertions < len(insertions) and insertions[pos_in_insertions][0] == pos:
+            if pos == len(state):
+                up = True
+            elif pos == 0:
+                up = False
+            else:
+                up = state[pos-1][1] > state[pos][1]
+            newlines = insertions[pos_in_insertions][1]
+            if up:
+                result.append((newlines[0], state[pos-1][1]+1, False, 1))
+            else:
+                result.append((newlines[0], state[pos][1]+1, True, 1))
+            for line in newlines[1:]:
+                result.append((line, result[-1][1]+1, False, 1))
+            pos_in_insertions += 1
+        if pos < len(state):
+            result.append(state[pos])
+    return serialize_state(result)
+
+def merge_states(state1, state2):
+    tree1 = state_to_tree(deserialize_state(state1))
+    tree2 = state_to_tree(deserialize_state(state2))
+    status_lines = []
+    merge_trees(status_lines, tree1, tree2, False)
+    result_lines = []
+    begin = 0
+    for i in range(len(status_lines)+1):
+        if i == len(status_lines) or (status_lines[i][4] and
+                status_lines[i][5] and status_lines[i][0].strip()):
+            found_add = False
+            hit_left = False
+            hit_right = False
+            for j in range(begin, i):
+                line, depth, anchored_right, in_child, on_left, on_right = status_lines[j]
+                if on_left != on_right:
+                    if in_child == on_left:
+                        hit_left = True
+                    else:
+                        hit_right = True
+                if in_child and on_left != on_right:
+                    found_add = True
+            if hit_left and hit_right and found_add:
+                for j in range(begin, i):
+                    line, depth, anchored_right, in_child, on_left, on_right = status_lines[j]
+                    if on_left or on_right:
+                        result_lines.append((line, conflict_code(in_child, on_left, on_right)))
+            else:
+                for j in range(begin, i):
+                    line, depth, anchored_right, in_child, on_left, on_right = status_lines[j]
+                    if in_child:
+                        result_lines.append((line, PEACE))
+            if i < len(status_lines):
+                result_lines.append((status_lines[i][0], PEACE))
+            begin = i + 1
+    return (serialize_state([x[:4] for x in status_lines]), show_conflicts(result_lines))
+
+def get_deletions_and_insertions(lines1, lines2):
+    deletions = []
+    insertions = []
+    for (tag, l1b, l1e, l2b, l2e) in SequenceMatcher(None, lines1, lines2).get_opcodes():
+        if tag in ('delete', 'replace'):
+            for i in range(l1b, l1e):
+                deletions.append(i)
+        if tag in ('insert', 'replace'):
+            insertions.append((l1b, lines2[l2b:l2e]))
+    return (deletions, insertions)
+
+def serialize_state(state):
+    result = []
+    for (line, depth, anchored_right, count) in state:
+        anchor = '>' if anchored_right else '<'
+        result.append(f'{depth} {anchor} {count} {line}')
+    return '\\n'.join(result)
+
+def deserialize_state(mystr):
+    result = []
+    if mystr == '':
+        return []
+    for line in mystr.split('\\n'):
+        vals = line.split(' ')
+        result.append([' '.join(vals[3:]), int(vals[0]), vals[1] == '>', int(vals[2])])
+    return result
+
+CONFLICT_ADDED_LEFT = 0
+CONFLICT_ADDED_RIGHT = 1
+CONFLICT_ADDED_BOTH = 2
+CONFLICT_DELETED_LEFT = 3
+CONFLICT_DELETED_RIGHT = 4
+PEACE = 5
+
+conflict_strings = ['added left','added right','added both','deleted left','deleted right','deleted both']
+END = '>>>>>>> end conflict'
+
+def show_conflicts(result_lines):
+    final_result = []
+    last_state = PEACE
+    for line, new_state in result_lines:
+        if new_state == PEACE:
+            if last_state != PEACE:
+                final_result.append(END)
+        elif last_state == PEACE:
+            final_result.append('<<<<<<< begin ' + conflict_strings[new_state])
+        elif last_state != new_state:
+            final_result.append('======= begin ' + conflict_strings[new_state])
+        final_result.append(line)
+        last_state = new_state
+    if last_state != PEACE:
+        final_result.append(END)
+    return final_result
+
+def conflict_code(in_child, on_left, on_right):
+    assert on_left or on_right
+    if in_child:
+        if on_left and on_right:
+            return CONFLICT_ADDED_BOTH
+        elif on_left:
+            return CONFLICT_ADDED_LEFT
+        else:
+            return CONFLICT_ADDED_RIGHT
+    else:
+        if on_right:
+            return CONFLICT_DELETED_LEFT
+        else:
+            return CONFLICT_DELETED_RIGHT
+
+def state_to_tree(state):
+    root_children_above = []
+    children_above = [[] for i in range(len(state))]
+    last_by_depth = [None] * len(state)
+    for i in range(len(state)):
+        line, depth, anchored_right, count = state[i]
+        if not anchored_right:
+            if depth == 0:
+                root_children_above.append(i)
+            else:
+                children_above[last_by_depth[depth-1]].append(i)
+        last_by_depth[depth] = i
+    children_below = [[] for i in range(len(state))]
+    last_by_depth = [None] * len(state)
+    for i in range(len(state)-1,-1,-1):
+        line, depth, anchored_right, count = state[i]
+        if anchored_right:
+            children_below[last_by_depth[depth-1]].append(i)
+        last_by_depth[depth] = i
+    for cb in children_below:
+        cb.reverse()
+    return (None, -1, [], [pull_out_tree(i, state, children_above, children_below) for i in root_children_above], -1)
+
+def pull_out_tree(pos, state, children_above, children_below):
+    line, depth, anchored_right, count = state[pos]
+    return (line, count,
+        [pull_out_tree(x, state, children_above, children_below) for x in children_below[pos]],
+        [pull_out_tree(x, state, children_above, children_below) for x in children_above[pos]], depth)
+
+def merge_trees(output, tree1, tree2, anchored_right):
+    line1, count1, lowtrees1, hightrees1, depth1 = tree1
+    line2, count2, lowtrees2, hightrees2, depth2 = tree2
+    merge_tree_lists(output, lowtrees1, lowtrees2, True)
+    if line1 is not None:
+        output.append((line1, depth1, anchored_right, max(count1, count2) % 2, count1 % 2, count2 % 2))
+    merge_tree_lists(output, hightrees1, hightrees2, False)
+
+def merge_tree_lists(output, left_trees, right_trees, anchored_right):
+    pos1 = 0; pos2 = 0
+    while pos1 < len(left_trees) or pos2 < len(right_trees):
+        if pos2 == len(right_trees):
+            insert_tree(output, left_trees[pos1], False, anchored_right); pos1 += 1
+        elif pos1 == len(left_trees):
+            insert_tree(output, right_trees[pos2], True, anchored_right); pos2 += 1
+        elif left_trees[pos1][0] == right_trees[pos2][0]:
+            merge_trees(output, left_trees[pos1], right_trees[pos2], anchored_right)
+            pos1 += 1; pos2 += 1
+        elif left_trees[pos1][0] < right_trees[pos2][0]:
+            insert_tree(output, left_trees[pos1], False, anchored_right); pos1 += 1
+        else:
+            insert_tree(output, right_trees[pos2], True, anchored_right); pos2 += 1
+
+def insert_tree(output, tree, from_right, anchored_right):
+    line, count, lowtrees, hightrees, depth = tree
+    for t in lowtrees:
+        insert_tree(output, t, from_right, True)
+    output.append((line, depth, anchored_right, count % 2, not from_right, from_right))
+    for t in hightrees:
+        insert_tree(output, t, from_right, False)
+
+# ── JS bridge helpers ────────────────────────────────────
+def js_init(text):
+    lines = [l for l in text.split('\\n')] if text.strip() else []
+    return initial_state(lines)
+
+def js_update(state_str, text):
+    lines = [l for l in text.split('\\n')] if text else []
+    return update_state(state_str, lines)
+
+def js_deser(state_str):
+    return json.dumps(deserialize_state(state_str))
+
+def js_lines(state_str):
+    return json.dumps(current_lines(state_str))
+
+def js_merge(s1, s2):
+    merged, conflicts = merge_states(s1, s2)
+    return json.dumps({'state': merged, 'conflicts': conflicts})
+
+def js_diff(s1, s2):
+    lines1 = current_lines(s1)
+    lines2 = current_lines(s2)
+    ops = SequenceMatcher(None, lines1, lines2).get_opcodes()
+    result = []
+    for tag, a0, a1, b0, b1 in ops:
+        for i in range(a0, a1):
+            result.append({'op': 'del', 'line': lines1[i]})
+        for i in range(b0, b1):
+            result.append({'op': 'add', 'line': lines2[i]})
+        if tag == 'equal':
+            for i in range(a0, a1):
+                result.append({'op': 'eq', 'line': lines1[i]})
+    return json.dumps(result)
+`;
+
+// ═══════════════════════════════════════════════════════════════
+// App state
+// ═══════════════════════════════════════════════════════════════
+let py = null;
+const S = { a: '', b: '' };
+const H = { a: [], b: [] };   // history: [{state, lines, label}]
+
+// ═══════════════════════════════════════════════════════════════
+// Bootstrap
+// ═══════════════════════════════════════════════════════════════
+async function init() {
+  try {
+    setMsg('load-msg', 'Downloading Pyodide (~12 MB)…');
+    py = await loadPyodide();
+    setMsg('load-msg', 'Compiling Python module…');
+    await py.runPythonAsync(PY_SRC);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('py-status').textContent = '● python ready';
+    document.getElementById('py-status').style.color = '#60c060';
+    ['btn-a','btn-b','btn-m'].forEach(id => {
+      document.getElementById(id).disabled = false;
+    });
+    loadScenario('conflict');
+  } catch(e) {
+    setMsg('load-msg', 'Error loading Pyodide: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Apply edit
+// ═══════════════════════════════════════════════════════════════
+function applyEdit(br) {
+  if (!py) return;
+  const text = document.getElementById('ta-' + br).value;
+  try {
+    const prev = S[br];
+    const prevLines = prev ? jparse(py.runPython(`js_lines(${J(prev)})`)) : [];
+    const ns = py.runPython(`js_update(${J(prev)}, ${J(text)})`);
+
+    // Record history
+    if (prev) {
+      H[br].unshift({ state: prev, lines: prevLines, label: `v${H[br].length + 1}` });
+      if (H[br].length > 8) H[br].pop();
+    }
+
+    S[br] = ns;
+    renderBranch(br);
+    flashMsg('msg-' + br, '✓ applied', false);
+    updateExplain(br, prev, ns);
+  } catch(e) {
+    flashMsg('msg-' + br, '✗ ' + e.message.slice(0, 60), true);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Render branch
+// ═══════════════════════════════════════════════════════════════
+function renderBranch(br) {
+  if (!py) return;
+  const s = S[br];
+  const lines  = s ? jparse(py.runPython(`js_lines(${J(s)})`)) : [];
+  const entries = s ? jparse(py.runPython(`js_deser(${J(s)})`)) : [];
+
+  document.getElementById('lcount-' + br).textContent = lines.length;
+  document.getElementById('ecount-' + br).textContent = entries.length;
+  document.getElementById('stats-' + br).textContent =
+    `${entries.length} entries · ${lines.length} live`;
+
+  renderLinesList('lines-' + br, lines);
+  renderStateTable('st-' + br, entries);
+  renderHistory(br);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Render lines list
+// ═══════════════════════════════════════════════════════════════
+function renderLinesList(id, lines) {
+  const el = document.getElementById(id);
+  if (!lines.length) {
+    el.innerHTML = '<div class="lines-none">empty document</div>';
+    return;
+  }
+  el.innerHTML = lines.map((l, i) =>
+    `<div class="line-row">
+      <span class="line-num">${i+1}</span>
+      <span class="line-content ${l === '' ? 'line-empty' : ''}">${l === '' ? '⎵ (empty line)' : esc(l)}</span>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Render state table
+// ═══════════════════════════════════════════════════════════════
+function renderStateTable(id, entries) {
+  const el = document.getElementById(id);
+  if (!entries || !entries.length) {
+    el.innerHTML = '<div class="lines-none">no entries</div>';
+    return;
+  }
+  el.innerHTML = entries.map(([content, depth, ancRight, count], idx) => {
+    const live = count % 2 === 1;
+    const ancSym = ancRight ? '▸' : '◂';
+    const ancName = ancRight ? 'right-anchored' : 'left-anchored';
+    const ancDesc = ancRight
+      ? 'Inserted below its parent (anchored to the line that follows)'
+      : 'Inserted above its parent (anchored to the line that precedes)';
+    const countExpl = live
+      ? `${count} is ODD → line is LIVE (present in document). Each delete adds 1, each re-add adds 1 again.`
+      : `${count} is EVEN → line is DELETED. It stays in the state blob so future merges can reason about it.`;
+    const depthExpl = `Tree depth ${depth}. Root-level lines are depth 0. Lines inserted relative to a depth-${Math.max(0,depth-1)} parent increment depth by 1.`;
+    const tt = [
+      `#${idx} · ${live ? 'LIVE' : 'DELETED'}`,
+      `content: "${content || '(empty)'}"`,
+      `depth: ${depth} — ${depthExpl}`,
+      `anchor: ${ancName} — ${ancDesc}`,
+      `count: ${count} — ${countExpl}`,
+    ].join('\n');
+    return `<div class="st-row ${live ? 'is-live' : 'is-dead'}"
+        onmouseenter="showTip(event, ${J(tt)})"
+        onmouseleave="hideTip()">
+      <div class="st-live-dot"></div>
+      <div class="st-chip chip-depth">${depth}</div>
+      <div class="st-chip chip-anc">${ancSym}</div>
+      <div class="st-chip chip-count ${live ? 'live' : 'dead'}">×${count}</div>
+      <div class="st-chip chip-gen">${live ? '●' : '○'}</div>
+      <div class="st-content ${content === '' ? 'st-empty-content' : ''}">${content === '' ? '⎵ empty' : esc(content)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Render history
+// ═══════════════════════════════════════════════════════════════
+function renderHistory(br) {
+  const el = document.getElementById('hist-' + br);
+  const h = H[br];
+  if (!h.length) {
+    el.innerHTML = '<div class="hist-none">no edits yet</div>';
+    return;
+  }
+  el.innerHTML = h.map((item, i) => {
+    const entries = jparse(py.runPython(`js_deser(${J(item.state)})`));
+    const live = entries.filter(([,,,c]) => c%2).length;
+    const dead = entries.length - live;
+    const preview = item.lines.length
+      ? item.lines.map(l => l || '⎵').join(' · ')
+      : '(empty document)';
+    return `<div class="hist-item" onclick="restoreSnapshot('${br}', ${i})" title="Click to restore this snapshot">
+      <div class="hist-head">
+        <span class="hist-ver">${item.label || 'v?'}</span>
+        <span>${entries.length} entries</span>
+        <div class="hist-stats">
+          <span class="hist-live">▲${live}</span>
+          ${dead ? `<span class="hist-dead">▼${dead}</span>` : ''}
+        </div>
+      </div>
+      <div class="hist-preview">${esc(preview)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Restore snapshot
+// ═══════════════════════════════════════════════════════════════
+function restoreSnapshot(br, idx) {
+  if (!py) return;
+  const snap = H[br][idx];
+  if (!snap) return;
+  S[br] = snap.state;
+  document.getElementById('ta-' + br).value = snap.lines.join('\n');
+  renderBranch(br);
+  flashMsg('msg-' + br, `↩ restored ${snap.label}`, false);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Merge
+// ═══════════════════════════════════════════════════════════════
+function doMerge() {
+  if (!py) return;
+  try {
+    const res = jparse(py.runPython(`js_merge(${J(S.a)}, ${J(S.b)})`));
+    const { state, conflicts } = res;
+
+    const lines   = jparse(py.runPython(`js_lines(${J(state)})`));
+    const entries = jparse(py.runPython(`js_deser(${J(state)})`));
+
+    document.getElementById('lcount-m').textContent = lines.length;
+    document.getElementById('ecount-m').textContent = entries.length;
+    document.getElementById('stats-m').textContent =
+      `${entries.length} merged entries · ${lines.length} live`;
+
+    renderLinesList('lines-m', lines);
+    renderStateTable('st-m', entries);
+    renderConflicts(conflicts);
+
+    const hasConflict = conflicts.some(l => l && l.startsWith('<<<<<<<'));
+    flashMsg('msg-m',
+      hasConflict
+        ? `⚠ merged — ${lines.length} live lines, conflicts present`
+        : `✓ merged cleanly — ${lines.length} live lines`,
+      hasConflict
+    );
+
+    setExplain(
+      hasConflict
+        ? `<strong>Conflict detected.</strong> Both branches made incompatible changes near the same anchor. Conflict blocks show what each side did. The merged <em>state</em> still uses max(countA,countB) per entry — only the conflict <em>display</em> needs resolution.`
+        : `<strong>Clean merge.</strong> No conflicting insertions detected. The merged document contains ${lines.length} live line${lines.length !== 1 ? 's' : ''}. All entry counts resolved by max(countA, countB) — higher generation wins.`
+    );
+  } catch(e) {
+    document.getElementById('conf-out').innerHTML =
+      `<div style="color:var(--red);font-size:10px">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Conflict output renderer
+// ═══════════════════════════════════════════════════════════════
+function renderConflicts(conflicts) {
+  const el = document.getElementById('conf-out');
+  if (!conflicts || !conflicts.length) {
+    el.innerHTML = '<div class="lines-none">no output</div>';
+    return;
+  }
+
+  let cur = 'peace';
+  el.innerHTML = conflicts.map(line => {
+    if (!line && line !== '') return '';
+    if (line.startsWith('<<<<<<< begin added left'))    { cur='al'; return `<div class="conf-mark c-al">${esc(line)}</div>`; }
+    if (line.startsWith('<<<<<<< begin added right'))   { cur='ar'; return `<div class="conf-mark c-ar">${esc(line)}</div>`; }
+    if (line.startsWith('<<<<<<< begin added both'))    { cur='ab'; return `<div class="conf-mark c-ab">${esc(line)}</div>`; }
+    if (line.startsWith('<<<<<<< begin deleted left'))  { cur='dl'; return `<div class="conf-mark c-dl">${esc(line)}</div>`; }
+    if (line.startsWith('<<<<<<< begin deleted right')) { cur='dr'; return `<div class="conf-mark c-dr">${esc(line)}</div>`; }
+    if (line.startsWith('======='))                     { return `<div class="conf-line c-sep">${esc(line)}</div>`; }
+    if (line.startsWith('>>>>>>>'))                     { cur='peace'; return `<div class="conf-line c-end">${esc(line)}</div>`; }
+    const cls = cur === 'peace' ? 'conf-peace' : `conf-line c-${cur}`;
+    return `<div class="${cls}">${line === '' ? '<em class="conf-empty">⎵ empty line</em>' : esc(line)}</div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Scenarios
+// ═══════════════════════════════════════════════════════════════
+function loadScenario(name) {
+  if (!py) return;
+
+  document.querySelectorAll('.scen-btn').forEach(b => b.classList.remove('active'));
+  const scEl = document.getElementById('sc-' + name);
+  if (scEl) scEl.classList.add('active');
+
+  S.a = ''; S.b = '';
+  H.a = []; H.b = [];
+
+  const SCENARIOS = {
+
+    conflict: () => {
+      // Shared ancestor, then each branch inserts a different line in the same gap
+      const anc = py.runPython(`initial_state(['intro', 'shared anchor line', 'conclusion'])`);
+      const sA = py.runPython(`js_update(${J(anc)}, ${J('intro\nshared anchor line\nBranch A inserted this\nconclusion')})`);
+      const sB = py.runPython(`js_update(${J(anc)}, ${J('intro\nshared anchor line\nBranch B inserted this\nconclusion')})`);
+      S.a = sA; S.b = sB;
+      H.a = [{ state: anc, lines: ['intro','shared anchor line','conclusion'], label: 'v0 (ancestor)' }];
+      H.b = [{ state: anc, lines: ['intro','shared anchor line','conclusion'], label: 'v0 (ancestor)' }];
+      document.getElementById('ta-a').value = 'intro\nshared anchor line\nBranch A inserted this\nconclusion';
+      document.getElementById('ta-b').value = 'intro\nshared anchor line\nBranch B inserted this\nconclusion';
+      setExplain(`<strong>Scenario: both branches insert in the same gap.</strong> Both started from the same ancestor and each added a different line between "shared anchor line" and "conclusion". The merge engine detects this as a conflict — inspect the conflict output on the right.`);
+    },
+
+    delete: () => {
+      // A deletes beta, B extends with delta — deletion vs extension
+      const anc = py.runPython(`initial_state(['alpha', 'beta', 'gamma'])`);
+      const sA = py.runPython(`js_update(${J(anc)}, ${J('alpha\ngamma')})`);
+      const sB = py.runPython(`js_update(${J(anc)}, ${J('alpha\nbeta\ngamma\ndelta')})`);
+      S.a = sA; S.b = sB;
+      H.a = [{ state: anc, lines: ['alpha','beta','gamma'], label: 'v0 (ancestor)' }];
+      H.b = [{ state: anc, lines: ['alpha','beta','gamma'], label: 'v0 (ancestor)' }];
+      document.getElementById('ta-a').value = 'alpha\ngamma';
+      document.getElementById('ta-b').value = 'alpha\nbeta\ngamma\ndelta';
+      setExplain(`<strong>Scenario: delete vs. extend.</strong> A deleted "beta" (count 1→2, now even=deleted). B kept it and added "delta". In the merge: A's delete wins for "beta" — max(2,1)=2 (even=deleted). "delta" only exists in B so it appears in the merged output without conflict.`);
+    },
+
+    regen: () => {
+      // A: add X (count=1), delete X (count=2), re-add X (count=3)
+      // B: add X (count=1), delete X (count=2) — stops there
+      // merge: max(3,2) = 3, odd → LIVE! re-add wins
+      let sA = py.runPython(`initial_state(['X'])`);
+      const a1 = sA;
+      sA = py.runPython(`js_update(${J(sA)}, ${J('')})`);
+      const a2 = sA;
+      sA = py.runPython(`js_update(${J(sA)}, ${J('X')})`);
+      const a3 = sA;
+
+      let sB = py.runPython(`initial_state(['X'])`);
+      const b1 = sB;
+      sB = py.runPython(`js_update(${J(sB)}, ${J('')})`);
+      const b2 = sB;
+
+      S.a = a3; S.b = b2;
+      H.a = [
+        { state: a2, lines: [],   label: 'v2 (deleted X)' },
+        { state: a1, lines: ['X'],label: 'v1 (added X)'   },
+      ];
+      H.b = [
+        { state: b1, lines: ['X'],label: 'v1 (added X)' },
+      ];
+      document.getElementById('ta-a').value = 'X';
+      document.getElementById('ta-b').value = '';
+      setExplain(`<strong>Scenario: generation counting — re-add beats delete.</strong> A: add X (count=1) → delete (count=2) → re-add (count=3). B: add X (count=1) → delete (count=2). Merge: max(3,2)=3, which is ODD → X is LIVE in the merged result. The re-add in A wins over B's delete.`);
+    },
+
+    clean: () => {
+      // B just appends, A unchanged — no conflict
+      const anc = py.runPython(`initial_state(['line one', 'line two', 'line three'])`);
+      const sB = py.runPython(`js_update(${J(anc)}, ${J('line one\nline two\nline three\nline four\nline five')})`);
+      S.a = anc; S.b = sB;
+      H.b = [{ state: anc, lines: ['line one','line two','line three'], label: 'v0 (ancestor)' }];
+      document.getElementById('ta-a').value = 'line one\nline two\nline three';
+      document.getElementById('ta-b').value = 'line one\nline two\nline three\nline four\nline five';
+      setExplain(`<strong>Scenario: clean merge.</strong> A made no changes. B appended two new lines. Since there's no ambiguity about insertion position, the merge includes all five lines with no conflict markers.`);
+    },
+
+    blank: () => {
+      S.a = ''; S.b = '';
+      H.a = []; H.b = [];
+      document.getElementById('ta-a').value = '';
+      document.getElementById('ta-b').value = '';
+      ['lines-a','lines-b','lines-m'].forEach(id => {
+        document.getElementById(id).innerHTML = '<div class="lines-none">—</div>';
+      });
+      ['st-a','st-b','st-m'].forEach(id => {
+        document.getElementById(id).innerHTML = '';
+      });
+      ['hist-a','hist-b'].forEach(id => {
+        document.getElementById(id).innerHTML = '<div class="hist-none">no edits yet</div>';
+      });
+      document.getElementById('conf-out').innerHTML = '<div class="lines-none">—</div>';
+      ['lcount-a','lcount-b','lcount-m','ecount-a','ecount-b','ecount-m'].forEach(id => {
+        document.getElementById(id).textContent = '0';
+      });
+      setExplain(`<strong>Blank slate.</strong> Type different content into Branch A and Branch B, click Apply on each, then click Merge.`);
+      return;
+    },
+  };
+
+  const fn = SCENARIOS[name];
+  if (fn) {
+    fn();
+    if (name !== 'blank') {
+      renderBranch('a');
+      renderBranch('b');
+      doMerge();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Mobile tabs
+// ═══════════════════════════════════════════════════════════════
+function mobTab(t) {
+  document.querySelectorAll('.mob-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.col-a, .col-b, .col-m').forEach(c => c.classList.remove('tab-show'));
+  document.querySelector(`.mob-tab.${t}-tab`).classList.add('active');
+  document.getElementById('col-' + t).classList.add('tab-show');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Tooltip
+// ═══════════════════════════════════════════════════════════════
+const tipEl = document.getElementById('tooltip');
+let tipTimeout;
+function showTip(e, text) {
+  clearTimeout(tipTimeout);
+  const lines = text.split('\n');
+  const first = lines[0];
+  const rest = lines.slice(1);
+  tipEl.innerHTML =
+    `<div style="font-weight:700;margin-bottom:5px;font-size:11px">${esc(first)}</div>` +
+    rest.map(l => {
+      const [k, ...v] = l.split(': ');
+      if (v.length) return `<span class="tt-field">${esc(k)}</span>: <span class="tt-val">${esc(v.join(': '))}</span>`;
+      return `<span class="tt-explain">${esc(l)}</span>`;
+    }).join('<br>');
+  tipEl.classList.add('show');
+  positionTip(e);
+}
+function positionTip(e) {
+  const x = Math.min(e.clientX + 14, window.innerWidth - 280);
+  const y = Math.min(e.clientY + 14, window.innerHeight - 150);
+  tipEl.style.left = x + 'px';
+  tipEl.style.top  = y + 'px';
+}
+function hideTip() { tipTimeout = setTimeout(() => tipEl.classList.remove('show'), 80); }
+document.addEventListener('mousemove', e => { if (tipEl.classList.contains('show')) positionTip(e); });
+
+// ═══════════════════════════════════════════════════════════════
+// Explain bar
+// ═══════════════════════════════════════════════════════════════
+function setExplain(html) {
+  document.getElementById('explain-bar').innerHTML = html;
+}
+function updateExplain(br, prevState, newState) {
+  if (!py || !prevState) return;
+  try {
+    const diff = jparse(py.runPython(`js_diff(${J(prevState)}, ${J(newState)})`));
+    const adds = diff.filter(d => d.op === 'add').length;
+    const dels = diff.filter(d => d.op === 'del').length;
+    const entries = jparse(py.runPython(`js_deser(${J(newState)})`));
+    const dead = entries.filter(([,,,c]) => !(c%2)).length;
+    setExplain(
+      `<strong>Branch ${br.toUpperCase()} updated.</strong> ` +
+      (adds ? `+${adds} line${adds>1?'s':''} added. ` : '') +
+      (dels ? `−${dels} line${dels>1?'s':''} deleted (count incremented to even, entry kept in state). ` : '') +
+      `State now has <strong>${entries.length}</strong> entries total` +
+      (dead ? `, <strong>${dead}</strong> of which are deleted (even count) — they persist so future merges can reason about ordering.` : `, all live.`)
+    );
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Utils
+// ═══════════════════════════════════════════════════════════════
+function J(s)      { return JSON.stringify(s); }
+function jparse(s) { return JSON.parse(s); }
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function setMsg(id, txt) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = txt;
+}
+function flashMsg(id, txt, isErr) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = txt;
+  el.className = isErr ? 'flash-err' : 'flash-msg';
+  // re-trigger animation
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.style.animation = '';
+}
+
+init();
+</script>
+
+</body>
+</html>
