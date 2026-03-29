@@ -1,3 +1,3 @@
-View Mozilla Codex rollout timeline events by uploading or pasting a JSONL file to explore the sequence of messages, function calls, and system events with interactive filtering and search capabilities. Each event displays its timestamp in your local timezone or UTC, with detailed views showing formatted content, tool parameters, and reasoning blocks for supported event types. Use the timeline filters to narrow results by event type, payload kind, or message role, and export specific events or concatenate user prompts for external analysis.
+View Mozilla Codex rollout timeline events from `.jsonl` files with an interactive interface that supports filtering, searching, and detailed event inspection. Load files via drag-and-drop, paste, or URL fetch, then explore events organized chronologically with customizable timezone display and comprehensive event details including formatted content, tool calls, and reasoning blocks.
 
-<!-- Generated from commit: 1b86a93d626f2945526839a99c6f49ad10f937b2 -->
+<!-- Generated from commit: 266b40cbefe398ec5a03b695f107cab7a5713529 -->
