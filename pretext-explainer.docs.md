@@ -1,0 +1,3 @@
+Explore how pure-JavaScript text measurement and line breaking work through an interactive visualization of the Pretext library's pipeline. This tool demonstrates each stage from raw text input through whitespace normalization, word segmentation, canvas-based width measurement, and arithmetic-based line breaking, with live verification against actual DOM rendering. Drag sliders, switch fonts, and test different text samples to see how the engine handles emojis, CJK characters, Arabic text, and complex punctuation rules — all computed without touching the DOM.
+
+<!-- Generated from commit: d8deb83eccc52c604277da785fe489f421d6f3d5 -->
