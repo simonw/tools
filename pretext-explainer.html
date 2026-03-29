@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pretext — Under the Hood</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0c0e12;
+  --bg-raised: #13161c;
+  --bg-inset: #0a0c0f;
+  --border: #1e2330;
+  --border-bright: #2a3040;
+  --text: #c8cdd8;
+  --text-dim: #6b7280;
+  --text-bright: #e8ecf4;
+  --accent: #5b8def;
+  --accent-dim: #3a5a9e;
+  --green: #4ade80;
+  --green-dim: #166534;
+  --orange: #f59e0b;
+  --orange-dim: #92400e;
+  --red: #f87171;
+  --pink: #e879a0;
+  --purple: #a78bfa;
+  --cyan: #22d3ee;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-serif: 'Source Serif 4', Georgia, serif;
+  --font-sans: 'DM Sans', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.65;
+  overflow-x: hidden;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+
+/* ---- Header ---- */
+header {
+  padding: 80px 0 40px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+header::before {
+  content: '';
+  position: absolute;
+  top: -120px; left: 50%; transform: translateX(-50%);
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(91,141,239,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+header h1 {
+  font-family: var(--font-mono);
+  font-size: 42px;
+  font-weight: 600;
+  color: var(--text-bright);
+  letter-spacing: -1px;
+  margin-bottom: 10px;
+}
+header h1 span { color: var(--accent); }
+header p {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--text-dim);
+  font-size: 17px;
+  max-width: 540px;
+  margin: 0 auto;
+}
+
+/* ---- Main layout ---- */
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 24px 120px;
+}
+
+/* ---- Sections ---- */
+section {
+  margin-top: 72px;
+  position: relative;
+}
+section::before {
+  content: attr(data-step);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  display: block;
+  margin-bottom: 8px;
+}
+section h2 {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+section > p {
+  color: var(--text-dim);
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.7;
+  max-width: 680px;
+  margin-bottom: 20px;
+}
+section > p code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--cyan);
+  background: rgba(34,211,238,0.08);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* ---- Input area ---- */
+.input-area {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+.input-area label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  display: block;
+  margin-bottom: 8px;
+}
+.input-area textarea {
+  width: 100%;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-bright);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  padding: 14px 16px;
+  resize: vertical;
+  min-height: 60px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.input-area textarea:focus { border-color: var(--accent-dim); }
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.presets button {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.presets button:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+  background: rgba(91,141,239,0.06);
+}
+
+/* ---- Visualization panels ---- */
+.viz-panel {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 16px;
+  overflow-x: auto;
+}
+.viz-panel .panel-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+}
+
+/* ---- Segment chips ---- */
+.segment-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: flex-start;
+}
+.seg-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 8px 6px;
+  position: relative;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.seg-chip:hover { transform: translateY(-2px); border-color: var(--border-bright); }
+.seg-chip .seg-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-bright);
+  white-space: pre;
+  min-width: 8px;
+  text-align: center;
+}
+.seg-chip .seg-meta {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  margin-top: 2px;
+  opacity: 0.5;
+}
+.seg-chip[data-kind="text"] { border-color: rgba(91,141,239,0.3); }
+.seg-chip[data-kind="text"] .seg-meta { color: var(--accent); }
+.seg-chip[data-kind="space"] {
+  border-color: rgba(74,222,128,0.2);
+  background: rgba(74,222,128,0.04);
+}
+.seg-chip[data-kind="space"] .seg-text { color: var(--green); opacity: 0.5; }
+.seg-chip[data-kind="space"] .seg-meta { color: var(--green); }
+.seg-chip[data-kind="glue"] {
+  border-color: rgba(168,139,250,0.3);
+  background: rgba(168,139,250,0.04);
+}
+.seg-chip[data-kind="glue"] .seg-meta { color: var(--purple); }
+.seg-chip[data-word="true"] .seg-text { font-weight: 600; }
+
+/* ---- Width bars ---- */
+.width-bars { display: flex; flex-direction: column; gap: 4px; }
+.width-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+}
+.width-bar-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  width: 160px;
+  flex-shrink: 0;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+}
+.width-bar-track {
+  flex: 1;
+  height: 18px;
+  position: relative;
+  background: var(--bg-inset);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.width-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0.6;
+  transition: width 0.3s ease;
+}
+.width-bar-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  width: 52px;
+  flex-shrink: 0;
+  text-align: left;
+}
+
+/* ---- Line break viz ---- */
+.line-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.line-controls label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.line-controls input[type="range"] {
+  flex: 1;
+  min-width: 180px;
+  accent-color: var(--accent);
+}
+.line-controls .width-readout {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 60px;
+}
+
+.line-break-viz {
+  position: relative;
+  border: 1px dashed var(--border-bright);
+  border-radius: 6px;
+  padding: 16px 16px 8px;
+  margin-top: 8px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+.line-break-viz .max-width-marker {
+  position: absolute;
+  top: 0; bottom: 0;
+  border-right: 2px dashed var(--accent-dim);
+  pointer-events: none;
+  z-index: 1;
+}
+.line-break-viz .max-width-label {
+  position: absolute;
+  top: 2px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--accent-dim);
+  white-space: nowrap;
+  transform: translateX(-100%);
+  padding-right: 4px;
+}
+
+.laid-out-line {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  position: relative;
+}
+.laid-out-line .line-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  width: 24px;
+  flex-shrink: 0;
+  text-align: right;
+  margin-right: 8px;
+  opacity: 0.5;
+}
+.laid-out-line .line-segments {
+  display: flex;
+  align-items: center;
+  height: 22px;
+}
+.line-seg {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-bright);
+  border-radius: 2px;
+  overflow: hidden;
+  white-space: pre;
+  min-width: 1px;
+}
+.line-seg[data-kind="text"] { background: rgba(91,141,239,0.15); }
+.line-seg[data-kind="space"] { background: rgba(74,222,128,0.08); }
+.line-seg[data-kind="glue"] { background: rgba(168,139,250,0.1); }
+
+.line-width-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+/* ---- Comparison ---- */
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.compare-box {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.compare-box .compare-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 8px;
+}
+.compare-box:first-child .compare-label { color: var(--accent); }
+.compare-box:last-child .compare-label { color: var(--green); }
+.compare-box .compare-content {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 20px;
+  color: var(--text-bright);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.compare-result {
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.compare-result.match { background: rgba(74,222,128,0.08); color: var(--green); border: 1px solid rgba(74,222,128,0.2); }
+.compare-result.mismatch { background: rgba(248,113,113,0.08); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+
+/* ---- Stats row ---- */
+.stats-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.stat-card {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  flex: 1;
+  min-width: 130px;
+}
+.stat-card .stat-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+.stat-card .stat-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+/* ---- Pipeline diagram ---- */
+.pipeline {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 24px 0;
+  overflow-x: auto;
+  padding: 8px 0;
+}
+.pipe-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  flex-shrink: 0;
+  transition: all 0.2s;
+  cursor: default;
+}
+.pipe-stage:hover {
+  border-color: var(--accent-dim);
+  background: rgba(91,141,239,0.04);
+}
+.pipe-stage .pipe-icon {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.pipe-stage .pipe-name {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-align: center;
+}
+.pipe-stage .pipe-desc {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 2px;
+}
+.pipe-arrow {
+  font-family: var(--font-mono);
+  color: var(--border-bright);
+  font-size: 18px;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+/* ---- Normalized diff ---- */
+.norm-diff {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 2;
+  color: var(--text-bright);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.norm-diff .removed {
+  background: rgba(248,113,113,0.15);
+  color: var(--red);
+  text-decoration: line-through;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.norm-diff .ws-marker {
+  color: var(--green);
+  opacity: 0.6;
+}
+
+.font-select {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.font-select button {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.font-select button.active {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+  background: rgba(91,141,239,0.08);
+}
+.font-select button:hover { border-color: var(--accent-dim); color: var(--accent); }
+
+@media (max-width: 640px) {
+  header h1 { font-size: 28px; }
+  .compare-grid { grid-template-columns: 1fr; }
+  .width-bar-label { width: 100px; font-size: 10px; }
+  section h2 { font-size: 18px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>pretext</span> · under the hood</h1>
+  <p>An interactive exploration of how pure-JS text measurement works using a simplified version of <a href="https://github.com/chenglou/pretext" style="color: white">Pretext</a> — from raw string to pixel-accurate line heights, without ever touching the DOM.</p>
+</header>
+
+<main>
+
+<!-- Pipeline overview -->
+<section data-step="Overview">
+  <h2>The Pipeline</h2>
+  <p>Pretext splits text layout into a one-time <code>prepare()</code> phase and a near-free <code>layout()</code> phase. Here's every stage your text passes through:</p>
+  <div class="pipeline" id="pipeline">
+    <div class="pipe-stage"><div class="pipe-icon">📝</div><div class="pipe-name">Input</div><div class="pipe-desc">Raw string</div></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-stage"><div class="pipe-icon">🧹</div><div class="pipe-name">Normalize</div><div class="pipe-desc">Collapse WS</div></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-stage"><div class="pipe-icon">✂️</div><div class="pipe-name">Segment</div><div class="pipe-desc">Intl.Segmenter</div></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-stage"><div class="pipe-icon">🧲</div><div class="pipe-name">Merge</div><div class="pipe-desc">Glue rules</div></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-stage"><div class="pipe-icon">📐</div><div class="pipe-name">Measure</div><div class="pipe-desc">Canvas widths</div></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-stage"><div class="pipe-icon">📏</div><div class="pipe-name">Layout</div><div class="pipe-desc">Pure math</div></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-stage"><div class="pipe-icon">✅</div><div class="pipe-name">Verify</div><div class="pipe-desc">vs. DOM</div></div>
+  </div>
+</section>
+
+<!-- Input -->
+<section data-step="Input">
+  <h2>Your Text</h2>
+  <p>Type anything, or pick a preset that exercises a different part of the engine. The entire pipeline re-runs live as you edit.</p>
+  <div class="input-area">
+    <label>Text Input</label>
+    <textarea id="input-text" rows="2">The quick 🦊 jumped over the lazy 🐕 and then went home 🏠 to rest.</textarea>
+    <div class="presets">
+      <button data-text="The quick 🦊 jumped over the lazy 🐕 and then went home 🏠 to rest.">Emoji mix</button>
+      <button data-text="这是一段中文文本，用于测试文本布局库对中日韩字符的支持。每个字符之间都可以断行。">Chinese</button>
+      <button data-text="هذا النص باللغة العربية لاختبار دعم الاتجاه من اليمين إلى اليسار">Arabic RTL</button>
+      <button data-text="The meeting is scheduled for يوم الثلاثاء at the main office. Please bring your مستندات with you.">Mixed bidi</button>
+      <button data-text="Performance is critical — if you can't measure hundreds of text blocks per frame, it's not useful.">Punctuation</button>
+      <button data-text="Superlongwordwithoutanyspacesthatshouldjustoverflowthelineandkeepgoing and then normal words.">Overflow‑wrap</button>
+      <button data-text="   Multiple   spaces   and	tabs	here   ">Whitespace</button>
+    </div>
+    <div class="font-select" style="margin-top: 12px;">
+      <label style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;margin-right:4px;display:flex;align-items:center;">Font:</label>
+      <button class="active" data-font='16px "Helvetica Neue", Helvetica, Arial, sans-serif'>Helvetica 16px</button>
+      <button data-font='16px Georgia, "Times New Roman", serif'>Georgia 16px</button>
+      <button data-font='14px Verdana, Geneva, sans-serif'>Verdana 14px</button>
+      <button data-font='18px "Courier New", Courier, monospace'>Courier 18px</button>
+    </div>
+  </div>
+</section>
+
+<!-- Stage 1: Normalize -->
+<section data-step="Stage 1">
+  <h2>Whitespace Normalization</h2>
+  <p>CSS <code>white-space: normal</code> collapses runs of spaces, tabs, and newlines into a single space, then trims leading/trailing whitespace. This is the first thing Pretext does — before any segmentation.</p>
+  <div class="viz-panel">
+    <div class="panel-label">Before → After</div>
+    <div class="norm-diff" id="norm-output"></div>
+  </div>
+</section>
+
+<!-- Stage 2: Segment -->
+<section data-step="Stage 2">
+  <h2>Word Segmentation</h2>
+  <p>The browser's built-in <code>Intl.Segmenter</code> splits text into word-like and non-word-like segments. This handles CJK (per-character), Thai (no spaces between words), Arabic, and other scripts correctly — something regex can never do reliably.</p>
+  <div class="viz-panel">
+    <div class="panel-label">Raw Intl.Segmenter Output</div>
+    <div class="segment-row" id="raw-segments"></div>
+  </div>
+  <div class="stats-row" id="seg-stats"></div>
+</section>
+
+<!-- Stage 3: Merge -->
+<section data-step="Stage 3">
+  <h2>Segment Merging &amp; Glue Rules</h2>
+  <p>Raw segments aren't enough. Punctuation like <code>"better."</code> must stay glued to its word (browsers measure them together). Opening quotes attach forward. CJK characters get split into individual graphemes for per-character line breaking. This is where 80% of the language-specific logic lives.</p>
+  <div class="viz-panel">
+    <div class="panel-label">Merged Segments (what actually gets measured)</div>
+    <div class="segment-row" id="merged-segments"></div>
+  </div>
+</section>
+
+<!-- Stage 4: Measure -->
+<section data-step="Stage 4">
+  <h2>Canvas Measurement</h2>
+  <p>Each merged segment is measured once via <code>canvas.measureText()</code> — the same font shaping engine the browser uses for layout, but without triggering DOM reflow. Results are cached per (segment, font) pair. This is the key trick that makes everything else possible.</p>
+  <div class="viz-panel">
+    <div class="panel-label">Segment Widths (px)</div>
+    <div class="width-bars" id="width-bars"></div>
+  </div>
+  <div class="stats-row" id="measure-stats"></div>
+</section>
+
+<!-- Stage 5: Line Break -->
+<section data-step="Stage 5">
+  <h2>Line Breaking — Pure Arithmetic</h2>
+  <p>Now the hot path: walk the cached widths, accumulate along each line, and break when the next segment would overflow <code>maxWidth</code>. Trailing spaces "hang" past the edge (matching CSS). This runs in ~0.0002ms — drag the slider and watch it reflow instantly.</p>
+  <div class="viz-panel" style="padding-bottom: 12px;">
+    <div class="line-controls">
+      <label>Max Width</label>
+      <input type="range" id="width-slider" min="80" max="850" value="400">
+      <span class="width-readout" id="width-readout">400px</span>
+    </div>
+    <div class="line-break-viz" id="line-viz"></div>
+  </div>
+  <div class="stats-row" id="layout-stats"></div>
+</section>
+
+<!-- Stage 6: Verify -->
+<section data-step="Stage 6">
+  <h2>Verification vs. Real DOM</h2>
+  <p>The ultimate test: does our arithmetic match what the browser actually renders? We create a hidden DOM element with the same text, font, width, and CSS rules, measure its height, and compare. The green result below is live — computed right now in your browser.</p>
+  <div class="compare-grid" id="compare-grid">
+    <div class="compare-box">
+      <div class="compare-label">Pretext (canvas + math)</div>
+      <div class="compare-content" id="pretext-render"></div>
+    </div>
+    <div class="compare-box">
+      <div class="compare-label">Browser DOM (ground truth)</div>
+      <div class="compare-content" id="dom-render"></div>
+    </div>
+  </div>
+  <div class="compare-result" id="compare-result"></div>
+</section>
+
+</main>
+
+<!-- Hidden measurement elements -->
+<canvas id="measure-canvas" style="display:none"></canvas>
+<div id="dom-measure" style="position:absolute;visibility:hidden;pointer-events:none;top:-9999px;left:-9999px;"></div>
+
+<script>
+// ========================================================================
+// PRETEXT CORE — simplified from the real library for this explainer
+// ========================================================================
+
+const canvas = document.getElementById('measure-canvas');
+const ctx = canvas.getContext('2d');
+const domMeasure = document.getElementById('dom-measure');
+
+// ---- Whitespace normalization (from analysis.ts) ----
+function normalizeWhitespace(text) {
+  let n = text.replace(/[ \t\n\r\f]+/g, ' ');
+  if (n.charCodeAt(0) === 0x20) n = n.slice(1);
+  if (n.length > 0 && n.charCodeAt(n.length - 1) === 0x20) n = n.slice(0, -1);
+  return n;
+}
+
+// ---- CJK detection (from analysis.ts) ----
+function isCJK(s) {
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    if ((c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF) ||
+        (c >= 0x20000 && c <= 0x2A6DF) || (c >= 0xF900 && c <= 0xFAFF) ||
+        (c >= 0x3000 && c <= 0x303F) || (c >= 0x3040 && c <= 0x309F) ||
+        (c >= 0x30A0 && c <= 0x30FF) || (c >= 0xAC00 && c <= 0xD7AF) ||
+        (c >= 0xFF00 && c <= 0xFFEF)) return true;
+  }
+  return false;
+}
+
+// ---- Kinsoku & punctuation sets (from analysis.ts) ----
+const kinsokuStart = new Set([
+  '\uFF0C','\uFF0E','\uFF01','\uFF1A','\uFF1B','\uFF1F',
+  '\u3001','\u3002','\u30FB','\uFF09','\u3015','\u3009',
+  '\u300B','\u300D','\u300F','\u3011','\u30FC','\u3005',
+]);
+const kinsokuEnd = new Set(['\uFF08','\u3014','\u3008','\u300A','\u300C','\u300E','\u3010']);
+const leftStickyPunctuation = new Set([
+  '.', ',', '!', '?', ':', ';', ')', ']', '}', '%', '"', '"', '\u2019', '\u00BB', '\u203A', '\u2026',
+  '\u060C', '\u061B', '\u061F', '\u0964', '\u0965',
+]);
+
+// ---- Intl.Segmenter ----
+const wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+// ---- Segment text (from analysis.ts, simplified) ----
+function segmentText(text) {
+  const segments = [];
+  for (const s of wordSegmenter.segment(text)) {
+    const seg = s.segment;
+    const isWord = s.isWordLike ?? false;
+    // Classify break kind
+    let kind = 'text';
+    if (seg === ' ') kind = 'space';
+    else if (seg === '\u00AD') kind = 'soft-hyphen';
+    else if (seg === '\u200B') kind = 'zero-width-break';
+    else if (seg === '\u00A0' || seg === '\u202F' || seg === '\u2060' || seg === '\uFEFF') kind = 'glue';
+    segments.push({ text: seg, isWordLike: isWord, kind, start: s.index });
+  }
+  return segments;
+}
+
+// ---- Merge segments (from analysis.ts, simplified) ----
+function mergeSegments(rawSegments) {
+  const merged = [];
+  for (let i = 0; i < rawSegments.length; i++) {
+    const seg = rawSegments[i];
+    // Try to glue punctuation to previous text
+    if (seg.kind === 'text' && !seg.isWordLike && merged.length > 0) {
+      const prev = merged[merged.length - 1];
+      if (prev.kind === 'text') {
+        // Left-sticky punctuation
+        let allSticky = true;
+        for (const ch of seg.text) {
+          if (!leftStickyPunctuation.has(ch)) { allSticky = false; break; }
+        }
+        if (allSticky) {
+          prev.text += seg.text;
+          continue;
+        }
+        // Hyphen after word
+        if (seg.text === '-' && prev.isWordLike) {
+          prev.text += seg.text;
+          continue;
+        }
+      }
+    }
+    merged.push({ ...seg });
+  }
+
+  // Split CJK into individual graphemes for per-char breaking
+  const result = [];
+  for (const seg of merged) {
+    if (seg.kind === 'text' && isCJK(seg.text) && seg.text.length > 1) {
+      for (const gs of graphemeSegmenter.segment(seg.text)) {
+        const g = gs.segment;
+        // Kinsoku: attach line-start-prohibited chars to previous
+        if (result.length > 0 && result[result.length - 1].kind === 'text' &&
+            (kinsokuStart.has(g) || leftStickyPunctuation.has(g))) {
+          result[result.length - 1].text += g;
+          continue;
+        }
+        // Kinsoku: attach line-end-prohibited chars to next
+        if (result.length > 0 && result[result.length - 1].kind === 'text' &&
+            kinsokuEnd.has(result[result.length - 1].text.slice(-1))) {
+          // actually this char should attach forward — handled by not splitting
+        }
+        result.push({ text: g, isWordLike: true, kind: 'text', start: seg.start + gs.index, isCJKSplit: true });
+      }
+    } else {
+      result.push(seg);
+    }
+  }
+  return result;
+}
+
+// ---- Canvas measurement (from measurement.ts) ----
+const measureCache = new Map();
+
+function measureSegment(text, font) {
+  const key = font + '\0' + text;
+  let w = measureCache.get(key);
+  if (w !== undefined) return w;
+  ctx.font = font;
+  w = ctx.measureText(text).width;
+  measureCache.set(key, w);
+  return w;
+}
+
+function measureSegments(segments, font) {
+  ctx.font = font;
+  return segments.map(seg => ({
+    ...seg,
+    width: seg.kind === 'space' ? measureSegment(' ', font) :
+           seg.kind === 'glue' ? measureSegment(seg.text, font) :
+           measureSegment(seg.text, font),
+  }));
+}
+
+// ---- Grapheme-level breaking (from measurement.ts) ----
+function getGraphemeWidths(text, font) {
+  const widths = [];
+  for (const gs of graphemeSegmenter.segment(text)) {
+    widths.push(measureSegment(gs.segment, font));
+  }
+  return widths;
+}
+
+// ---- Line breaking (from line-break.ts, simplified) ----
+function breakLines(measured, maxWidth, font) {
+  if (measured.length === 0) return [];
+
+  const lines = [];
+  let lineSegs = [];
+  let lineW = 0;
+  let pendingBreakIndex = -1;
+  let pendingBreakWidth = 0;
+  let pendingBreakLineSegs = null;
+
+  function emitLine(segs, width) {
+    // Trim trailing spaces from display width
+    let paintW = width;
+    for (let j = segs.length - 1; j >= 0; j--) {
+      if (segs[j].kind === 'space') { paintW -= segs[j].width; }
+      else break;
+    }
+    lines.push({ segments: segs, width: Math.max(0, paintW) });
+  }
+
+  for (let i = 0; i < measured.length; i++) {
+    const seg = measured[i];
+    const w = seg.width;
+
+    if (lineSegs.length === 0) {
+      // First segment on line — check overflow-wrap
+      if (w > maxWidth && seg.kind === 'text' && seg.text.length > 1) {
+        const gWidths = getGraphemeWidths(seg.text, font);
+        const graphemes = [...graphemeSegmenter.segment(seg.text)].map(g => g.segment);
+        let gLine = [];
+        let gW = 0;
+        for (let g = 0; g < graphemes.length; g++) {
+          if (gW > 0 && gW + gWidths[g] > maxWidth + 0.01) {
+            emitLine(gLine, gW);
+            gLine = [];
+            gW = 0;
+          }
+          gLine.push({ text: graphemes[g], kind: 'text', width: gWidths[g], isWordLike: true });
+          gW += gWidths[g];
+        }
+        if (gLine.length > 0) {
+          lineSegs = gLine;
+          lineW = gW;
+        }
+        continue;
+      }
+      lineSegs.push(seg);
+      lineW = w;
+      if (seg.kind === 'space' || seg.kind === 'zero-width-break') {
+        pendingBreakIndex = i;
+        pendingBreakWidth = 0;
+        pendingBreakLineSegs = [...lineSegs];
+      }
+      continue;
+    }
+
+    const newW = lineW + w;
+    if (newW > maxWidth + 0.01) {
+      // Would overflow
+      if (seg.kind === 'space') {
+        // Trailing space hangs
+        lineSegs.push(seg);
+        emitLine(lineSegs, lineW);
+        lineSegs = [];
+        lineW = 0;
+        pendingBreakIndex = -1;
+        continue;
+      }
+      if (pendingBreakIndex >= 0) {
+        // Break at last break opportunity
+        emitLine(pendingBreakLineSegs, pendingBreakWidth);
+        // Restart from after the break
+        lineSegs = [];
+        lineW = 0;
+        pendingBreakIndex = -1;
+        // Re-scan from the segment after the break
+        const breakSeg = pendingBreakLineSegs.length;
+        // We need to figure out which measured[] index to restart from
+        // Simple approach: re-process current segment on fresh line
+        i--;
+        continue;
+      }
+      // No break opportunity — force break here
+      emitLine(lineSegs, lineW);
+      lineSegs = [];
+      lineW = 0;
+      i--;
+      continue;
+    }
+
+    lineSegs.push(seg);
+    lineW = newW;
+    if (seg.kind === 'space' || seg.kind === 'zero-width-break') {
+      pendingBreakIndex = i;
+      pendingBreakWidth = lineW - w;
+      pendingBreakLineSegs = [...lineSegs];
+    }
+  }
+
+  if (lineSegs.length > 0) {
+    emitLine(lineSegs, lineW);
+  }
+
+  return lines;
+}
+
+// ---- DOM measurement for comparison ----
+function measureDOM(text, font, maxWidth, lineHeight) {
+  domMeasure.style.font = font;
+  domMeasure.style.width = maxWidth + 'px';
+  domMeasure.style.lineHeight = lineHeight + 'px';
+  domMeasure.style.whiteSpace = 'normal';
+  domMeasure.style.wordBreak = 'normal';
+  domMeasure.style.overflowWrap = 'break-word';
+  domMeasure.style.padding = '0';
+  domMeasure.style.margin = '0';
+  domMeasure.style.border = 'none';
+  domMeasure.textContent = text;
+  return domMeasure.getBoundingClientRect().height;
+}
+
+// ========================================================================
+// UI
+// ========================================================================
+
+const inputEl = document.getElementById('input-text');
+const normOutput = document.getElementById('norm-output');
+const rawSegEl = document.getElementById('raw-segments');
+const mergedSegEl = document.getElementById('merged-segments');
+const widthBarsEl = document.getElementById('width-bars');
+const lineVizEl = document.getElementById('line-viz');
+const widthSlider = document.getElementById('width-slider');
+const widthReadout = document.getElementById('width-readout');
+const segStats = document.getElementById('seg-stats');
+const measureStats = document.getElementById('measure-stats');
+const layoutStats = document.getElementById('layout-stats');
+const pretextRender = document.getElementById('pretext-render');
+const domRender = document.getElementById('dom-render');
+const compareResult = document.getElementById('compare-result');
+
+let currentFont = '16px "Helvetica Neue", Helvetica, Arial, sans-serif';
+let currentLineHeight = 20;
+
+function parseFontSize(font) {
+  const m = font.match(/(\d+(?:\.\d+)?)\s*px/);
+  return m ? parseFloat(m[1]) : 16;
+}
+
+// ---- Render normalized diff ----
+function renderNormDiff(original, normalized) {
+  // Simple visual diff: show removed chars
+  let html = '';
+  const collapsible = /[ \t\n\r\f]+/g;
+  let lastEnd = 0;
+  let match;
+  const tempOriginal = original;
+  collapsible.lastIndex = 0;
+  while ((match = collapsible.exec(tempOriginal)) !== null) {
+    // Text before this match
+    const before = tempOriginal.slice(lastEnd, match.index);
+    html += escHtml(before);
+    // The whitespace run
+    const ws = match[0];
+    if (ws === ' ' && match.index > 0 && match.index + 1 < tempOriginal.length) {
+      html += '<span class="ws-marker">·</span>';
+    } else {
+      const display = ws.replace(/ /g, '·').replace(/\t/g, '→').replace(/\n/g, '↵').replace(/\r/g, '↵').replace(/\f/g, '↵');
+      html += '<span class="removed">' + display + '</span>';
+      // Show replacement
+      if (match.index > 0 && match.index + ws.length < tempOriginal.length) {
+        html += '<span class="ws-marker">·</span>';
+      }
+    }
+    lastEnd = match.index + ws.length;
+  }
+  html += escHtml(tempOriginal.slice(lastEnd));
+  normOutput.innerHTML = html || '<span style="opacity:0.3">(empty after normalization)</span>';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ---- Render segment chips ----
+function renderSegChips(container, segments) {
+  container.innerHTML = '';
+  for (const seg of segments) {
+    const chip = document.createElement('div');
+    chip.className = 'seg-chip';
+    chip.dataset.kind = seg.kind;
+    chip.dataset.word = seg.isWordLike ? 'true' : 'false';
+
+    const textEl = document.createElement('div');
+    textEl.className = 'seg-text';
+    if (seg.kind === 'space') textEl.textContent = '␣';
+    else if (seg.kind === 'glue') textEl.textContent = '⋮';
+    else if (seg.kind === 'zero-width-break') textEl.textContent = '∅';
+    else textEl.textContent = seg.text;
+
+    const meta = document.createElement('div');
+    meta.className = 'seg-meta';
+    let label = seg.kind;
+    if (seg.isWordLike && seg.kind === 'text') label = 'word';
+    if (seg.isCJKSplit) label = 'cjk';
+    if (seg.width !== undefined) label += ' ' + seg.width.toFixed(1);
+    meta.textContent = label;
+
+    chip.appendChild(textEl);
+    chip.appendChild(meta);
+    container.appendChild(chip);
+  }
+}
+
+// ---- Render width bars ----
+function renderWidthBars(measured) {
+  widthBarsEl.innerHTML = '';
+  if (measured.length === 0) return;
+  const maxW = Math.max(...measured.map(s => s.width), 1);
+  for (const seg of measured) {
+    if (seg.kind === 'space' || seg.kind === 'zero-width-break') continue;
+    const row = document.createElement('div');
+    row.className = 'width-bar-row';
+    const label = document.createElement('div');
+    label.className = 'width-bar-label';
+    label.textContent = seg.text.length > 20 ? seg.text.slice(0, 18) + '…' : seg.text;
+    const track = document.createElement('div');
+    track.className = 'width-bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'width-bar-fill';
+    fill.style.width = ((seg.width / maxW) * 100) + '%';
+    if (isCJK(seg.text)) fill.style.background = 'var(--pink)';
+    track.appendChild(fill);
+    const val = document.createElement('div');
+    val.className = 'width-bar-value';
+    val.textContent = seg.width.toFixed(1) + 'px';
+    row.appendChild(label);
+    row.appendChild(track);
+    row.appendChild(val);
+    widthBarsEl.appendChild(row);
+  }
+}
+
+// ---- Render line break visualization ----
+function renderLineViz(lines, maxWidth, measured) {
+  lineVizEl.innerHTML = '';
+  const totalMaxW = Math.max(maxWidth, 200);
+  const scale = Math.min(1, (lineVizEl.clientWidth - 60) / totalMaxW);
+
+  // Max-width marker
+  const marker = document.createElement('div');
+  marker.className = 'max-width-marker';
+  marker.style.left = (32 + maxWidth * scale) + 'px';
+  const markerLabel = document.createElement('div');
+  markerLabel.className = 'max-width-label';
+  markerLabel.textContent = maxWidth + 'px';
+  marker.appendChild(markerLabel);
+  lineVizEl.appendChild(marker);
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const row = document.createElement('div');
+    row.className = 'laid-out-line';
+
+    const num = document.createElement('div');
+    num.className = 'line-num';
+    num.textContent = li + 1;
+    row.appendChild(num);
+
+    const segsDiv = document.createElement('div');
+    segsDiv.className = 'line-segments';
+
+    for (const seg of line.segments) {
+      const el = document.createElement('div');
+      el.className = 'line-seg';
+      el.dataset.kind = seg.kind;
+      el.style.width = Math.max(1, seg.width * scale) + 'px';
+      if (seg.text && seg.text.length <= 12 && scale > 0.5) el.textContent = seg.text;
+      el.title = `"${seg.text}" — ${seg.width.toFixed(1)}px`;
+      segsDiv.appendChild(el);
+    }
+    row.appendChild(segsDiv);
+
+    const tag = document.createElement('div');
+    tag.className = 'line-width-tag';
+    tag.textContent = line.width.toFixed(1) + 'px';
+    row.appendChild(tag);
+
+    lineVizEl.appendChild(row);
+  }
+}
+
+// ---- Render stats cards ----
+function renderStats(container, stats) {
+  container.innerHTML = '';
+  for (const s of stats) {
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    card.innerHTML = `<div class="stat-value">${s.value}</div><div class="stat-label">${s.label}</div>`;
+    container.appendChild(card);
+  }
+}
+
+// ---- Run the full pipeline ----
+function runPipeline() {
+  const raw = inputEl.value;
+  const maxWidth = parseInt(widthSlider.value);
+  const fontSize = parseFontSize(currentFont);
+  currentLineHeight = Math.round(fontSize * 1.25);
+
+  // Stage 1: Normalize
+  const normalized = normalizeWhitespace(raw);
+  renderNormDiff(raw, normalized);
+
+  // Stage 2: Segment
+  const rawSegs = segmentText(normalized);
+  renderSegChips(rawSegEl, rawSegs);
+
+  const wordCount = rawSegs.filter(s => s.isWordLike).length;
+  const nonWordCount = rawSegs.filter(s => !s.isWordLike && s.kind === 'text').length;
+  renderStats(segStats, [
+    { value: rawSegs.length, label: 'Total segments' },
+    { value: wordCount, label: 'Word-like' },
+    { value: nonWordCount, label: 'Punctuation' },
+    { value: rawSegs.filter(s => s.kind === 'space').length, label: 'Spaces' },
+  ]);
+
+  // Stage 3: Merge
+  const merged = mergeSegments(rawSegs);
+  renderSegChips(mergedSegEl, merged);
+
+  // Stage 4: Measure
+  const t0 = performance.now();
+  const measured = measureSegments(merged, currentFont);
+  const tMeasure = performance.now() - t0;
+  renderWidthBars(measured);
+
+  const totalWidth = measured.reduce((sum, s) => sum + s.width, 0);
+  renderStats(measureStats, [
+    { value: measured.length, label: 'Measured segments' },
+    { value: totalWidth.toFixed(1) + 'px', label: 'Total width' },
+    { value: tMeasure.toFixed(2) + 'ms', label: 'Measure time' },
+    { value: measureCache.size, label: 'Cache entries' },
+  ]);
+
+  // Stage 5: Line break
+  const t1 = performance.now();
+  const lines = breakLines(measured, maxWidth, currentFont);
+  const tLayout = performance.now() - t1;
+  renderLineViz(lines, maxWidth, measured);
+
+  const pretextHeight = lines.length * currentLineHeight;
+  renderStats(layoutStats, [
+    { value: lines.length, label: 'Lines' },
+    { value: pretextHeight + 'px', label: 'Height' },
+    { value: tLayout.toFixed(3) + 'ms', label: 'Layout time' },
+    { value: currentLineHeight + 'px', label: 'Line height' },
+  ]);
+
+  // Stage 6: Verify
+  pretextRender.style.font = currentFont;
+  pretextRender.style.lineHeight = currentLineHeight + 'px';
+  pretextRender.style.width = maxWidth + 'px';
+  pretextRender.textContent = raw;
+  pretextRender.style.overflowWrap = 'break-word';
+
+  domRender.style.font = currentFont;
+  domRender.style.lineHeight = currentLineHeight + 'px';
+  domRender.style.width = maxWidth + 'px';
+  domRender.textContent = raw;
+  domRender.style.overflowWrap = 'break-word';
+
+  const domHeight = measureDOM(raw, currentFont, maxWidth, currentLineHeight);
+  const diff = Math.abs(pretextHeight - domHeight);
+  const isMatch = diff < 1;
+  compareResult.className = 'compare-result ' + (isMatch ? 'match' : 'mismatch');
+  compareResult.innerHTML = isMatch
+    ? `<span>✓</span> Match — Pretext: ${pretextHeight}px, DOM: ${domHeight}px`
+    : `<span>✗</span> Off by ${diff.toFixed(1)}px — Pretext: ${pretextHeight}px, DOM: ${domHeight}px (${lines.length} vs ${Math.round(domHeight / currentLineHeight)} lines)`;
+}
+
+// ---- Event listeners ----
+inputEl.addEventListener('input', runPipeline);
+widthSlider.addEventListener('input', () => {
+  widthReadout.textContent = widthSlider.value + 'px';
+  runPipeline();
+});
+
+document.querySelectorAll('.presets button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    inputEl.value = btn.dataset.text;
+    runPipeline();
+  });
+});
+
+document.querySelectorAll('.font-select button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.font-select button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFont = btn.dataset.font;
+    measureCache.clear();
+    runPipeline();
+  });
+});
+
+// ---- Initial run ----
+runPipeline();
+</script>
+</body>
+</html>
