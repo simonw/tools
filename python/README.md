@@ -4,6 +4,20 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## asus_status.py
+
+Fetch network status from an ASUS ZenWiFi XT8 router via its HTTP API. Uses the same `appGet.cgi` API that the ASUS Router mobile app uses, with a specific User-Agent header to bypass the single-session lock that affects the web UI.
+
+No dependencies — uses only the Python standard library.
+
+```bash
+uv run https://tools.simonwillison.net/python/asus_status.py \
+  --username admin
+```
+You will be prompted for the password. Use `--password` to pass it directly instead. Add `--host` to specify a different router IP (default: `192.168.50.1`). Add `--json` for raw JSON output.
+
+The report includes: device/firmware info, wireless band configuration, AiMesh node status with backhaul RSSI, connected clients with signal strength, live per-band station RSSI, and port status.
+
 ## livestream-gif.py
 
 Convert a YouTube livestream to an animated GIF or MP4.
