@@ -219,6 +219,29 @@
             color: #2ecc71;
         }
 
+        .split-output {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 6px;
+        }
+
+        .split-output .output-box {
+            min-height: 100px;
+        }
+
+        .split-output h3 {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 6px;
+        }
+
+        @media (max-width: 800px) {
+            .split-output {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .schema-area {
             margin-top: 12px;
         }
@@ -260,6 +283,106 @@
         }
 
         .info a { color: #00d9ff; }
+
+        /* Token table */
+        .token-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 13px;
+        }
+
+        .token-table th {
+            text-align: left;
+            padding: 6px 10px;
+            border-bottom: 2px solid #333;
+            color: #aaa;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .token-table td {
+            padding: 4px 10px;
+            border-bottom: 1px solid #1a1a2e;
+        }
+
+        .token-table tr:hover td {
+            background: rgba(0, 217, 255, 0.05);
+        }
+
+        .token-text {
+            color: #eee;
+        }
+
+        .token-text.ws {
+            color: #555;
+        }
+
+        .token-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .token-badge.keyword { background: #1a3a5c; color: #5bb8f7; }
+        .token-badge.identifier { background: #2a3a2a; color: #7dca7d; }
+        .token-badge.literal { background: #3a3520; color: #d4b85c; }
+        .token-badge.operator { background: #3a2a3a; color: #c77dca; }
+        .token-badge.punctuation { background: #333; color: #aaa; }
+        .token-badge.whitespace { background: #222; color: #666; }
+        .token-badge.comment { background: #2a2a20; color: #8a8a5a; }
+        .token-badge.string { background: #3a2a20; color: #d4885c; }
+
+        .token-offset {
+            color: #666;
+            font-size: 12px;
+        }
+
+        /* Parse AST styling */
+        .ast-block {
+            margin-bottom: 12px;
+        }
+
+        .ast-block:last-child {
+            margin-bottom: 0;
+        }
+
+        .ast-header {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .ast-header.ok { color: #2ecc71; }
+        .ast-header.err { color: #e74c3c; }
+
+        .ast-tree {
+            color: #ccc;
+            padding-left: 8px;
+            border-left: 2px solid #333;
+        }
+
+        .ast-error-detail {
+            color: #e74c3c;
+            padding: 4px 0;
+        }
+
+        /* Validate rendered output */
+        .validate-rendered {
+            color: #eee;
+        }
+
+        .validate-rendered .error-line {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+
+        .validate-ok {
+            color: #2ecc71;
+        }
 
         @media (max-width: 600px) {
             body { padding: 12px; }
@@ -346,8 +469,16 @@
             <button class="run" id="parse-run" disabled>Parse SQL</button>
 
             <div class="output-section">
-                <h3>AST output</h3>
-                <div id="parse-output" class="output-box">Results will appear here</div>
+                <div class="split-output">
+                    <div>
+                        <h3>AST</h3>
+                        <div id="parse-display" class="output-box">Results will appear here</div>
+                    </div>
+                    <div>
+                        <h3>JSON</h3>
+                        <div id="parse-json" class="output-box">Results will appear here</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -362,15 +493,6 @@
                 <div class="schema-hint">Each table: {"name": "table_name", "columns": ["col1", "col2", ...]}</div>
             </div>
 
-            <div class="options-row">
-                <div class="option-group">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="validate-render" checked>
-                        <label for="validate-render">Render diagnostics</label>
-                    </div>
-                </div>
-            </div>
-
             <div class="examples-bar">
                 <span style="color:#666;font-size:12px;padding:6px 0;">Examples:</span>
                 <button class="example-btn" data-example="validate-typo">Table typo</button>
@@ -381,8 +503,16 @@
             <button class="run" id="validate-run" disabled>Validate SQL</button>
 
             <div class="output-section">
-                <h3>Validation result</h3>
-                <div id="validate-output" class="output-box">Results will appear here</div>
+                <div class="split-output">
+                    <div>
+                        <h3>Diagnostics</h3>
+                        <div id="validate-display" class="output-box">Results will appear here</div>
+                    </div>
+                    <div>
+                        <h3>JSON</h3>
+                        <div id="validate-json" class="output-box">Results will appear here</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -400,8 +530,16 @@
             <button class="run" id="tokenize-run" disabled>Tokenize SQL</button>
 
             <div class="output-section">
-                <h3>Tokens</h3>
-                <div id="tokenize-output" class="output-box">Results will appear here</div>
+                <div class="split-output">
+                    <div>
+                        <h3>Tokens</h3>
+                        <div id="tokenize-display" class="output-box" style="padding:0;overflow:auto;">Results will appear here</div>
+                    </div>
+                    <div>
+                        <h3>JSON</h3>
+                        <div id="tokenize-json" class="output-box">Results will appear here</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -420,6 +558,57 @@
 
     const statusEl = document.getElementById('status');
     let pyodide = null;
+    let tokenTypeMap = {};
+
+    // SQL keywords for classifying tokens
+    const SQL_KEYWORDS = new Set([
+        'ABORT','ACTION','ADD','AFTER','ALL','ALTER','ALWAYS','ANALYZE','AND','AS','ASC',
+        'ATTACH','AUTOINCREMENT','BEFORE','BEGIN','BETWEEN','BY','CASCADE','CASE','CAST',
+        'CHECK','COLLATE','COLUMN','COMMIT','CONFLICT','CONSTRAINT','CREATE','CROSS',
+        'CURRENT','CURRENT_DATE','CURRENT_TIME','CURRENT_TIMESTAMP','DATABASE','DEFAULT',
+        'DEFERRABLE','DEFERRED','DELETE','DESC','DETACH','DISTINCT','DO','DROP','EACH',
+        'ELSE','END','ESCAPE','EXCEPT','EXCLUDE','EXCLUSIVE','EXISTS','EXPLAIN','FAIL',
+        'FILTER','FIRST','FOLLOWING','FOR','FOREIGN','FROM','FULL','GENERATED','GLOB',
+        'GROUP','GROUPS','HAVING','IF','IGNORE','IMMEDIATE','IN','INDEX','INDEXED',
+        'INITIALLY','INNER','INSERT','INSTEAD','INTERSECT','INTO','IS','ISNULL','JOIN',
+        'KEY','LAST','LEFT','LIKE','LIMIT','MATCH','MATERIALIZED','NATURAL','NO','NOT',
+        'NOTHING','NOTNULL','NULL','NULLS','OF','OFFSET','ON','OR','ORDER','OTHERS','OUTER',
+        'OVER','PARTITION','PLAN','PRAGMA','PRECEDING','PRIMARY','QUERY','RAISE','RANGE',
+        'RECURSIVE','REFERENCES','REGEXP','REINDEX','RELEASE','RENAME','REPLACE','RESTRICT',
+        'RETURNING','RIGHT','ROLLBACK','ROW','ROWS','SAVEPOINT','SELECT','SET','TABLE',
+        'TEMP','TEMPORARY','THEN','TIES','TO','TRANSACTION','TRIGGER','UNBOUNDED','UNION',
+        'UNIQUE','UPDATE','USING','VACUUM','VALUES','VIEW','VIRTUAL','WHEN','WHERE',
+        'WINDOW','WITH','WITHOUT'
+    ]);
+
+    function classifyToken(token) {
+        const text = token.text;
+        // Whitespace
+        if (/^\s+$/.test(text)) return { category: 'whitespace', label: 'whitespace' };
+        // Line comment
+        if (text.startsWith('--')) return { category: 'comment', label: 'line comment' };
+        // Block comment
+        if (text.startsWith('/*')) return { category: 'comment', label: 'block comment' };
+        // String literal
+        if (text.startsWith("'")) return { category: 'string', label: 'string' };
+        // Blob literal
+        if (/^[xX]'/.test(text)) return { category: 'string', label: 'blob' };
+        // Numeric
+        if (/^[0-9]/.test(text) || /^\.[0-9]/.test(text)) return { category: 'literal', label: 'number' };
+        // Keyword
+        if (SQL_KEYWORDS.has(text.toUpperCase())) return { category: 'keyword', label: 'keyword' };
+        // Quoted identifier
+        if (text.startsWith('"') || text.startsWith('[') || text.startsWith('`'))
+            return { category: 'identifier', label: 'quoted id' };
+        // Operators
+        if (/^[=<>!|+\-*/%&~]+$/.test(text)) return { category: 'operator', label: 'operator' };
+        // Punctuation
+        if (/^[(),;.]$/.test(text)) return { category: 'punctuation', label: 'punctuation' };
+        // Identifier (bare word)
+        if (/^[a-zA-Z_]/.test(text)) return { category: 'identifier', label: 'identifier' };
+        // Fallback
+        return { category: 'punctuation', label: 'symbol' };
+    }
 
     // Tab switching
     document.querySelectorAll('.tab').forEach(tab => {
@@ -431,26 +620,28 @@
         });
     });
 
-    // Examples
+    // Examples - now include a run function reference
     const examples = {
-        'format-simple': { target: 'format-input', sql: "select a, b, c from users where id = 1 and status = 'active' order by created_at desc limit 10" },
-        'format-join': { target: 'format-input', sql: "select u.id, u.name, p.title from users u inner join posts p on u.id = p.user_id where u.active = 1 order by p.created_at desc" },
-        'format-subquery': { target: 'format-input', sql: "select * from users where id in (select user_id from posts where created_at > '2024-01-01' group by user_id having count(*) > 5)" },
-        'format-create': { target: 'format-input', sql: "create table if not exists users (id integer primary key autoincrement, name text not null, email text unique, created_at datetime default current_timestamp)" },
-        'parse-multi': { target: 'parse-input', sql: "SELECT 1; SELECT name FROM users; INSERT INTO logs(msg) VALUES('hello')" },
-        'parse-error': { target: 'parse-input', sql: "SELECT FROM WHERE" },
-        'parse-complex': { target: 'parse-input', sql: "WITH active_users AS (SELECT id, name FROM users WHERE active = 1) SELECT au.name, count(p.id) as post_count FROM active_users au LEFT JOIN posts p ON au.id = p.user_id GROUP BY au.name HAVING count(p.id) > 0 ORDER BY post_count DESC" },
-        'validate-typo': { target: 'validate-input', sql: "SELECT id, name FROM usr WHERE active = 1" },
-        'validate-col': { target: 'validate-input', sql: "SELECT id, nme FROM users WHERE active = 1" },
-        'validate-ok': { target: 'validate-input', sql: "SELECT id, name FROM users WHERE active = 1" },
-        'tokenize-comment': { target: 'tokenize-input', sql: "SELECT id /* primary key */, name FROM users -- get all users" },
-        'tokenize-strings': { target: 'tokenize-input', sql: "SELECT * FROM users WHERE name = 'O''Brien' AND status = 'active'" },
+        'format-simple': { target: 'format-input', sql: "select a, b, c from users where id = 1 and status = 'active' order by created_at desc limit 10", run: () => runFormat() },
+        'format-join': { target: 'format-input', sql: "select u.id, u.name, p.title from users u inner join posts p on u.id = p.user_id where u.active = 1 order by p.created_at desc", run: () => runFormat() },
+        'format-subquery': { target: 'format-input', sql: "select * from users where id in (select user_id from posts where created_at > '2024-01-01' group by user_id having count(*) > 5)", run: () => runFormat() },
+        'format-create': { target: 'format-input', sql: "create table if not exists users (id integer primary key autoincrement, name text not null, email text unique, created_at datetime default current_timestamp)", run: () => runFormat() },
+        'parse-multi': { target: 'parse-input', sql: "SELECT 1; SELECT name FROM users; INSERT INTO logs(msg) VALUES('hello')", run: () => runParse() },
+        'parse-error': { target: 'parse-input', sql: "SELECT FROM WHERE", run: () => runParse() },
+        'parse-complex': { target: 'parse-input', sql: "WITH active_users AS (SELECT id, name FROM users WHERE active = 1) SELECT au.name, count(p.id) as post_count FROM active_users au LEFT JOIN posts p ON au.id = p.user_id GROUP BY au.name HAVING count(p.id) > 0 ORDER BY post_count DESC", run: () => runParse() },
+        'validate-typo': { target: 'validate-input', sql: "SELECT id, name FROM usr WHERE active = 1", run: () => runValidate() },
+        'validate-col': { target: 'validate-input', sql: "SELECT id, nme FROM users WHERE active = 1", run: () => runValidate() },
+        'validate-ok': { target: 'validate-input', sql: "SELECT id, name FROM users WHERE active = 1", run: () => runValidate() },
+        'tokenize-comment': { target: 'tokenize-input', sql: "SELECT id /* primary key */, name FROM users -- get all users", run: () => runTokenize() },
+        'tokenize-strings': { target: 'tokenize-input', sql: "SELECT * FROM users WHERE name = 'O''Brien' AND status = 'active'", run: () => runTokenize() },
     };
 
     document.querySelectorAll('.example-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const ex = examples[btn.dataset.example];
-            if (ex) document.getElementById(ex.target).value = ex.sql;
+            if (!ex || !pyodide) return;
+            document.getElementById(ex.target).value = ex.sql;
+            ex.run();
         });
     });
 
@@ -466,7 +657,7 @@
         el.textContent = text;
     }
 
-    // API wrappers
+    // --- Format ---
     async function runFormat() {
         const sql = document.getElementById('format-input').value;
         const keywordCase = document.getElementById('format-keyword-case').value;
@@ -491,58 +682,184 @@ syntaqlite.format_sql(
         }
     }
 
+    // --- Parse ---
     async function runParse() {
         const sql = document.getElementById('parse-input').value;
         try {
-            const result = pyodide.runPython(`
+            const resultJson = pyodide.runPython(`
 import syntaqlite, json
-json.dumps(syntaqlite.parse(json.loads(${JSON.stringify(JSON.stringify(sql))})), indent=2)
+json.dumps(syntaqlite.parse(json.loads(${JSON.stringify(JSON.stringify(sql))})))
 `);
-            showOutput('parse-output', result, false);
+            const data = JSON.parse(resultJson);
+            // Pretty display
+            const displayEl = document.getElementById('parse-display');
+            displayEl.className = 'output-box success-output';
+            displayEl.innerHTML = '';
+            data.forEach((stmt, i) => {
+                const block = document.createElement('div');
+                block.className = 'ast-block';
+                const header = document.createElement('div');
+                header.className = 'ast-header ' + (stmt.ok ? 'ok' : 'err');
+                header.textContent = data.length > 1
+                    ? `Statement ${i + 1}: ${stmt.ok ? 'OK' : 'Error'}`
+                    : (stmt.ok ? 'Parsed successfully' : 'Parse error');
+                block.appendChild(header);
+
+                if (stmt.ast) {
+                    const tree = document.createElement('div');
+                    tree.className = 'ast-tree';
+                    tree.textContent = stmt.ast;
+                    block.appendChild(tree);
+                }
+                if (stmt.error) {
+                    const err = document.createElement('div');
+                    err.className = 'ast-error-detail';
+                    let msg = stmt.error;
+                    if (stmt.error_offset !== undefined) {
+                        msg += ` (offset ${stmt.error_offset}, length ${stmt.error_length})`;
+                    }
+                    err.textContent = msg;
+                    block.appendChild(err);
+                }
+                displayEl.appendChild(block);
+            });
+
+            // JSON column
+            showOutput('parse-json', JSON.stringify(data, null, 2), false);
         } catch (e) {
-            showOutput('parse-output', extractPythonError(e), true);
+            document.getElementById('parse-display').className = 'output-box error-output';
+            document.getElementById('parse-display').textContent = extractPythonError(e);
+            document.getElementById('parse-json').className = 'output-box';
+            document.getElementById('parse-json').textContent = '';
         }
     }
 
+    // --- Validate ---
     async function runValidate() {
         const sql = document.getElementById('validate-input').value;
         const schemaText = document.getElementById('validate-schema').value.trim();
-        const render = document.getElementById('validate-render').checked;
 
         try {
-            const result = pyodide.runPython(`
+            // Get rendered diagnostics
+            const rendered = pyodide.runPython(`
 import syntaqlite, json
 _sql = json.loads(${JSON.stringify(JSON.stringify(sql))})
 _schema_text = json.loads(${JSON.stringify(JSON.stringify(schemaText))})
 _tables = json.loads(_schema_text) if _schema_text else None
-_render = ${render ? 'True' : 'False'}
-_result = syntaqlite.validate(_sql, tables=_tables, render=_render)
-_result if isinstance(_result, str) else json.dumps(_result, indent=2)
+_result = syntaqlite.validate(_sql, tables=_tables, render=True)
+_result if isinstance(_result, str) else ''
 `);
-            const resultStr = result || '';
-            const hasErrors = render ? resultStr.includes('error:') : (resultStr !== '[]');
-            showOutput('validate-output', resultStr || 'No issues found.', hasErrors);
+            // Get JSON diagnostics
+            const jsonResult = pyodide.runPython(`
+import syntaqlite, json
+_sql = json.loads(${JSON.stringify(JSON.stringify(sql))})
+_schema_text = json.loads(${JSON.stringify(JSON.stringify(schemaText))})
+_tables = json.loads(_schema_text) if _schema_text else None
+_result = syntaqlite.validate(_sql, tables=_tables, render=False)
+json.dumps(_result, indent=2)
+`);
+
+            const displayEl = document.getElementById('validate-display');
+            const jsonEl = document.getElementById('validate-json');
+
+            const hasErrors = rendered && rendered.trim().length > 0;
+
+            if (hasErrors) {
+                displayEl.className = 'output-box error-output';
+                displayEl.textContent = rendered;
+            } else {
+                displayEl.className = 'output-box success-output';
+                displayEl.textContent = 'No issues found.';
+            }
+
+            jsonEl.className = 'output-box' + (hasErrors ? '' : ' success-output');
+            jsonEl.textContent = jsonResult;
         } catch (e) {
-            showOutput('validate-output', extractPythonError(e), true);
+            document.getElementById('validate-display').className = 'output-box error-output';
+            document.getElementById('validate-display').textContent = extractPythonError(e);
+            document.getElementById('validate-json').className = 'output-box';
+            document.getElementById('validate-json').textContent = '';
         }
     }
 
+    // --- Tokenize ---
     async function runTokenize() {
         const sql = document.getElementById('tokenize-input').value;
         try {
-            const result = pyodide.runPython(`
+            const resultJson = pyodide.runPython(`
 import syntaqlite, json
-json.dumps(syntaqlite.tokenize(json.loads(${JSON.stringify(JSON.stringify(sql))})), indent=2)
+json.dumps(syntaqlite.tokenize(json.loads(${JSON.stringify(JSON.stringify(sql))})))
 `);
-            showOutput('tokenize-output', result, false);
+            const tokens = JSON.parse(resultJson);
+
+            // Build token table
+            const displayEl = document.getElementById('tokenize-display');
+            displayEl.className = 'output-box';
+            displayEl.style.padding = '0';
+
+            const table = document.createElement('table');
+            table.className = 'token-table';
+
+            const thead = document.createElement('thead');
+            thead.innerHTML = '<tr><th>Text</th><th>Type</th><th>Offset</th><th>Length</th></tr>';
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            tokens.forEach(tok => {
+                const cls = classifyToken(tok);
+                const tr = document.createElement('tr');
+
+                // Text cell
+                const tdText = document.createElement('td');
+                const span = document.createElement('span');
+                span.className = 'token-text' + (cls.category === 'whitespace' ? ' ws' : '');
+                if (cls.category === 'whitespace') {
+                    span.textContent = tok.text.replace(/ /g, '\u00b7').replace(/\n/g, '\u21b5').replace(/\t/g, '\u2192');
+                } else {
+                    span.textContent = tok.text;
+                }
+                tdText.appendChild(span);
+                tr.appendChild(tdText);
+
+                // Type badge
+                const tdType = document.createElement('td');
+                const badge = document.createElement('span');
+                badge.className = 'token-badge ' + cls.category;
+                badge.textContent = cls.label;
+                tdType.appendChild(badge);
+                tr.appendChild(tdType);
+
+                // Offset
+                const tdOff = document.createElement('td');
+                tdOff.className = 'token-offset';
+                tdOff.textContent = tok.offset;
+                tr.appendChild(tdOff);
+
+                // Length
+                const tdLen = document.createElement('td');
+                tdLen.className = 'token-offset';
+                tdLen.textContent = tok.length;
+                tr.appendChild(tdLen);
+
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+
+            displayEl.innerHTML = '';
+            displayEl.appendChild(table);
+
+            // JSON column
+            showOutput('tokenize-json', JSON.stringify(tokens, null, 2), false);
         } catch (e) {
-            showOutput('tokenize-output', extractPythonError(e), true);
+            document.getElementById('tokenize-display').className = 'output-box error-output';
+            document.getElementById('tokenize-display').textContent = extractPythonError(e);
+            document.getElementById('tokenize-json').className = 'output-box';
+            document.getElementById('tokenize-json').textContent = '';
         }
     }
 
     function extractPythonError(e) {
         let msg = e.message || String(e);
-        // Try to get just the final error line from Python tracebacks
         const lines = msg.split('\n');
         for (let i = lines.length - 1; i >= 0; i--) {
             const line = lines[i].trim();
