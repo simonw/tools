@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syntaqlite Playground</title>
+    <link
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>"
+      rel="icon"
+    />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #00d9ff;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .subtitle a {
+            color: #00d9ff;
+        }
+
+        .status-bar {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .status {
+            display: inline-block;
+            font-size: 13px;
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: #333;
+        }
+
+        .status.loading { background: #f39c12; color: #000; }
+        .status.ready { background: #27ae60; color: #fff; }
+        .status.error { background: #e74c3c; color: #fff; }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 0;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: #0f3460;
+            color: #aaa;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .tab:hover { background: #1a4a7a; color: #eee; }
+        .tab.active { background: #16213e; color: #00d9ff; }
+
+        .panel {
+            background: #16213e;
+            border-radius: 0 8px 8px 8px;
+            padding: 20px;
+            display: none;
+        }
+
+        .panel.active { display: block; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 4px;
+            margin-top: 12px;
+        }
+
+        label:first-child { margin-top: 0; }
+
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            background: #1a1a2e;
+            color: #eee;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: #00d9ff;
+            box-shadow: 0 0 0 2px rgba(0, 217, 255, 0.15);
+        }
+
+        .options-row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: end;
+            margin-top: 12px;
+        }
+
+        .option-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .option-group label { margin: 0; }
+
+        select, input[type="number"] {
+            background: #1a1a2e;
+            color: #eee;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        select:focus, input[type="number"]:focus {
+            border-color: #00d9ff;
+        }
+
+        input[type="number"] { width: 80px; }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding-bottom: 2px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            accent-color: #00d9ff;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+        }
+
+        button.run {
+            background: #00d9ff;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: background 0.2s;
+        }
+
+        button.run:hover { background: #33e3ff; }
+        button.run:disabled { background: #555; cursor: not-allowed; color: #999; }
+
+        .output-section {
+            margin-top: 16px;
+        }
+
+        .output-section h3 {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 6px;
+        }
+
+        .output-box {
+            background: #0d0d1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 500px;
+            overflow: auto;
+            min-height: 60px;
+        }
+
+        .output-box.error-output {
+            color: #e74c3c;
+            border-color: #e74c3c;
+            background: rgba(231, 76, 60, 0.05);
+        }
+
+        .output-box.success-output {
+            color: #2ecc71;
+        }
+
+        .schema-area {
+            margin-top: 12px;
+        }
+
+        .schema-hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .examples-bar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        button.example-btn {
+            background: #0f3460;
+            color: #ccc;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button.example-btn:hover { background: #1a4a7a; color: #fff; }
+
+        .info {
+            margin-top: 24px;
+            padding: 14px;
+            background: rgba(0, 217, 255, 0.08);
+            border-left: 3px solid #00d9ff;
+            border-radius: 0 8px 8px 0;
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .info a { color: #00d9ff; }
+
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .tab { padding: 8px 12px; font-size: 13px; }
+            .options-row { gap: 10px; }
+            textarea { font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Syntaqlite Playground</h1>
+        <p class="subtitle">Parse, format, validate, and tokenize SQLite SQL in the browser via <a href="https://github.com/LalitMaganti/syntaqlite" target="_blank">syntaqlite</a> + Pyodide</p>
+
+        <div class="status-bar">
+            <span id="status" class="status loading">Loading Pyodide &amp; syntaqlite...</span>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="format">Format</button>
+            <button class="tab" data-tab="parse">Parse</button>
+            <button class="tab" data-tab="validate">Validate</button>
+            <button class="tab" data-tab="tokenize">Tokenize</button>
+        </div>
+
+        <!-- Format Tab -->
+        <div id="tab-format" class="panel active">
+            <label for="format-input">SQL to format</label>
+            <textarea id="format-input" placeholder="Enter SQL to format...">select a, b, c from users where id = 1 and status = 'active' order by created_at desc limit 10</textarea>
+
+            <div class="options-row">
+                <div class="option-group">
+                    <label for="format-keyword-case">Keyword case</label>
+                    <select id="format-keyword-case">
+                        <option value="upper" selected>UPPER</option>
+                        <option value="lower">lower</option>
+                        <option value="initial_cap">Initial_cap</option>
+                    </select>
+                </div>
+                <div class="option-group">
+                    <label for="format-line-width">Line width</label>
+                    <input type="number" id="format-line-width" value="80" min="20" max="200">
+                </div>
+                <div class="option-group">
+                    <label for="format-indent-width">Indent</label>
+                    <input type="number" id="format-indent-width" value="2" min="1" max="8">
+                </div>
+                <div class="option-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="format-semicolons" checked>
+                        <label for="format-semicolons">Semicolons</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="examples-bar">
+                <span style="color:#666;font-size:12px;padding:6px 0;">Examples:</span>
+                <button class="example-btn" data-example="format-simple">Simple SELECT</button>
+                <button class="example-btn" data-example="format-join">JOIN query</button>
+                <button class="example-btn" data-example="format-subquery">Subquery</button>
+                <button class="example-btn" data-example="format-create">CREATE TABLE</button>
+            </div>
+
+            <button class="run" id="format-run" disabled>Format SQL</button>
+
+            <div class="output-section">
+                <h3>Formatted output</h3>
+                <div id="format-output" class="output-box">Results will appear here</div>
+            </div>
+        </div>
+
+        <!-- Parse Tab -->
+        <div id="tab-parse" class="panel">
+            <label for="parse-input">SQL to parse</label>
+            <textarea id="parse-input" placeholder="Enter SQL to parse into AST...">SELECT id, name FROM users WHERE active = 1</textarea>
+
+            <div class="examples-bar">
+                <span style="color:#666;font-size:12px;padding:6px 0;">Examples:</span>
+                <button class="example-btn" data-example="parse-multi">Multiple statements</button>
+                <button class="example-btn" data-example="parse-error">Syntax error</button>
+                <button class="example-btn" data-example="parse-complex">Complex query</button>
+            </div>
+
+            <button class="run" id="parse-run" disabled>Parse SQL</button>
+
+            <div class="output-section">
+                <h3>AST output</h3>
+                <div id="parse-output" class="output-box">Results will appear here</div>
+            </div>
+        </div>
+
+        <!-- Validate Tab -->
+        <div id="tab-validate" class="panel">
+            <label for="validate-input">SQL to validate</label>
+            <textarea id="validate-input" placeholder="Enter SQL to validate...">SELECT id, name FROM usr WHERE active = 1</textarea>
+
+            <div class="schema-area">
+                <label for="validate-schema">Schema (JSON array of tables)</label>
+                <textarea id="validate-schema" style="min-height:80px;" placeholder='[{"name": "users", "columns": ["id", "name", "active"]}]'>[{"name": "users", "columns": ["id", "name", "active"]}, {"name": "posts", "columns": ["id", "user_id", "title", "body"]}]</textarea>
+                <div class="schema-hint">Each table: {"name": "table_name", "columns": ["col1", "col2", ...]}</div>
+            </div>
+
+            <div class="options-row">
+                <div class="option-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="validate-render" checked>
+                        <label for="validate-render">Render diagnostics</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="examples-bar">
+                <span style="color:#666;font-size:12px;padding:6px 0;">Examples:</span>
+                <button class="example-btn" data-example="validate-typo">Table typo</button>
+                <button class="example-btn" data-example="validate-col">Column typo</button>
+                <button class="example-btn" data-example="validate-ok">Valid query</button>
+            </div>
+
+            <button class="run" id="validate-run" disabled>Validate SQL</button>
+
+            <div class="output-section">
+                <h3>Validation result</h3>
+                <div id="validate-output" class="output-box">Results will appear here</div>
+            </div>
+        </div>
+
+        <!-- Tokenize Tab -->
+        <div id="tab-tokenize" class="panel">
+            <label for="tokenize-input">SQL to tokenize</label>
+            <textarea id="tokenize-input" placeholder="Enter SQL to tokenize...">SELECT id, name FROM users WHERE id = 1 -- get user</textarea>
+
+            <div class="examples-bar">
+                <span style="color:#666;font-size:12px;padding:6px 0;">Examples:</span>
+                <button class="example-btn" data-example="tokenize-comment">With comments</button>
+                <button class="example-btn" data-example="tokenize-strings">String literals</button>
+            </div>
+
+            <button class="run" id="tokenize-run" disabled>Tokenize SQL</button>
+
+            <div class="output-section">
+                <h3>Tokens</h3>
+                <div id="tokenize-output" class="output-box">Results will appear here</div>
+            </div>
+        </div>
+
+        <div class="info">
+            <strong>About:</strong> This playground runs
+            <a href="https://github.com/LalitMaganti/syntaqlite" target="_blank">syntaqlite</a>
+            entirely in your browser using <a href="https://pyodide.org/" target="_blank">Pyodide</a>.
+            Syntaqlite is a parser, formatter, validator, and language server for SQLite SQL,
+            built on SQLite's own grammar and tokenizer.
+        </div>
+    </div>
+
+    <script>
+    const WHEEL_URL = 'https://raw.githubusercontent.com/simonw/research/refs/heads/main/syntaqlite-python-extension/dist/syntaqlite-0.1.0-cp311-cp311-emscripten_3_1_46_wasm32.whl';
+    const PYODIDE_VERSION = '0.25.1';
+
+    const statusEl = document.getElementById('status');
+    let pyodide = null;
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+    });
+
+    // Examples
+    const examples = {
+        'format-simple': { target: 'format-input', sql: "select a, b, c from users where id = 1 and status = 'active' order by created_at desc limit 10" },
+        'format-join': { target: 'format-input', sql: "select u.id, u.name, p.title from users u inner join posts p on u.id = p.user_id where u.active = 1 order by p.created_at desc" },
+        'format-subquery': { target: 'format-input', sql: "select * from users where id in (select user_id from posts where created_at > '2024-01-01' group by user_id having count(*) > 5)" },
+        'format-create': { target: 'format-input', sql: "create table if not exists users (id integer primary key autoincrement, name text not null, email text unique, created_at datetime default current_timestamp)" },
+        'parse-multi': { target: 'parse-input', sql: "SELECT 1; SELECT name FROM users; INSERT INTO logs(msg) VALUES('hello')" },
+        'parse-error': { target: 'parse-input', sql: "SELECT FROM WHERE" },
+        'parse-complex': { target: 'parse-input', sql: "WITH active_users AS (SELECT id, name FROM users WHERE active = 1) SELECT au.name, count(p.id) as post_count FROM active_users au LEFT JOIN posts p ON au.id = p.user_id GROUP BY au.name HAVING count(p.id) > 0 ORDER BY post_count DESC" },
+        'validate-typo': { target: 'validate-input', sql: "SELECT id, name FROM usr WHERE active = 1" },
+        'validate-col': { target: 'validate-input', sql: "SELECT id, nme FROM users WHERE active = 1" },
+        'validate-ok': { target: 'validate-input', sql: "SELECT id, name FROM users WHERE active = 1" },
+        'tokenize-comment': { target: 'tokenize-input', sql: "SELECT id /* primary key */, name FROM users -- get all users" },
+        'tokenize-strings': { target: 'tokenize-input', sql: "SELECT * FROM users WHERE name = 'O''Brien' AND status = 'active'" },
+    };
+
+    document.querySelectorAll('.example-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const ex = examples[btn.dataset.example];
+            if (ex) document.getElementById(ex.target).value = ex.sql;
+        });
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function showOutput(id, text, isError) {
+        const el = document.getElementById(id);
+        el.className = 'output-box' + (isError ? ' error-output' : ' success-output');
+        el.textContent = text;
+    }
+
+    // API wrappers
+    async function runFormat() {
+        const sql = document.getElementById('format-input').value;
+        const keywordCase = document.getElementById('format-keyword-case').value;
+        const lineWidth = parseInt(document.getElementById('format-line-width').value) || 80;
+        const indentWidth = parseInt(document.getElementById('format-indent-width').value) || 2;
+        const semicolons = document.getElementById('format-semicolons').checked;
+
+        try {
+            const result = pyodide.runPython(`
+import syntaqlite, json
+syntaqlite.format_sql(
+    json.loads(${JSON.stringify(JSON.stringify(sql))}),
+    line_width=${lineWidth},
+    indent_width=${indentWidth},
+    keyword_case=${JSON.stringify(keywordCase)},
+    semicolons=${semicolons ? 'True' : 'False'}
+)
+`);
+            showOutput('format-output', result, false);
+        } catch (e) {
+            showOutput('format-output', extractPythonError(e), true);
+        }
+    }
+
+    async function runParse() {
+        const sql = document.getElementById('parse-input').value;
+        try {
+            const result = pyodide.runPython(`
+import syntaqlite, json
+json.dumps(syntaqlite.parse(json.loads(${JSON.stringify(JSON.stringify(sql))})), indent=2)
+`);
+            showOutput('parse-output', result, false);
+        } catch (e) {
+            showOutput('parse-output', extractPythonError(e), true);
+        }
+    }
+
+    async function runValidate() {
+        const sql = document.getElementById('validate-input').value;
+        const schemaText = document.getElementById('validate-schema').value.trim();
+        const render = document.getElementById('validate-render').checked;
+
+        try {
+            const result = pyodide.runPython(`
+import syntaqlite, json
+_sql = json.loads(${JSON.stringify(JSON.stringify(sql))})
+_schema_text = json.loads(${JSON.stringify(JSON.stringify(schemaText))})
+_tables = json.loads(_schema_text) if _schema_text else None
+_render = ${render ? 'True' : 'False'}
+_result = syntaqlite.validate(_sql, tables=_tables, render=_render)
+_result if isinstance(_result, str) else json.dumps(_result, indent=2)
+`);
+            const resultStr = result || '';
+            const hasErrors = render ? resultStr.includes('error:') : (resultStr !== '[]');
+            showOutput('validate-output', resultStr || 'No issues found.', hasErrors);
+        } catch (e) {
+            showOutput('validate-output', extractPythonError(e), true);
+        }
+    }
+
+    async function runTokenize() {
+        const sql = document.getElementById('tokenize-input').value;
+        try {
+            const result = pyodide.runPython(`
+import syntaqlite, json
+json.dumps(syntaqlite.tokenize(json.loads(${JSON.stringify(JSON.stringify(sql))})), indent=2)
+`);
+            showOutput('tokenize-output', result, false);
+        } catch (e) {
+            showOutput('tokenize-output', extractPythonError(e), true);
+        }
+    }
+
+    function extractPythonError(e) {
+        let msg = e.message || String(e);
+        // Try to get just the final error line from Python tracebacks
+        const lines = msg.split('\n');
+        for (let i = lines.length - 1; i >= 0; i--) {
+            const line = lines[i].trim();
+            if (line && !line.startsWith('at ') && !line.startsWith('File ')) {
+                return line;
+            }
+        }
+        return msg;
+    }
+
+    // Button handlers
+    document.getElementById('format-run').addEventListener('click', runFormat);
+    document.getElementById('parse-run').addEventListener('click', runParse);
+    document.getElementById('validate-run').addEventListener('click', runValidate);
+    document.getElementById('tokenize-run').addEventListener('click', runTokenize);
+
+    // Ctrl+Enter to run from any textarea
+    document.querySelectorAll('textarea').forEach(ta => {
+        ta.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                const panel = ta.closest('.panel');
+                if (panel) panel.querySelector('.run').click();
+            }
+        });
+    });
+
+    // Initialize
+    async function init() {
+        try {
+            statusEl.textContent = 'Loading Pyodide v' + PYODIDE_VERSION + '...';
+            const indexURL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+            const { loadPyodide } = await import(indexURL + 'pyodide.mjs');
+
+            pyodide = await loadPyodide({ indexURL });
+
+            statusEl.textContent = 'Installing syntaqlite...';
+            await pyodide.loadPackage('micropip');
+            await pyodide.runPythonAsync(`
+import micropip
+await micropip.install('${WHEEL_URL}')
+import syntaqlite
+`);
+
+            statusEl.textContent = 'Ready';
+            statusEl.className = 'status ready';
+            document.querySelectorAll('.run').forEach(b => b.disabled = false);
+
+            // Auto-run the default format example
+            runFormat();
+        } catch (e) {
+            statusEl.textContent = 'Failed to load: ' + e.message;
+            statusEl.className = 'status error';
+            console.error(e);
+        }
+    }
+
+    init();
+    </script>
+</body>
+</html>
