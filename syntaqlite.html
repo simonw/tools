@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syntaqlite Playground</title>
+    <link
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>"
+      rel="icon"
+    />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #00d9ff;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .subtitle a {
+            color: #00d9ff;
+        }
+
+        .status-bar {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .status {
+            display: inline-block;
+            font-size: 13px;
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: #333;
+        }
+
+        .status.loading { background: #f39c12; color: #000; }
+        .status.ready { background: #27ae60; color: #fff; }
+        .status.error { background: #e74c3c; color: #fff; }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 0;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: #0f3460;
+            color: #aaa;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .tab:hover { background: #1a4a7a; color: #eee; }
+        .tab.active { background: #16213e; color: #00d9ff; }
+
+        .panel {
+            background: #16213e;
+            border-radius: 0 8px 8px 8px;
+            padding: 20px;
+            display: none;
+        }
+
+        .panel.active { display: block; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 4px;
+            margin-top: 12px;
+        }
+
+        label:first-child { margin-top: 0; }
+
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            background: #1a1a2e;
+            color: #eee;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: #00d9ff;
+            box-shadow: 0 0 0 2px rgba(0, 217, 255, 0.15);
+        }
+
+        .options-row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: end;
+            margin-top: 12px;
+        }
+
+        .option-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .option-group label { margin: 0; }
+
+        select, input[type="number"] {
+            background: #1a1a2e;
+            color: #eee;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        select:focus, input[type="number"]:focus {
+            border-color: #00d9ff;
+        }
+
+        input[type="number"] { width: 80px; }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding-bottom: 2px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            accent-color: #00d9ff;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+        }
+
+        button.run {
+            background: #00d9ff;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: background 0.2s;
+        }
+
+        button.run:hover { background: #33e3ff; }
+        button.run:disabled { background: #555; cursor: not-allowed; color: #999; }
+
+        .output-section {
+            margin-top: 16px;
+        }
+
+        .output-section h3 {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 6px;
+        }
+
+        .output-box {
+            background: #0d0d1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 500px;
+            overflow: auto;
+            min-height: 60px;
+        }
+
+        .output-box.error-output {
+            color: #e74c3c;
+            border-color: #e74c3c;
+            background: rgba(231, 76, 60, 0.05);
+        }
+
+        .output-box.success-output {
+            color: #2ecc71;
+        }
+
+        .split-output {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 6px;
+        }
+
+        .split-output .output-box {
+            min-height: 100px;
+        }
+
+        .split-output h3 {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 6px;
+        }
+
+        @media (max-width: 800px) {
+            .split-output {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .schema-area {
+            margin-top: 12px;
+        }
+
+        .schema-hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .examples-bar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        button.example-btn {
+            background: #0f3460;
+            color: #ccc;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button.example-btn:hover { background: #1a4a7a; color: #fff; }
+
+        .info {
+            margin-top: 24px;
+            padding: 14px;
+            background: rgba(0, 217, 255, 0.08);
+            border-left: 3px solid #00d9ff;
+            border-radius: 0 8px 8px 0;
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .info a { color: #00d9ff; }
+
+        /* Token table */
+        .token-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 13px;
+        }
+
+        .token-table th {
+            text-align: left;
+            padding: 6px 10px;
+            border-bottom: 2px solid #333;
+            color: #aaa;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .token-table td {
+            padding: 4px 10px;
+            border-bottom: 1px solid #1a1a2e;
+        }
+
+        .token-table tr:hover td {
+            background: rgba(0, 217, 255, 0.05);
+        }
+
+        .token-text {
+            color: #eee;
+        }
+
+        .token-text.ws {
+            color: #555;
+        }
+
+        .token-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .token-badge.keyword { background: #1a3a5c; color: #5bb8f7; }
+        .token-badge.identifier { background: #2a3a2a; color: #7dca7d; }
+        .token-badge.literal { background: #3a3520; color: #d4b85c; }
+        .token-badge.operator { background: #3a2a3a; color: #c77dca; }
+        .token-badge.punctuation { background: #333; color: #aaa; }
+        .token-badge.whitespace { background: #222; color: #666; }
+        .token-badge.comment { background: #2a2a20; color: #8a8a5a; }
+        .token-badge.string { background: #3a2a20; color: #d4885c; }
+
+        .token-offset {
+            color: #666;
+            font-size: 12px;
+        }
+
+        /* Parse AST styling */
+        .ast-block {
+            margin-bottom: 12px;
+        }
+
+        .ast-block:last-child {
+            margin-bottom: 0;
+        }
+
+        .ast-header {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .ast-header.ok { color: #2ecc71; }
+        .ast-header.err { color: #e74c3c; }
+
+        .ast-tree {
+            color: #ccc;
+            padding-left: 8px;
+            border-left: 2px solid #333;
+        }
+
+        .ast-error-detail {
+            color: #e74c3c;
+            padding: 4px 0;
+        }
+
+        /* Validate rendered output */
+        .validate-rendered {
+            color: #eee;
+        }
+
+        .validate-rendered .error-line {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+
+        .validate-ok {
+            color: #2ecc71;
+        }
+
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .tab { padding: 8px 12px; font-size: 13px; }
+            .options-row { gap: 10px; }
+            textarea { font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Syntaqlite Playground</h1>
+        <p class="subtitle">Parse, format, validate, and tokenize SQLite SQL in the browser via <a href="https://github.com/LalitMaganti/syntaqlite" target="_blank">syntaqlite</a> + Pyodide</p>
+
+        <div class="status-bar">
+            <span id="status" class="status loading">Loading Pyodide &amp; syntaqlite...</span>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="format">Format</button>
+            <button class="tab" data-tab="parse">Parse</button>
+            <button class="tab" data-tab="validate">Validate</button>
+            <button class="tab" data-tab="tokenize">Tokenize</button>
+        </div>
+
+        <!-- Format Tab -->
+        <div id="tab-format" class="panel active">
+            <label for="format-input">SQL to format</label>
+            <textarea id="format-input" placeholder="Enter SQL to format...">select a, b, c from users where id = 1 and status = 'active' order by created_at desc limit 10</textarea>
+
+            <div class="options-row">
+                <div class="option-group">
+                    <label for="format-keyword-case">Keyword case</label>
+                    <select id="format-keyword-case">
+                        <option value="upper" selected>UPPER</option>
+                        <option value="lower">lower</option>
+                        <option value="initial_cap">Initial_cap</option>
+                    </select>
+                </div>
+                <div class="option-group">
+                    <label for="format-line-width">Line width</label>
+                    <input type="number" id="format-line-width" value="80" min="20" max="200">
+                </div>
+                <div class="option-group">
+                    <label for="format-indent-width">Indent</label>
+                    <input type="number" id="format-indent-width" value="2" min="1" max="8">
+                </div>
+                <div class="option-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="format-semicolons" checked>
+                        <label for="format-semicolons">Semicolons</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="examples-bar">
+                <span style="color:#666;font-size:12px;padding:6px 0;">Examples:</span>
+                <button class="example-btn" data-example="format-simple">Simple SELECT</button>
+                <button class="example-btn" data-example="format-join">JOIN query</button>
+                <button class="example-btn" data-example="format-subquery">Subquery</button>
+                <button class="example-btn" data-example="format-create">CREATE TABLE</button>
+            </div>
+
+            <button class="run" id="format-run" disabled>Format SQL</button>
+
+            <div class="output-section">
+                <h3>Formatted output</h3>
+                <div id="format-output" class="output-box">Results will appear here</div>
+            </div>
+        </div>
+
+        <!-- Parse Tab -->
+        <div id="tab-parse" class="panel">
+            <label for="parse-input">SQL to parse</label>
+            <textarea id="parse-input" placeholder="Enter SQL to parse into AST...">SELECT id, name FROM users WHERE active = 1</textarea>
+
+            <div class="examples-bar">
+                <span style="color:#666;font-size:12px;padding:6px 0;">Examples:</span>
+                <button class="example-btn" data-example="parse-multi">Multiple statements</button>
+                <button class="example-btn" data-example="parse-error">Syntax error</button>
+                <button class="example-btn" data-example="parse-complex">Complex query</button>
+            </div>
+
+            <button class="run" id="parse-run" disabled>Parse SQL</button>
+
+            <div class="output-section">
+                <div class="split-output">
+                    <div>
+                        <h3>AST</h3>
+                        <div id="parse-display" class="output-box">Results will appear here</div>
+                    </div>
+                    <div>
+                        <h3>JSON</h3>
+                        <div id="parse-json" class="output-box">Results will appear here</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Validate Tab -->
+        <div id="tab-validate" class="panel">
+            <label for="validate-input">SQL to validate</label>
+            <textarea id="validate-input" placeholder="Enter SQL to validate...">SELECT id, name FROM usr WHERE active = 1</textarea>
+
+            <div class="schema-area">
+                <label for="validate-schema">Schema (JSON array of tables)</label>
+                <textarea id="validate-schema" style="min-height:80px;" placeholder='[{"name": "users", "columns": ["id", "name", "active"]}]'>[{"name": "users", "columns": ["id", "name", "active"]}, {"name": "posts", "columns": ["id", "user_id", "title", "body"]}]</textarea>
+                <div class="schema-hint">Each table: {"name": "table_name", "columns": ["col1", "col2", ...]}</div>
+            </div>
+
+            <div class="examples-bar">
+                <span style="color:#666;font-size:12px;padding:6px 0;">Examples:</span>
+                <button class="example-btn" data-example="validate-typo">Table typo</button>
+                <button class="example-btn" data-example="validate-col">Column typo</button>
+                <button class="example-btn" data-example="validate-ok">Valid query</button>
+            </div>
+
+            <button class="run" id="validate-run" disabled>Validate SQL</button>
+
+            <div class="output-section">
+                <div class="split-output">
+                    <div>
+                        <h3>Diagnostics</h3>
+                        <div id="validate-display" class="output-box">Results will appear here</div>
+                    </div>
+                    <div>
+                        <h3>JSON</h3>
+                        <div id="validate-json" class="output-box">Results will appear here</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tokenize Tab -->
+        <div id="tab-tokenize" class="panel">
+            <label for="tokenize-input">SQL to tokenize</label>
+            <textarea id="tokenize-input" placeholder="Enter SQL to tokenize...">SELECT id, name FROM users WHERE id = 1 -- get user</textarea>
+
+            <div class="examples-bar">
+                <span style="color:#666;font-size:12px;padding:6px 0;">Examples:</span>
+                <button class="example-btn" data-example="tokenize-comment">With comments</button>
+                <button class="example-btn" data-example="tokenize-strings">String literals</button>
+            </div>
+
+            <button class="run" id="tokenize-run" disabled>Tokenize SQL</button>
+
+            <div class="output-section">
+                <div class="split-output">
+                    <div>
+                        <h3>Tokens</h3>
+                        <div id="tokenize-display" class="output-box" style="padding:0;overflow:auto;">Results will appear here</div>
+                    </div>
+                    <div>
+                        <h3>JSON</h3>
+                        <div id="tokenize-json" class="output-box">Results will appear here</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info">
+            <strong>About:</strong> This playground runs
+            <a href="https://github.com/LalitMaganti/syntaqlite" target="_blank">syntaqlite</a>
+            entirely in your browser using <a href="https://pyodide.org/" target="_blank">Pyodide</a>.
+            Syntaqlite is a parser, formatter, validator, and language server for SQLite SQL,
+            built on SQLite's own grammar and tokenizer.
+        </div>
+    </div>
+
+    <script>
+    const WHEEL_URL = 'https://raw.githubusercontent.com/simonw/research/refs/heads/main/syntaqlite-python-extension/dist/syntaqlite-0.1.0-cp311-cp311-emscripten_3_1_46_wasm32.whl';
+    const PYODIDE_VERSION = '0.25.1';
+
+    const statusEl = document.getElementById('status');
+    let pyodide = null;
+    let tokenTypeMap = {};
+
+    // SQL keywords for classifying tokens
+    const SQL_KEYWORDS = new Set([
+        'ABORT','ACTION','ADD','AFTER','ALL','ALTER','ALWAYS','ANALYZE','AND','AS','ASC',
+        'ATTACH','AUTOINCREMENT','BEFORE','BEGIN','BETWEEN','BY','CASCADE','CASE','CAST',
+        'CHECK','COLLATE','COLUMN','COMMIT','CONFLICT','CONSTRAINT','CREATE','CROSS',
+        'CURRENT','CURRENT_DATE','CURRENT_TIME','CURRENT_TIMESTAMP','DATABASE','DEFAULT',
+        'DEFERRABLE','DEFERRED','DELETE','DESC','DETACH','DISTINCT','DO','DROP','EACH',
+        'ELSE','END','ESCAPE','EXCEPT','EXCLUDE','EXCLUSIVE','EXISTS','EXPLAIN','FAIL',
+        'FILTER','FIRST','FOLLOWING','FOR','FOREIGN','FROM','FULL','GENERATED','GLOB',
+        'GROUP','GROUPS','HAVING','IF','IGNORE','IMMEDIATE','IN','INDEX','INDEXED',
+        'INITIALLY','INNER','INSERT','INSTEAD','INTERSECT','INTO','IS','ISNULL','JOIN',
+        'KEY','LAST','LEFT','LIKE','LIMIT','MATCH','MATERIALIZED','NATURAL','NO','NOT',
+        'NOTHING','NOTNULL','NULL','NULLS','OF','OFFSET','ON','OR','ORDER','OTHERS','OUTER',
+        'OVER','PARTITION','PLAN','PRAGMA','PRECEDING','PRIMARY','QUERY','RAISE','RANGE',
+        'RECURSIVE','REFERENCES','REGEXP','REINDEX','RELEASE','RENAME','REPLACE','RESTRICT',
+        'RETURNING','RIGHT','ROLLBACK','ROW','ROWS','SAVEPOINT','SELECT','SET','TABLE',
+        'TEMP','TEMPORARY','THEN','TIES','TO','TRANSACTION','TRIGGER','UNBOUNDED','UNION',
+        'UNIQUE','UPDATE','USING','VACUUM','VALUES','VIEW','VIRTUAL','WHEN','WHERE',
+        'WINDOW','WITH','WITHOUT'
+    ]);
+
+    function classifyToken(token) {
+        const text = token.text;
+        // Whitespace
+        if (/^\s+$/.test(text)) return { category: 'whitespace', label: 'whitespace' };
+        // Line comment
+        if (text.startsWith('--')) return { category: 'comment', label: 'line comment' };
+        // Block comment
+        if (text.startsWith('/*')) return { category: 'comment', label: 'block comment' };
+        // String literal
+        if (text.startsWith("'")) return { category: 'string', label: 'string' };
+        // Blob literal
+        if (/^[xX]'/.test(text)) return { category: 'string', label: 'blob' };
+        // Numeric
+        if (/^[0-9]/.test(text) || /^\.[0-9]/.test(text)) return { category: 'literal', label: 'number' };
+        // Keyword
+        if (SQL_KEYWORDS.has(text.toUpperCase())) return { category: 'keyword', label: 'keyword' };
+        // Quoted identifier
+        if (text.startsWith('"') || text.startsWith('[') || text.startsWith('`'))
+            return { category: 'identifier', label: 'quoted id' };
+        // Operators
+        if (/^[=<>!|+\-*/%&~]+$/.test(text)) return { category: 'operator', label: 'operator' };
+        // Punctuation
+        if (/^[(),;.]$/.test(text)) return { category: 'punctuation', label: 'punctuation' };
+        // Identifier (bare word)
+        if (/^[a-zA-Z_]/.test(text)) return { category: 'identifier', label: 'identifier' };
+        // Fallback
+        return { category: 'punctuation', label: 'symbol' };
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+    });
+
+    // Examples - now include a run function reference
+    const examples = {
+        'format-simple': { target: 'format-input', sql: "select a, b, c from users where id = 1 and status = 'active' order by created_at desc limit 10", run: () => runFormat() },
+        'format-join': { target: 'format-input', sql: "select u.id, u.name, p.title from users u inner join posts p on u.id = p.user_id where u.active = 1 order by p.created_at desc", run: () => runFormat() },
+        'format-subquery': { target: 'format-input', sql: "select * from users where id in (select user_id from posts where created_at > '2024-01-01' group by user_id having count(*) > 5)", run: () => runFormat() },
+        'format-create': { target: 'format-input', sql: "create table if not exists users (id integer primary key autoincrement, name text not null, email text unique, created_at datetime default current_timestamp)", run: () => runFormat() },
+        'parse-multi': { target: 'parse-input', sql: "SELECT 1; SELECT name FROM users; INSERT INTO logs(msg) VALUES('hello')", run: () => runParse() },
+        'parse-error': { target: 'parse-input', sql: "SELECT FROM WHERE", run: () => runParse() },
+        'parse-complex': { target: 'parse-input', sql: "WITH active_users AS (SELECT id, name FROM users WHERE active = 1) SELECT au.name, count(p.id) as post_count FROM active_users au LEFT JOIN posts p ON au.id = p.user_id GROUP BY au.name HAVING count(p.id) > 0 ORDER BY post_count DESC", run: () => runParse() },
+        'validate-typo': { target: 'validate-input', sql: "SELECT id, name FROM usr WHERE active = 1", run: () => runValidate() },
+        'validate-col': { target: 'validate-input', sql: "SELECT id, nme FROM users WHERE active = 1", run: () => runValidate() },
+        'validate-ok': { target: 'validate-input', sql: "SELECT id, name FROM users WHERE active = 1", run: () => runValidate() },
+        'tokenize-comment': { target: 'tokenize-input', sql: "SELECT id /* primary key */, name FROM users -- get all users", run: () => runTokenize() },
+        'tokenize-strings': { target: 'tokenize-input', sql: "SELECT * FROM users WHERE name = 'O''Brien' AND status = 'active'", run: () => runTokenize() },
+    };
+
+    document.querySelectorAll('.example-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const ex = examples[btn.dataset.example];
+            if (!ex || !pyodide) return;
+            document.getElementById(ex.target).value = ex.sql;
+            ex.run();
+        });
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function showOutput(id, text, isError) {
+        const el = document.getElementById(id);
+        el.className = 'output-box' + (isError ? ' error-output' : ' success-output');
+        el.textContent = text;
+    }
+
+    // --- Format ---
+    async function runFormat() {
+        const sql = document.getElementById('format-input').value;
+        const keywordCase = document.getElementById('format-keyword-case').value;
+        const lineWidth = parseInt(document.getElementById('format-line-width').value) || 80;
+        const indentWidth = parseInt(document.getElementById('format-indent-width').value) || 2;
+        const semicolons = document.getElementById('format-semicolons').checked;
+
+        try {
+            const result = pyodide.runPython(`
+import syntaqlite, json
+syntaqlite.format_sql(
+    json.loads(${JSON.stringify(JSON.stringify(sql))}),
+    line_width=${lineWidth},
+    indent_width=${indentWidth},
+    keyword_case=${JSON.stringify(keywordCase)},
+    semicolons=${semicolons ? 'True' : 'False'}
+)
+`);
+            showOutput('format-output', result, false);
+        } catch (e) {
+            showOutput('format-output', extractPythonError(e), true);
+        }
+    }
+
+    // --- Parse ---
+    async function runParse() {
+        const sql = document.getElementById('parse-input').value;
+        try {
+            const resultJson = pyodide.runPython(`
+import syntaqlite, json
+json.dumps(syntaqlite.parse(json.loads(${JSON.stringify(JSON.stringify(sql))})))
+`);
+            const data = JSON.parse(resultJson);
+            // Pretty display
+            const displayEl = document.getElementById('parse-display');
+            displayEl.className = 'output-box success-output';
+            displayEl.innerHTML = '';
+            data.forEach((stmt, i) => {
+                const block = document.createElement('div');
+                block.className = 'ast-block';
+                const header = document.createElement('div');
+                header.className = 'ast-header ' + (stmt.ok ? 'ok' : 'err');
+                header.textContent = data.length > 1
+                    ? `Statement ${i + 1}: ${stmt.ok ? 'OK' : 'Error'}`
+                    : (stmt.ok ? 'Parsed successfully' : 'Parse error');
+                block.appendChild(header);
+
+                if (stmt.ast) {
+                    const tree = document.createElement('div');
+                    tree.className = 'ast-tree';
+                    tree.textContent = stmt.ast;
+                    block.appendChild(tree);
+                }
+                if (stmt.error) {
+                    const err = document.createElement('div');
+                    err.className = 'ast-error-detail';
+                    let msg = stmt.error;
+                    if (stmt.error_offset !== undefined) {
+                        msg += ` (offset ${stmt.error_offset}, length ${stmt.error_length})`;
+                    }
+                    err.textContent = msg;
+                    block.appendChild(err);
+                }
+                displayEl.appendChild(block);
+            });
+
+            // JSON column
+            showOutput('parse-json', JSON.stringify(data, null, 2), false);
+        } catch (e) {
+            document.getElementById('parse-display').className = 'output-box error-output';
+            document.getElementById('parse-display').textContent = extractPythonError(e);
+            document.getElementById('parse-json').className = 'output-box';
+            document.getElementById('parse-json').textContent = '';
+        }
+    }
+
+    // --- Validate ---
+    async function runValidate() {
+        const sql = document.getElementById('validate-input').value;
+        const schemaText = document.getElementById('validate-schema').value.trim();
+
+        try {
+            // Get rendered diagnostics
+            const rendered = pyodide.runPython(`
+import syntaqlite, json
+_sql = json.loads(${JSON.stringify(JSON.stringify(sql))})
+_schema_text = json.loads(${JSON.stringify(JSON.stringify(schemaText))})
+_tables = json.loads(_schema_text) if _schema_text else None
+_result = syntaqlite.validate(_sql, tables=_tables, render=True)
+_result if isinstance(_result, str) else ''
+`);
+            // Get JSON diagnostics
+            const jsonResult = pyodide.runPython(`
+import syntaqlite, json
+_sql = json.loads(${JSON.stringify(JSON.stringify(sql))})
+_schema_text = json.loads(${JSON.stringify(JSON.stringify(schemaText))})
+_tables = json.loads(_schema_text) if _schema_text else None
+_result = syntaqlite.validate(_sql, tables=_tables, render=False)
+json.dumps(_result, indent=2)
+`);
+
+            const displayEl = document.getElementById('validate-display');
+            const jsonEl = document.getElementById('validate-json');
+
+            const hasErrors = rendered && rendered.trim().length > 0;
+
+            if (hasErrors) {
+                displayEl.className = 'output-box error-output';
+                displayEl.textContent = rendered;
+            } else {
+                displayEl.className = 'output-box success-output';
+                displayEl.textContent = 'No issues found.';
+            }
+
+            jsonEl.className = 'output-box' + (hasErrors ? '' : ' success-output');
+            jsonEl.textContent = jsonResult;
+        } catch (e) {
+            document.getElementById('validate-display').className = 'output-box error-output';
+            document.getElementById('validate-display').textContent = extractPythonError(e);
+            document.getElementById('validate-json').className = 'output-box';
+            document.getElementById('validate-json').textContent = '';
+        }
+    }
+
+    // --- Tokenize ---
+    async function runTokenize() {
+        const sql = document.getElementById('tokenize-input').value;
+        try {
+            const resultJson = pyodide.runPython(`
+import syntaqlite, json
+json.dumps(syntaqlite.tokenize(json.loads(${JSON.stringify(JSON.stringify(sql))})))
+`);
+            const tokens = JSON.parse(resultJson);
+
+            // Build token table
+            const displayEl = document.getElementById('tokenize-display');
+            displayEl.className = 'output-box';
+            displayEl.style.padding = '0';
+
+            const table = document.createElement('table');
+            table.className = 'token-table';
+
+            const thead = document.createElement('thead');
+            thead.innerHTML = '<tr><th>Text</th><th>Type</th><th>Offset</th><th>Length</th></tr>';
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            tokens.forEach(tok => {
+                const cls = classifyToken(tok);
+                const tr = document.createElement('tr');
+
+                // Text cell
+                const tdText = document.createElement('td');
+                const span = document.createElement('span');
+                span.className = 'token-text' + (cls.category === 'whitespace' ? ' ws' : '');
+                if (cls.category === 'whitespace') {
+                    span.textContent = tok.text.replace(/ /g, '\u00b7').replace(/\n/g, '\u21b5').replace(/\t/g, '\u2192');
+                } else {
+                    span.textContent = tok.text;
+                }
+                tdText.appendChild(span);
+                tr.appendChild(tdText);
+
+                // Type badge
+                const tdType = document.createElement('td');
+                const badge = document.createElement('span');
+                badge.className = 'token-badge ' + cls.category;
+                badge.textContent = cls.label;
+                tdType.appendChild(badge);
+                tr.appendChild(tdType);
+
+                // Offset
+                const tdOff = document.createElement('td');
+                tdOff.className = 'token-offset';
+                tdOff.textContent = tok.offset;
+                tr.appendChild(tdOff);
+
+                // Length
+                const tdLen = document.createElement('td');
+                tdLen.className = 'token-offset';
+                tdLen.textContent = tok.length;
+                tr.appendChild(tdLen);
+
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+
+            displayEl.innerHTML = '';
+            displayEl.appendChild(table);
+
+            // JSON column
+            showOutput('tokenize-json', JSON.stringify(tokens, null, 2), false);
+        } catch (e) {
+            document.getElementById('tokenize-display').className = 'output-box error-output';
+            document.getElementById('tokenize-display').textContent = extractPythonError(e);
+            document.getElementById('tokenize-json').className = 'output-box';
+            document.getElementById('tokenize-json').textContent = '';
+        }
+    }
+
+    function extractPythonError(e) {
+        let msg = e.message || String(e);
+        const lines = msg.split('\n');
+        for (let i = lines.length - 1; i >= 0; i--) {
+            const line = lines[i].trim();
+            if (line && !line.startsWith('at ') && !line.startsWith('File ')) {
+                return line;
+            }
+        }
+        return msg;
+    }
+
+    // Button handlers
+    document.getElementById('format-run').addEventListener('click', runFormat);
+    document.getElementById('parse-run').addEventListener('click', runParse);
+    document.getElementById('validate-run').addEventListener('click', runValidate);
+    document.getElementById('tokenize-run').addEventListener('click', runTokenize);
+
+    // Ctrl+Enter to run from any textarea
+    document.querySelectorAll('textarea').forEach(ta => {
+        ta.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                const panel = ta.closest('.panel');
+                if (panel) panel.querySelector('.run').click();
+            }
+        });
+    });
+
+    // Initialize
+    async function init() {
+        try {
+            statusEl.textContent = 'Loading Pyodide v' + PYODIDE_VERSION + '...';
+            const indexURL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+            const { loadPyodide } = await import(indexURL + 'pyodide.mjs');
+
+            pyodide = await loadPyodide({ indexURL });
+
+            statusEl.textContent = 'Installing syntaqlite...';
+            await pyodide.loadPackage('micropip');
+            await pyodide.runPythonAsync(`
+import micropip
+await micropip.install('${WHEEL_URL}')
+import syntaqlite
+`);
+
+            statusEl.textContent = 'Ready';
+            statusEl.className = 'status ready';
+            document.querySelectorAll('.run').forEach(b => b.disabled = false);
+
+            // Auto-run the default format example
+            runFormat();
+        } catch (e) {
+            statusEl.textContent = 'Failed to load: ' + e.message;
+            statusEl.className = 'status error';
+            console.error(e);
+        }
+    }
+
+    init();
+    </script>
+</body>
+</html>
