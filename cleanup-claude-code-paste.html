@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cleanup Claude Code Paste</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  line-height: 1.5;
+}
+
+h1 {
+  margin-bottom: 5px;
+}
+
+p.description {
+  color: #666;
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+textarea {
+  width: 100%;
+  height: 200px;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-size: 16px;
+  font-family: monospace;
+}
+
+.output-container {
+  margin-top: 10px;
+  position: relative;
+}
+
+.output-container pre {
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 16px;
+  min-height: 50px;
+}
+
+button {
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-right: 8px;
+}
+
+button:hover {
+  background-color: #3367d6;
+}
+
+.copied {
+  color: #2e7d32;
+  font-weight: bold;
+  margin-left: 8px;
+  display: none;
+}
+  </style>
+</head>
+<body>
+  <h1>Cleanup Claude Code Paste</h1>
+  <p class="description">Paste terminal output to remove the ❯ prompt, fix wrapped-line whitespace, and join lines into clean text.</p>
+
+  <textarea id="input" placeholder="Paste your Claude Code terminal text here..." autofocus></textarea>
+
+  <div class="output-container">
+    <strong>Cleaned output:</strong>
+    <pre id="output"></pre>
+    <button id="copyBtn" style="margin-top: 10px;">Copy to clipboard</button>
+    <span class="copied" id="copiedMsg">Copied!</span>
+  </div>
+
+  <script>
+const input = document.getElementById('input');
+const output = document.getElementById('output');
+const copyBtn = document.getElementById('copyBtn');
+const copiedMsg = document.getElementById('copiedMsg');
+
+function cleanup(text) {
+  // Remove leading ❯ prompt (with optional space)
+  text = text.replace(/^❯\s*/gm, '');
+
+  // Split into lines
+  const lines = text.split('\n');
+
+  // Group lines into paragraphs. A blank (or whitespace-only) line
+  // signals a paragraph break.
+  const paragraphs = [];
+  let current = [];
+
+  for (const line of lines) {
+    if (line.trim() === '') {
+      if (current.length) {
+        paragraphs.push(current);
+        current = [];
+      }
+    } else {
+      current.push(line.trim());
+    }
+  }
+  if (current.length) {
+    paragraphs.push(current);
+  }
+
+  // Join lines within each paragraph with a single space,
+  // then collapse any runs of whitespace
+  return paragraphs
+    .map(p => p.join(' ').replace(/\s{2,}/g, ' '))
+    .join('\n\n');
+}
+
+input.addEventListener('input', () => {
+  output.textContent = cleanup(input.value);
+});
+
+copyBtn.addEventListener('click', () => {
+  const text = output.textContent;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    copiedMsg.style.display = 'inline';
+    setTimeout(() => { copiedMsg.style.display = 'none'; }, 1500);
+  });
+});
+  </script>
+</body>
+</html>
