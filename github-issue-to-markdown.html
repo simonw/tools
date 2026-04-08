@@ -204,7 +204,12 @@ tokenInput.addEventListener('input', () => {
 
 function parseGitHubUrl(url) {
   try {
-    const urlObj = new URL(url)
+    // Normalize URL by adding https:// if no protocol is present
+    let normalizedUrl = url.trim()
+    if (!normalizedUrl.match(/^https?:\/\//)) {
+      normalizedUrl = 'https://' + normalizedUrl
+    }
+    const urlObj = new URL(normalizedUrl)
     const [, owner, repo, , number] = urlObj.pathname.split('/')
     if (!owner || !repo || !number) {
       throw new Error('Invalid URL format')
@@ -599,6 +604,16 @@ function assertThrows(fn, message = '') {
 test('parseGitHubUrl: valid issue URL', () => {
   const result = parseGitHubUrl('https://github.com/owner/repo/issues/123')
   assertDeepEqual(result, { owner: 'owner', repo: 'repo', number: '123' })
+})
+
+test('parseGitHubUrl: URL without protocol (adds https://)', () => {
+  const result = parseGitHubUrl('github.com/owner/repo/issues/123')
+  assertDeepEqual(result, { owner: 'owner', repo: 'repo', number: '123' })
+})
+
+test('parseGitHubUrl: URL with http:// protocol', () => {
+  const result = parseGitHubUrl('http://github.com/owner/repo/issues/456')
+  assertDeepEqual(result, { owner: 'owner', repo: 'repo', number: '456' })
 })
 
 test('parseGitHubUrl: valid PR URL', () => {
