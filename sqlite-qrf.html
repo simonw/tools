@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQLite Query Result Formatter Demo</title>
+<style>
+:root {
+  --bg: #f8f9fa;
+  --surface: #ffffff;
+  --border: #dee2e6;
+  --text: #212529;
+  --text-muted: #6c757d;
+  --primary: #0d6efd;
+  --primary-hover: #0b5ed7;
+  --code-bg: #1e1e2e;
+  --code-fg: #cdd6f4;
+  --accent: #e9ecef;
+  --success: #198754;
+  --tag-bg: #e7f1ff;
+  --tag-text: #0a58ca;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+header h1 code {
+  font-size: 1.5rem;
+  background: var(--tag-bg);
+  color: var(--tag-text);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+header p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+.version-badge {
+  display: inline-block;
+  background: var(--success);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.panel h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 700px) {
+  .controls { grid-template-columns: 1fr; }
+}
+.control-group { margin-bottom: 12px; }
+.control-group label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+select, input[type="number"], input[type="text"] {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+}
+select:focus, input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(13,110,253,.15);
+}
+.sql-editor {
+  position: relative;
+}
+textarea#sql {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  resize: vertical;
+  background: var(--surface);
+  color: var(--text);
+  tab-size: 2;
+}
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+button {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 5px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+button.primary {
+  background: var(--primary);
+  color: #fff;
+}
+button.primary:hover { background: var(--primary-hover); }
+button.primary:disabled {
+  background: var(--text-muted);
+  cursor: not-allowed;
+}
+.timing {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+.output-wrap {
+  position: relative;
+}
+pre#output {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  min-height: 60px;
+  white-space: pre;
+  tab-size: 8;
+}
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255,255,255,0.1);
+  color: #a6adc8;
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+}
+.copy-btn:hover { background: rgba(255,255,255,0.2); }
+.examples-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+.example-card {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  background: var(--surface);
+}
+.example-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(13,110,253,.1);
+}
+.example-card .title {
+  font-weight: 600;
+  font-size: 0.88rem;
+  margin-bottom: 2px;
+}
+.example-card .desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.example-card .tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--tag-bg);
+  color: var(--tag-text);
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-top: 4px;
+}
+.schema-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  font-size: 0.82rem;
+}
+.schema-table {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.schema-table .table-name {
+  background: var(--accent);
+  padding: 6px 10px;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+.schema-table .cols {
+  padding: 6px 10px;
+}
+.schema-table .cols div {
+  display: flex;
+  justify-content: space-between;
+  padding: 1px 0;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.78rem;
+}
+.schema-table .cols .type {
+  color: var(--text-muted);
+}
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+}
+.loading .spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.inline-opts {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.inline-opts .control-group {
+  flex: 1;
+  min-width: 120px;
+  margin-bottom: 0;
+}
+footer {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+}
+footer a { color: var(--primary); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1><code>sqlite3_format_query_result()</code> <span class="version-badge" id="version">loading...</span></h1>
+    <p>Interactive demo of SQLite's Query Result Formatter (QRF) &mdash; 20 output styles, configurable formatting, all running in-browser via WebAssembly</p>
+  </header>
+
+  <!-- Schema reference -->
+  <div class="panel" id="schema-panel">
+    <h2>Demo Database Schema</h2>
+    <div class="schema-tables">
+      <div class="schema-table">
+        <div class="table-name">employees</div>
+        <div class="cols">
+          <div><span>id</span><span class="type">INTEGER PK</span></div>
+          <div><span>name</span><span class="type">TEXT</span></div>
+          <div><span>department</span><span class="type">TEXT</span></div>
+          <div><span>title</span><span class="type">TEXT</span></div>
+          <div><span>salary</span><span class="type">REAL</span></div>
+          <div><span>hire_date</span><span class="type">TEXT</span></div>
+          <div><span>email</span><span class="type">TEXT</span></div>
+        </div>
+      </div>
+      <div class="schema-table">
+        <div class="table-name">products</div>
+        <div class="cols">
+          <div><span>id</span><span class="type">INTEGER PK</span></div>
+          <div><span>name</span><span class="type">TEXT</span></div>
+          <div><span>category</span><span class="type">TEXT</span></div>
+          <div><span>price</span><span class="type">REAL</span></div>
+          <div><span>stock</span><span class="type">INTEGER</span></div>
+          <div><span>description</span><span class="type">TEXT</span></div>
+        </div>
+      </div>
+      <div class="schema-table">
+        <div class="table-name">orders</div>
+        <div class="cols">
+          <div><span>id</span><span class="type">INTEGER PK</span></div>
+          <div><span>customer</span><span class="type">TEXT</span></div>
+          <div><span>product_id</span><span class="type">INTEGER FK</span></div>
+          <div><span>quantity</span><span class="type">INTEGER</span></div>
+          <div><span>order_date</span><span class="type">TEXT</span></div>
+          <div><span>status</span><span class="type">TEXT</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SQL input -->
+  <div class="panel">
+    <h2>SQL Query</h2>
+    <div class="sql-editor">
+      <textarea id="sql" spellcheck="false" placeholder="Enter SQL here...">SELECT name, department, title, salary FROM employees ORDER BY salary DESC;</textarea>
+    </div>
+    <div class="btn-row">
+      <button class="primary" id="run-btn" disabled>Run Query</button>
+      <span class="timing" id="timing"></span>
+    </div>
+  </div>
+
+  <!-- Format controls -->
+  <div class="panel">
+    <h2>Output Format</h2>
+    <div class="controls">
+      <div>
+        <div class="control-group">
+          <label>Style</label>
+          <select id="style">
+            <option value="0">Auto</option>
+            <option value="1" selected>Box (Unicode box-drawing)</option>
+            <option value="2">Column (psql-style)</option>
+            <option value="3">Count (row count only)</option>
+            <option value="4">Csv</option>
+            <option value="5">Eqp (EXPLAIN QUERY PLAN)</option>
+            <option value="6">Explain</option>
+            <option value="7">Html (XHTML table)</option>
+            <option value="8">Insert (SQL INSERT statements)</option>
+            <option value="9">Json (JSON array)</option>
+            <option value="10">JObject (JSON objects per line)</option>
+            <option value="11">Line (key = value)</option>
+            <option value="12">List (pipe-separated)</option>
+            <option value="13">Markdown</option>
+            <option value="14">Off (no output)</option>
+            <option value="15">Quote (SQL-quoted values)</option>
+            <option value="19">Table (ASCII-art)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Column Headers</label>
+          <select id="titles">
+            <option value="0" selected>Auto</option>
+            <option value="1">Off</option>
+            <option value="2">On</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <div class="control-group">
+          <label>Screen Width</label>
+          <input type="number" id="screen-width" value="120" min="0" max="500" placeholder="0 = unlimited">
+        </div>
+        <div class="inline-opts">
+          <div class="control-group">
+            <label>Column Wrap</label>
+            <input type="number" id="wrap" value="0" min="0" max="500" placeholder="0 = off">
+          </div>
+          <div class="control-group">
+            <label>Border</label>
+            <select id="border">
+              <option value="0" selected>Auto</option>
+              <option value="1">Off</option>
+              <option value="2">On</option>
+            </select>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>NULL Display</label>
+          <input type="text" id="null-display" value="NULL" placeholder="(empty = blank)">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Output -->
+  <div class="panel">
+    <h2>Formatted Output</h2>
+    <div class="output-wrap">
+      <button class="copy-btn" id="copy-btn" title="Copy to clipboard">Copy</button>
+      <pre id="output"><span class="loading"><span class="spinner"></span><br>Loading SQLite WebAssembly module...</span></pre>
+    </div>
+  </div>
+
+  <!-- Example queries -->
+  <div class="panel">
+    <h2>Example Queries</h2>
+    <div class="examples-grid" id="examples"></div>
+  </div>
+
+  <footer>
+    Powered by <a href="https://sqlite.org/">SQLite</a> compiled to WebAssembly
+    &mdash; QRF extension from <code>ext/qrf/</code>
+    &mdash; All processing happens locally in your browser
+  </footer>
+</div>
+
+<script src="sqlite-qrf.js"></script>
+<script>
+"use strict";
+
+const EXAMPLES = [
+  {
+    title: "All employees",
+    desc: "Basic SELECT with column formatting",
+    sql: "SELECT name, department, title, salary\nFROM employees\nORDER BY salary DESC;",
+    style: 1, tag: "Box"
+  },
+  {
+    title: "Department summary",
+    desc: "Aggregation with GROUP BY",
+    sql: "SELECT department,\n       count(*) AS headcount,\n       printf('$%,.0f', avg(salary)) AS avg_salary,\n       printf('$%,.0f', sum(salary)) AS total_cost\nFROM employees\nGROUP BY department\nORDER BY total_cost DESC;",
+    style: 1, tag: "Box"
+  },
+  {
+    title: "JSON output",
+    desc: "Same query rendered as a JSON array",
+    sql: "SELECT name, department, salary\nFROM employees\nWHERE salary > 120000;",
+    style: 9, tag: "Json"
+  },
+  {
+    title: "CSV export",
+    desc: "Comma-separated values for spreadsheet import",
+    sql: "SELECT id, name, category, price, stock\nFROM products;",
+    style: 4, tag: "Csv"
+  },
+  {
+    title: "INSERT statements",
+    desc: "Generate SQL to recreate the data",
+    sql: "SELECT * FROM orders WHERE status='shipped';",
+    style: 8, tag: "Insert"
+  },
+  {
+    title: "Markdown table",
+    desc: "Formatted for documentation or GitHub",
+    sql: "SELECT p.name AS product,\n       p.category,\n       sum(o.quantity) AS total_ordered,\n       printf('$%,.2f', p.price * sum(o.quantity)) AS revenue\nFROM products p\nJOIN orders o ON o.product_id = p.id\nGROUP BY p.id\nORDER BY revenue DESC;",
+    style: 13, tag: "Markdown"
+  },
+  {
+    title: "Line mode",
+    desc: "One field per line (great for wide rows)",
+    sql: "SELECT * FROM employees WHERE id = 7;",
+    style: 11, tag: "Line"
+  },
+  {
+    title: "HTML table",
+    desc: "XHTML table rows for embedding in a page",
+    sql: "SELECT name, price,\n       CASE WHEN stock IS NULL THEN 'Digital'\n            WHEN stock < 50 THEN 'Low'\n            ELSE 'In Stock' END AS availability\nFROM products;",
+    style: 7, tag: "Html"
+  },
+  {
+    title: "ASCII table",
+    desc: "MySQL-style table with +/-/| borders",
+    sql: "SELECT o.id, o.customer, p.name AS product,\n       o.quantity, o.status\nFROM orders o\nJOIN products p ON p.id = o.product_id\nORDER BY o.order_date DESC\nLIMIT 8;",
+    style: 19, tag: "Table"
+  },
+  {
+    title: "Column mode",
+    desc: "psql-style aligned columns",
+    sql: "SELECT name, category, printf('$%.2f', price) AS price\nFROM products\nORDER BY category, name;",
+    style: 2, tag: "Column"
+  },
+  {
+    title: "Quote mode",
+    desc: "SQL-quoted comma-separated output",
+    sql: "SELECT name, department, salary FROM employees WHERE department='Engineering';",
+    style: 15, tag: "Quote"
+  },
+  {
+    title: "EXPLAIN QUERY PLAN",
+    desc: "Show the query planner's strategy",
+    sql: "SELECT e.name, count(o.id) as order_count\nFROM employees e, orders o\nWHERE e.department = 'Sales'\nGROUP BY e.name;",
+    style: 5, tag: "Eqp"
+  },
+  {
+    title: "Row count only",
+    desc: "Just count the matching rows",
+    sql: "SELECT * FROM orders WHERE status = 'processing';",
+    style: 3, tag: "Count"
+  },
+  {
+    title: "List mode",
+    desc: "Pipe-separated output, classic .mode list",
+    sql: "SELECT id, name, hire_date FROM employees\nWHERE hire_date >= '2021-01-01'\nORDER BY hire_date;",
+    style: 12, tag: "List"
+  },
+  {
+    title: "Multiline values",
+    desc: "Products with newlines in descriptions",
+    sql: "SELECT name, price, description\nFROM products\nWHERE description LIKE '%\n%';",
+    style: 1, tag: "Box"
+  },
+  {
+    title: "NULL handling",
+    desc: "Products with NULL stock (digital goods)",
+    sql: "SELECT name, category, price, stock\nFROM products\nORDER BY stock IS NULL DESC, stock;",
+    style: 1, tag: "Box"
+  },
+  {
+    title: "JSON objects per line",
+    desc: "Independent JSON object per row (NDJSON-style)",
+    sql: "SELECT name, price, category\nFROM products\nWHERE category = 'Hardware';",
+    style: 10, tag: "JObject"
+  },
+  {
+    title: "Box without border",
+    desc: "Clean box style without the outer frame",
+    sql: "SELECT customer, count(*) AS orders,\n       sum(quantity) AS total_items\nFROM orders\nGROUP BY customer\nORDER BY total_items DESC;",
+    style: 1, tag: "Box"
+  }
+];
+
+let Module = null;
+let qrfExec = null;
+let qrfFree = null;
+
+const $  = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+
+function buildExampleCards() {
+  const grid = $('#examples');
+  EXAMPLES.forEach((ex, i) => {
+    const card = document.createElement('div');
+    card.className = 'example-card';
+    card.innerHTML = `<div class="title">${ex.title}</div><div class="desc">${ex.desc}</div><span class="tag">${ex.tag}</span>`;
+    card.addEventListener('click', () => loadExample(i));
+    grid.appendChild(card);
+  });
+}
+
+function saveToHash() {
+  const state = {
+    sql: $('#sql').value,
+    style: $('#style').value,
+    titles: $('#titles').value,
+    wrap: $('#wrap').value,
+    sw: $('#screen-width').value,
+    border: $('#border').value,
+    null: $('#null-display').value
+  };
+  const hash = btoa(JSON.stringify(state));
+  history.replaceState(null, '', '#' + hash);
+}
+
+function loadFromHash() {
+  const hash = location.hash.slice(1);
+  if (!hash) return false;
+  try {
+    const state = JSON.parse(atob(hash));
+    if (state.sql) $('#sql').value = state.sql;
+    if (state.style) $('#style').value = state.style;
+    if (state.titles) $('#titles').value = state.titles;
+    if (state.wrap) $('#wrap').value = state.wrap;
+    if (state.sw) $('#screen-width').value = state.sw;
+    if (state.border) $('#border').value = state.border;
+    if ('null' in state) $('#null-display').value = state.null;
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+function loadExample(i) {
+  const ex = EXAMPLES[i];
+  $('#sql').value = ex.sql;
+  $('#style').value = ex.style;
+  /* Special case: border off for the "no border" example */
+  if (ex.title === "Box without border") {
+    $('#border').value = "1";
+  } else {
+    $('#border').value = "0";
+  }
+  runQuery();
+}
+
+function runQuery() {
+  if (!Module) return;
+  const sql = $('#sql').value.trim();
+  if (!sql) {
+    $('#output').textContent = '(enter a SQL query above)';
+    $('#timing').textContent = '';
+    return;
+  }
+  const style = parseInt($('#style').value);
+  const titles = parseInt($('#titles').value);
+  const wrap = parseInt($('#wrap').value) || 0;
+  const screenWidth = parseInt($('#screen-width').value) || 0;
+  const border = parseInt($('#border').value);
+  const nullStr = $('#null-display').value;
+  const tableName = "t"; /* used for INSERT mode */
+
+  const t0 = performance.now();
+
+  /* Allocate strings on the WASM heap */
+  const sqlLen = Module.lengthBytesUTF8(sql) + 1;
+  const sqlPtr = Module._malloc(sqlLen);
+  Module.stringToUTF8(sql, sqlPtr, sqlLen);
+
+  const nullLen = Module.lengthBytesUTF8(nullStr) + 1;
+  const nullPtr = Module._malloc(nullLen);
+  Module.stringToUTF8(nullStr, nullPtr, nullLen);
+
+  const tnLen = Module.lengthBytesUTF8(tableName) + 1;
+  const tnPtr = Module._malloc(tnLen);
+  Module.stringToUTF8(tableName, tnPtr, tnLen);
+
+  const resultPtr = Module.ccall('qrf_exec', 'number',
+    ['number','number','number','number','number','number','number','number'],
+    [sqlPtr, style, titles, wrap, screenWidth, nullPtr, tnPtr, border]
+  );
+
+  Module._free(sqlPtr);
+  Module._free(nullPtr);
+  Module._free(tnPtr);
+
+  const t1 = performance.now();
+
+  if (resultPtr) {
+    const result = Module.UTF8ToString(resultPtr);
+    Module.ccall('qrf_free', null, ['number'], [resultPtr]);
+    $('#output').textContent = result || '(no output)';
+  } else {
+    $('#output').textContent = '(no output)';
+  }
+
+  $('#timing').textContent = `${(t1 - t0).toFixed(1)} ms`;
+  saveToHash();
+}
+
+function setupCopyButton() {
+  $('#copy-btn').addEventListener('click', () => {
+    const text = $('#output').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = $('#copy-btn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy', 1500);
+    });
+  });
+}
+
+async function init() {
+  buildExampleCards();
+  setupCopyButton();
+
+  /* Wire up controls to auto-run */
+  ['style','titles','wrap','screen-width','border','null-display'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('change', runQuery);
+    el.addEventListener('input', () => {
+      /* Debounce numeric inputs */
+      clearTimeout(el._debounce);
+      el._debounce = setTimeout(runQuery, 300);
+    });
+  });
+
+  /* Ctrl+Enter to run */
+  $('#sql').addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      runQuery();
+    }
+  });
+
+  try {
+    Module = await createSQLiteQRF();
+
+    /* Initialize the demo database */
+    Module.ccall('qrf_init', 'number', [], []);
+
+    /* Show version */
+    const versionPtr = Module.ccall('qrf_version', 'number', [], []);
+    const version = Module.UTF8ToString(versionPtr);
+    $('#version').textContent = 'SQLite ' + version;
+
+    /* Enable the run button */
+    $('#run-btn').disabled = false;
+    $('#run-btn').addEventListener('click', runQuery);
+
+    /* Restore state from URL hash, or run the default query */
+    loadFromHash();
+    runQuery();
+  } catch(e) {
+    $('#output').textContent = 'Failed to load SQLite WASM module: ' + e.message;
+    console.error(e);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
