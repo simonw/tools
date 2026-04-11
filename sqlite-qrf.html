@@ -338,12 +338,6 @@ footer a:hover { text-decoration: underline; }
     </div>
   </div>
 
-  <!-- Example queries -->
-  <div class="panel">
-    <h2>Example Queries</h2>
-    <div class="examples-grid" id="examples"></div>
-  </div>
-
   <!-- SQL input -->
   <div class="panel">
     <h2>SQL Query</h2>
@@ -426,6 +420,12 @@ footer a:hover { text-decoration: underline; }
       <button class="copy-btn" id="copy-btn" title="Copy to clipboard">Copy</button>
       <pre id="output"><span class="loading"><span class="spinner"></span><br>Loading SQLite WebAssembly module...</span></pre>
     </div>
+  </div>
+
+  <!-- Example queries -->
+  <div class="panel">
+    <h2>Example Queries</h2>
+    <div class="examples-grid" id="examples"></div>
   </div>
 
   <footer>
@@ -568,6 +568,38 @@ function buildExampleCards() {
   });
 }
 
+function saveToHash() {
+  const state = {
+    sql: $('#sql').value,
+    style: $('#style').value,
+    titles: $('#titles').value,
+    wrap: $('#wrap').value,
+    sw: $('#screen-width').value,
+    border: $('#border').value,
+    null: $('#null-display').value
+  };
+  const hash = btoa(JSON.stringify(state));
+  history.replaceState(null, '', '#' + hash);
+}
+
+function loadFromHash() {
+  const hash = location.hash.slice(1);
+  if (!hash) return false;
+  try {
+    const state = JSON.parse(atob(hash));
+    if (state.sql) $('#sql').value = state.sql;
+    if (state.style) $('#style').value = state.style;
+    if (state.titles) $('#titles').value = state.titles;
+    if (state.wrap) $('#wrap').value = state.wrap;
+    if (state.sw) $('#screen-width').value = state.sw;
+    if (state.border) $('#border').value = state.border;
+    if ('null' in state) $('#null-display').value = state.null;
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
 function loadExample(i) {
   const ex = EXAMPLES[i];
   $('#sql').value = ex.sql;
@@ -632,6 +664,7 @@ function runQuery() {
   }
 
   $('#timing').textContent = `${(t1 - t0).toFixed(1)} ms`;
+  saveToHash();
 }
 
 function setupCopyButton() {
@@ -683,7 +716,8 @@ async function init() {
     $('#run-btn').disabled = false;
     $('#run-btn').addEventListener('click', runQuery);
 
-    /* Run the default query */
+    /* Restore state from URL hash, or run the default query */
+    loadFromHash();
     runQuery();
   } catch(e) {
     $('#output').textContent = 'Failed to load SQLite WASM module: ' + e.message;
