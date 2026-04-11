@@ -1,0 +1,3 @@
+Format SQLite query results in 20 different output styles using an interactive web interface powered by WebAssembly. This demo provides a pre-loaded sample database with employees, products, and orders tables, allowing you to experiment with various formatting options including box-drawing, CSV, JSON, Markdown, HTML, and INSERT statements. All processing runs locally in your browser, and you can save your query and formatting preferences in the URL hash for easy sharing.
+
+<!-- Generated from commit: bb80fc2c54e219d2d395dafece2a4ad94110b79f -->
