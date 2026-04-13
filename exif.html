@@ -5,42 +5,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EXIF Data Viewer</title>
     <style>
+        :root {
+            --bg: #f4f4f4;
+            --card: #ffffff;
+            --muted: #666;
+            --border: #d9d9d9;
+            --accent: #2563eb;
+            --accent-bg: #eff4ff;
+            --panel: #f1f3f5;
+        }
+        * {
+            box-sizing: border-box;
+        }
         body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            line-height: 1.4;
             margin: 0;
-            padding: 20px;
-            background-color: #f4f4f4;
+            padding: 16px;
+            background-color: var(--bg);
+            color: #222;
         }
         .container {
-            max-width: 800px;
+            max-width: 760px;
             margin: auto;
-            background: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            background: var(--card);
+            padding: 20px 22px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
         h1 {
+            margin: 0 0 14px;
+            font-size: 1.6rem;
+            color: #222;
+        }
+        h2 {
+            margin: 0 0 8px;
+            font-size: 1rem;
             color: #333;
         }
+        .dropzone {
+            display: block;
+            width: 100%;
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 22px 16px;
+            text-align: center;
+            cursor: pointer;
+            background: #fafafa;
+            transition: background-color 0.15s, border-color 0.15s;
+            color: var(--muted);
+        }
+        .dropzone .label-text {
+            display: block;
+        }
+        .dropzone:hover,
+        .dropzone:focus-visible {
+            border-color: var(--accent);
+            background: var(--accent-bg);
+            color: var(--accent);
+            outline: none;
+        }
+        .dropzone.dragover {
+            border-color: var(--accent);
+            background: var(--accent-bg);
+            color: var(--accent);
+        }
+        .dropzone strong {
+            color: var(--accent);
+        }
+        .dropzone .hint {
+            display: block;
+            font-size: 0.85rem;
+            margin-top: 4px;
+            color: var(--muted);
+        }
+        .dropzone .filename {
+            display: block;
+            margin-top: 6px;
+            font-size: 0.85rem;
+            color: #222;
+        }
         #file-input {
-            margin-bottom: 20px;
+            display: none;
         }
-        #coordinates, #exif-data {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #e9e9e9;
-            border-radius: 5px;
+        #coordinates:not(:empty),
+        #exif-data:not(:empty) {
+            margin-top: 14px;
+            padding: 12px 14px;
+            background-color: var(--panel);
+            border-radius: 6px;
         }
-        #exif-data {
+        #coordinates p {
+            margin: 2px 0;
+        }
+        #exif-data pre {
             white-space: pre-wrap;
             word-wrap: break-word;
+            overflow-wrap: anywhere;
+            margin: 0;
+            font-size: 0.85rem;
+            line-height: 1.45;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>EXIF Data Viewer</h1>
+        <label for="file-input" class="dropzone" id="dropzone" tabindex="0">
+            <span class="label-text"><strong>Click to choose</strong> or drop an image here</span>
+            <span class="hint">JPEG, PNG, HEIC, etc.</span>
+            <span class="filename" id="filename"></span>
+        </label>
         <input type="file" id="file-input" accept="image/*">
         <div id="coordinates"></div>
         <div id="exif-data"></div>
@@ -50,13 +125,46 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('file-input');
+            const dropzone = document.getElementById('dropzone');
+            const filenameEl = document.getElementById('filename');
             const coordinatesDiv = document.getElementById('coordinates');
             const exifDataDiv = document.getElementById('exif-data');
 
-            fileInput.addEventListener('change', handleFileSelect);
-
-            function handleFileSelect(event) {
+            fileInput.addEventListener('change', function(event) {
                 const file = event.target.files[0];
+                if (file) handleFile(file);
+            });
+
+            dropzone.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    fileInput.click();
+                }
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropzone.addEventListener(eventName, function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    dropzone.classList.add('dragover');
+                });
+            });
+
+            ['dragleave', 'dragend', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    dropzone.classList.remove('dragover');
+                });
+            });
+
+            dropzone.addEventListener('drop', function(event) {
+                const file = event.dataTransfer.files[0];
+                if (file) handleFile(file);
+            });
+
+            function handleFile(file) {
+                filenameEl.textContent = file.name;
                 const reader = new FileReader();
 
                 reader.onload = function(e) {
@@ -94,8 +202,30 @@
 
                 exifDataDiv.innerHTML = `
                     <h2>All EXIF Data</h2>
-                    <pre>${JSON.stringify(tags, null, 2)}</pre>
+                    <pre>${escapeHtml(formatExifJson(tags))}</pre>
                 `;
+            }
+
+            function formatExifJson(obj) {
+                const keys = Object.keys(obj);
+                if (keys.length === 0) {
+                    return '{}';
+                }
+                const lines = ['{'];
+                keys.forEach((key, i) => {
+                    const value = JSON.stringify(obj[key]);
+                    const comma = i < keys.length - 1 ? ',' : '';
+                    lines.push(`  ${JSON.stringify(key)}: ${value === undefined ? 'null' : value}${comma}`);
+                });
+                lines.push('}');
+                return lines.join('\n');
+            }
+
+            function escapeHtml(str) {
+                return str
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
             }
 
             function convertDMSToDD(dms, ref) {
