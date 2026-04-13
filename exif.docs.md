@@ -1,3 +1,3 @@
-Extract and view EXIF metadata from image files, including GPS coordinates and other embedded image data. This tool allows you to upload an image and instantly retrieve detailed information such as geolocation data, camera settings, and timestamps stored within the file. The viewer displays GPS coordinates in decimal format when available and presents all extracted metadata in a structured, readable format.
+Extract EXIF metadata and GPS coordinates from uploaded images using this viewer. Simply upload or drag-and-drop an image file to instantly display all embedded EXIF data, including GPS latitude and longitude if available. The tool supports common image formats such as JPEG, PNG, and HEIC.
 
-<!-- Generated from commit: 687d45089606f654ee7e84f20b87d3348b301eb7 -->
+<!-- Generated from commit: 646e64b51e917dc72a0f8d86232b016e785722aa -->
