@@ -36,6 +36,12 @@
             white-space: pre-wrap;
             word-wrap: break-word;
         }
+        #exif-data pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
+            margin: 0;
+        }
     </style>
 </head>
 <body>
@@ -94,8 +100,30 @@
 
                 exifDataDiv.innerHTML = `
                     <h2>All EXIF Data</h2>
-                    <pre>${JSON.stringify(tags, null, 2)}</pre>
+                    <pre>${escapeHtml(formatExifJson(tags))}</pre>
                 `;
+            }
+
+            function formatExifJson(obj) {
+                const keys = Object.keys(obj);
+                if (keys.length === 0) {
+                    return '{}';
+                }
+                const lines = ['{'];
+                keys.forEach((key, i) => {
+                    const value = JSON.stringify(obj[key]);
+                    const comma = i < keys.length - 1 ? ',' : '';
+                    lines.push(`  ${JSON.stringify(key)}: ${value === undefined ? 'null' : value}${comma}`);
+                });
+                lines.push('}');
+                return lines.join('\n');
+            }
+
+            function escapeHtml(str) {
+                return str
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
             }
 
             function convertDMSToDD(dms, ref) {
