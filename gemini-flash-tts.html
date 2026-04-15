@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini 3.1 Flash TTS</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; color: #333; }
+    .card { background: #f9f9f9; padding: 1.5rem; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 1rem; }
+    textarea, input, select { width: 100%; box-sizing: border-box; margin-top: 0.5rem; margin-bottom: 1rem; padding: 0.5rem; font-family: inherit; }
+    .row { display: flex; gap: 1rem; }
+    .col { flex: 1; }
+    label { font-weight: bold; font-size: 0.9rem; }
+    button { padding: 0.75rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+    button:hover { background: #1557b0; }
+    #status { margin: 1rem 0; font-weight: bold; color: #555; }
+    .controls { display: flex; gap: 1rem; align-items: center; margin-top: 1rem; }
+    .hidden { display: none !important; }
+    .tips { font-size: 0.85rem; color: #666; background: #eef; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+
+  <h1>Gemini 3.1 Flash TTS</h1>
+  
+  <div class="card">
+    <label for="apiKey">API Key</label>
+    <input type="password" id="apiKey" placeholder="Enter your Gemini API Key here...">
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="col">
+        <label for="modeSelect">TTS Mode</label>
+        <select id="modeSelect">
+          <option value="single">Single Speaker</option>
+          <option value="multi">Multi-Speaker (Conversation)</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="singleConfig" class="row">
+      <div class="col">
+        <label for="singleVoice">Voice</label>
+        <select id="singleVoice" class="voice-select">
+          </select>
+      </div>
+    </div>
+
+    <div id="multiConfig" class="hidden">
+      <div class="row">
+        <div class="col">
+          <label>Speaker 1 Name</label>
+          <input type="text" id="spk1Name" value="Joe">
+        </div>
+        <div class="col">
+          <label>Speaker 1 Voice</label>
+          <select id="spk1Voice" class="voice-select"></select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col">
+          <label>Speaker 2 Name</label>
+          <input type="text" id="spk2Name" value="Jane">
+        </div>
+        <div class="col">
+          <label>Speaker 2 Voice</label>
+          <select id="spk2Voice" class="voice-select"></select>
+        </div>
+      </div>
+    </div>
+
+    <label for="textInput">Script / Prompt</label>
+    <div class="tips" id="promptTips">
+      <strong>Tip:</strong> Try using directorial tags like <code>[whisper]</code>, <code>[short pause]</code>, or <code>Say cheerfully: </code>.
+    </div>
+    <textarea id="textInput" rows="7">Say dynamically: "Hello! [short pause] [whisper] I have a secret... I'm a machine."</textarea>
+    
+    <button id="generateBtn">Generate Audio</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div class="controls">
+    <audio id="audioPlayer" controls class="hidden"></audio>
+    <a id="downloadLink" class="hidden" download="gemini_speech.wav">Download WAV</a>
+  </div>
+
+  <script>
+    // A selection of available voices based on Gemini Docs
+    const voices = [
+      { name: "Puck", desc: "Upbeat" }, { name: "Kore", desc: "Firm" },
+      { name: "Zephyr", desc: "Bright" }, { name: "Charon", desc: "Informative" },
+      { name: "Enceladus", desc: "Breathy" }, { name: "Fenrir", desc: "Excitable" },
+      { name: "Leda", desc: "Youthful" }, { name: "Aoede", desc: "Breezy" }
+    ];
+
+    // Populate dropdowns
+    document.querySelectorAll('.voice-select').forEach(select => {
+      voices.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.name;
+        opt.textContent = `${v.name} (${v.desc})`;
+        select.appendChild(opt);
+      });
+    });
+
+    // Default multi-speaker voices to be different
+    document.getElementById('spk2Voice').selectedIndex = 1;
+
+    // Toggle UI based on mode
+    const modeSelect = document.getElementById('modeSelect');
+    const singleConfig = document.getElementById('singleConfig');
+    const multiConfig = document.getElementById('multiConfig');
+    const textInput = document.getElementById('textInput');
+    const promptTips = document.getElementById('promptTips');
+
+    modeSelect.addEventListener('change', (e) => {
+      if (e.target.value === 'single') {
+        singleConfig.classList.remove('hidden');
+        multiConfig.classList.add('hidden');
+        promptTips.innerHTML = `<strong>Tip:</strong> Try using directorial tags like <code>[whisper]</code>, <code>[short pause]</code>, or <code>Say cheerfully: </code>.`;
+        textInput.value = `Say dynamically: "Hello! [short pause] [whisper] I have a secret... I'm a machine."`;
+      } else {
+        singleConfig.classList.add('hidden');
+        multiConfig.classList.remove('hidden');
+        promptTips.innerHTML = `<strong>Tip:</strong> Format your text as a script using the Exact Speaker Names defined above.`;
+        textInput.value = `TTS the following conversation between Joe and Jane:\n\nJoe: How's it going today Jane?\nJane: [yawn] Not too bad, how about you?`;
+      }
+    });
+
+    // Handle Generation
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const text = textInput.value.trim();
+      const statusEl = document.getElementById('status');
+      const audioPlayer = document.getElementById('audioPlayer');
+      const downloadLink = document.getElementById('downloadLink');
+
+      if (!apiKey) return alert("Please provide a valid API key.");
+
+      statusEl.textContent = "Generating audio...";
+      audioPlayer.classList.add('hidden');
+      downloadLink.classList.add('hidden');
+
+      // Construct dynamic speechConfig based on UI
+      let speechConfig = {};
+      if (modeSelect.value === 'single') {
+        speechConfig = {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: document.getElementById('singleVoice').value }
+          }
+        };
+      } else {
+        speechConfig = {
+          multiSpeakerVoiceConfig: {
+            speakerVoiceConfigs: [
+              {
+                speaker: document.getElementById('spk1Name').value.trim(),
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: document.getElementById('spk1Voice').value } }
+              },
+              {
+                speaker: document.getElementById('spk2Name').value.trim(),
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: document.getElementById('spk2Voice').value } }
+              }
+            ]
+          }
+        };
+      }
+
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${apiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: text }] }],
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: speechConfig
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const err = await response.text();
+          throw new Error(`API Error ${response.status}: ${err}`);
+        }
+
+        const data = await response.json();
+        const base64PcmData = data.candidates[0].content.parts[0].inlineData.data;
+        const wavBlob = createWavBlobFromPcmBase64(base64PcmData, 24000, 1, 16);
+        const objectUrl = URL.createObjectURL(wavBlob);
+
+        audioPlayer.src = objectUrl;
+        audioPlayer.classList.remove('hidden');
+        downloadLink.href = objectUrl;
+        downloadLink.classList.remove('hidden');
+
+        statusEl.textContent = "Success!";
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = `Failed: ${error.message}`;
+      }
+    });
+
+    function createWavBlobFromPcmBase64(base64Data, sampleRate, numChannels, bitsPerSample) {
+      const binaryString = atob(base64Data);
+      const dataSize = binaryString.length;
+      const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+      const blockAlign = (numChannels * bitsPerSample) / 8;
+      const buffer = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(buffer);
+
+      const writeString = (offset, str) => {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+      };
+
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitsPerSample, true);
+      writeString(36, 'data');
+      view.setUint32(40, dataSize, true);
+
+      const pcmData = new Uint8Array(buffer, 44);
+      for (let i = 0; i < dataSize; i++) pcmData[i] = binaryString.charCodeAt(i);
+
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+  </script>
+</body>
+</html>
