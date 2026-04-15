@@ -1,0 +1,3 @@
+Convert text to natural-sounding speech using Google's Gemini 3.1 Flash TTS model with support for both single-speaker and multi-speaker conversation modes. The tool allows you to customize voice selection, apply directorial tags like `[whisper]` and `[short pause]` for dynamic delivery, and download the generated audio as a WAV file. Requires a valid Gemini API key to function.
+
+<!-- Generated from commit: efbc14d5777dd77a0bf963e272f3852cb588637a -->
