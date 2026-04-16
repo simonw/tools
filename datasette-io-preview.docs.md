@@ -1,0 +1,3 @@
+Preview and validate datasette.io news entries in YAML format with real-time rendering and markdown linting. The editor loads the current news.yaml file from GitHub and provides immediate feedback on formatting errors, link validation, and markdown syntax issues while displaying a styled preview of how entries will appear on the live site. Use the error badge to track validation issues and fix them directly in the editor pane.
+
+<!-- Generated from commit: 08ccddddf6305ed1f5853e6c4eb1da099ccf2394 -->
