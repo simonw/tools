@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>datasette.io news preview</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+<style>
+* {
+  box-sizing: border-box;
+}
+body {
+  font-family: Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  line-height: 1.4;
+  background: #f5f5f0;
+  color: #1a1a1a;
+}
+.layout {
+  display: flex;
+  height: 100vh;
+}
+.editor-pane {
+  width: 45%;
+  display: flex;
+  flex-direction: column;
+  border-right: 3px solid #0e0c82;
+  background: #fff;
+}
+.preview-pane {
+  width: 55%;
+  overflow-y: auto;
+  padding: 1.5em 2em 3em;
+  background: #fff;
+}
+.pane-header {
+  padding: 0.8em 1em;
+  background: #0e0c82;
+  color: #fff;
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pane-header span {
+  opacity: 0.7;
+  font-weight: 400;
+}
+textarea {
+  flex: 1;
+  width: 100%;
+  padding: 1em;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 16px;
+  line-height: 1.5;
+  tab-size: 2;
+  color: #1a1a1a;
+  background: #fff;
+}
+textarea::placeholder {
+  color: #999;
+}
+.errors-bar {
+  padding: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease, padding 0.25s ease;
+  background: #fff0f0;
+  border-top: 2px solid #cc3333;
+}
+.errors-bar.visible {
+  max-height: 300px;
+  padding: 0.7em 1em;
+  overflow-y: auto;
+}
+.error-item {
+  font-size: 0.82em;
+  line-height: 1.5;
+  padding: 0.2em 0;
+  color: #991111;
+}
+.error-item code {
+  background: rgba(204, 51, 51, 0.1);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  font-size: 0.92em;
+}
+.error-badge {
+  background: #cc3333;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.1em 0.6em;
+  font-size: 0.85em;
+  font-weight: 600;
+  min-width: 1.4em;
+  text-align: center;
+}
+.ok-badge {
+  background: #2a9d2a;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.1em 0.6em;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+/* Preview styles matching datasette.io */
+.preview-pane h3 {
+  margin-top: 1.6em;
+  margin-bottom: 0.3em;
+  font-size: 1.05em;
+  color: #333;
+}
+.preview-pane h3 a {
+  font-size: 0.8em;
+  opacity: 0.4;
+  text-decoration: none;
+  color: inherit;
+}
+.preview-pane p {
+  margin: 0.5em 0;
+  font-size: 0.95em;
+}
+.preview-pane a:link,
+.preview-pane a:visited,
+.preview-pane a:hover,
+.preview-pane a:focus,
+.preview-pane a:active {
+  color: blue;
+  text-decoration: none;
+}
+.preview-pane code {
+  background: #f0f0f0;
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.88em;
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+}
+.preview-pane pre {
+  background: #f5f5f5;
+  padding: 0.8em 1em;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.preview-pane pre code {
+  background: none;
+  padding: 0;
+}
+.preview-pane ul, .preview-pane ol {
+  padding-left: 1.5em;
+  font-size: 0.95em;
+}
+.preview-pane li {
+  margin: 0.3em 0;
+}
+.preview-pane strong {
+  font-weight: 700;
+}
+.news-entry {
+  padding: 0.2em 0.5em;
+  margin: 0 -0.5em;
+  border-radius: 4px;
+}
+.news-entry.has-warning {
+  background: #fffbe6;
+  border-left: 3px solid #e6a817;
+}
+.md-warning {
+  font-size: 0.78em;
+  color: #996600;
+  background: #fff3cc;
+  padding: 0.25em 0.5em;
+  border-radius: 3px;
+  margin-top: 0.3em;
+  display: inline-block;
+}
+.empty-state {
+  text-align: center;
+  padding: 4em 2em;
+  color: #999;
+}
+.empty-state p {
+  font-size: 1em;
+}
+.entry-count {
+  font-size: 0.82em;
+  color: #666;
+  margin-bottom: 1em;
+  padding-bottom: 0.5em;
+  border-bottom: 1px solid #eee;
+}
+
+@media (max-width: 700px) {
+  .layout {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+  .editor-pane {
+    width: 100%;
+    height: 45vh;
+    border-right: none;
+    border-bottom: 3px solid #0e0c82;
+  }
+  .preview-pane {
+    width: 100%;
+    height: 55vh;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="editor-pane">
+    <div class="pane-header">
+      datasette.io news preview
+      <span id="status-badge"></span>
+    </div>
+    <textarea id="yaml-input" placeholder="Loading news.yaml from GitHub..."></textarea>
+    <div class="errors-bar" id="errors-bar"></div>
+  </div>
+  <div class="preview-pane" id="preview"></div>
+</div>
+
+<script type="module">
+const input = document.getElementById('yaml-input');
+const preview = document.getElementById('preview');
+const errorsBar = document.getElementById('errors-bar');
+const statusBadge = document.getElementById('status-badge');
+
+const ORDINALS = ['th','st','nd','rd'];
+
+function ordinal(n) {
+  const v = n % 100;
+  return n + (ORDINALS[(v - 20) % 10] || ORDINALS[v] || ORDINALS[0]);
+}
+
+const MONTHS = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December'
+];
+
+function prettyDate(dateStr) {
+  const parts = dateStr.split('-');
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+  return `${ordinal(day)} ${MONTHS[month - 1]} ${year}`;
+}
+
+function lintMarkdown(body, index) {
+  const warnings = [];
+  // Unmatched links: [text](url) pattern check
+  const linkOpens = (body.match(/\[/g) || []).length;
+  const linkCloses = (body.match(/\]/g) || []).length;
+  const fullLinks = (body.match(/\[[^\]]*\]\([^)]*\)/g) || []).length;
+  if (linkOpens !== linkCloses) {
+    warnings.push('Mismatched square brackets — possible broken link');
+  }
+  // Check for ]( without matching [
+  const brokenLinkPattern = /\]\([^)]*$/m;
+  if (brokenLinkPattern.test(body)) {
+    warnings.push('Link appears to have an unclosed parenthesis');
+  }
+  // Unmatched bold markers
+  const boldCount = (body.match(/\*\*/g) || []).length;
+  if (boldCount % 2 !== 0) {
+    warnings.push('Unmatched <code>**</code> bold marker');
+  }
+  // Unmatched single emphasis (trickier, only flag obvious cases)
+  // Look for isolated * not part of ** or list
+  const stripped = body.replace(/\*\*/g, '');
+  const emLines = stripped.split('\n');
+  for (const line of emLines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) continue;
+    const singles = (trimmed.match(/(?<!\*)\*(?!\*)/g) || []).length;
+    if (singles % 2 !== 0) {
+      warnings.push('Possibly unmatched <code>*</code> emphasis marker');
+      break;
+    }
+  }
+  // Unmatched backticks
+  const backtickCount = (body.match(/`/g) || []).length;
+  if (backtickCount % 2 !== 0) {
+    warnings.push('Unmatched backtick <code>`</code>');
+  }
+  // Empty link text
+  if (/\[\]\(/.test(body)) {
+    warnings.push('Link with empty text: <code>[](url)</code>');
+  }
+  // Empty link URL
+  if (/\[[^\]]+\]\(\s*\)/.test(body)) {
+    warnings.push('Link with empty URL: <code>[text]()</code>');
+  }
+  return warnings;
+}
+
+function render() {
+  const raw = input.value.trim();
+  if (!raw) {
+    preview.innerHTML = '<div class="empty-state"><p>Loading news.yaml from GitHub...</p></div>';
+    errorsBar.innerHTML = '';
+    errorsBar.classList.remove('visible');
+    statusBadge.innerHTML = '';
+    return;
+  }
+
+  const errors = [];
+  let data;
+
+  // Parse YAML
+  try {
+    data = jsyaml.load(raw, { schema: jsyaml.JSON_SCHEMA });
+  } catch (e) {
+    const line = e.mark ? e.mark.line + 1 : '?';
+    errors.push(`YAML parse error on line ${line}: ${e.reason || e.message}`);
+    showErrors(errors);
+    preview.innerHTML = '<div class="empty-state"><p>Fix the YAML errors to see a preview.</p></div>';
+    return;
+  }
+
+  // Validate structure
+  if (!Array.isArray(data)) {
+    errors.push('Top-level value must be a YAML list (array), got <code>' + typeof data + '</code>');
+    showErrors(errors);
+    preview.innerHTML = '<div class="empty-state"><p>Fix the YAML errors to see a preview.</p></div>';
+    return;
+  }
+
+  const mdWarnings = new Map(); // index -> warnings[]
+
+  data.forEach((entry, i) => {
+    const n = i + 1;
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      errors.push(`Entry #${n}: must be a mapping with <code>date</code> and <code>body</code> keys`);
+      return;
+    }
+    if (!entry.date) {
+      errors.push(`Entry #${n}: missing <code>date</code> field`);
+    } else {
+      const ds = String(entry.date);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(ds)) {
+        errors.push(`Entry #${n}: <code>date</code> should be YYYY-MM-DD format, got <code>${ds}</code>`);
+      }
+    }
+    if (!entry.body && entry.body !== '') {
+      errors.push(`Entry #${n}: missing <code>body</code> field`);
+    } else if (typeof entry.body !== 'string') {
+      errors.push(`Entry #${n}: <code>body</code> should be a string`);
+    }
+    const extraKeys = Object.keys(entry).filter(k => k !== 'date' && k !== 'body');
+    if (extraKeys.length) {
+      errors.push(`Entry #${n}: unexpected key(s): <code>${extraKeys.join(', ')}</code>`);
+    }
+
+    // Lint the markdown
+    if (typeof entry.body === 'string') {
+      const w = lintMarkdown(entry.body, i);
+      if (w.length) mdWarnings.set(i, w);
+    }
+  });
+
+  // Check date ordering
+  let lastDate = null;
+  data.forEach((entry, i) => {
+    if (entry.date) {
+      const ds = String(entry.date);
+      if (lastDate && ds > lastDate) {
+        errors.push(`Entry #${i + 1}: date <code>${ds}</code> is after previous date <code>${lastDate}</code> — entries should be newest first`);
+      }
+      lastDate = ds;
+    }
+  });
+
+  showErrors(errors, mdWarnings);
+
+  // Render preview
+  let html = '';
+  html += `<div class="entry-count">${data.length} news entr${data.length === 1 ? 'y' : 'ies'}</div>`;
+
+  let currentDate = '';
+  data.forEach((entry, i) => {
+    if (!entry || typeof entry !== 'object') return;
+    const dateStr = entry.date ? String(entry.date) : 'unknown';
+    const pretty = entry.date ? prettyDate(dateStr) : dateStr;
+
+    if (pretty !== currentDate) {
+      html += `<h3>${pretty} <a href="#">#</a></h3>`;
+      currentDate = pretty;
+    }
+
+    const hasWarning = mdWarnings.has(i);
+    html += `<div class="news-entry${hasWarning ? ' has-warning' : ''}">`;
+
+    if (typeof entry.body === 'string') {
+      html += marked.parse(entry.body);
+    }
+
+    if (hasWarning) {
+      for (const w of mdWarnings.get(i)) {
+        html += `<div class="md-warning">${w}</div>`;
+      }
+    }
+
+    html += '</div>';
+  });
+
+  preview.innerHTML = html;
+}
+
+function showErrors(errors, mdWarnings) {
+  const totalWarnings = mdWarnings ? Array.from(mdWarnings.values()).reduce((s, a) => s + a.length, 0) : 0;
+  const total = errors.length + totalWarnings;
+
+  if (total === 0) {
+    errorsBar.innerHTML = '';
+    errorsBar.classList.remove('visible');
+    statusBadge.innerHTML = '<span class="ok-badge">OK</span>';
+    return;
+  }
+
+  statusBadge.innerHTML = `<span class="error-badge">${total}</span>`;
+
+  let html = '';
+  for (const e of errors) {
+    html += `<div class="error-item">${e}</div>`;
+  }
+  if (mdWarnings) {
+    for (const [idx, warns] of mdWarnings) {
+      for (const w of warns) {
+        html += `<div class="error-item">Entry #${idx + 1} markdown: ${w}</div>`;
+      }
+    }
+  }
+
+  errorsBar.innerHTML = html;
+  errorsBar.classList.add('visible');
+}
+
+let debounceTimer;
+input.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(render, 200);
+});
+
+// Fetch news.yaml from GitHub and populate
+const YAML_URL = 'https://raw.githubusercontent.com/simonw/datasette.io/refs/heads/main/news.yaml';
+
+async function loadFromGitHub() {
+  try {
+    const res = await fetch(YAML_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    input.value = text;
+    input.placeholder = '';
+    render();
+  } catch (e) {
+    input.placeholder = `Failed to load from GitHub: ${e.message}\n\nPaste your news.yaml content here instead.`;
+    preview.innerHTML = '<div class="empty-state"><p>Could not fetch news.yaml — paste it manually on the left.</p></div>';
+  }
+}
+
+loadFromGitHub();
+</script>
+
+</body>
+</html>
