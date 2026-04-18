@@ -1,3 +1,3 @@
-Count tokens in your Claude API requests using this web-based token counter tool. Enter a system prompt and user message, optionally attach images or PDF documents, and receive detailed token usage information for billing and optimization purposes. The tool securely stores your API key locally and communicates directly with the Anthropic API to provide accurate token counts for your exact message content.
+Compare token counts across multiple Claude models by entering text and optional files. This tool supports system prompts, user messages, and file attachments (images and PDFs) to help you understand how different Claude models tokenize your content. Your API key is stored locally in your browser and used only to call the Anthropic token counting API.
 
-<!-- Generated from commit: fbd47dc3816f32a8c3d8614ee2457f18d77536fd -->
+<!-- Generated from commit: 5b63ef8fd4300ee0f35ceb3e4572748da3363e01 -->
