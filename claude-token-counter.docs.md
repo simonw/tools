@@ -1,3 +1,3 @@
-Compare token counts across multiple Claude models by entering text and optional files. This tool supports system prompts, user messages, and file attachments (images and PDFs) to help you understand how different Claude models tokenize your content. Your API key is stored locally in your browser and used only to call the Anthropic token counting API.
+Count and compare Claude API token usage across different models using the Anthropic token counting endpoint. Enter a system prompt and user message, optionally attach images or PDF documents, and select which Claude models to analyze for token consumption. The tool displays the token count for each model alongside a multiplier comparing it to the model with the lowest token usage.
 
-<!-- Generated from commit: 5b63ef8fd4300ee0f35ceb3e4572748da3363e01 -->
+<!-- Generated from commit: 0dbdead2fb09856d1a9f3f6b907960d1d46e4871 -->
