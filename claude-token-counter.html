@@ -105,6 +105,72 @@
   .file-item button:hover {
     background: #cc0000;
   }
+
+  .model-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin: 8px 0;
+  }
+
+  .model-list label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: normal;
+    cursor: pointer;
+    margin-bottom: 0;
+  }
+
+  .model-list input[type="checkbox"] {
+    margin: 0;
+  }
+
+  .results-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  .results-table th,
+  .results-table td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .results-table th {
+    background: #e8e8e8;
+  }
+
+  .results-table td.tokens,
+  .results-table td.multiplier {
+    font-family: monospace;
+    text-align: right;
+  }
+
+  .multiplier-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: bold;
+  }
+
+  .multiplier-baseline {
+    background: #d4edda;
+    color: #155724;
+  }
+
+  .multiplier-higher {
+    background: #fff3cd;
+    color: #856404;
+  }
+
+  .result-error {
+    color: #ff0000;
+    font-family: monospace;
+  }
   </style>
 </head>
 <body>
@@ -126,13 +192,25 @@
     <div class="file-list" id="fileList"></div>
   </div>
 
+  <div class="input-group">
+    <label>Models to compare:</label>
+    <div class="model-list" id="modelList"></div>
+  </div>
+
   <button id="count">Count Tokens</button>
   <div id="error" class="error"></div>
   <div id="output" class="output"></div>
 
 <script type="module">
 const API_URL = 'https://api.anthropic.com/v1/messages/count_tokens'
-const MODEL = 'claude-sonnet-4-5'
+const MODELS = [
+  'claude-opus-4-7',
+  'claude-opus-4-6',
+  'claude-opus-4-5',
+  'claude-sonnet-4-6',
+  'claude-haiku-4-5'
+]
+const DEFAULT_MODEL = 'claude-opus-4-7'
 
 let attachedFiles = []
 
@@ -186,15 +264,9 @@ window.removeFile = function(index) {
   updateFileList()
 }
 
-async function countTokens(system, content) {
-  const apiKey = getApiKey()
-  if (!apiKey) {
-    throw new Error('API key is required')
-  }
-
+function buildMessages(content) {
   const messageContent = []
-  
-  // Add files first
+
   for (const file of attachedFiles) {
     messageContent.push({
       type: file.type.startsWith('image/') ? 'image' : 'document',
@@ -206,7 +278,6 @@ async function countTokens(system, content) {
     })
   }
 
-  // Add text content if present
   if (content.trim()) {
     messageContent.push({
       type: 'text',
@@ -214,11 +285,13 @@ async function countTokens(system, content) {
     })
   }
 
-  const messages = [{
+  return [{
     role: 'user',
     content: messageContent
   }]
+}
 
+async function countTokensForModel(model, system, messages, apiKey) {
   const response = await fetch(API_URL, {
     method: 'POST',
     headers: {
@@ -229,7 +302,7 @@ async function countTokens(system, content) {
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       system: system || undefined,
       messages
     })
@@ -237,10 +310,56 @@ async function countTokens(system, content) {
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`API error: ${error}`)
+    throw new Error(error)
   }
 
   return response.json()
+}
+
+function getSelectedModels() {
+  return [...document.querySelectorAll('#modelList input[type="checkbox"]:checked')]
+    .map(cb => cb.value)
+}
+
+function renderResults(results) {
+  const successful = results.filter(r => r.ok)
+  const minTokens = successful.length
+    ? Math.min(...successful.map(r => r.tokens))
+    : null
+
+  const rows = results.map(r => {
+    if (!r.ok) {
+      return `<tr>
+        <td>${r.model}</td>
+        <td class="result-error" colspan="2">Error: ${escapeHtml(r.error)}</td>
+      </tr>`
+    }
+    const ratio = r.tokens / minTokens
+    const isBaseline = r.tokens === minTokens
+    const badgeClass = isBaseline ? 'multiplier-baseline' : 'multiplier-higher'
+    const label = `${ratio.toFixed(2)}x`
+    return `<tr>
+      <td>${r.model}</td>
+      <td class="tokens">${r.tokens.toLocaleString()}</td>
+      <td class="multiplier"><span class="multiplier-badge ${badgeClass}">${label}</span></td>
+    </tr>`
+  }).join('')
+
+  return `<table class="results-table">
+    <thead>
+      <tr><th>Model</th><th style="text-align: right">Tokens</th><th style="text-align: right">vs. lowest</th></tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>`
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 const systemInput = document.getElementById('system')
@@ -250,6 +369,14 @@ const errorDiv = document.getElementById('error')
 const outputDiv = document.getElementById('output')
 const dropArea = document.getElementById('dropArea')
 const fileInput = document.getElementById('fileInput')
+const modelList = document.getElementById('modelList')
+
+modelList.innerHTML = MODELS.map(m => `
+  <label>
+    <input type="checkbox" value="${m}" ${m === DEFAULT_MODEL ? 'checked' : ''}>
+    ${m}
+  </label>
+`).join('')
 
 // File upload handling
 dropArea.addEventListener('click', () => fileInput.click())
@@ -272,15 +399,36 @@ dropArea.addEventListener('drop', (e) => {
 
 countButton.addEventListener('click', async () => {
   errorDiv.textContent = ''
+  outputDiv.textContent = ''
+
+  const selected = getSelectedModels()
+  if (selected.length === 0) {
+    errorDiv.textContent = 'Select at least one model to compare.'
+    return
+  }
+
+  const apiKey = getApiKey()
+  if (!apiKey) {
+    errorDiv.textContent = 'API key is required'
+    return
+  }
+
   outputDiv.textContent = 'Counting tokens...'
   countButton.disabled = true
 
+  const system = systemInput.value.trim()
+  const messages = buildMessages(contentInput.value.trim())
+
   try {
-    const result = await countTokens(
-      systemInput.value.trim(),
-      contentInput.value.trim()
-    )
-    outputDiv.textContent = JSON.stringify(result, null, 2)
+    const settled = await Promise.all(selected.map(async model => {
+      try {
+        const data = await countTokensForModel(model, system, messages, apiKey)
+        return { model, ok: true, tokens: data.input_tokens, data }
+      } catch (err) {
+        return { model, ok: false, error: err.message }
+      }
+    }))
+    outputDiv.innerHTML = renderResults(settled)
   } catch (error) {
     errorDiv.textContent = error.message
     outputDiv.textContent = ''
