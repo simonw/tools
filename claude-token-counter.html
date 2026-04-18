@@ -111,6 +111,7 @@
     flex-wrap: wrap;
     gap: 8px 16px;
     margin: 8px 0;
+    align-items: flex-start;
   }
 
   .model-list label {
@@ -124,6 +125,28 @@
 
   .model-list input[type="checkbox"] {
     margin: 0;
+  }
+
+  .model-group {
+    border: 1px dashed #9bb4d9;
+    background: #f0f6ff;
+    border-radius: 6px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .model-group-note {
+    font-size: 12px;
+    color: #3b5a8a;
+    font-style: italic;
+  }
+
+  .model-group-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
   }
 
   .results-table {
@@ -203,12 +226,18 @@
 
 <script type="module">
 const API_URL = 'https://api.anthropic.com/v1/messages/count_tokens'
-const MODELS = [
-  'claude-opus-4-7',
-  'claude-opus-4-6',
-  'claude-opus-4-5',
-  'claude-sonnet-4-6',
-  'claude-haiku-4-5'
+const MODEL_ENTRIES = [
+  { type: 'model', id: 'claude-opus-4-7' },
+  {
+    type: 'group',
+    note: 'These models share the same tokenizer',
+    models: [
+      'claude-opus-4-6',
+      'claude-opus-4-5',
+      'claude-sonnet-4-6',
+      'claude-haiku-4-5'
+    ]
+  }
 ]
 const DEFAULT_MODEL = 'claude-opus-4-7'
 
@@ -371,12 +400,28 @@ const dropArea = document.getElementById('dropArea')
 const fileInput = document.getElementById('fileInput')
 const modelList = document.getElementById('modelList')
 
-modelList.innerHTML = MODELS.map(m => `
-  <label>
-    <input type="checkbox" value="${m}" ${m === DEFAULT_MODEL ? 'checked' : ''}>
-    ${m}
-  </label>
-`).join('')
+function renderCheckbox(model) {
+  return `
+    <label>
+      <input type="checkbox" value="${model}" ${model === DEFAULT_MODEL ? 'checked' : ''}>
+      ${model}
+    </label>
+  `
+}
+
+modelList.innerHTML = MODEL_ENTRIES.map(entry => {
+  if (entry.type === 'model') {
+    return renderCheckbox(entry.id)
+  }
+  return `
+    <div class="model-group">
+      <div class="model-group-items">
+        ${entry.models.map(renderCheckbox).join('')}
+      </div>
+      <div class="model-group-note">${entry.note}</div>
+    </div>
+  `
+}).join('')
 
 // File upload handling
 dropArea.addEventListener('click', () => fileInput.click())
