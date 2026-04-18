@@ -399,6 +399,7 @@
       let tils = [];
       let notes = [];
       let chapters = [];
+      let beats = [];
       let previousLinks = [];
       let storyOrder = [];
       let newsletterHTML = '';
@@ -562,6 +563,25 @@ with content as (
   from guides_chapter c
   join guides_guide g on c.guide_id = g.id
   where c.is_draft = 0
+  union all
+  select
+    id,
+    'beat' as type,
+    title,
+    created,
+    slug,
+    'No HTML' as html,
+    json_object(
+      'created', date(created),
+      'beat_type', beat_type,
+      'title', title,
+      'url', url,
+      'commentary', commentary,
+      'note', note
+    ) as json,
+    url as external_url
+  from blog_beat
+  where coalesce(note, '') != '' and is_draft = 0
   union all
   select
     rowid,
@@ -796,6 +816,27 @@ order by
           return e;
         });
 
+        // Always render beat HTML from the JSON payload (matches the Atom everything feed)
+        const beatTypeDisplay = {
+          release: 'Release',
+          til: 'TIL',
+          til_update: 'TIL updated',
+          research: 'Research',
+          tool: 'Tool',
+          museum: 'Museum'
+        };
+        filtered = filtered.map(e => {
+          if (e.type === 'beat' && e.json !== 'null') {
+            const info = typeof e.json === 'string' ? JSON.parse(e.json) : e.json;
+            const entry = { ...e };
+            const label = beatTypeDisplay[info.beat_type] || info.beat_type;
+            const noteHtml = info.note ? marked.parse(info.note) : '';
+            entry.html = `<p><strong>${label}:</strong> <a href="${info.url}">${info.title}</a></p>${noteHtml}`;
+            return entry;
+          }
+          return e;
+        });
+
         content = filtered;
         entries = content.filter(e => e.type === 'entry');
         blogmarks = content.filter(e => e.type === 'blogmark');
@@ -803,6 +844,7 @@ order by
         tils = content.filter(e => e.type === 'til');
         notes = content.filter(e => e.type === 'note');
         chapters = content.filter(e => e.type === 'chapter');
+        beats = content.filter(e => e.type === 'beat');
 
         // Initialize story order
         storyOrder = entries.map(e => `${e.id}: ${e.title}`).reverse();
@@ -1042,6 +1084,9 @@ order by
         if (chapters.length) {
           extras.push(`${chapters.length} guide chapter${chapters.length > 1 ? 's' : ''}`);
         }
+        if (beats.length) {
+          extras.push(`${beats.length} beat${beats.length > 1 ? 's' : ''}`);
+        }
         if (extras.length) {
           headerHtml += `<p>Plus ${extras.join(' and ')}</p>`;
         }
@@ -1092,6 +1137,7 @@ order by
         tils = tils.filter(e => !(type === 'til' && String(e.id) === String(id)));
         notes = notes.filter(e => !(type === 'note' && String(e.id) === String(id)));
         chapters = chapters.filter(e => !(type === 'chapter' && String(e.id) === String(id)));
+        beats = beats.filter(e => !(type === 'beat' && String(e.id) === String(id)));
         generateNewsletter();
       }
 
