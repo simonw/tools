@@ -1,3 +1,3 @@
-Count and compare Claude API token usage across different models using the Anthropic token counting endpoint. Enter a system prompt and user message, optionally attach images or PDF documents, and select which Claude models to analyze for token consumption. The tool displays the token count for each model alongside a multiplier comparing it to the model with the lowest token usage.
+Count tokens in text and images across multiple Claude models using Anthropic's token counting API. This tool allows you to compare token usage between different Claude models, helping you optimize costs and understand how system prompts and attachments affect token counts. Simply enter your content, select which models to compare, and the tool will display token counts alongside multipliers showing relative usage.
 
-<!-- Generated from commit: 0dbdead2fb09856d1a9f3f6b907960d1d46e4871 -->
+<!-- Generated from commit: 8533243d54be5b335d00075e3c7ff9f5c0bbcfe3 -->
