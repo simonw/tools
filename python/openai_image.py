@@ -109,7 +109,7 @@ def literal_choices(annotation) -> list[str]:
 
 # ----------------------------- CLI construction -----------------------------
 
-PARAMS = ["background", "moderation", "output_format", "quality", "size"]
+PARAMS = ["background", "moderation", "output_format", "quality"]
 
 
 def build_command() -> click.Command:
@@ -121,6 +121,7 @@ def build_command() -> click.Command:
 
     # model choices are “known” but we don’t enforce them; we just show in help
     model_choices = literal_choices(hints.get("model", str))
+    size_choices = literal_choices(hints.get("size", str))
 
     params: list[click.Parameter] = []
 
@@ -150,7 +151,13 @@ def build_command() -> click.Command:
         )
     )
 
-    # Derive options (background/moderation/output_format/quality/size) with choices from Literal
+    # --size (not restricted, but show known values)
+    size_help = "size"
+    if size_choices:
+        size_help += f" (known: {', '.join(size_choices)})"
+    params.append(click.Option(["--size"], help=size_help))
+
+    # Derive options (background/moderation/output_format/quality) with choices from Literal
     for name in PARAMS:
         ann = hints.get(name)
         label = name.replace("_", " ")
@@ -181,6 +188,7 @@ def build_command() -> click.Command:
         prompt: str = kw.pop("prompt")
         outfile: Path | None = kw.pop("outfile", None)
         model: str = kw.pop("model")
+        size: str | None = kw.pop("size", None)
 
         if outfile is None:
             # Default: /tmp/image-<6 hex>.png
@@ -189,6 +197,8 @@ def build_command() -> click.Command:
 
         # Prepare kwargs for Images.generate (drop Nones)
         gen_kwargs = {"model": model}
+        if size is not None:
+            gen_kwargs["size"] = size
         for p in PARAMS:
             v = kw.get(p, None)
             if v is not None:
