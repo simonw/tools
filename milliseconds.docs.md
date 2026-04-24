@@ -1,0 +1,3 @@
+Convert milliseconds into multiple time units with this interactive tool that displays the duration in seconds, minutes, hours, days, weeks, and a human-readable format. The converter accepts numbers with commas or underscores for readability and provides both a compact breakdown (e.g., "3 minutes, 7 seconds, 238 milliseconds") and a clock-format representation. Results can be copied to the clipboard with a single click for easy sharing or documentation.
+
+<!-- Generated from commit: 207a3aeb4c060ebce99045068cadb83b00028f97 -->
