@@ -144,24 +144,58 @@
       -webkit-user-select: none;
     }
     .story-order li {
-      padding: 12px 15px;
-      padding-left: 40px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 15px 12px 10px;
       border-bottom: 1px solid #eee;
       cursor: grab;
       background: white;
       transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
       position: relative;
-      touch-action: none;
+      touch-action: pan-y;
     }
-    .story-order li::before {
+    .story-order li:focus-within {
+      outline: 2px solid #0066cc;
+      outline-offset: -2px;
+    }
+    .story-order .drag-handle,
+    .drag-ghost .drag-handle {
+      align-items: center;
+      background: transparent;
+      border: none;
+      border-radius: 4px;
+      color: #777;
+      cursor: grab;
+      display: inline-flex;
+      flex: 0 0 24px;
+      font-size: 16px;
+      height: 28px;
+      justify-content: center;
+      line-height: 1;
+      margin: -2px 0 0;
+      padding: 0;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      width: 24px;
+    }
+    .story-order .drag-handle::before,
+    .drag-ghost .drag-handle::before {
       content: '⋮⋮';
-      position: absolute;
-      left: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #aaa;
-      font-size: 14px;
       letter-spacing: 2px;
+    }
+    .story-order .drag-handle:hover,
+    .story-order .drag-handle:focus-visible,
+    .drag-ghost .drag-handle {
+      background: #edf5ff;
+      color: #0066cc;
+      outline: none;
+    }
+    .story-order .story-title,
+    .drag-ghost .story-title {
+      flex: 1;
+      min-width: 0;
     }
     .story-order li:last-child {
       border-bottom: none;
@@ -175,19 +209,36 @@
     .story-order li.dragging {
       background: #e8f4ff;
       box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
-      transform: scale(1.02);
+      opacity: 0.35;
       z-index: 100;
       border-radius: 4px;
     }
-    .story-order li.drag-over {
-      background: #f0f7ff;
+    .story-order li.dragging:focus-within {
+      outline: none;
     }
-    .story-order .drop-indicator {
-      height: 3px;
-      background: #0066cc;
-      border-radius: 2px;
-      margin: -1.5px 0;
+    .drag-ghost {
+      align-items: flex-start;
+      background: white;
+      border: 1px solid #b8d4ff;
+      border-radius: 4px;
+      box-shadow: 0 8px 24px rgba(0, 102, 204, 0.25);
+      color: #333;
+      display: flex;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      gap: 10px;
+      left: 0;
+      line-height: 1.6;
+      list-style: none;
+      margin: 0;
+      opacity: 0.96;
+      padding: 12px 15px 12px 10px;
       pointer-events: none;
+      position: fixed;
+      top: 0;
+      transition: none;
+      transform: none;
+      will-change: left, top;
+      z-index: 1000;
     }
     .newsletter-preview {
       background: white;
@@ -841,39 +892,47 @@ order by
         generateNewsletter();
       }
 
-      // Render story order drag-and-drop list with touch support
+      // Render story order list with pointer-based drag-and-drop support.
       function renderStoryOrder() {
+        storyOrderList.innerHTML = '';
+
         if (entries.length <= 1) {
           storyOrderSection.classList.add('hidden');
           return;
         }
         storyOrderSection.classList.remove('hidden');
 
-        storyOrderList.innerHTML = '';
-
         let draggedItem = null;
-        let dropIndicator = null;
-        let touchStartY = 0;
-        let initialIndex = 0;
+        let dragState = null;
+        let autoScrollFrame = null;
+        let autoScrollSpeed = 0;
+        let documentDragListenersAdded = false;
+        const dragStartThreshold = 4;
 
-        // Create drop indicator element
-        function createDropIndicator() {
-          const indicator = document.createElement('div');
-          indicator.className = 'drop-indicator';
-          return indicator;
+        function addDocumentDragListeners() {
+          if (documentDragListenersAdded) return;
+
+          document.addEventListener('pointermove', onPointerMove);
+          document.addEventListener('pointerup', onPointerUp);
+          document.addEventListener('pointercancel', onPointerCancel);
+          documentDragListenersAdded = true;
         }
 
-        // Remove any existing drop indicator
-        function removeDropIndicator() {
-          if (dropIndicator && dropIndicator.parentNode) {
-            dropIndicator.parentNode.removeChild(dropIndicator);
-          }
-          dropIndicator = null;
+        function removeDocumentDragListeners() {
+          if (!documentDragListenersAdded) return;
+
+          document.removeEventListener('pointermove', onPointerMove);
+          document.removeEventListener('pointerup', onPointerUp);
+          document.removeEventListener('pointercancel', onPointerCancel);
+          documentDragListenersAdded = false;
         }
 
-        // Get insertion point based on Y position
+        function getOrderItems() {
+          return Array.from(storyOrderList.querySelectorAll('li[data-order-value]:not(.dragging)'));
+        }
+
         function getInsertionPoint(y) {
-          const items = Array.from(storyOrderList.querySelectorAll('li:not(.dragging)'));
+          const items = getOrderItems();
 
           for (const item of items) {
             const rect = item.getBoundingClientRect();
@@ -884,7 +943,6 @@ order by
             }
           }
 
-          // If we're past all items, insert after the last one
           if (items.length > 0) {
             return { element: items[items.length - 1], position: 'after' };
           }
@@ -892,146 +950,260 @@ order by
           return null;
         }
 
-        // Update drop indicator position
-        function updateDropIndicator(y) {
-          const insertion = getInsertionPoint(y);
-
-          if (!insertion) {
-            removeDropIndicator();
-            return;
-          }
-
-          if (!dropIndicator) {
-            dropIndicator = createDropIndicator();
-          }
-
-          if (insertion.position === 'before') {
-            insertion.element.parentNode.insertBefore(dropIndicator, insertion.element);
-          } else {
-            insertion.element.parentNode.insertBefore(dropIndicator, insertion.element.nextSibling);
-          }
-        }
-
-        // Finalize the drop
-        function finalizeDrop(y) {
+        function moveDraggedPlaceholder(y) {
           if (!draggedItem) return;
 
           const insertion = getInsertionPoint(y);
 
-          if (insertion) {
-            if (insertion.position === 'before') {
+          if (!insertion) return;
+
+          const referenceNode = insertion.position === 'before'
+            ? insertion.element
+            : insertion.element.nextSibling;
+          if (insertion.position === 'before') {
+            if (draggedItem.nextSibling !== insertion.element) {
               storyOrderList.insertBefore(draggedItem, insertion.element);
-            } else {
-              storyOrderList.insertBefore(draggedItem, insertion.element.nextSibling);
             }
+          } else if (referenceNode !== draggedItem) {
+            storyOrderList.insertBefore(draggedItem, referenceNode);
           }
-
-          draggedItem.classList.remove('dragging');
-          removeDropIndicator();
-
-          // Update storyOrder array
-          storyOrder = Array.from(storyOrderList.querySelectorAll('li')).map(el => el.textContent);
-          updateUrlHash();
-          generateNewsletter();
-
-          draggedItem = null;
         }
 
-        // Create list items
-        storyOrder.forEach((item, index) => {
-          const li = document.createElement('li');
-          li.textContent = item;
-          li.draggable = true;
+        function saveStoryOrder() {
+          storyOrder = Array.from(storyOrderList.querySelectorAll('li[data-order-value]'))
+            .map(el => el.dataset.orderValue);
+          updateUrlHash();
+          generateNewsletter();
+        }
 
-          // Mouse drag events
-          li.addEventListener('dragstart', (e) => {
-            draggedItem = li;
-            initialIndex = index;
-            li.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', '');
+        function moveDragGhost(x, y) {
+          if (!dragState || !dragState.ghost) return;
+          dragState.ghost.style.left = `${x - dragState.offsetX}px`;
+          dragState.ghost.style.top = `${y - dragState.offsetY}px`;
+        }
 
-            // Delay to allow the drag image to be captured
-            requestAnimationFrame(() => {
-              li.style.opacity = '0.5';
-            });
-          });
+        function createDragGhost(item, e) {
+          const rect = item.getBoundingClientRect();
+          const ghost = item.cloneNode(true);
+          ghost.classList.remove('dragging');
+          ghost.classList.add('drag-ghost');
+          ghost.style.width = `${rect.width}px`;
+          ghost.style.height = `${rect.height}px`;
+          ghost.setAttribute('aria-hidden', 'true');
+          dragState.offsetX = e.clientX - rect.left;
+          dragState.offsetY = e.clientY - rect.top;
+          document.body.appendChild(ghost);
+          moveDragGhost(e.clientX, e.clientY);
+          return ghost;
+        }
 
-          li.addEventListener('dragend', (e) => {
-            li.style.opacity = '';
-            finalizeDrop(e.clientY);
-          });
-
-          li.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            updateDropIndicator(e.clientY);
-          });
-
-          li.addEventListener('drop', (e) => {
-            e.preventDefault();
-          });
-
-          // Touch events for mobile support
-          li.addEventListener('touchstart', (e) => {
-            if (e.touches.length !== 1) return;
-
-            draggedItem = li;
-            initialIndex = index;
-            touchStartY = e.touches[0].clientY;
-
-            // Small delay to distinguish from scroll
-            setTimeout(() => {
-              if (draggedItem === li) {
-                li.classList.add('dragging');
-              }
-            }, 100);
-          }, { passive: true });
-
-          li.addEventListener('touchmove', (e) => {
-            if (!draggedItem || draggedItem !== li) return;
-
-            e.preventDefault();
-
-            const touch = e.touches[0];
-            const y = touch.clientY;
-
-            if (!li.classList.contains('dragging')) {
-              li.classList.add('dragging');
-            }
-
-            updateDropIndicator(y);
-          }, { passive: false });
-
-          li.addEventListener('touchend', (e) => {
-            if (!draggedItem || draggedItem !== li) return;
-
-            const touch = e.changedTouches[0];
-            finalizeDrop(touch.clientY);
-          });
-
-          li.addEventListener('touchcancel', () => {
-            if (draggedItem) {
-              draggedItem.classList.remove('dragging');
-              removeDropIndicator();
-              draggedItem = null;
-            }
-          });
-
-          storyOrderList.appendChild(li);
-        });
-
-        // Handle dragover on the list itself for edge cases
-        storyOrderList.addEventListener('dragover', (e) => {
-          e.preventDefault();
-          updateDropIndicator(e.clientY);
-        });
-
-        storyOrderList.addEventListener('dragleave', (e) => {
-          // Only remove if leaving the list entirely
-          if (!storyOrderList.contains(e.relatedTarget)) {
-            removeDropIndicator();
+        function stopAutoScroll() {
+          autoScrollSpeed = 0;
+          if (autoScrollFrame) {
+            cancelAnimationFrame(autoScrollFrame);
+            autoScrollFrame = null;
           }
+        }
+
+        function runAutoScroll() {
+          if (!dragState || !dragState.isDragging || autoScrollSpeed === 0) {
+            autoScrollFrame = null;
+            return;
+          }
+
+          window.scrollBy(0, autoScrollSpeed);
+          moveDraggedPlaceholder(dragState.lastY);
+          autoScrollFrame = requestAnimationFrame(runAutoScroll);
+        }
+
+        function updateAutoScroll(y) {
+          const edge = 72;
+          const maxSpeed = 18;
+
+          if (y < edge) {
+            autoScrollSpeed = -Math.ceil(((edge - y) / edge) * maxSpeed);
+          } else if (y > window.innerHeight - edge) {
+            autoScrollSpeed = Math.ceil(((y - (window.innerHeight - edge)) / edge) * maxSpeed);
+          } else {
+            stopAutoScroll();
+            return;
+          }
+
+          if (!autoScrollFrame) {
+            autoScrollFrame = requestAnimationFrame(runAutoScroll);
+          }
+        }
+
+        function cleanupDrag() {
+          if (draggedItem) {
+            draggedItem.classList.remove('dragging');
+            draggedItem.setAttribute('aria-grabbed', 'false');
+          }
+          if (dragState && dragState.ghost && dragState.ghost.parentNode) {
+            dragState.ghost.parentNode.removeChild(dragState.ghost);
+          }
+          removeDocumentDragListeners();
+          stopAutoScroll();
+          draggedItem = null;
+          dragState = null;
+        }
+
+        function beginDrag(e) {
+          if (!dragState || dragState.isDragging) return;
+
+          draggedItem = dragState.item;
+          dragState.isDragging = true;
+          draggedItem.classList.add('dragging');
+          draggedItem.setAttribute('aria-grabbed', 'true');
+          dragState.ghost = createDragGhost(draggedItem, e);
+          moveDraggedPlaceholder(e.clientY);
+        }
+
+        function finalizeDrop(y) {
+          if (!draggedItem) {
+            cleanupDrag();
+            return;
+          }
+
+          moveDraggedPlaceholder(y);
+          saveStoryOrder();
+          cleanupDrag();
+        }
+
+        function onPointerDown(e, li) {
+          if (e.button !== undefined && e.button !== 0) return;
+
+          const handle = e.target.closest('.drag-handle');
+          if (!handle && e.target.closest('button, a, input, textarea, select')) return;
+          if (e.pointerType !== 'mouse' && !handle) return;
+
+          dragState = {
+            item: li,
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            lastX: e.clientX,
+            lastY: e.clientY,
+            offsetX: 0,
+            offsetY: 0,
+            ghost: null,
+            isDragging: false
+          };
+
+          if (li.setPointerCapture) {
+            li.setPointerCapture(e.pointerId);
+          }
+          addDocumentDragListeners();
+        }
+
+        function onPointerMove(e) {
+          if (!dragState || dragState.pointerId !== e.pointerId) return;
+
+          dragState.lastX = e.clientX;
+          dragState.lastY = e.clientY;
+
+          const distance = Math.hypot(e.clientX - dragState.startX, e.clientY - dragState.startY);
+          if (!dragState.isDragging && distance < dragStartThreshold) return;
+
+          beginDrag(e);
+          e.preventDefault();
+          moveDragGhost(e.clientX, e.clientY);
+          moveDraggedPlaceholder(e.clientY);
+          updateAutoScroll(e.clientY);
+        }
+
+        function onPointerUp(e) {
+          if (!dragState || dragState.pointerId !== e.pointerId) return;
+
+          const item = dragState.item;
+          if (item.hasPointerCapture && item.hasPointerCapture(e.pointerId)) {
+            item.releasePointerCapture(e.pointerId);
+          }
+
+          if (dragState.isDragging) {
+            e.preventDefault();
+            finalizeDrop(dragState.lastY);
+          } else {
+            cleanupDrag();
+          }
+        }
+
+        function onPointerCancel(e) {
+          if (!dragState || dragState.pointerId !== e.pointerId) return;
+
+          const item = dragState.item;
+          if (item.hasPointerCapture && item.hasPointerCapture(e.pointerId)) {
+            item.releasePointerCapture(e.pointerId);
+          }
+          cleanupDrag();
+        }
+
+        function moveStoryElement(li, direction) {
+          const items = Array.from(storyOrderList.querySelectorAll('li[data-order-value]'));
+          const index = items.indexOf(li);
+          const targetIndex = Math.max(0, Math.min(items.length - 1, index + direction));
+
+          if (index === -1 || index === targetIndex) return;
+
+          if (targetIndex < index) {
+            storyOrderList.insertBefore(li, items[targetIndex]);
+          } else {
+            storyOrderList.insertBefore(li, items[targetIndex].nextSibling);
+          }
+
+          saveStoryOrder();
+          li.querySelector('.drag-handle').focus();
+        }
+
+        function moveStoryElementToEdge(li, edge) {
+          const items = Array.from(storyOrderList.querySelectorAll('li[data-order-value]'));
+          if (!items.includes(li)) return;
+
+          if (edge === 'start') {
+            storyOrderList.insertBefore(li, items[0]);
+          } else {
+            storyOrderList.appendChild(li);
+          }
+
+          saveStoryOrder();
+          li.querySelector('.drag-handle').focus();
+        }
+
+        storyOrder.forEach(item => {
+          const li = document.createElement('li');
+          li.dataset.orderValue = item;
+          li.setAttribute('aria-grabbed', 'false');
+
+          const handle = document.createElement('button');
+          handle.type = 'button';
+          handle.className = 'drag-handle';
+          handle.setAttribute('aria-label', 'Reorder story');
+          handle.title = 'Drag to reorder. Use Up and Down arrows to move.';
+
+          const title = document.createElement('span');
+          title.className = 'story-title';
+          title.textContent = item;
+
+          handle.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              moveStoryElement(li, -1);
+            } else if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              moveStoryElement(li, 1);
+            } else if (e.key === 'Home') {
+              e.preventDefault();
+              moveStoryElementToEdge(li, 'start');
+            } else if (e.key === 'End') {
+              e.preventDefault();
+              moveStoryElementToEdge(li, 'end');
+            }
+          });
+
+          li.addEventListener('pointerdown', (e) => onPointerDown(e, li));
+
+          li.append(handle, title);
+          storyOrderList.appendChild(li);
         });
       }
 
