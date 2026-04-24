@@ -454,6 +454,7 @@
       let storyOrder = [];
       let newsletterHTML = '';
       let daysSinceLastNewsletter = 0;
+      let monthlyNewsletterPreviews = [];
 
       // DOM elements
       const numDaysInput = document.getElementById('numDays');
@@ -760,6 +761,31 @@ order by
           throw new Error(`Failed to fetch content: ${response.status}`);
         }
         return await response.json();
+      }
+
+      async function fetchMonthlyNewsletterPreviews() {
+        const response = await fetch('https://raw.githubusercontent.com/simonw/monthly-newsletter-archive/refs/heads/main/index.json');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch monthly newsletter archive index: ${response.status}`);
+        }
+
+        const filenames = await response.json();
+        return filenames.slice(-3).map(filename => {
+          const match = filename.match(/^\d{4}-(\d{2})-([a-z]+)\.md$/);
+          const label = match ? match[2][0].toUpperCase() + match[2].slice(1) : filename.replace(/\.md$/, '');
+          return {
+            label,
+            url: `https://github.com/simonw/monthly-newsletter-archive/blob/main/${filename}`
+          };
+        });
+      }
+
+      function generateSponsorMessage() {
+        const previewLinks = monthlyNewsletterPreviews
+          .map(preview => `<a href="${preview.url}">${preview.label}</a>`)
+          .join(' and ');
+        const previews = previewLinks ? ` - here are previews from ${previewLinks}` : '';
+        return `<p><em>If you find this newsletter useful, please consider <a href="https://github.com/sponsors/simonw">sponsoring me via GitHub</a>. $10/month and higher sponsors get a monthly newsletter with my summary of the most important trends of the past 30 days${previews}.</em></p>`;
       }
 
       // Render first three paragraphs of a chapter with word count suffix
@@ -1247,9 +1273,6 @@ order by
           headerHtml += `<p>Plus ${extras.join(' and ')}</p>`;
         }
 
-        // Sponsor message
-        headerHtml += `<p><em>If you find this newsletter useful, please consider <a href="https://github.com/sponsors/simonw">sponsoring me via GitHub</a>. $10/month and higher sponsors get a monthly newsletter with my summary of the most important trends of the past 30 days - here are previews from <a href="https://gist.github.com/simonw/3385bc8c83a8157557f06865a0302753">October</a> and <a href="https://gist.github.com/simonw/fc34b780a9ae19b6be5d732078a572c8">November</a>.</em></p>`;
-
         // Content sorted by story order
         const sortedContent = [...content].sort((a, b) => {
           const notFoundIndex = idOrder.length + 1;
@@ -1267,7 +1290,8 @@ order by
         }
 
         // Clean newsletter HTML (for copying)
-        let html = headerHtml + sortedContent.map(c => c.html + '<hr>').join('\n');
+        const footerHtml = generateSponsorMessage();
+        let html = headerHtml + sortedContent.map(c => c.html + '<hr>').join('\n') + footerHtml;
         newsletterHTML = applyReplacements(html);
         htmlLengthEl.textContent = `Length of HTML: ${newsletterHTML.length.toLocaleString()} characters`;
 
@@ -1279,7 +1303,7 @@ order by
           }
           return itemHtml + '<hr>';
         }).join('\n');
-        previewEl.innerHTML = applyReplacements(headerHtml) + previewContentHtml;
+        previewEl.innerHTML = applyReplacements(headerHtml) + previewContentHtml + applyReplacements(footerHtml);
 
         // Check for long URLs and display warnings
         checkLongUrls(newsletterHTML);
@@ -1449,7 +1473,11 @@ order by
         showStatus('Loading...');
         try {
           // Fetch RSS first to get previous links and days since
-          const rss = await fetchRSS();
+          const [rss, previews] = await Promise.all([
+            fetchRSS(),
+            fetchMonthlyNewsletterPreviews()
+          ]);
+          monthlyNewsletterPreviews = previews;
           parseRSS(rss);
 
           // Fetch content
