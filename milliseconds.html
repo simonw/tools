@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Millisecond Converter</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 24px;
+      color: #1f2937;
+      background: #f6f7f9;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+      line-height: 1.1;
+    }
+
+    p {
+      margin: 0;
+      color: #5f6b7a;
+      line-height: 1.5;
+    }
+
+    .panel {
+      margin-top: 22px;
+      padding: 20px;
+      border: 1px solid #d9dee7;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .input-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #bac3d0;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 18px;
+      line-height: 1.4;
+    }
+
+    button {
+      padding: 0 16px;
+      border: 0;
+      border-radius: 6px;
+      color: #fff;
+      background: #2563eb;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .hint,
+    .error {
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
+    .hint {
+      color: #667085;
+    }
+
+    .error {
+      min-height: 20px;
+      color: #b42318;
+    }
+
+    .results {
+      display: grid;
+      gap: 12px;
+    }
+
+    .result {
+      display: grid;
+      grid-template-columns: minmax(130px, 190px) 1fr;
+      gap: 16px;
+      padding: 14px 0;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .result:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .result-label {
+      color: #667085;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .result-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 18px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .summary {
+      padding: 14px;
+      border-radius: 6px;
+      background: #eef4ff;
+      color: #183b73;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 18px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 16px;
+      }
+
+      h1 {
+        font-size: 26px;
+      }
+
+      .input-row,
+      .result {
+        grid-template-columns: 1fr;
+      }
+
+      button {
+        min-height: 44px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Millisecond Converter</h1>
+  <p>Paste a duration in milliseconds to see it as seconds, minutes, hours, days, and a readable breakdown.</p>
+
+  <section class="panel">
+    <label for="milliseconds">Milliseconds</label>
+    <div class="input-row">
+      <input id="milliseconds" type="text" inputmode="decimal" autocomplete="off" placeholder="187238">
+      <button id="copy" type="button">Copy</button>
+    </div>
+    <div class="hint">Commas and underscores are fine, like 187,238 or 187_238.</div>
+    <div id="error" class="error" aria-live="polite"></div>
+  </section>
+
+  <section class="panel">
+    <div id="summary" class="summary">Enter a number to convert.</div>
+  </section>
+
+  <section class="panel">
+    <div id="results" class="results"></div>
+  </section>
+
+  <script>
+    const input = document.getElementById('milliseconds');
+    const error = document.getElementById('error');
+    const summary = document.getElementById('summary');
+    const results = document.getElementById('results');
+    const copyButton = document.getElementById('copy');
+
+    const MS_PER_SECOND = 1000;
+    const MS_PER_MINUTE = 60 * MS_PER_SECOND;
+    const MS_PER_HOUR = 60 * MS_PER_MINUTE;
+    const MS_PER_DAY = 24 * MS_PER_HOUR;
+    const MS_PER_WEEK = 7 * MS_PER_DAY;
+
+    function cleanInput(value) {
+      return value.trim().replace(/[,_\s]/g, '');
+    }
+
+    function formatNumber(value, maximumFractionDigits = 6) {
+      return new Intl.NumberFormat('en-US', {
+        maximumFractionDigits
+      }).format(value);
+    }
+
+    function plural(value, unit) {
+      return `${formatNumber(value, 0)} ${unit}${Math.abs(value) === 1 ? '' : 's'}`;
+    }
+
+    function compactDuration(milliseconds) {
+      const sign = milliseconds < 0 ? '-' : '';
+      let remaining = Math.abs(milliseconds);
+      const weeks = Math.floor(remaining / MS_PER_WEEK);
+      remaining %= MS_PER_WEEK;
+      const days = Math.floor(remaining / MS_PER_DAY);
+      remaining %= MS_PER_DAY;
+      const hours = Math.floor(remaining / MS_PER_HOUR);
+      remaining %= MS_PER_HOUR;
+      const minutes = Math.floor(remaining / MS_PER_MINUTE);
+      remaining %= MS_PER_MINUTE;
+      const seconds = Math.floor(remaining / MS_PER_SECOND);
+      const ms = remaining % MS_PER_SECOND;
+
+      const parts = [
+        weeks && plural(weeks, 'week'),
+        days && plural(days, 'day'),
+        hours && plural(hours, 'hour'),
+        minutes && plural(minutes, 'minute'),
+        seconds && plural(seconds, 'second'),
+        ms && plural(ms, 'millisecond')
+      ].filter(Boolean);
+
+      return sign + (parts.length ? parts.join(', ') : '0 milliseconds');
+    }
+
+    function clockBreakdown(milliseconds) {
+      const sign = milliseconds < 0 ? '-' : '';
+      let remaining = Math.abs(milliseconds);
+      const hours = Math.floor(remaining / MS_PER_HOUR);
+      remaining %= MS_PER_HOUR;
+      const minutes = Math.floor(remaining / MS_PER_MINUTE);
+      remaining %= MS_PER_MINUTE;
+      const seconds = Math.floor(remaining / MS_PER_SECOND);
+      const ms = remaining % MS_PER_SECOND;
+      const paddedMinutes = String(minutes).padStart(2, '0');
+      const paddedSeconds = String(seconds).padStart(2, '0');
+      const paddedMs = String(ms).padStart(3, '0');
+
+      return `${sign}${hours}:${paddedMinutes}:${paddedSeconds}.${paddedMs}`;
+    }
+
+    function renderRows(rows) {
+      results.innerHTML = rows.map(([label, value]) => `
+        <div class="result">
+          <div class="result-label">${label}</div>
+          <div class="result-value">${value}</div>
+        </div>
+      `).join('');
+    }
+
+    function convert() {
+      const cleaned = cleanInput(input.value);
+
+      error.textContent = '';
+
+      if (!cleaned) {
+        summary.textContent = 'Enter a number to convert.';
+        results.innerHTML = '';
+        return;
+      }
+
+      const milliseconds = Number(cleaned);
+
+      if (!Number.isFinite(milliseconds)) {
+        error.textContent = 'Enter a valid number of milliseconds.';
+        summary.textContent = 'Unable to convert.';
+        results.innerHTML = '';
+        return;
+      }
+
+      const wholeMilliseconds = Math.trunc(milliseconds);
+      const absoluteMilliseconds = Math.abs(wholeMilliseconds);
+      const seconds = wholeMilliseconds / MS_PER_SECOND;
+      const minutes = wholeMilliseconds / MS_PER_MINUTE;
+      const hours = wholeMilliseconds / MS_PER_HOUR;
+      const days = wholeMilliseconds / MS_PER_DAY;
+      const weeks = wholeMilliseconds / MS_PER_WEEK;
+      const totalSeconds = Math.floor(absoluteMilliseconds / MS_PER_SECOND);
+      const minutesSeconds = `${wholeMilliseconds < 0 ? '-' : ''}${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s ${absoluteMilliseconds % 1000}ms`;
+
+      if (milliseconds !== wholeMilliseconds) {
+        error.textContent = 'Fractional milliseconds were rounded toward zero for the breakdown.';
+      }
+
+      summary.textContent = compactDuration(wholeMilliseconds);
+      renderRows([
+        ['Milliseconds', `${formatNumber(wholeMilliseconds, 0)} ms`],
+        ['Seconds', `${formatNumber(seconds)} s`],
+        ['Minutes', `${formatNumber(minutes)} min`],
+        ['Hours', `${formatNumber(hours)} hr`],
+        ['Days', `${formatNumber(days)} days`],
+        ['Weeks', `${formatNumber(weeks)} weeks`],
+        ['Min + Sec', minutesSeconds],
+        ['H:MM:SS.mmm', clockBreakdown(wholeMilliseconds)]
+      ]);
+    }
+
+    async function copyResults() {
+      const text = [
+        `${input.value.trim()} ms = ${summary.textContent}`,
+        ...Array.from(results.querySelectorAll('.result')).map(row => {
+          const label = row.querySelector('.result-label').textContent;
+          const value = row.querySelector('.result-value').textContent;
+          return `${label}: ${value}`;
+        })
+      ].join('\n');
+
+      if (!input.value.trim()) {
+        input.focus();
+        return;
+      }
+
+      await navigator.clipboard.writeText(text);
+      const original = copyButton.textContent;
+      copyButton.textContent = 'Copied';
+      setTimeout(() => {
+        copyButton.textContent = original;
+      }, 1200);
+    }
+
+    input.addEventListener('input', convert);
+    copyButton.addEventListener('click', copyResults);
+
+    input.value = '187238';
+    convert();
+  </script>
+</body>
+</html>
