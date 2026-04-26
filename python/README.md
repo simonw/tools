@@ -4,6 +4,21 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## macos-windows.py
+
+List visible macOS windows using CoreGraphics / Quartz. Useful for finding rogue HUD/overlay windows or inspecting which apps have on-screen windows and where they sit.
+
+```bash
+uv run https://tools.simonwillison.net/python/macos-windows.py
+```
+By default it shows windows at least 100x100 pixels. Options:
+
+- `--min-width N` / `--min-height N` — change the minimum size threshold (default: 100).
+- `--owner NAME` — case-insensitive filter on the owning app/process, e.g. `--owner Transmit`.
+- `--hud` — only show likely HUD/overlay windows (non-zero window layer, no larger than 600x600).
+
+Each row prints the owner, pid, window layer, alpha, bounds and window name.
+
 ## asus_status.py
 
 Fetch network status from an ASUS ZenWiFi XT8 router via its HTTP API. Uses the same `appGet.cgi` API that the ASUS Router mobile app uses, with a specific User-Agent header to bypass the single-session lock that affects the web UI.
