@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iNaturalist Sightings</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 1rem;
+    background: #f7f7f5;
+    color: #222;
+  }
+  h1 {
+    margin: 0 0 0.25rem;
+  }
+  .meta {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+  .clump {
+    background: #fff;
+    border: 1px solid #e3e3e0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .clump-header {
+    margin-bottom: 0.75rem;
+  }
+  .clump-date {
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+  .clump-time {
+    color: #555;
+    margin-left: 0.4rem;
+  }
+  .clump-sub {
+    color: #777;
+    font-size: 0.85rem;
+    margin-top: 0.15rem;
+  }
+  .photos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .photo {
+    cursor: zoom-in;
+    border: 0;
+    padding: 0;
+    background: none;
+    display: block;
+    line-height: 0;
+  }
+  .photo img {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 6px;
+    background: #eee;
+  }
+  .photo-label {
+    font-size: 0.75rem;
+    color: #555;
+    text-align: center;
+    margin-top: 2px;
+    max-width: 120px;
+    line-height: 1.2;
+  }
+  .photo-label a {
+    color: #555;
+    text-decoration: none;
+    border-bottom: 1px dotted #aaa;
+  }
+  .photo-label a:hover {
+    color: #1a6;
+    border-bottom-color: #1a6;
+  }
+  .obs-link {
+    font-size: 0.7rem;
+    color: #888;
+    text-decoration: none;
+    margin-left: 0.25rem;
+  }
+  .obs-link:hover {
+    color: #1a6;
+  }
+  .photo-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .loading, .error {
+    padding: 1rem;
+    text-align: center;
+    color: #666;
+  }
+  .error {
+    color: #b00;
+  }
+  /* Modal */
+  dialog.lightbox {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    max-width: 95vw;
+    max-height: 95vh;
+  }
+  dialog.lightbox::backdrop {
+    background: rgba(0, 0, 0, 0.85);
+  }
+  dialog.lightbox .modal-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #fff;
+    text-align: center;
+  }
+  dialog.lightbox img {
+    max-width: 95vw;
+    max-height: 80vh;
+    border-radius: 6px;
+    background: #222;
+  }
+  dialog.lightbox .caption {
+    margin-top: 0.5rem;
+    font-size: 0.95rem;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    max-width: 95vw;
+  }
+  dialog.lightbox .close {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    border: 0;
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0.4rem 0.7rem;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<h1>iNaturalist Sightings</h1>
+<div class="meta" id="meta"></div>
+<div id="container"><div class="loading">Loading sightings…</div></div>
+
+<dialog id="lightbox" class="lightbox">
+  <button class="close" id="lightboxClose" aria-label="Close">×</button>
+  <div class="modal-inner">
+    <img id="lightboxImg" alt="">
+    <div class="caption" id="lightboxCaption"></div>
+  </div>
+</dialog>
+
+<script>
+const DATA_URL = "https://raw.githubusercontent.com/simonw/inaturalist-clumps/refs/heads/main/clumps.json";
+
+const container = document.getElementById("container");
+const metaEl = document.getElementById("meta");
+const lightbox = document.getElementById("lightbox");
+const lightboxImg = document.getElementById("lightboxImg");
+const lightboxCaption = document.getElementById("lightboxCaption");
+const lightboxClose = document.getElementById("lightboxClose");
+
+function speciesNameFor(observation) {
+  const taxon = observation.taxon || {};
+  return taxon.common_name || observation.species_guess || taxon.scientific_name || "Unknown species";
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, {
+    weekday: "short", year: "numeric", month: "long", day: "numeric"
+  });
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function sameDay(a, b) {
+  const d1 = new Date(a), d2 = new Date(b);
+  return d1.getFullYear() === d2.getFullYear()
+    && d1.getMonth() === d2.getMonth()
+    && d1.getDate() === d2.getDate();
+}
+
+function renderClump(clump) {
+  const div = document.createElement("div");
+  div.className = "clump";
+
+  const header = document.createElement("div");
+  header.className = "clump-header";
+
+  const dateLine = document.createElement("div");
+  const dateSpan = document.createElement("span");
+  dateSpan.className = "clump-date";
+  dateSpan.textContent = formatDate(clump.started_at);
+
+  const timeSpan = document.createElement("span");
+  timeSpan.className = "clump-time";
+  const startTime = formatTime(clump.started_at);
+  if (clump.started_at === clump.ended_at) {
+    timeSpan.textContent = startTime;
+  } else {
+    const endTime = formatTime(clump.ended_at);
+    if (sameDay(clump.started_at, clump.ended_at)) {
+      timeSpan.textContent = `${startTime} – ${endTime}`;
+    } else {
+      timeSpan.textContent = `${startTime} – ${formatDate(clump.ended_at)} ${endTime}`;
+    }
+  }
+
+  dateLine.appendChild(dateSpan);
+  dateLine.appendChild(timeSpan);
+  header.appendChild(dateLine);
+
+  const sub = document.createElement("div");
+  sub.className = "clump-sub";
+  const speciesNames = (clump.species || [])
+    .map(s => s.common_name || s.scientific_name)
+    .filter(Boolean);
+  const subParts = [];
+  subParts.push(`${clump.observation_count} observation${clump.observation_count === 1 ? "" : "s"}`);
+  if (speciesNames.length) subParts.push(speciesNames.join(", "));
+  sub.textContent = subParts.join(" • ");
+  header.appendChild(sub);
+
+  div.appendChild(header);
+
+  const photos = document.createElement("div");
+  photos.className = "photos";
+
+  for (const obs of clump.observations || []) {
+    const name = speciesNameFor(obs);
+    for (const photo of obs.photos || []) {
+      const wrap = document.createElement("div");
+      wrap.className = "photo-wrap";
+
+      const btn = document.createElement("button");
+      btn.className = "photo";
+      btn.type = "button";
+
+      const img = document.createElement("img");
+      img.src = `https://static.inaturalist.org/photos/${photo.id}/small.jpg`;
+      img.loading = "lazy";
+      img.alt = name;
+      img.title = name;
+
+      btn.appendChild(img);
+      btn.addEventListener("click", () => {
+        openLightbox(photo.id, name, obs.uri, photo.attribution);
+      });
+
+      const label = document.createElement("div");
+      label.className = "photo-label";
+      if (obs.uri) {
+        const a = document.createElement("a");
+        a.href = obs.uri;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = name;
+        a.title = "View observation on iNaturalist";
+        label.appendChild(a);
+      } else {
+        label.textContent = name;
+      }
+
+      wrap.appendChild(btn);
+      wrap.appendChild(label);
+      photos.appendChild(wrap);
+    }
+  }
+
+  div.appendChild(photos);
+  return div;
+}
+
+function openLightbox(photoId, name, uri, attribution) {
+  lightboxImg.src = `https://static.inaturalist.org/photos/${photoId}/large.jpg`;
+  lightboxImg.alt = name;
+  lightboxCaption.innerHTML = "";
+  const nameLine = document.createElement("div");
+  nameLine.textContent = name;
+  nameLine.style.fontWeight = "600";
+  lightboxCaption.appendChild(nameLine);
+  if (uri) {
+    const link = document.createElement("a");
+    link.href = uri;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "View on iNaturalist";
+    link.style.color = "#9cf";
+    const linkLine = document.createElement("div");
+    linkLine.appendChild(link);
+    lightboxCaption.appendChild(linkLine);
+  }
+  if (attribution) {
+    const attr = document.createElement("div");
+    attr.textContent = attribution;
+    attr.style.fontSize = "0.8rem";
+    attr.style.opacity = "0.8";
+    lightboxCaption.appendChild(attr);
+  }
+  lightbox.showModal();
+}
+
+lightboxClose.addEventListener("click", () => lightbox.close());
+lightbox.addEventListener("click", (e) => {
+  if (e.target === lightbox) lightbox.close();
+});
+
+async function load() {
+  try {
+    const res = await fetch(DATA_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const clumps = (data.clumps || []).slice().sort((a, b) => b.id - a.id);
+
+    const generated = data.generated_at ? new Date(data.generated_at).toLocaleString() : "";
+    metaEl.textContent = `${data.total_observations ?? clumps.reduce((n, c) => n + c.observation_count, 0)} observations across ${clumps.length} sightings${generated ? ` • generated ${generated}` : ""}`;
+
+    container.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    for (const clump of clumps) {
+      frag.appendChild(renderClump(clump));
+    }
+    container.appendChild(frag);
+  } catch (err) {
+    container.innerHTML = `<div class="error">Failed to load sightings: ${err.message}</div>`;
+  }
+}
+
+load();
+</script>
+</body>
+</html>
