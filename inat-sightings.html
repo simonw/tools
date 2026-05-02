@@ -44,57 +44,6 @@
     font-size: 0.85rem;
     margin-top: 0.15rem;
   }
-  .photos {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  .photo {
-    cursor: zoom-in;
-    border: 0;
-    padding: 0;
-    background: none;
-    display: block;
-    line-height: 0;
-  }
-  .photo img {
-    width: 120px;
-    height: 120px;
-    object-fit: cover;
-    border-radius: 6px;
-    background: #eee;
-  }
-  .photo-label {
-    font-size: 0.75rem;
-    color: #555;
-    text-align: center;
-    margin-top: 2px;
-    max-width: 120px;
-    line-height: 1.2;
-  }
-  .photo-label a {
-    color: #555;
-    text-decoration: none;
-    border-bottom: 1px dotted #aaa;
-  }
-  .photo-label a:hover {
-    color: #1a6;
-    border-bottom-color: #1a6;
-  }
-  .obs-link {
-    font-size: 0.7rem;
-    color: #888;
-    text-decoration: none;
-    margin-left: 0.25rem;
-  }
-  .obs-link:hover {
-    color: #1a6;
-  }
-  .photo-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
   .loading, .error {
     padding: 1rem;
     text-align: center;
@@ -103,74 +52,19 @@
   .error {
     color: #b00;
   }
-  /* Modal */
-  dialog.lightbox {
-    border: 0;
-    padding: 0;
-    background: transparent;
-    max-width: 95vw;
-    max-height: 95vh;
-  }
-  dialog.lightbox::backdrop {
-    background: rgba(0, 0, 0, 0.85);
-  }
-  dialog.lightbox .modal-inner {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    color: #fff;
-    text-align: center;
-  }
-  dialog.lightbox img {
-    max-width: 95vw;
-    max-height: 80vh;
-    border-radius: 6px;
-    background: #222;
-  }
-  dialog.lightbox .caption {
-    margin-top: 0.5rem;
-    font-size: 0.95rem;
-    color: #fff;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
-    max-width: 95vw;
-  }
-  dialog.lightbox .close {
-    position: fixed;
-    top: 12px;
-    right: 16px;
-    background: rgba(0,0,0,0.5);
-    color: #fff;
-    border: 0;
-    font-size: 1.5rem;
-    line-height: 1;
-    padding: 0.4rem 0.7rem;
-    border-radius: 6px;
-    cursor: pointer;
-  }
 </style>
+<script src="image-gallery-component.js" defer></script>
 </head>
 <body>
 <h1>iNaturalist Sightings</h1>
 <div class="meta" id="meta"></div>
 <div id="container"><div class="loading">Loading sightings…</div></div>
 
-<dialog id="lightbox" class="lightbox">
-  <button class="close" id="lightboxClose" aria-label="Close">×</button>
-  <div class="modal-inner">
-    <img id="lightboxImg" alt="">
-    <div class="caption" id="lightboxCaption"></div>
-  </div>
-</dialog>
-
 <script>
 const DATA_URL = "https://raw.githubusercontent.com/simonw/inaturalist-clumps/refs/heads/main/clumps.json";
 
 const container = document.getElementById("container");
 const metaEl = document.getElementById("meta");
-const lightbox = document.getElementById("lightbox");
-const lightboxImg = document.getElementById("lightboxImg");
-const lightboxCaption = document.getElementById("lightboxCaption");
-const lightboxClose = document.getElementById("lightboxClose");
 
 function speciesNameFor(observation) {
   const taxon = observation.taxon || {};
@@ -239,81 +133,36 @@ function renderClump(clump) {
 
   div.appendChild(header);
 
-  const photos = document.createElement("div");
-  photos.className = "photos";
+  const gallery = document.createElement("image-gallery");
 
   for (const obs of clump.observations || []) {
     const name = speciesNameFor(obs);
     for (const photo of obs.photos || []) {
-      const wrap = document.createElement("div");
-      wrap.className = "photo-wrap";
+      const figure = document.createElement("figure");
 
-      const btn = document.createElement("button");
-      btn.className = "photo";
-      btn.type = "button";
+      const a = document.createElement("a");
+      a.href = photo.large_url;
 
       const img = document.createElement("img");
       const smallUrl = (photo.thumbnail_url || "").replace(/\/medium\.(jpe?g|png)(\?.*)?$/i, "/small.$1$2");
       img.src = smallUrl || photo.thumbnail_url;
       img.loading = "lazy";
       img.alt = name;
-      img.title = name;
 
-      btn.appendChild(img);
-      btn.addEventListener("click", () => {
-        openLightbox(photo.large_url, name, obs.uri);
-      });
+      a.appendChild(img);
+      figure.appendChild(a);
 
-      const label = document.createElement("div");
-      label.className = "photo-label";
-      if (obs.uri) {
-        const a = document.createElement("a");
-        a.href = obs.uri;
-        a.target = "_blank";
-        a.rel = "noopener";
-        a.textContent = name;
-        a.title = "View observation on iNaturalist";
-        label.appendChild(a);
-      } else {
-        label.textContent = name;
-      }
+      const figcaption = document.createElement("figcaption");
+      figcaption.textContent = name;
+      figure.appendChild(figcaption);
 
-      wrap.appendChild(btn);
-      wrap.appendChild(label);
-      photos.appendChild(wrap);
+      gallery.appendChild(figure);
     }
   }
 
-  div.appendChild(photos);
+  div.appendChild(gallery);
   return div;
 }
-
-function openLightbox(largeUrl, name, uri) {
-  lightboxImg.src = largeUrl;
-  lightboxImg.alt = name;
-  lightboxCaption.innerHTML = "";
-  const nameLine = document.createElement("div");
-  nameLine.textContent = name;
-  nameLine.style.fontWeight = "600";
-  lightboxCaption.appendChild(nameLine);
-  if (uri) {
-    const link = document.createElement("a");
-    link.href = uri;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.textContent = "View on iNaturalist";
-    link.style.color = "#9cf";
-    const linkLine = document.createElement("div");
-    linkLine.appendChild(link);
-    lightboxCaption.appendChild(linkLine);
-  }
-  lightbox.showModal();
-}
-
-lightboxClose.addEventListener("click", () => lightbox.close());
-lightbox.addEventListener("click", (e) => {
-  if (e.target === lightbox) lightbox.close();
-});
 
 async function load() {
   try {
