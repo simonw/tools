@@ -77,6 +77,16 @@ image-gallery:defined figcaption {
   text-overflow: ellipsis;
 }
 
+image-gallery:defined figcaption a {
+  pointer-events: auto;
+  color: inherit;
+  text-decoration: underline;
+}
+
+image-gallery:defined figcaption a:hover {
+  color: #cfe8ff;
+}
+
 image-gallery:defined[data-count="1"] {
   justify-content: center;
 }
@@ -188,6 +198,16 @@ dialog.gallery-modal::backdrop {
   padding: 12px 72px;
   z-index: 1;
   pointer-events: none;
+}
+
+.gallery-modal-caption a {
+  pointer-events: auto;
+  color: #9cf;
+  text-decoration: underline;
+}
+
+.gallery-modal-caption a:hover {
+  color: #cfe8ff;
 }
 
 .gallery-modal-counter {
@@ -387,7 +407,12 @@ class ImageGallery extends HTMLElement {
     img.alt = thumb ? thumb.alt : '';
 
     const cap = ImageGallery.modal.querySelector('.gallery-modal-caption');
-    cap.textContent = caption ? caption.textContent : '';
+    cap.replaceChildren();
+    if (caption) {
+      for (const node of caption.childNodes) {
+        cap.appendChild(node.cloneNode(true));
+      }
+    }
 
     // Counter is opt-in via show-counter on the figure's parent gallery
     const parent = figure.closest('image-gallery');
