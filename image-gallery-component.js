@@ -352,23 +352,24 @@ class ImageGallery extends HTMLElement {
   }
 
   getRowSplits(n) {
-    const fixed = {
-      2: [2], 3: [3], 4: [4],
-      5: [2, 3], 6: [3, 3], 7: [3, 4], 8: [4, 4],
-      9: [3, 3, 3], 10: [3, 3, 4], 11: [3, 4, 4], 12: [4, 4, 4]
-    };
-    if (fixed[n]) return fixed[n];
-
-    // Beyond 12: prefer rows of 4, with smaller leading rows when needed
+    if (n <= 3) return [n];
+    // Cap rows at 3 wide. Use rows of 3 plus rows of 2 to make up the
+    // remainder; smaller rows lead so the bottom row is the widest.
     const splits = [];
-    let remaining = n;
-    while (remaining > 0) {
-      if (remaining <= 4) { splits.push(remaining); break; }
-      if (remaining === 5) { splits.push(2); remaining = 3; }
-      else if (remaining === 6) { splits.push(3); remaining = 3; }
-      else if (remaining === 7) { splits.push(3); remaining = 4; }
-      else { splits.push(4); remaining -= 4; }
+    const rem = n % 3;
+    let twos, threes;
+    if (rem === 0) {
+      twos = 0;
+      threes = n / 3;
+    } else if (rem === 1) {
+      twos = 2;
+      threes = (n - 4) / 3;
+    } else {
+      twos = 1;
+      threes = (n - 2) / 3;
     }
+    for (let i = 0; i < twos; i++) splits.push(2);
+    for (let i = 0; i < threes; i++) splits.push(3);
     return splits;
   }
 
