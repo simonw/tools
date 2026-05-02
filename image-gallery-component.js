@@ -28,8 +28,10 @@
 const STYLES = `
 image-gallery:defined {
   --gap: 6px;
+  --max-row-height: 240px;
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--gap);
   background: #f4f4f4;
   padding: var(--gap);
@@ -85,19 +87,6 @@ image-gallery:defined figcaption a {
 
 image-gallery:defined figcaption a:hover {
   color: #cfe8ff;
-}
-
-image-gallery:defined[data-count="1"] {
-  justify-content: center;
-}
-
-image-gallery:defined[data-count="1"] > figure {
-  width: 100%;
-}
-
-image-gallery:defined[data-count="1"][data-orientation="portrait"] > figure {
-  width: auto;
-  max-width: 100%;
 }
 
 dialog.gallery-modal {
@@ -275,7 +264,8 @@ class ImageGallery extends HTMLElement {
       }
     });
 
-    // Layout once images have natural dimensions available
+    // Layout once images have natural dimensions available, then keep
+    // it in sync with container width changes
     const imgs = this.figures.map(f => f.querySelector('img')).filter(Boolean);
     Promise.all(imgs.map(img => {
       if (img.complete && img.naturalWidth > 0) return Promise.resolve();
@@ -283,10 +273,22 @@ class ImageGallery extends HTMLElement {
         img.addEventListener('load', res, { once: true });
         img.addEventListener('error', res, { once: true });
       });
-    })).then(() => this.applyLayout());
+    })).then(() => {
+      this.applyLayout();
+      this._lastWidth = this.clientWidth;
+      this._ro = new ResizeObserver(entries => {
+        const w = entries[0].contentRect.width;
+        if (Math.abs(w - this._lastWidth) > 0.5) {
+          this._lastWidth = w;
+          this.applyLayout();
+        }
+      });
+      this._ro.observe(this);
+    });
   }
 
   disconnectedCallback() {
+    this._ro?.disconnect();
     ImageGallery.instances.delete(this);
   }
 
@@ -303,19 +305,32 @@ class ImageGallery extends HTMLElement {
 
     this.figures.forEach(f => {
       f.style.width = '';
+      f.style.height = '';
       f.style.aspectRatio = '';
       f.style.maxHeight = '';
     });
+
+    const cs = getComputedStyle(this);
+    const padL = parseFloat(cs.paddingLeft) || 0;
+    const padR = parseFloat(cs.paddingRight) || 0;
+    const gap = parseFloat(cs.gap) || 0;
+    const containerW = this.clientWidth - padL - padR;
+    const maxH = parseFloat(cs.getPropertyValue('--max-row-height')) || 240;
+
+    if (containerW <= 0) return;
 
     if (count === 1) {
       const f = this.figures[0];
       const r = ratios[0];
       this.dataset.orientation = r >= 1 ? 'landscape' : 'portrait';
-      f.style.aspectRatio = r;
-      if (r < 1) {
-        const maxH = Math.min(window.innerHeight * 0.75, 700);
-        f.style.maxHeight = maxH + 'px';
+      let h = maxH;
+      let w = h * r;
+      if (w > containerW) {
+        w = containerW;
+        h = w / r;
       }
+      f.style.width = w + 'px';
+      f.style.height = h + 'px';
       return;
     }
 
@@ -325,10 +340,12 @@ class ImageGallery extends HTMLElement {
       const rowFigs = this.figures.slice(idx, idx + rowCount);
       const rowRatios = ratios.slice(idx, idx + rowCount);
       const sum = rowRatios.reduce((a, b) => a + b, 0);
+      const rowAvailW = Math.max(0, containerW - (rowCount - 1) * gap);
+      const naturalH = sum > 0 ? rowAvailW / sum : maxH;
+      const rowH = Math.min(naturalH, maxH);
       rowFigs.forEach((f, i) => {
-        const fraction = rowRatios[i] / sum;
-        f.style.width = `calc((100% - ${rowCount - 1} * var(--gap)) * ${fraction})`;
-        f.style.aspectRatio = rowRatios[i];
+        f.style.width = (rowH * rowRatios[i]) + 'px';
+        f.style.height = rowH + 'px';
       });
       idx += rowCount;
     });
