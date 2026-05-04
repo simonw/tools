@@ -109,10 +109,10 @@ header.site .status {
   text-align: left;
   background: transparent;
   border: 0;
-  padding: 6px 8px;
+  padding: 8px 8px;
   border-radius: 4px;
   font-family: "SF Mono", Menlo, monospace;
-  font-size: 13px;
+  font-size: 16px;
   cursor: pointer;
   color: var(--ink);
 }
@@ -185,24 +185,32 @@ form.cmdform { display: flex; flex-direction: column; gap: 10px; }
   margin-bottom: 6px;
 }
 .argbox > .arghead label {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 .argbox .meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
+/* Inputs and selects sit at 16px to keep iOS Safari from auto-zooming on
+ * focus. Same goes for the textareas the multi-line toggle swaps in. */
 .argbox input[type="text"],
 .argbox input[type="number"],
-.argbox select {
-  padding: 6px 8px;
+.argbox select,
+.argbox textarea {
+  padding: 8px 10px;
   border: 1px solid var(--panel-border);
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 16px;
   font-family: inherit;
   background: white;
   width: 100%;
   min-width: 0;
+}
+.argbox textarea {
+  font-family: "SF Mono", Menlo, monospace;
+  resize: vertical;
+  min-height: 60px;
 }
 .argbox input.mono { font-family: "SF Mono", Menlo, monospace; }
 .repeat-group { display: flex; flex-direction: column; gap: 8px; }
@@ -219,13 +227,14 @@ form.cmdform { display: flex; flex-direction: column; gap: 10px; }
 }
 .repeat-row .row-fields { min-width: 0; }
 
+/* All buttons stay at 16px — same Mobile Safari zoom rule as inputs. */
 button.action {
   align-self: flex-start;
   background: var(--accent);
   color: white;
   border: 0;
-  padding: 8px 16px;
-  font-size: 14px;
+  padding: 10px 18px;
+  font-size: 16px;
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
@@ -236,8 +245,8 @@ button.subtle {
   border: 1px solid var(--panel-border);
   color: var(--ink);
   border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 16px;
   cursor: pointer;
 }
 button.subtle:hover { background: var(--code-bg); }
@@ -246,12 +255,26 @@ button.danger {
   border: 1px solid var(--panel-border);
   color: var(--err);
   border-radius: 4px;
-  padding: 0 8px;
+  padding: 0 12px;
   cursor: pointer;
-  height: 28px;
+  font-size: 16px;
+  min-height: 36px;
   align-self: center;
 }
 button.danger:hover { background: var(--accent-soft); }
+input[type="checkbox"] {
+  /* Only checkboxes are exempt from the 16px rule (they don't trigger
+   * the iOS focus zoom). Bumping their visual size instead helps tap
+   * targets on small screens. */
+  width: 18px; height: 18px; margin: 0 6px 0 0;
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
 
 .preview {
   margin: 12px 0;
@@ -291,10 +314,10 @@ button.danger:hover { background: var(--accent-soft); }
   flex-wrap: wrap;
 }
 .right input[type="text"] {
-  padding: 6px 8px;
+  padding: 8px 10px;
   border: 1px solid var(--panel-border);
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 16px;
   font-family: "SF Mono", Menlo, monospace;
 }
 
@@ -368,6 +391,10 @@ footer.note a { color: var(--muted); text-decoration: underline; }
 <body>
 <header class="site">
   <h1>Redis <span class="accent">Array</span> Playground <span class="status" id="status">loading…</span></h1>
+  <label class="toggle-row" id="multiline-toggle" title="Render string-value inputs as textareas so values can include newlines">
+    <input type="checkbox" id="multiline-cb">
+    Multi-line values
+  </label>
   <nav class="links">
     <a href="https://github.com/redis/redis/pull/15162" target="_blank" rel="noopener">PR #15162 ↗</a>
     <a href="https://antirez.com/news/164" target="_blank" rel="noopener">antirez.com/news/164 ↗</a>
@@ -443,496 +470,182 @@ const setStatus = (s, kind) => {
 })();
 
 /* ============================================================================
- * Engine: wraps the WASM module to expose a Redis-array-shaped JS API.
+ * Engine: every AR* command is dispatched into the WASM module, which links
+ * the unmodified t_array.c, sparsearray.c, util.c, sds.c and TRE from the
+ * antirez:array branch. The JS layer only marshals argv into the heap and
+ * decodes the typed reply buffer the C code writes back.
  * ========================================================================= */
 
-class ArrayDB {
+const REPLY = { NIL:0, SIMPLE:1, ERROR:2, INT:3, UINT:4, BULK:5, ARRAY:6, DOUBLE:7, MAP:8 };
+
+const COMMAND_INDEX = {
+  ARGET:0, ARMGET:1, ARSET:2, ARMSET:3, ARDEL:4, ARDELRANGE:5,
+  ARLEN:6, ARCOUNT:7, ARGETRANGE:8, ARSCAN:9, ARGREP:10, AROP:11,
+  ARINSERT:12, ARRING:13, ARNEXT:14, ARSEEK:15, ARLASTITEMS:16, ARINFO:17,
+};
+
+class WasmEngine {
   constructor(M) {
     this.M = M;
-    this.keys = new Map(); // key -> { ptr }
+    this.enc = new TextEncoder();
+    this.dec = new TextDecoder();
   }
-  has(key) { return this.keys.has(key); }
-  get(key) { return this.keys.get(key)?.ptr ?? null; }
-  getOrCreate(key) {
-    let e = this.keys.get(key);
-    if (!e) {
-      const ptr = this.M._wasm_ar_new();
-      e = { ptr };
-      this.keys.set(key, e);
-    }
-    return e.ptr;
-  }
-  drop(key) {
-    const e = this.keys.get(key);
-    if (!e) return false;
-    this.M._wasm_ar_free(e.ptr);
-    this.keys.delete(key);
-    return true;
-  }
-  flush() {
-    for (const e of this.keys.values()) this.M._wasm_ar_free(e.ptr);
-    this.keys.clear();
-  }
-  // Set string value at idx; we let arEncode pick int / float / smallstr / arString.
-  setStr(ptr, idx, str) {
+
+  /* Dispatch one AR* command. argv is a flat list of strings (no command
+   * name; we prepend it from the index). Returns a typed reply tree. */
+  dispatch(name, argv) {
+    const idx = COMMAND_INDEX[name];
+    if (idx === undefined) throw new Error("unknown command " + name);
     const M = this.M;
-    const bytes = new TextEncoder().encode(str);
-    const buf = M._malloc(Math.max(1, bytes.length));
-    M.HEAPU8.set(bytes, buf);
-    M._wasm_ar_set(ptr, idx, buf, bytes.length);
-    M._free(buf);
-  }
-  getStr(ptr, idx) {
-    const M = this.M;
-    const len = M._wasm_ar_get(ptr, idx);
-    if (len < 0) return null;
-    const bufp = M._wasm_ar_get_buf();
-    return new TextDecoder().decode(M.HEAPU8.subarray(bufp, bufp + len));
-  }
-  count(ptr) { return this.M._wasm_ar_count(ptr); }
-  len(ptr) { return this.M._wasm_ar_len(ptr); }
-  del(ptr, idx) { return this.M._wasm_ar_del(ptr, idx) ? 1 : 0; }
-  delRange(ptr, lo, hi) { return this.M._wasm_ar_delete_range(ptr, lo, hi); }
-  truncate(ptr, limit) { this.M._wasm_ar_truncate(ptr, limit); }
-  promoteDense(ptr, lo, hi) { this.M._wasm_ar_promote_dense(ptr, lo, hi); }
-  insertIdx(ptr) { return this.M._wasm_ar_get_insert_idx(ptr); }
-  setInsertIdx(ptr, v) { this.M._wasm_ar_set_insert_idx(ptr, v); }
-  allocSize(ptr) { return this.M._wasm_ar_alloc_size(ptr); }
-  numSlices(ptr) { return this.M._wasm_ar_num_slices(ptr); }
-  sliceSize(ptr) { return this.M._wasm_ar_slice_size(ptr); }
-  // Yields [idx, value] pairs for non-empty slots in [lo, hi].
-  *iterRange(ptr, lo, hi) {
-    if (hi < lo) return;
-    let next = this.M._wasm_ar_next_index(ptr, lo, hi);
-    while (next >= 0) {
-      yield [next, this.getStr(ptr, next)];
-      if (next === hi) break;
-      next = this.M._wasm_ar_next_index(ptr, next + 1, hi);
-    }
-  }
-}
-
-/* ============================================================================
- * AR* command implementations. Mirrors t_array.c semantics where reasonable;
- * documented divergences are flagged in the console with [info].
- * ========================================================================= */
-
-function parseInt64(s) {
-  if (typeof s !== "string") s = String(s);
-  s = s.trim();
-  if (!/^-?\d+$/.test(s)) return null;
-  const n = Number(s);
-  if (!Number.isFinite(n) || !Number.isSafeInteger(n)) return null;
-  return n;
-}
-function parseUint(s) {
-  const n = parseInt64(s);
-  if (n === null || n < 0) return null;
-  return n;
-}
-function asNumberOrString(s) {
-  if (typeof s !== "string") return s;
-  if (/^-?\d+$/.test(s)) {
-    const n = Number(s);
-    if (Number.isFinite(n) && Number.isSafeInteger(n)) return n;
-  }
-  if (/^-?\d+\.\d+$/.test(s) || /^-?\d+(\.\d+)?[eE][+-]?\d+$/.test(s)) {
-    const n = Number(s);
-    if (Number.isFinite(n)) return n;
-  }
-  return s;
-}
-
-class ReplyError extends Error {}
-const arityErr = (name) => new ReplyError(`ERR wrong number of arguments for '${name}'`);
-
-const COMMANDS = {
-  ARSET(db, args) {
-    if (args.length < 3) throw arityErr("arset");
-    const [key, idxs, ...values] = args;
-    const idx = parseUint(idxs);
-    if (idx === null) throw new ReplyError("ERR value is not an integer or out of range");
-    if (values.length === 0) throw arityErr("arset");
-    const ptr = db.getOrCreate(key);
-    const before = db.count(ptr);
-    const last = idx + values.length - 1;
-    db.promoteDense(ptr, idx, last);
-    for (let i = 0; i < values.length; i++) db.setStr(ptr, idx + i, values[i]);
-    return { type: "integer", value: db.count(ptr) - before };
-  },
-  ARGET(db, args) {
-    if (args.length !== 2) throw arityErr("arget");
-    const [key, idxs] = args;
-    const idx = parseUint(idxs);
-    if (idx === null) throw new ReplyError("ERR value is not an integer or out of range");
-    const ptr = db.get(key);
-    if (!ptr) return { type: "nil", value: null };
-    const v = db.getStr(ptr, idx);
-    return v === null ? { type: "nil", value: null } : { type: "bulk", value: v };
-  },
-  ARDEL(db, args) {
-    if (args.length < 2) throw arityErr("ardel");
-    const [key, ...idxs] = args;
-    const ptr = db.get(key);
-    if (!ptr) return { type: "integer", value: 0 };
-    let n = 0;
-    for (const s of idxs) {
-      const i = parseUint(s);
-      if (i === null) throw new ReplyError("ERR index is not an integer or out of range");
-      n += db.del(ptr, i);
-    }
-    if (db.count(ptr) === 0) db.drop(key);
-    return { type: "integer", value: n };
-  },
-  ARDELRANGE(db, args) {
-    if (args.length < 3 || (args.length - 1) % 2 !== 0) throw arityErr("ardelrange");
-    const key = args[0];
-    const ranges = [];
-    for (let i = 1; i < args.length; i += 2) {
-      const lo = parseUint(args[i]);
-      const hi = parseUint(args[i + 1]);
-      if (lo === null || hi === null) throw new ReplyError("ERR index is not an integer or out of range");
-      ranges.push([lo, hi]);
-    }
-    const ptr = db.get(key);
-    if (!ptr) return { type: "integer", value: 0 };
-    let n = 0;
-    for (const [lo, hi] of ranges) n += db.delRange(ptr, lo, hi);
-    if (db.count(ptr) === 0) db.drop(key);
-    return { type: "integer", value: n };
-  },
-  ARGETRANGE(db, args) {
-    if (args.length !== 3) throw arityErr("argetrange");
-    const [key, los, his] = args;
-    const lo = parseUint(los), hi = parseUint(his);
-    if (lo === null || hi === null) throw new ReplyError("ERR index is not an integer or out of range");
-    const ptr = db.get(key);
-    const out = [];
-    if (!ptr) return { type: "array", value: [] };
-    if (hi < lo) return { type: "array", value: [] };
-    const len = db.len(ptr);
-    const top = Math.min(hi, len === 0 ? 0 : len - 1);
-    for (let i = lo; i <= top; i++) {
-      const v = db.getStr(ptr, i);
-      out.push(v === null ? { type: "nil", value: null } : { type: "bulk", value: v });
-    }
-    return { type: "array", value: out };
-  },
-  ARLEN(db, args) {
-    if (args.length !== 1) throw arityErr("arlen");
-    const ptr = db.get(args[0]);
-    return { type: "integer", value: ptr ? db.len(ptr) : 0 };
-  },
-  ARCOUNT(db, args) {
-    if (args.length !== 1) throw arityErr("arcount");
-    const ptr = db.get(args[0]);
-    return { type: "integer", value: ptr ? db.count(ptr) : 0 };
-  },
-  ARMGET(db, args) {
-    if (args.length < 2) throw arityErr("armget");
-    const [key, ...idxs] = args;
-    const ptr = db.get(key);
-    const out = [];
-    for (const s of idxs) {
-      const i = parseUint(s);
-      if (i === null) throw new ReplyError("ERR index is not an integer or out of range");
-      const v = ptr ? db.getStr(ptr, i) : null;
-      out.push(v === null ? { type: "nil", value: null } : { type: "bulk", value: v });
-    }
-    return { type: "array", value: out };
-  },
-  ARMSET(db, args) {
-    if (args.length < 3 || (args.length - 1) % 2 !== 0) throw arityErr("armset");
-    const key = args[0];
-    const pairs = [];
-    for (let i = 1; i < args.length; i += 2) {
-      const idx = parseUint(args[i]);
-      if (idx === null) throw new ReplyError("ERR index is not an integer or out of range");
-      pairs.push([idx, args[i + 1]]);
-    }
-    const ptr = db.getOrCreate(key);
-    const before = db.count(ptr);
-    for (const [idx, v] of pairs) db.setStr(ptr, idx, v);
-    return { type: "integer", value: db.count(ptr) - before };
-  },
-  ARNEXT(db, args) {
-    if (args.length !== 1) throw arityErr("arnext");
-    const ptr = db.get(args[0]);
-    if (!ptr) return { type: "integer", value: 0 };
-    const cur = db.insertIdx(ptr);
-    return { type: "integer", value: cur < 0 ? 0 : cur + 1 };
-  },
-  ARSEEK(db, args) {
-    if (args.length !== 2) throw arityErr("arseek");
-    const idx = parseUint(args[1]);
-    if (idx === null) throw new ReplyError("ERR index is not an integer or out of range");
-    const ptr = db.getOrCreate(args[0]);
-    db.setInsertIdx(ptr, idx === 0 ? -1 : idx - 1);
-    return { type: "simple", value: "OK" };
-  },
-  ARINSERT(db, args) {
-    if (args.length < 2) throw arityErr("arinsert");
-    const [key, ...values] = args;
-    if (values.length === 0) throw arityErr("arinsert");
-    const ptr = db.getOrCreate(key);
-    let cur = db.insertIdx(ptr);
-    let start = cur < 0 ? 0 : cur + 1;
-    db.promoteDense(ptr, start, start + values.length - 1);
-    for (let i = 0; i < values.length; i++) db.setStr(ptr, start + i, values[i]);
-    const last = start + values.length - 1;
-    db.setInsertIdx(ptr, last);
-    return { type: "integer", value: last };
-  },
-  ARRING(db, args) {
-    if (args.length < 3) throw arityErr("arring");
-    const [key, sizeS, ...values] = args;
-    const size = parseUint(sizeS);
-    if (size === null || size === 0) throw new ReplyError("ERR size must be positive");
-    if (values.length === 0) throw arityErr("arring");
-    const ptr = db.getOrCreate(key);
-    let cur = db.insertIdx(ptr);
-    let oldSpan = db.len(ptr);
-    /* Resize semantics: if the ring shrinks below the populated span, rework
-     * the array to keep the most-recent `size` items. We use a simpler scheme
-     * than the C version (it preserves the rolling write window across grows
-     * without rebuilding); for the playground that's acceptable. */
-    if (oldSpan > size) {
-      const items = [];
-      let anchor = cur < 0 ? oldSpan - 1 : (cur % oldSpan);
-      let walk = anchor;
-      for (let n = 0; n < size; n++) {
-        const v = db.getStr(ptr, walk);
-        if (v === null) break;
-        items.unshift(v);
-        walk = walk === 0 ? oldSpan - 1 : walk - 1;
+    /* Wire format consumed by wasm_dispatch():
+     *    u32 argc
+     *    repeat: u32 len, bytes
+     * argv[0] is the command name so c->argv[0]->ptr matches what the real
+     * Redis dispatcher would pass. */
+    const fullArgv = [name, ...argv];
+    const bytes = fullArgv.map((a) => this.enc.encode(typeof a === "string" ? a : String(a)));
+    let total = 4;
+    for (const b of bytes) total += 4 + b.length;
+    const blob = M._malloc(total);
+    try {
+      const view = new DataView(M.HEAPU8.buffer, blob, total);
+      view.setUint32(0, fullArgv.length, true);
+      let off = 4;
+      for (const b of bytes) {
+        view.setUint32(off, b.length, true); off += 4;
+        M.HEAPU8.set(b, blob + off); off += b.length;
       }
-      db.delRange(ptr, 0, oldSpan - 1);
-      for (let i = 0; i < items.length; i++) db.setStr(ptr, i, items[i]);
-      db.setInsertIdx(ptr, items.length === 0 ? -1 : items.length - 1);
-      cur = db.insertIdx(ptr);
-      oldSpan = db.len(ptr);
+      const rc = M._wasm_dispatch(idx, blob, total);
+      if (rc !== 0) throw new Error("wasm_dispatch failed rc=" + rc);
+    } finally {
+      M._free(blob);
     }
-    let last = -1;
-    for (const v of values) {
-      const next = cur < 0 ? 0 : cur + 1;
-      const slot = next % size;
-      db.setStr(ptr, slot, v);
-      cur = slot;
-      last = slot;
-    }
-    db.setInsertIdx(ptr, last);
-    return { type: "integer", value: last };
-  },
-  ARLASTITEMS(db, args) {
-    if (args.length < 2) throw arityErr("arlastitems");
-    const [key, countS, ...rest] = args;
-    let rev = false;
-    for (const tok of rest) {
-      if (tok.toUpperCase() === "REV") rev = true;
-      else throw new ReplyError("ERR syntax error");
-    }
-    const count = parseUint(countS);
-    if (count === null) throw new ReplyError("ERR count is not an integer or out of range");
-    const ptr = db.get(key);
-    if (!ptr || count === 0) return { type: "array", value: [] };
-    const len = db.len(ptr);
-    if (len === 0) return { type: "array", value: [] };
-    let cur = db.insertIdx(ptr);
-    if (cur < 0) cur = len - 1;
-    /* Walk backward from cur, contiguous non-null tail, up to count items. */
-    const items = [];
-    let walk = cur;
-    for (let n = 0; n < count; n++) {
-      const v = db.getStr(ptr, walk);
-      if (v === null) break;
-      items.push({ type: "bulk", value: v });
-      if (walk === 0) break;
-      walk -= 1;
-    }
-    if (!rev) items.reverse();
-    return { type: "array", value: items };
-  },
-  ARSCAN(db, args) {
-    if (args.length !== 3 && args.length !== 5) throw arityErr("arscan");
-    const [key, los, his, ...rest] = args;
-    let limit = Infinity;
-    if (rest.length === 2) {
-      if (rest[0].toUpperCase() !== "LIMIT") throw new ReplyError("ERR syntax error");
-      const n = parseUint(rest[1]);
-      if (n === null || n === 0) throw new ReplyError("ERR LIMIT must be positive");
-      limit = n;
-    }
-    const lo = parseUint(los), hi = parseUint(his);
-    if (lo === null || hi === null) throw new ReplyError("ERR index is not an integer or out of range");
-    const ptr = db.get(key);
-    if (!ptr) return { type: "array", value: [] };
-    const out = [];
-    let n = 0;
-    for (const [idx, v] of db.iterRange(ptr, lo, hi)) {
-      out.push({ type: "integer", value: idx });
-      out.push({ type: "bulk", value: v });
-      n++;
-      if (n >= limit) break;
-    }
-    return { type: "array", value: out };
-  },
-  ARGREP(db, args) {
-    if (args.length < 5) throw arityErr("argrep");
-    const [key, los, his, ...rest] = args;
-    const lo = parseUint(los), hi = parseUint(his);
-    if (lo === null || hi === null) throw new ReplyError("ERR index is not an integer or out of range");
-    const predicates = [];
-    let i = 0;
-    while (i < rest.length) {
-      const k = rest[i].toUpperCase();
-      if (k === "EXACT" || k === "MATCH" || k === "GLOB" || k === "RE") {
-        if (i + 1 >= rest.length) throw new ReplyError("ERR syntax error");
-        predicates.push({ kind: k, arg: rest[i + 1] });
-        i += 2;
-      } else break;
-    }
-    if (predicates.length === 0) throw new ReplyError("ERR at least one predicate required");
-    let combine = "AND", limit = Infinity, withvalues = false, nocase = false;
-    while (i < rest.length) {
-      const k = rest[i].toUpperCase();
-      if (k === "AND") { combine = "AND"; i++; }
-      else if (k === "OR") { combine = "OR"; i++; }
-      else if (k === "NOCASE") { nocase = true; i++; }
-      else if (k === "WITHVALUES") { withvalues = true; i++; }
-      else if (k === "LIMIT") {
-        if (i + 1 >= rest.length) throw new ReplyError("ERR syntax error");
-        const n = parseUint(rest[i + 1]);
-        if (n === null || n === 0) throw new ReplyError("ERR LIMIT must be positive");
-        limit = n; i += 2;
-      } else throw new ReplyError("ERR syntax error");
-    }
-    const ptr = db.get(key);
-    if (!ptr) return { type: "array", value: [] };
-    const out = [];
-    /* Simple predicate engine for the playground:
-     *   EXACT  - byte-equal (or case-insensitive with NOCASE)
-     *   MATCH  - substring
-     *   GLOB   - * and ? wildcards
-     *   RE     - JS RegExp (anchored)
-     * Real ARGREP MATCH/RE uses the TRE library; close enough for demos.    */
-    const toRe = (p) => {
-      const flags = nocase ? "i" : "";
-      switch (p.kind) {
-        case "EXACT": {
-          const a = nocase ? p.arg.toLowerCase() : p.arg;
-          return (s) => (nocase ? s.toLowerCase() : s) === a;
+    const ptr = M._wasm_reply_buf_ptr();
+    const len = M._wasm_reply_buf_len();
+    return this._decode(ptr, len);
+  }
+
+  _decode(buf, len) {
+    const M = this.M;
+    const td = this.dec;
+    let off = 0;
+    const byte = () => M.HEAPU8[buf + off++];
+    const u32 = () => {
+      const v = new DataView(M.HEAPU8.buffer, buf + off, 4).getUint32(0, true);
+      off += 4; return v;
+    };
+    const i64 = () => {
+      const v = new DataView(M.HEAPU8.buffer, buf + off, 8).getBigInt64(0, true);
+      off += 8; return v;
+    };
+    const u64 = () => {
+      const v = new DataView(M.HEAPU8.buffer, buf + off, 8).getBigUint64(0, true);
+      off += 8; return v;
+    };
+    const f64 = () => {
+      const v = new DataView(M.HEAPU8.buffer, buf + off, 8).getFloat64(0, true);
+      off += 8; return v;
+    };
+    const str = () => {
+      const n = u32();
+      const s = td.decode(M.HEAPU8.subarray(buf + off, buf + off + n));
+      off += n; return s;
+    };
+    const read = () => {
+      const t = byte();
+      switch (t) {
+        case REPLY.NIL:    return { type: "nil" };
+        case REPLY.SIMPLE: return { type: "simple", value: str() };
+        case REPLY.ERROR:  return { type: "error",  value: str() };
+        case REPLY.INT: {
+          const v = i64();
+          return { type: "integer", value: (v >= -9007199254740992n && v <= 9007199254740992n) ? Number(v) : v };
         }
-        case "MATCH": {
-          const a = nocase ? p.arg.toLowerCase() : p.arg;
-          return (s) => (nocase ? s.toLowerCase() : s).includes(a);
+        case REPLY.UINT: {
+          const v = u64();
+          return { type: "integer", value: (v <= 9007199254740992n) ? Number(v) : v };
         }
-        case "GLOB": {
-          const re = new RegExp("^" + p.arg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$", flags);
-          return (s) => re.test(s);
+        case REPLY.DOUBLE: return { type: "double", value: f64() };
+        case REPLY.BULK:   return { type: "bulk", value: str() };
+        case REPLY.ARRAY: {
+          const n = u32();
+          const out = [];
+          for (let i = 0; i < n; i++) out.push(read());
+          return { type: "array", value: out };
         }
-        case "RE": {
-          const re = new RegExp(p.arg, flags);
-          return (s) => re.test(s);
+        case REPLY.MAP: {
+          /* RESP3 map: count is the number of pairs, so 2*count records
+           * follow. We expose a flat array of {key, value} entries to make
+           * rendering simple. */
+          const n = u32();
+          const out = [];
+          for (let i = 0; i < n; i++) {
+            const k = read();
+            const v = read();
+            out.push({ key: k, value: v });
+          }
+          return { type: "map", value: out };
         }
+        default: throw new Error("unknown reply tag " + t + " at offset " + (off - 1));
       }
     };
-    const tests = predicates.map(toRe);
-    const accept = (s) => combine === "AND" ? tests.every((f) => f(s)) : tests.some((f) => f(s));
-    let n = 0;
-    for (const [idx, v] of db.iterRange(ptr, lo, hi)) {
-      if (accept(v)) {
-        out.push({ type: "integer", value: idx });
-        if (withvalues) out.push({ type: "bulk", value: v });
-        n++;
-        if (n >= limit) break;
+    return read();
+  }
+
+  /* Keyspace queries. All implemented in C — JS only renders the result. */
+  listKeys() {
+    const M = this.M;
+    const cap = 65536;
+    const buf = M._malloc(cap);
+    try {
+      const used = M._wasm_list_keys(buf, cap);
+      if (used < 0) return [];
+      const view = new DataView(M.HEAPU8.buffer, buf, used);
+      const n = view.getUint32(0, true);
+      let off = 4;
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const ln = view.getUint32(off, true); off += 4;
+        out.push(this.dec.decode(M.HEAPU8.subarray(buf + off, buf + off + ln)));
+        off += ln;
       }
+      return out;
+    } finally {
+      M._free(buf);
     }
-    return { type: "array", value: out };
-  },
-  AROP(db, args) {
-    if (args.length < 4) throw arityErr("arop");
-    const [key, los, his, opTok, ...rest] = args;
-    const lo = parseUint(los), hi = parseUint(his);
-    if (lo === null || hi === null) throw new ReplyError("ERR index is not an integer or out of range");
-    const op = (opTok || "").toUpperCase();
-    const ptr = db.get(key);
-    const ints = []; const floats = []; const strs = []; let any = false; let used = 0;
-    if (ptr) {
-      for (const [, v] of db.iterRange(ptr, lo, hi)) {
-        any = true; used++;
-        const num = asNumberOrString(v);
-        if (typeof num === "number") {
-          if (Number.isInteger(num)) ints.push(num);
-          floats.push(num);
-        }
-        strs.push(v);
-      }
+  }
+
+  keyStats(key) {
+    const M = this.M;
+    const k = this.enc.encode(key);
+    const kbuf = M._malloc(Math.max(1, k.length));
+    const obuf = M._malloc(32);
+    try {
+      M.HEAPU8.set(k, kbuf);
+      const ok = M._wasm_key_stats(kbuf, k.length, obuf, 32);
+      if (!ok) return null;
+      const view = new DataView(M.HEAPU8.buffer, obuf, 32);
+      const len = Number(view.getBigUint64(0, true));
+      const count = Number(view.getBigUint64(8, true));
+      const cur = Number(view.getBigInt64(16, true));
+      const alloc = Number(view.getBigUint64(24, true));
+      return { len, count, cur, alloc };
+    } finally {
+      M._free(kbuf); M._free(obuf);
     }
-    const nilReply = { type: "nil", value: null };
-    switch (op) {
-      case "SUM": {
-        if (!any) return nilReply;
-        const allInt = floats.length === ints.length;
-        if (allInt) return { type: "integer", value: ints.reduce((a, b) => a + b, 0) };
-        return { type: "bulk", value: String(floats.reduce((a, b) => a + b, 0)) };
-      }
-      case "MIN": case "MAX": {
-        if (!any) return nilReply;
-        const useFloats = floats.length > 0;
-        if (useFloats) {
-          const v = op === "MIN" ? Math.min(...floats) : Math.max(...floats);
-          return Number.isInteger(v)
-            ? { type: "integer", value: v }
-            : { type: "bulk", value: String(v) };
-        }
-        const v = strs.reduce((a, b) => op === "MIN" ? (a < b ? a : b) : (a > b ? a : b));
-        return { type: "bulk", value: v };
-      }
-      case "AND": case "OR": case "XOR": {
-        if (ints.length === 0) return nilReply;
-        const f = op === "AND"
-          ? (a, b) => Number(BigInt(a) & BigInt(b))
-          : op === "OR"
-            ? (a, b) => Number(BigInt(a) | BigInt(b))
-            : (a, b) => Number(BigInt(a) ^ BigInt(b));
-        return { type: "integer", value: ints.reduce(f) };
-      }
-      case "USED": return { type: "integer", value: used };
-      case "MATCH": {
-        if (rest.length !== 1) throw new ReplyError("ERR MATCH requires a value");
-        const target = rest[0];
-        let n = 0;
-        for (const s of strs) if (s === target) n++;
-        return { type: "integer", value: n };
-      }
-      default: throw new ReplyError("ERR unknown AROP operation: " + op);
-    }
-  },
-  ARINFO(db, args) {
-    if (args.length !== 1 && args.length !== 2) throw arityErr("arinfo");
-    const full = args[1] && args[1].toUpperCase() === "FULL";
-    const ptr = db.get(args[0]);
-    const lines = [];
-    if (!ptr) {
-      lines.push("type", "none");
-    } else {
-      lines.push("type", "array");
-      lines.push("encoding", "sliced-array");
-      lines.push("len", String(db.len(ptr)));
-      lines.push("count", String(db.count(ptr)));
-      lines.push("alloc_size", String(db.allocSize(ptr)));
-      lines.push("num_slices", String(db.numSlices(ptr)));
-      lines.push("slice_size", String(db.sliceSize(ptr)));
-      const cur = db.insertIdx(ptr);
-      lines.push("insert_idx", cur < 0 ? "none" : String(cur));
-      if (full) lines.push("note", "FULL detail elided in playground");
-    }
-    const arr = lines.map((s, i) => i % 2 === 0
-      ? { type: "bulk", value: s }
-      : { type: "bulk", value: s });
-    return { type: "array", value: arr };
-  },
-};
+  }
+
+  dropKey(key) {
+    const M = this.M;
+    const k = this.enc.encode(key);
+    const kbuf = M._malloc(Math.max(1, k.length));
+    try { M.HEAPU8.set(k, kbuf); M._wasm_drop_key(kbuf, k.length); }
+    finally { M._free(kbuf); }
+  }
+
+  flushAll() { this.M._wasm_flush_all(); }
+}
+
 
 /* ============================================================================
  * Form rendering: walks the JSON `arguments` schema and builds inputs.
@@ -941,9 +654,12 @@ const COMMANDS = {
 let state = {
   catalog: null,
   current: "ARSET",
-  formArgs: {}, // per-command form snapshot (re-init on switch)
-  db: null,
+  engine: null,
   defaultKey: "myarr",
+  /* Multi-line toggle: when on, every "string"-typed argument input is
+   * rendered as a textarea so the user can paste values containing
+   * newlines. Persisted in localStorage. */
+  multiline: localStorage.getItem("redis-array-multiline") === "1",
 };
 
 function renderArgSummary(args) {
@@ -982,18 +698,25 @@ function renderArgInput(arg, valueRef) {
     return wrap;
   }
   if (arg.type === "key" || arg.type === "string") {
-    const inp = document.createElement("input");
-    inp.type = "text";
+    /* "key" never gets the textarea treatment — Redis keys with newlines
+     * just complicate the side panel for no real benefit. Only "string"
+     * (i.e. user values) honors the multi-line toggle. */
+    const useTextarea = arg.type === "string" && state.multiline;
+    const inp = document.createElement(useTextarea ? "textarea" : "input");
+    if (!useTextarea) inp.type = "text";
     inp.className = "mono";
     if (arg.type === "key") {
       inp.value = state.defaultKey;
       inp.placeholder = "key name";
     } else {
       inp.placeholder = arg.name;
+      if (useTextarea) inp.rows = 2;
     }
     if (arg.token) {
       const wrap = document.createElement("span");
-      wrap.style.display = "flex"; wrap.style.gap = "6px"; wrap.style.alignItems = "center";
+      wrap.style.display = "flex"; wrap.style.gap = "6px";
+      wrap.style.alignItems = useTextarea ? "flex-start" : "center";
+      wrap.style.flex = "1";
       const tok = document.createElement("span");
       tok.className = "tag token"; tok.textContent = arg.token;
       wrap.appendChild(tok); wrap.appendChild(inp);
@@ -1186,9 +909,8 @@ function logLine(cls, text) {
 
 function startApp(M, catalog) {
   state.catalog = catalog;
-  state.db = new ArrayDB(M);
+  state.engine = new WasmEngine(M);
   window.state = state;
-  window.COMMANDS = COMMANDS;
   window.runCurrent = runCurrent;
   window.collectArgv = collectArgv;
 
@@ -1206,14 +928,23 @@ function startApp(M, catalog) {
   document.getElementById("reset-key").addEventListener("click", () => {
     const key = state.activeKey;
     if (!key) return;
-    state.db.drop(key);
+    state.engine.dropKey(key);
     refreshKeyspace();
     logLine("info", `[info] reset key ${JSON.stringify(key)}`);
   });
   document.getElementById("reset-all").addEventListener("click", () => {
-    state.db.flush();
+    state.engine.flushAll();
     refreshKeyspace();
     logLine("info", "[info] flushed all keys");
+  });
+
+  const ml = document.getElementById("multiline-cb");
+  ml.checked = state.multiline;
+  ml.addEventListener("change", () => {
+    state.multiline = ml.checked;
+    localStorage.setItem("redis-array-multiline", state.multiline ? "1" : "0");
+    /* Re-render the active form so existing string fields swap shape. */
+    renderDocs(state.current);
   });
 }
 
@@ -1344,11 +1075,18 @@ function formatReply(r, indent = "") {
   if (!r) return "(empty)";
   if (r.type === "nil") return "(nil)";
   if (r.type === "integer") return "(integer) " + r.value;
+  if (r.type === "double") return "(double) " + r.value;
   if (r.type === "simple") return r.value;
+  if (r.type === "error") return "(error) " + r.value;
   if (r.type === "bulk") return JSON.stringify(r.value);
   if (r.type === "array") {
     if (r.value.length === 0) return "(empty array)";
     return r.value.map((v, i) => `${indent}${i + 1}) ${formatReply(v, indent + "   ")}`).join("\n");
+  }
+  if (r.type === "map") {
+    if (r.value.length === 0) return "(empty map)";
+    return r.value.map(({ key, value }) =>
+      `${indent}${formatReply(key, indent + "   ")} => ${formatReply(value, indent + "   ")}`).join("\n");
   }
   return JSON.stringify(r);
 }
@@ -1356,25 +1094,15 @@ function formatReply(r, indent = "") {
 function runCurrent() {
   const name = state.current;
   const argv = state.lastArgv || collectArgv(state.argRefs);
-  const fn = COMMANDS[name];
   const cmdline = name + (argv.length ? " " + argv.map(quoteArg).join(" ") : "");
   logLine("in", "> " + cmdline);
-  if (!fn) {
-    logLine("err", `(error) ${name} not implemented in playground`);
-    state.replyBox.textContent = `(error) ${name} not implemented in playground`;
-    return;
-  }
   // Track active key for the side panel: it's always argv[0] when present.
   if (argv.length > 0) state.activeKey = argv[0];
+
   let reply;
   try {
-    reply = fn(state.db, argv);
+    reply = state.engine.dispatch(name, argv);
   } catch (e) {
-    if (e instanceof ReplyError) {
-      logLine("err", "(error) " + e.message);
-      state.replyBox.textContent = "(error) " + e.message;
-      return;
-    }
     logLine("err", "(error) [internal] " + e.message);
     state.replyBox.textContent = "(error) [internal] " + e.message;
     console.error(e);
@@ -1388,34 +1116,36 @@ function runCurrent() {
 
 function refreshKeyspace() {
   const root = document.getElementById("keyspace");
-  const db = state.db;
-  if (!db || db.keys.size === 0) {
+  const engine = state.engine;
+  const keys = engine ? engine.listKeys() : [];
+  if (keys.length === 0) {
     root.innerHTML = `<div class="empty">No array keys yet.</div>`;
     return;
   }
   const frags = [];
-  for (const [key, { ptr }] of db.keys) {
-    const len = db.len(ptr);
-    const count = db.count(ptr);
-    const cur = db.insertIdx(ptr);
-    frags.push(`<div style="margin-bottom: 10px;"><strong style="font-family: 'SF Mono', Menlo, monospace; color: var(--accent);">${escapeHTML(key)}</strong>` +
-      `<span style="color: var(--muted); margin-left: 6px; font-size: 11px;">len=${len} · count=${count} · cur=${cur < 0 ? "—" : cur}</span></div>`);
-    const max = Math.max(0, Math.min(len, 64));
-    if (max === 0) {
-      frags.push(`<div class="empty">empty</div>`);
-    } else {
-      const rows = [];
-      let next = ptr ? state.db.M._wasm_ar_next_index(ptr, 0, max - 1) : -1;
-      while (next >= 0) {
-        const v = db.getStr(ptr, next);
-        rows.push(`<tr><td class="idx">${next}</td><td>${escapeHTML(v)}</td></tr>`);
-        if (next === max - 1) break;
-        next = state.db.M._wasm_ar_next_index(ptr, next + 1, max - 1);
-      }
-      let truncated = "";
-      if (len > max) truncated = `<div class="empty" style="margin-top:4px;">… ${len - max} more positions not shown</div>`;
-      frags.push(`<table class="statetable"><thead><tr><th style="width:60px;">idx</th><th>value</th></tr></thead><tbody>${rows.join("")}</tbody></table>${truncated}`);
+  for (const key of keys) {
+    const stats = engine.keyStats(key);
+    if (!stats) continue;
+    const { len, count, cur, alloc } = stats;
+    frags.push(`<div style="margin-bottom: 8px;">` +
+      `<strong style="font-family: 'SF Mono', Menlo, monospace; color: var(--accent);">${escapeHTML(key)}</strong>` +
+      `<span style="color: var(--muted); margin-left: 6px; font-size: 12px;">len=${len} · count=${count} · cur=${cur < 0 ? "—" : cur} · ${alloc}B</span></div>`);
+    const cap = Math.max(0, Math.min(len, 64));
+    if (cap === 0) { frags.push(`<div class="empty">empty</div>`); continue; }
+    /* For the side panel we ask C to walk the existing slots via ARSCAN. */
+    let pairs = [];
+    try {
+      const r = engine.dispatch("ARSCAN", [key, "0", String(cap - 1)]);
+      pairs = (r.value || []);
+    } catch { /* shouldn't happen — keep panel resilient */ }
+    const rows = [];
+    for (let i = 0; i + 1 < pairs.length; i += 2) {
+      const idx = pairs[i].value, val = pairs[i + 1].value;
+      rows.push(`<tr><td class="idx">${idx}</td><td>${escapeHTML(val)}</td></tr>`);
     }
+    let truncated = "";
+    if (len > cap) truncated = `<div class="empty" style="margin-top:4px;">… ${len - cap} more positions not shown</div>`;
+    frags.push(`<table class="statetable"><thead><tr><th style="width:60px;">idx</th><th>value</th></tr></thead><tbody>${rows.join("")}</tbody></table>${truncated}`);
   }
   root.innerHTML = frags.join("");
 }
