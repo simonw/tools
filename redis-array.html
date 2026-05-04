@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redis Array Playground</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f5f5f7;
+  --panel: #ffffff;
+  --panel-border: #d8d8de;
+  --ink: #1a1a1f;
+  --muted: #5c5c66;
+  --accent: #d62828;
+  --accent-soft: #fde2e2;
+  --code-bg: #f1f1f4;
+  --code-ink: #2b2b32;
+  --ok: #1f7a3a;
+  --err: #b00020;
+  --tag: #e6efff;
+  --tag-ink: #1f4dac;
+  --token: #efe7ff;
+  --token-ink: #5b3da7;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--tag-ink); }
+a:hover { text-decoration: underline; }
+code, pre, .mono { font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+
+header.site {
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+header.site h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+header.site h1 .accent { color: var(--accent); }
+header.site .links {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 13px;
+}
+header.site .status {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: "SF Mono", Menlo, monospace;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 360px;
+  gap: 16px;
+  padding: 16px;
+  align-items: stretch;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 200px minmax(0, 1fr); }
+  .right { grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  .layout { grid-template-columns: 1fr; }
+  .left { order: -1; }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.left h2, .center h2, .right h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cmdlist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cmdlist button {
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.cmdlist button:hover { background: var(--code-bg); }
+.cmdlist button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.center h1.cmdname {
+  margin: 0;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 20px;
+  color: var(--accent);
+}
+.center .summary { margin: 4px 0 12px; color: var(--muted); }
+.docgrid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.docgrid .label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+  align-self: center;
+}
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag {
+  background: var(--tag);
+  color: var(--tag-ink);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: "SF Mono", Menlo, monospace;
+}
+.tag.token {
+  background: var(--token);
+  color: var(--token-ink);
+}
+
+.argspec {
+  margin: 4px 0 12px;
+  padding: 8px 10px;
+  background: var(--code-bg);
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  color: var(--code-ink);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+form.cmdform { display: flex; flex-direction: column; gap: 10px; }
+.argbox {
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fafafc;
+}
+.argbox.subtle { background: transparent; padding: 4px 0; border: 0; }
+.argbox > .arghead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.argbox > .arghead label {
+  font-size: 12px;
+  font-weight: 600;
+}
+.argbox .meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+.argbox input[type="text"],
+.argbox input[type="number"],
+.argbox select {
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  background: white;
+  width: 100%;
+  min-width: 0;
+}
+.argbox input.mono { font-family: "SF Mono", Menlo, monospace; }
+.repeat-group { display: flex; flex-direction: column; gap: 8px; }
+.repeat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+.repeat-row.block .row-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+.repeat-row .row-fields { min-width: 0; }
+
+button.action {
+  align-self: flex-start;
+  background: var(--accent);
+  color: white;
+  border: 0;
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+button.action:hover { filter: brightness(0.92); }
+button.subtle {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--ink);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+button.subtle:hover { background: var(--code-bg); }
+button.danger {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--err);
+  border-radius: 4px;
+  padding: 0 8px;
+  cursor: pointer;
+  height: 28px;
+  align-self: center;
+}
+button.danger:hover { background: var(--accent-soft); }
+
+.preview {
+  margin: 12px 0;
+  padding: 10px 12px;
+  background: var(--code-ink);
+  color: #f8f8f2;
+  border-radius: 6px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.preview .cmd { color: #f8d56b; }
+
+.console {
+  background: var(--code-ink);
+  color: #f8f8f2;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+.console .in { color: #ffe79a; }
+.console .out { color: #c2eccd; }
+.console .err { color: #ff9aa3; }
+.console .info { color: #b3d9ff; }
+.console .sep { color: #555; }
+
+.right .row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.right input[type="text"] {
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: "SF Mono", Menlo, monospace;
+}
+
+.statetable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: "SF Mono", Menlo, monospace;
+}
+.statetable th, .statetable td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.statetable th { color: var(--muted); font-weight: 500; }
+.statetable td.idx { color: var(--accent); }
+.empty { color: var(--muted); font-style: italic; }
+.replyblock {
+  background: var(--code-bg);
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  margin-top: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.replytype {
+  margin-bottom: 4px;
+}
+.replytype .label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+  margin-right: 6px;
+}
+
+details summary { cursor: pointer; color: var(--muted); }
+details[open] summary { color: var(--ink); }
+.replyschema {
+  margin-top: 4px;
+  background: var(--code-bg);
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+footer.note {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 16px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+footer.note a { color: var(--muted); text-decoration: underline; }
+
+.loading {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+</style>
+</head>
+<body>
+<header class="site">
+  <h1>Redis <span class="accent">Array</span> Playground <span class="status" id="status">loading…</span></h1>
+  <nav class="links">
+    <a href="https://github.com/redis/redis/pull/15162" target="_blank" rel="noopener">PR #15162 ↗</a>
+    <a href="https://antirez.com/news/164" target="_blank" rel="noopener">antirez.com/news/164 ↗</a>
+    <a href="https://github.com/antirez/redis/tree/array" target="_blank" rel="noopener">antirez:array branch ↗</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <aside class="left panel">
+    <h2>AR commands</h2>
+    <div class="cmdlist" id="cmdlist"></div>
+  </aside>
+
+  <section class="center panel">
+    <div id="docs"><div class="loading">Initializing WASM…</div></div>
+  </section>
+
+  <aside class="right panel">
+    <h2>Keyspace</h2>
+    <div class="row">
+      <button class="subtle" id="reset-key">Reset current key</button>
+      <button class="subtle" id="reset-all">Flush all</button>
+    </div>
+    <div id="keyspace"></div>
+    <h2 style="margin-top: 14px;">Console</h2>
+    <div class="console" id="console"></div>
+  </aside>
+</div>
+
+<footer class="note">
+  Built with <a href="https://github.com/redis/redis/pull/15162" target="_blank" rel="noopener">redis/redis #15162</a> compiled to
+  WebAssembly via <code>sparsearray.c</code> from the
+  <a href="https://github.com/antirez/redis/tree/array" target="_blank" rel="noopener">antirez:array</a> branch. Read
+  <a href="https://antirez.com/news/164" target="_blank" rel="noopener">antirez's writeup</a> for the design rationale.
+  Source for this tool lives in
+  <a href="https://github.com/simonw/tools/tree/main/redis-array-playground" target="_blank" rel="noopener">simonw/tools</a>.
+</footer>
+
+<script src="redis-array-playground/redis-array.js"></script>
+<script>
+"use strict";
+
+/* ============================================================================
+ * Boot: load the WASM module + the AR* command catalog (built from
+ * src/commands/ar*.json by build_commands.py), then construct the playground.
+ * ========================================================================= */
+
+const STATUS = document.getElementById("status");
+const setStatus = (s, kind) => {
+  STATUS.textContent = s;
+  STATUS.style.color = kind === "err" ? "var(--err)" : "var(--muted)";
+};
+
+(async () => {
+  let M, catalog;
+  try {
+    M = await createRedisArrayModule();
+    M._wasm_init();
+  } catch (e) {
+    setStatus("WASM load failed: " + e.message, "err");
+    throw e;
+  }
+  try {
+    const r = await fetch("redis-array-playground/ar-commands.json");
+    if (!r.ok) throw new Error(r.status + " " + r.statusText);
+    catalog = await r.json();
+  } catch (e) {
+    setStatus("Failed to load command catalog: " + e.message, "err");
+    throw e;
+  }
+  setStatus(`WASM ready · ${catalog._meta.count} commands · sparsearray @ ${catalog._meta.source}`);
+  startApp(M, catalog);
+})();
+
+/* ============================================================================
+ * Engine: wraps the WASM module to expose a Redis-array-shaped JS API.
+ * ========================================================================= */
+
+class ArrayDB {
+  constructor(M) {
+    this.M = M;
+    this.keys = new Map(); // key -> { ptr }
+  }
+  has(key) { return this.keys.has(key); }
+  get(key) { return this.keys.get(key)?.ptr ?? null; }
+  getOrCreate(key) {
+    let e = this.keys.get(key);
+    if (!e) {
+      const ptr = this.M._wasm_ar_new();
+      e = { ptr };
+      this.keys.set(key, e);
+    }
+    return e.ptr;
+  }
+  drop(key) {
+    const e = this.keys.get(key);
+    if (!e) return false;
+    this.M._wasm_ar_free(e.ptr);
+    this.keys.delete(key);
+    return true;
+  }
+  flush() {
+    for (const e of this.keys.values()) this.M._wasm_ar_free(e.ptr);
+    this.keys.clear();
+  }
+  // Set string value at idx; we let arEncode pick int / float / smallstr / arString.
+  setStr(ptr, idx, str) {
+    const M = this.M;
+    const bytes = new TextEncoder().encode(str);
+    const buf = M._malloc(Math.max(1, bytes.length));
+    M.HEAPU8.set(bytes, buf);
+    M._wasm_ar_set(ptr, idx, buf, bytes.length);
+    M._free(buf);
+  }
+  getStr(ptr, idx) {
+    const M = this.M;
+    const len = M._wasm_ar_get(ptr, idx);
+    if (len < 0) return null;
+    const bufp = M._wasm_ar_get_buf();
+    return new TextDecoder().decode(M.HEAPU8.subarray(bufp, bufp + len));
+  }
+  count(ptr) { return this.M._wasm_ar_count(ptr); }
+  len(ptr) { return this.M._wasm_ar_len(ptr); }
+  del(ptr, idx) { return this.M._wasm_ar_del(ptr, idx) ? 1 : 0; }
+  delRange(ptr, lo, hi) { return this.M._wasm_ar_delete_range(ptr, lo, hi); }
+  truncate(ptr, limit) { this.M._wasm_ar_truncate(ptr, limit); }
+  promoteDense(ptr, lo, hi) { this.M._wasm_ar_promote_dense(ptr, lo, hi); }
+  insertIdx(ptr) { return this.M._wasm_ar_get_insert_idx(ptr); }
+  setInsertIdx(ptr, v) { this.M._wasm_ar_set_insert_idx(ptr, v); }
+  allocSize(ptr) { return this.M._wasm_ar_alloc_size(ptr); }
+  numSlices(ptr) { return this.M._wasm_ar_num_slices(ptr); }
+  sliceSize(ptr) { return this.M._wasm_ar_slice_size(ptr); }
+  // Yields [idx, value] pairs for non-empty slots in [lo, hi].
+  *iterRange(ptr, lo, hi) {
+    if (hi < lo) return;
+    let next = this.M._wasm_ar_next_index(ptr, lo, hi);
+    while (next >= 0) {
+      yield [next, this.getStr(ptr, next)];
+      if (next === hi) break;
+      next = this.M._wasm_ar_next_index(ptr, next + 1, hi);
+    }
+  }
+}
+
+/* ============================================================================
+ * AR* command implementations. Mirrors t_array.c semantics where reasonable;
+ * documented divergences are flagged in the console with [info].
+ * ========================================================================= */
+
+function parseInt64(s) {
+  if (typeof s !== "string") s = String(s);
+  s = s.trim();
+  if (!/^-?\d+$/.test(s)) return null;
+  const n = Number(s);
+  if (!Number.isFinite(n) || !Number.isSafeInteger(n)) return null;
+  return n;
+}
+function parseUint(s) {
+  const n = parseInt64(s);
+  if (n === null || n < 0) return null;
+  return n;
+}
+function asNumberOrString(s) {
+  if (typeof s !== "string") return s;
+  if (/^-?\d+$/.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n) && Number.isSafeInteger(n)) return n;
+  }
+  if (/^-?\d+\.\d+$/.test(s) || /^-?\d+(\.\d+)?[eE][+-]?\d+$/.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n)) return n;
+  }
+  return s;
+}
+
+class ReplyError extends Error {}
+const arityErr = (name) => new ReplyError(`ERR wrong number of arguments for '${name}'`);
+
+const COMMANDS = {
+  ARSET(db, args) {
+    if (args.length < 3) throw arityErr("arset");
+    const [key, idxs, ...values] = args;
+    const idx = parseUint(idxs);
+    if (idx === null) throw new ReplyError("ERR value is not an integer or out of range");
+    if (values.length === 0) throw arityErr("arset");
+    const ptr = db.getOrCreate(key);
+    const before = db.count(ptr);
+    const last = idx + values.length - 1;
+    db.promoteDense(ptr, idx, last);
+    for (let i = 0; i < values.length; i++) db.setStr(ptr, idx + i, values[i]);
+    return { type: "integer", value: db.count(ptr) - before };
+  },
+  ARGET(db, args) {
+    if (args.length !== 2) throw arityErr("arget");
+    const [key, idxs] = args;
+    const idx = parseUint(idxs);
+    if (idx === null) throw new ReplyError("ERR value is not an integer or out of range");
+    const ptr = db.get(key);
+    if (!ptr) return { type: "nil", value: null };
+    const v = db.getStr(ptr, idx);
+    return v === null ? { type: "nil", value: null } : { type: "bulk", value: v };
+  },
+  ARDEL(db, args) {
+    if (args.length < 2) throw arityErr("ardel");
+    const [key, ...idxs] = args;
+    const ptr = db.get(key);
+    if (!ptr) return { type: "integer", value: 0 };
+    let n = 0;
+    for (const s of idxs) {
+      const i = parseUint(s);
+      if (i === null) throw new ReplyError("ERR index is not an integer or out of range");
+      n += db.del(ptr, i);
+    }
+    if (db.count(ptr) === 0) db.drop(key);
+    return { type: "integer", value: n };
+  },
+  ARDELRANGE(db, args) {
+    if (args.length < 3 || (args.length - 1) % 2 !== 0) throw arityErr("ardelrange");
+    const key = args[0];
+    const ranges = [];
+    for (let i = 1; i < args.length; i += 2) {
+      const lo = parseUint(args[i]);
+      const hi = parseUint(args[i + 1]);
+      if (lo === null || hi === null) throw new ReplyError("ERR index is not an integer or out of range");
+      ranges.push([lo, hi]);
+    }
+    const ptr = db.get(key);
+    if (!ptr) return { type: "integer", value: 0 };
+    let n = 0;
+    for (const [lo, hi] of ranges) n += db.delRange(ptr, lo, hi);
+    if (db.count(ptr) === 0) db.drop(key);
+    return { type: "integer", value: n };
+  },
+  ARGETRANGE(db, args) {
+    if (args.length !== 3) throw arityErr("argetrange");
+    const [key, los, his] = args;
+    const lo = parseUint(los), hi = parseUint(his);
+    if (lo === null || hi === null) throw new ReplyError("ERR index is not an integer or out of range");
+    const ptr = db.get(key);
+    const out = [];
+    if (!ptr) return { type: "array", value: [] };
+    if (hi < lo) return { type: "array", value: [] };
+    const len = db.len(ptr);
+    const top = Math.min(hi, len === 0 ? 0 : len - 1);
+    for (let i = lo; i <= top; i++) {
+      const v = db.getStr(ptr, i);
+      out.push(v === null ? { type: "nil", value: null } : { type: "bulk", value: v });
+    }
+    return { type: "array", value: out };
+  },
+  ARLEN(db, args) {
+    if (args.length !== 1) throw arityErr("arlen");
+    const ptr = db.get(args[0]);
+    return { type: "integer", value: ptr ? db.len(ptr) : 0 };
+  },
+  ARCOUNT(db, args) {
+    if (args.length !== 1) throw arityErr("arcount");
+    const ptr = db.get(args[0]);
+    return { type: "integer", value: ptr ? db.count(ptr) : 0 };
+  },
+  ARMGET(db, args) {
+    if (args.length < 2) throw arityErr("armget");
+    const [key, ...idxs] = args;
+    const ptr = db.get(key);
+    const out = [];
+    for (const s of idxs) {
+      const i = parseUint(s);
+      if (i === null) throw new ReplyError("ERR index is not an integer or out of range");
+      const v = ptr ? db.getStr(ptr, i) : null;
+      out.push(v === null ? { type: "nil", value: null } : { type: "bulk", value: v });
+    }
+    return { type: "array", value: out };
+  },
+  ARMSET(db, args) {
+    if (args.length < 3 || (args.length - 1) % 2 !== 0) throw arityErr("armset");
+    const key = args[0];
+    const pairs = [];
+    for (let i = 1; i < args.length; i += 2) {
+      const idx = parseUint(args[i]);
+      if (idx === null) throw new ReplyError("ERR index is not an integer or out of range");
+      pairs.push([idx, args[i + 1]]);
+    }
+    const ptr = db.getOrCreate(key);
+    const before = db.count(ptr);
+    for (const [idx, v] of pairs) db.setStr(ptr, idx, v);
+    return { type: "integer", value: db.count(ptr) - before };
+  },
+  ARNEXT(db, args) {
+    if (args.length !== 1) throw arityErr("arnext");
+    const ptr = db.get(args[0]);
+    if (!ptr) return { type: "integer", value: 0 };
+    const cur = db.insertIdx(ptr);
+    return { type: "integer", value: cur < 0 ? 0 : cur + 1 };
+  },
+  ARSEEK(db, args) {
+    if (args.length !== 2) throw arityErr("arseek");
+    const idx = parseUint(args[1]);
+    if (idx === null) throw new ReplyError("ERR index is not an integer or out of range");
+    const ptr = db.getOrCreate(args[0]);
+    db.setInsertIdx(ptr, idx === 0 ? -1 : idx - 1);
+    return { type: "simple", value: "OK" };
+  },
+  ARINSERT(db, args) {
+    if (args.length < 2) throw arityErr("arinsert");
+    const [key, ...values] = args;
+    if (values.length === 0) throw arityErr("arinsert");
+    const ptr = db.getOrCreate(key);
+    let cur = db.insertIdx(ptr);
+    let start = cur < 0 ? 0 : cur + 1;
+    db.promoteDense(ptr, start, start + values.length - 1);
+    for (let i = 0; i < values.length; i++) db.setStr(ptr, start + i, values[i]);
+    const last = start + values.length - 1;
+    db.setInsertIdx(ptr, last);
+    return { type: "integer", value: last };
+  },
+  ARRING(db, args) {
+    if (args.length < 3) throw arityErr("arring");
+    const [key, sizeS, ...values] = args;
+    const size = parseUint(sizeS);
+    if (size === null || size === 0) throw new ReplyError("ERR size must be positive");
+    if (values.length === 0) throw arityErr("arring");
+    const ptr = db.getOrCreate(key);
+    let cur = db.insertIdx(ptr);
+    let oldSpan = db.len(ptr);
+    /* Resize semantics: if the ring shrinks below the populated span, rework
+     * the array to keep the most-recent `size` items. We use a simpler scheme
+     * than the C version (it preserves the rolling write window across grows
+     * without rebuilding); for the playground that's acceptable. */
+    if (oldSpan > size) {
+      const items = [];
+      let anchor = cur < 0 ? oldSpan - 1 : (cur % oldSpan);
+      let walk = anchor;
+      for (let n = 0; n < size; n++) {
+        const v = db.getStr(ptr, walk);
+        if (v === null) break;
+        items.unshift(v);
+        walk = walk === 0 ? oldSpan - 1 : walk - 1;
+      }
+      db.delRange(ptr, 0, oldSpan - 1);
+      for (let i = 0; i < items.length; i++) db.setStr(ptr, i, items[i]);
+      db.setInsertIdx(ptr, items.length === 0 ? -1 : items.length - 1);
+      cur = db.insertIdx(ptr);
+      oldSpan = db.len(ptr);
+    }
+    let last = -1;
+    for (const v of values) {
+      const next = cur < 0 ? 0 : cur + 1;
+      const slot = next % size;
+      db.setStr(ptr, slot, v);
+      cur = slot;
+      last = slot;
+    }
+    db.setInsertIdx(ptr, last);
+    return { type: "integer", value: last };
+  },
+  ARLASTITEMS(db, args) {
+    if (args.length < 2) throw arityErr("arlastitems");
+    const [key, countS, ...rest] = args;
+    let rev = false;
+    for (const tok of rest) {
+      if (tok.toUpperCase() === "REV") rev = true;
+      else throw new ReplyError("ERR syntax error");
+    }
+    const count = parseUint(countS);
+    if (count === null) throw new ReplyError("ERR count is not an integer or out of range");
+    const ptr = db.get(key);
+    if (!ptr || count === 0) return { type: "array", value: [] };
+    const len = db.len(ptr);
+    if (len === 0) return { type: "array", value: [] };
+    let cur = db.insertIdx(ptr);
+    if (cur < 0) cur = len - 1;
+    /* Walk backward from cur, contiguous non-null tail, up to count items. */
+    const items = [];
+    let walk = cur;
+    for (let n = 0; n < count; n++) {
+      const v = db.getStr(ptr, walk);
+      if (v === null) break;
+      items.push({ type: "bulk", value: v });
+      if (walk === 0) break;
+      walk -= 1;
+    }
+    if (!rev) items.reverse();
+    return { type: "array", value: items };
+  },
+  ARSCAN(db, args) {
+    if (args.length !== 3 && args.length !== 5) throw arityErr("arscan");
+    const [key, los, his, ...rest] = args;
+    let limit = Infinity;
+    if (rest.length === 2) {
+      if (rest[0].toUpperCase() !== "LIMIT") throw new ReplyError("ERR syntax error");
+      const n = parseUint(rest[1]);
+      if (n === null || n === 0) throw new ReplyError("ERR LIMIT must be positive");
+      limit = n;
+    }
+    const lo = parseUint(los), hi = parseUint(his);
+    if (lo === null || hi === null) throw new ReplyError("ERR index is not an integer or out of range");
+    const ptr = db.get(key);
+    if (!ptr) return { type: "array", value: [] };
+    const out = [];
+    let n = 0;
+    for (const [idx, v] of db.iterRange(ptr, lo, hi)) {
+      out.push({ type: "integer", value: idx });
+      out.push({ type: "bulk", value: v });
+      n++;
+      if (n >= limit) break;
+    }
+    return { type: "array", value: out };
+  },
+  ARGREP(db, args) {
+    if (args.length < 5) throw arityErr("argrep");
+    const [key, los, his, ...rest] = args;
+    const lo = parseUint(los), hi = parseUint(his);
+    if (lo === null || hi === null) throw new ReplyError("ERR index is not an integer or out of range");
+    const predicates = [];
+    let i = 0;
+    while (i < rest.length) {
+      const k = rest[i].toUpperCase();
+      if (k === "EXACT" || k === "MATCH" || k === "GLOB" || k === "RE") {
+        if (i + 1 >= rest.length) throw new ReplyError("ERR syntax error");
+        predicates.push({ kind: k, arg: rest[i + 1] });
+        i += 2;
+      } else break;
+    }
+    if (predicates.length === 0) throw new ReplyError("ERR at least one predicate required");
+    let combine = "AND", limit = Infinity, withvalues = false, nocase = false;
+    while (i < rest.length) {
+      const k = rest[i].toUpperCase();
+      if (k === "AND") { combine = "AND"; i++; }
+      else if (k === "OR") { combine = "OR"; i++; }
+      else if (k === "NOCASE") { nocase = true; i++; }
+      else if (k === "WITHVALUES") { withvalues = true; i++; }
+      else if (k === "LIMIT") {
+        if (i + 1 >= rest.length) throw new ReplyError("ERR syntax error");
+        const n = parseUint(rest[i + 1]);
+        if (n === null || n === 0) throw new ReplyError("ERR LIMIT must be positive");
+        limit = n; i += 2;
+      } else throw new ReplyError("ERR syntax error");
+    }
+    const ptr = db.get(key);
+    if (!ptr) return { type: "array", value: [] };
+    const out = [];
+    /* Simple predicate engine for the playground:
+     *   EXACT  - byte-equal (or case-insensitive with NOCASE)
+     *   MATCH  - substring
+     *   GLOB   - * and ? wildcards
+     *   RE     - JS RegExp (anchored)
+     * Real ARGREP MATCH/RE uses the TRE library; close enough for demos.    */
+    const toRe = (p) => {
+      const flags = nocase ? "i" : "";
+      switch (p.kind) {
+        case "EXACT": {
+          const a = nocase ? p.arg.toLowerCase() : p.arg;
+          return (s) => (nocase ? s.toLowerCase() : s) === a;
+        }
+        case "MATCH": {
+          const a = nocase ? p.arg.toLowerCase() : p.arg;
+          return (s) => (nocase ? s.toLowerCase() : s).includes(a);
+        }
+        case "GLOB": {
+          const re = new RegExp("^" + p.arg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$", flags);
+          return (s) => re.test(s);
+        }
+        case "RE": {
+          const re = new RegExp(p.arg, flags);
+          return (s) => re.test(s);
+        }
+      }
+    };
+    const tests = predicates.map(toRe);
+    const accept = (s) => combine === "AND" ? tests.every((f) => f(s)) : tests.some((f) => f(s));
+    let n = 0;
+    for (const [idx, v] of db.iterRange(ptr, lo, hi)) {
+      if (accept(v)) {
+        out.push({ type: "integer", value: idx });
+        if (withvalues) out.push({ type: "bulk", value: v });
+        n++;
+        if (n >= limit) break;
+      }
+    }
+    return { type: "array", value: out };
+  },
+  AROP(db, args) {
+    if (args.length < 4) throw arityErr("arop");
+    const [key, los, his, opTok, ...rest] = args;
+    const lo = parseUint(los), hi = parseUint(his);
+    if (lo === null || hi === null) throw new ReplyError("ERR index is not an integer or out of range");
+    const op = (opTok || "").toUpperCase();
+    const ptr = db.get(key);
+    const ints = []; const floats = []; const strs = []; let any = false; let used = 0;
+    if (ptr) {
+      for (const [, v] of db.iterRange(ptr, lo, hi)) {
+        any = true; used++;
+        const num = asNumberOrString(v);
+        if (typeof num === "number") {
+          if (Number.isInteger(num)) ints.push(num);
+          floats.push(num);
+        }
+        strs.push(v);
+      }
+    }
+    const nilReply = { type: "nil", value: null };
+    switch (op) {
+      case "SUM": {
+        if (!any) return nilReply;
+        const allInt = floats.length === ints.length;
+        if (allInt) return { type: "integer", value: ints.reduce((a, b) => a + b, 0) };
+        return { type: "bulk", value: String(floats.reduce((a, b) => a + b, 0)) };
+      }
+      case "MIN": case "MAX": {
+        if (!any) return nilReply;
+        const useFloats = floats.length > 0;
+        if (useFloats) {
+          const v = op === "MIN" ? Math.min(...floats) : Math.max(...floats);
+          return Number.isInteger(v)
+            ? { type: "integer", value: v }
+            : { type: "bulk", value: String(v) };
+        }
+        const v = strs.reduce((a, b) => op === "MIN" ? (a < b ? a : b) : (a > b ? a : b));
+        return { type: "bulk", value: v };
+      }
+      case "AND": case "OR": case "XOR": {
+        if (ints.length === 0) return nilReply;
+        const f = op === "AND"
+          ? (a, b) => Number(BigInt(a) & BigInt(b))
+          : op === "OR"
+            ? (a, b) => Number(BigInt(a) | BigInt(b))
+            : (a, b) => Number(BigInt(a) ^ BigInt(b));
+        return { type: "integer", value: ints.reduce(f) };
+      }
+      case "USED": return { type: "integer", value: used };
+      case "MATCH": {
+        if (rest.length !== 1) throw new ReplyError("ERR MATCH requires a value");
+        const target = rest[0];
+        let n = 0;
+        for (const s of strs) if (s === target) n++;
+        return { type: "integer", value: n };
+      }
+      default: throw new ReplyError("ERR unknown AROP operation: " + op);
+    }
+  },
+  ARINFO(db, args) {
+    if (args.length !== 1 && args.length !== 2) throw arityErr("arinfo");
+    const full = args[1] && args[1].toUpperCase() === "FULL";
+    const ptr = db.get(args[0]);
+    const lines = [];
+    if (!ptr) {
+      lines.push("type", "none");
+    } else {
+      lines.push("type", "array");
+      lines.push("encoding", "sliced-array");
+      lines.push("len", String(db.len(ptr)));
+      lines.push("count", String(db.count(ptr)));
+      lines.push("alloc_size", String(db.allocSize(ptr)));
+      lines.push("num_slices", String(db.numSlices(ptr)));
+      lines.push("slice_size", String(db.sliceSize(ptr)));
+      const cur = db.insertIdx(ptr);
+      lines.push("insert_idx", cur < 0 ? "none" : String(cur));
+      if (full) lines.push("note", "FULL detail elided in playground");
+    }
+    const arr = lines.map((s, i) => i % 2 === 0
+      ? { type: "bulk", value: s }
+      : { type: "bulk", value: s });
+    return { type: "array", value: arr };
+  },
+};
+
+/* ============================================================================
+ * Form rendering: walks the JSON `arguments` schema and builds inputs.
+ * ========================================================================= */
+
+let state = {
+  catalog: null,
+  current: "ARSET",
+  formArgs: {}, // per-command form snapshot (re-init on switch)
+  db: null,
+  defaultKey: "myarr",
+};
+
+function renderArgSummary(args) {
+  /* Produce the canonical command-line argument summary line, e.g.:
+   *   ARSET key index value [value ...] */
+  const pieces = [];
+  const fmt = (a) => {
+    let inner;
+    if (a.type === "pure-token") inner = a.token;
+    else if (a.type === "block") inner = a.arguments.map(fmt).join(" ");
+    else if (a.type === "oneof") inner = a.arguments.map(fmt).join(" | ");
+    else if (a.token) inner = `${a.token} ${a.name}`;
+    else inner = a.name;
+    if (a.optional) inner = `[${inner}]`;
+    if (a.multiple) inner = `${inner} [${inner} ...]`;
+    return inner;
+  };
+  for (const a of args) pieces.push(fmt(a));
+  return pieces.join(" ");
+}
+
+function tagify(items, cls = "") {
+  return items.map((i) => `<span class="tag ${cls}">${escapeHTML(i)}</span>`).join(" ");
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderArgInput(arg, valueRef) {
+  /* Returns a DOM node and exposes valueRef.read() to extract argv tokens. */
+  if (arg.type === "pure-token") {
+    const wrap = document.createElement("span");
+    wrap.innerHTML = `<span class="tag token">${arg.token}</span>`;
+    valueRef.read = () => [arg.token];
+    return wrap;
+  }
+  if (arg.type === "key" || arg.type === "string") {
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.className = "mono";
+    if (arg.type === "key") {
+      inp.value = state.defaultKey;
+      inp.placeholder = "key name";
+    } else {
+      inp.placeholder = arg.name;
+    }
+    if (arg.token) {
+      const wrap = document.createElement("span");
+      wrap.style.display = "flex"; wrap.style.gap = "6px"; wrap.style.alignItems = "center";
+      const tok = document.createElement("span");
+      tok.className = "tag token"; tok.textContent = arg.token;
+      wrap.appendChild(tok); wrap.appendChild(inp);
+      valueRef.read = () => [arg.token, inp.value];
+      return wrap;
+    }
+    valueRef.read = () => [inp.value];
+    return inp;
+  }
+  if (arg.type === "integer") {
+    const inp = document.createElement("input");
+    inp.type = "number"; inp.step = "1"; inp.placeholder = arg.name; inp.className = "mono";
+    if (arg.token) {
+      const wrap = document.createElement("span");
+      wrap.style.display = "flex"; wrap.style.gap = "6px"; wrap.style.alignItems = "center";
+      const tok = document.createElement("span");
+      tok.className = "tag token"; tok.textContent = arg.token;
+      wrap.appendChild(tok); wrap.appendChild(inp);
+      valueRef.read = () => [arg.token, inp.value === "" ? "0" : inp.value];
+      return wrap;
+    }
+    valueRef.read = () => [inp.value === "" ? "0" : inp.value];
+    return inp;
+  }
+  if (arg.type === "block") {
+    const wrap = document.createElement("span");
+    wrap.className = "row-fields";
+    wrap.style.display = "grid";
+    wrap.style.gridTemplateColumns = "repeat(auto-fit, minmax(120px, 1fr))";
+    wrap.style.gap = "6px";
+    const subRefs = [];
+    for (const sub of arg.arguments) {
+      const subRef = {};
+      const node = renderArgInput(sub, subRef);
+      wrap.appendChild(node);
+      subRefs.push(subRef);
+    }
+    valueRef.read = () => subRefs.flatMap((r) => r.read());
+    return wrap;
+  }
+  if (arg.type === "oneof") {
+    const wrap = document.createElement("span");
+    wrap.style.display = "flex"; wrap.style.gap = "6px"; wrap.style.alignItems = "center";
+    wrap.style.flexWrap = "wrap";
+    const sel = document.createElement("select");
+    for (const choice of arg.arguments) {
+      const opt = document.createElement("option");
+      opt.value = choice.name;
+      opt.textContent = choice.token || choice.name.toUpperCase();
+      sel.appendChild(opt);
+    }
+    const rest = document.createElement("span");
+    rest.style.flex = "1";
+    let activeRef = {};
+    const draw = () => {
+      rest.innerHTML = "";
+      const choice = arg.arguments.find((c) => c.name === sel.value);
+      const r = {}; activeRef = r;
+      const node = renderArgInput(choice, r);
+      rest.appendChild(node);
+    };
+    sel.addEventListener("change", draw);
+    wrap.appendChild(sel); wrap.appendChild(rest);
+    draw();
+    valueRef.read = () => activeRef.read();
+    return wrap;
+  }
+  const span = document.createElement("span");
+  span.textContent = `[unsupported: ${arg.type}]`;
+  valueRef.read = () => [];
+  return span;
+}
+
+function renderArg(arg) {
+  /* Top-level argument renderer. Wraps with a label, handles optional+multiple. */
+  const box = document.createElement("div");
+  box.className = "argbox";
+  const head = document.createElement("div");
+  head.className = "arghead";
+  const label = document.createElement("label");
+  label.textContent = arg.name + (arg.optional ? " (optional)" : "");
+  head.appendChild(label);
+  const meta = document.createElement("span");
+  meta.className = "meta";
+  meta.textContent = arg.type;
+  head.appendChild(meta);
+  box.appendChild(head);
+
+  if (arg.multiple) {
+    const group = document.createElement("div");
+    group.className = "repeat-group";
+    const refs = [];
+    const addRow = () => {
+      const row = document.createElement("div");
+      row.className = "repeat-row" + (arg.type === "block" ? " block" : "");
+      const fields = document.createElement("div");
+      fields.className = "row-fields";
+      const ref = {};
+      const node = renderArgInput(arg, ref);
+      fields.appendChild(node);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "danger";
+      remove.textContent = "×";
+      remove.title = "remove";
+      remove.addEventListener("click", () => {
+        if (refs.length === 1 && !arg.optional) return;
+        const i = refs.indexOf(ref);
+        if (i >= 0) refs.splice(i, 1);
+        row.remove();
+      });
+      row.appendChild(fields);
+      row.appendChild(remove);
+      group.appendChild(row);
+      refs.push(ref);
+    };
+    addRow();
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "subtle";
+    addBtn.textContent = "+ add another";
+    addBtn.style.alignSelf = "flex-start";
+    addBtn.addEventListener("click", addRow);
+    box.appendChild(group);
+    box.appendChild(addBtn);
+
+    const includeRef = { include: !arg.optional };
+    if (arg.optional) {
+      const toggle = document.createElement("label");
+      toggle.style.cssText = "margin-left: auto; font-size: 12px; color: var(--muted);";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.style.marginRight = "4px";
+      cb.checked = false;
+      cb.addEventListener("change", () => {
+        includeRef.include = cb.checked;
+        group.style.display = cb.checked ? "" : "none";
+        addBtn.style.display = cb.checked ? "" : "none";
+      });
+      toggle.appendChild(cb);
+      toggle.appendChild(document.createTextNode("include"));
+      head.appendChild(toggle);
+      group.style.display = "none";
+      addBtn.style.display = "none";
+    }
+    box.read = () => {
+      if (arg.optional && !includeRef.include) return [];
+      return refs.flatMap((r) => r.read());
+    };
+    return box;
+  }
+
+  // Non-multiple
+  const ref = {};
+  const node = renderArgInput(arg, ref);
+  if (arg.optional) {
+    const toggle = document.createElement("label");
+    toggle.style.cssText = "margin-left: auto; font-size: 12px; color: var(--muted);";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.style.marginRight = "4px";
+    cb.checked = false;
+    cb.addEventListener("change", () => {
+      node.style.display = cb.checked ? "" : "none";
+    });
+    toggle.appendChild(cb);
+    toggle.appendChild(document.createTextNode("include"));
+    head.appendChild(toggle);
+    node.style.display = "none";
+    box.read = () => cb.checked ? ref.read() : [];
+  } else {
+    box.read = () => ref.read();
+  }
+  box.appendChild(node);
+  return box;
+}
+
+/* ============================================================================
+ * App: wire everything together.
+ * ========================================================================= */
+
+const consoleEl = document.getElementById("console");
+function logLine(cls, text) {
+  const div = document.createElement("div");
+  div.className = cls;
+  div.textContent = text;
+  consoleEl.appendChild(div);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+function startApp(M, catalog) {
+  state.catalog = catalog;
+  state.db = new ArrayDB(M);
+  window.state = state;
+  window.COMMANDS = COMMANDS;
+  window.runCurrent = runCurrent;
+  window.collectArgv = collectArgv;
+
+  const list = document.getElementById("cmdlist");
+  for (const name of Object.keys(catalog.commands)) {
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.addEventListener("click", () => selectCommand(name));
+    b.dataset.cmd = name;
+    list.appendChild(b);
+  }
+  selectCommand("ARSET");
+  refreshKeyspace();
+
+  document.getElementById("reset-key").addEventListener("click", () => {
+    const key = state.activeKey;
+    if (!key) return;
+    state.db.drop(key);
+    refreshKeyspace();
+    logLine("info", `[info] reset key ${JSON.stringify(key)}`);
+  });
+  document.getElementById("reset-all").addEventListener("click", () => {
+    state.db.flush();
+    refreshKeyspace();
+    logLine("info", "[info] flushed all keys");
+  });
+}
+
+function selectCommand(name) {
+  state.current = name;
+  for (const b of document.querySelectorAll("#cmdlist button")) {
+    b.classList.toggle("active", b.dataset.cmd === name);
+  }
+  renderDocs(name);
+}
+
+function renderDocs(name) {
+  const def = state.catalog.commands[name];
+  const root = document.getElementById("docs");
+  root.innerHTML = "";
+
+  const h = document.createElement("h1");
+  h.className = "cmdname";
+  h.textContent = name;
+  root.appendChild(h);
+
+  const summary = document.createElement("p");
+  summary.className = "summary";
+  summary.textContent = def.summary;
+  root.appendChild(summary);
+
+  const argSummary = document.createElement("div");
+  argSummary.className = "argspec";
+  argSummary.textContent = name + " " + renderArgSummary(def.arguments || []);
+  root.appendChild(argSummary);
+
+  const grid = document.createElement("div");
+  grid.className = "docgrid";
+  const cells = [
+    ["since", `<span class="tag">${def.since || "?"}</span>`],
+    ["arity", `<span class="tag">${def.arity}</span>`],
+    ["complexity", escapeHTML(def.complexity || "—")],
+    ["flags", tagify(def.command_flags || [])],
+    ["acl", tagify(def.acl_categories || [])],
+  ];
+  for (const [l, v] of cells) {
+    const a = document.createElement("div"); a.className = "label"; a.textContent = l;
+    const b = document.createElement("div"); b.innerHTML = v;
+    grid.appendChild(a); grid.appendChild(b);
+  }
+  root.appendChild(grid);
+
+  const formH = document.createElement("h2");
+  formH.textContent = "Arguments";
+  root.appendChild(formH);
+
+  const form = document.createElement("form");
+  form.className = "cmdform";
+  form.addEventListener("submit", (e) => { e.preventDefault(); runCurrent(); });
+  const argRefs = [];
+  for (const a of def.arguments || []) {
+    const node = renderArg(a);
+    form.appendChild(node);
+    argRefs.push(node);
+  }
+  root.appendChild(form);
+
+  const previewH = document.createElement("h2");
+  previewH.textContent = "Command";
+  previewH.style.marginTop = "14px";
+  root.appendChild(previewH);
+  const preview = document.createElement("div");
+  preview.className = "preview";
+  root.appendChild(preview);
+
+  const run = document.createElement("button");
+  run.type = "button";
+  run.className = "action";
+  run.textContent = "Run command";
+  run.addEventListener("click", runCurrent);
+  root.appendChild(run);
+
+  const replyH = document.createElement("h2");
+  replyH.textContent = "Reply";
+  replyH.style.marginTop = "14px";
+  root.appendChild(replyH);
+  const replyBox = document.createElement("div");
+  replyBox.className = "replyblock";
+  replyBox.textContent = "(no reply yet)";
+  root.appendChild(replyBox);
+  state.replyBox = replyBox;
+
+  if (def.reply_schema) {
+    const det = document.createElement("details");
+    det.style.marginTop = "10px";
+    const sum = document.createElement("summary");
+    sum.textContent = "Reply schema";
+    det.appendChild(sum);
+    const pre = document.createElement("pre");
+    pre.className = "replyschema";
+    pre.textContent = JSON.stringify(def.reply_schema, null, 2);
+    det.appendChild(pre);
+    root.appendChild(det);
+  }
+
+  const updatePreview = () => {
+    const argv = collectArgv(argRefs);
+    state.lastArgv = argv;
+    preview.innerHTML = `<span class="cmd">${name}</span> ` +
+      argv.map((a) => escapeHTML(quoteArg(a))).join(" ");
+  };
+  form.addEventListener("input", updatePreview);
+  form.addEventListener("change", updatePreview);
+  updatePreview();
+  state.argRefs = argRefs;
+  state.preview = preview;
+}
+
+function collectArgv(refs) {
+  const out = [];
+  for (const r of refs) {
+    if (typeof r.read === "function") out.push(...r.read().map(String));
+  }
+  return out;
+}
+
+function quoteArg(s) {
+  if (/^[\w\-+.:/=]+$/.test(s)) return s;
+  return JSON.stringify(s);
+}
+
+function formatReply(r, indent = "") {
+  if (!r) return "(empty)";
+  if (r.type === "nil") return "(nil)";
+  if (r.type === "integer") return "(integer) " + r.value;
+  if (r.type === "simple") return r.value;
+  if (r.type === "bulk") return JSON.stringify(r.value);
+  if (r.type === "array") {
+    if (r.value.length === 0) return "(empty array)";
+    return r.value.map((v, i) => `${indent}${i + 1}) ${formatReply(v, indent + "   ")}`).join("\n");
+  }
+  return JSON.stringify(r);
+}
+
+function runCurrent() {
+  const name = state.current;
+  const argv = state.lastArgv || collectArgv(state.argRefs);
+  const fn = COMMANDS[name];
+  const cmdline = name + (argv.length ? " " + argv.map(quoteArg).join(" ") : "");
+  logLine("in", "> " + cmdline);
+  if (!fn) {
+    logLine("err", `(error) ${name} not implemented in playground`);
+    state.replyBox.textContent = `(error) ${name} not implemented in playground`;
+    return;
+  }
+  // Track active key for the side panel: it's always argv[0] when present.
+  if (argv.length > 0) state.activeKey = argv[0];
+  let reply;
+  try {
+    reply = fn(state.db, argv);
+  } catch (e) {
+    if (e instanceof ReplyError) {
+      logLine("err", "(error) " + e.message);
+      state.replyBox.textContent = "(error) " + e.message;
+      return;
+    }
+    logLine("err", "(error) [internal] " + e.message);
+    state.replyBox.textContent = "(error) [internal] " + e.message;
+    console.error(e);
+    return;
+  }
+  const formatted = formatReply(reply);
+  for (const line of formatted.split("\n")) logLine("out", line);
+  state.replyBox.textContent = formatted;
+  refreshKeyspace();
+}
+
+function refreshKeyspace() {
+  const root = document.getElementById("keyspace");
+  const db = state.db;
+  if (!db || db.keys.size === 0) {
+    root.innerHTML = `<div class="empty">No array keys yet.</div>`;
+    return;
+  }
+  const frags = [];
+  for (const [key, { ptr }] of db.keys) {
+    const len = db.len(ptr);
+    const count = db.count(ptr);
+    const cur = db.insertIdx(ptr);
+    frags.push(`<div style="margin-bottom: 10px;"><strong style="font-family: 'SF Mono', Menlo, monospace; color: var(--accent);">${escapeHTML(key)}</strong>` +
+      `<span style="color: var(--muted); margin-left: 6px; font-size: 11px;">len=${len} · count=${count} · cur=${cur < 0 ? "—" : cur}</span></div>`);
+    const max = Math.max(0, Math.min(len, 64));
+    if (max === 0) {
+      frags.push(`<div class="empty">empty</div>`);
+    } else {
+      const rows = [];
+      let next = ptr ? state.db.M._wasm_ar_next_index(ptr, 0, max - 1) : -1;
+      while (next >= 0) {
+        const v = db.getStr(ptr, next);
+        rows.push(`<tr><td class="idx">${next}</td><td>${escapeHTML(v)}</td></tr>`);
+        if (next === max - 1) break;
+        next = state.db.M._wasm_ar_next_index(ptr, next + 1, max - 1);
+      }
+      let truncated = "";
+      if (len > max) truncated = `<div class="empty" style="margin-top:4px;">… ${len - max} more positions not shown</div>`;
+      frags.push(`<table class="statetable"><thead><tr><th style="width:60px;">idx</th><th>value</th></tr></thead><tbody>${rows.join("")}</tbody></table>${truncated}`);
+    }
+  }
+  root.innerHTML = frags.join("");
+}
+</script>
+</body>
+</html>
