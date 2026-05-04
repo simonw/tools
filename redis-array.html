@@ -799,6 +799,65 @@ function renderArgInput(arg, valueRef) {
   return span;
 }
 
+function renderFlagSet(arg, box, head) {
+  /* Render a `oneof multiple` arg as a column of checkboxes. Each alternative
+   * gets its own row: pure-token alternatives are just a checkbox; ones that
+   * carry a value (e.g. LIMIT integer) get a checkbox + the value input,
+   * which is enabled only when the box is checked. */
+  const list = document.createElement("div");
+  list.style.display = "flex";
+  list.style.flexDirection = "column";
+  list.style.gap = "6px";
+  const altRefs = [];
+  for (const alt of arg.arguments) {
+    const row = document.createElement("label");
+    row.style.display = "flex";
+    row.style.gap = "8px";
+    row.style.alignItems = "center";
+    row.style.cursor = "pointer";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    row.appendChild(cb);
+
+    const tokenSpan = document.createElement("span");
+    tokenSpan.className = "tag token";
+    tokenSpan.textContent = alt.token || alt.name.toUpperCase();
+    row.appendChild(tokenSpan);
+
+    let read;
+    if (alt.type === "pure-token") {
+      read = () => cb.checked ? [alt.token] : [];
+    } else {
+      /* Carry-a-value alternative (e.g. LIMIT integer). Render the input
+       * inline and disable it until the checkbox is on, so the COMMAND
+       * preview only emits the token + value when the user opts in. */
+      const inp = document.createElement("input");
+      inp.type = alt.type === "integer" ? "number" : "text";
+      if (alt.type === "integer") inp.step = "1";
+      inp.placeholder = alt.name;
+      inp.className = "mono";
+      inp.disabled = true;
+      inp.style.flex = "1";
+      inp.style.minWidth = "60px";
+      row.appendChild(inp);
+      cb.addEventListener("change", () => {
+        inp.disabled = !cb.checked;
+        if (cb.checked) inp.focus();
+      });
+      read = () => {
+        if (!cb.checked) return [];
+        const v = inp.value === "" ? "0" : inp.value;
+        return [alt.token, v];
+      };
+    }
+    list.appendChild(row);
+    altRefs.push({ cb, read });
+  }
+  box.appendChild(list);
+  box.read = () => altRefs.flatMap((r) => r.read());
+  return box;
+}
+
 function renderArg(arg) {
   /* Top-level argument renderer. Wraps with a label, handles optional+multiple. */
   const box = document.createElement("div");
@@ -813,6 +872,17 @@ function renderArg(arg) {
   meta.textContent = arg.type;
   head.appendChild(meta);
   box.appendChild(head);
+
+  /* `oneof multiple` whose alternatives are mostly flag-shaped (i.e. include
+   * at least one pure-token) reads more naturally as a checkbox grid than as
+   * a "pick one from a select, then + add another" repeater. ARGREP options
+   * (AND / OR / WITHVALUES / NOCASE / LIMIT n) is the motivating case. The
+   * predicate sub-arg keeps the repeater because none of its alternatives
+   * are pure tokens. */
+  if (arg.type === "oneof" && arg.multiple &&
+      arg.arguments.some((a) => a.type === "pure-token")) {
+    return renderFlagSet(arg, box, head);
+  }
 
   if (arg.multiple) {
     const group = document.createElement("div");
