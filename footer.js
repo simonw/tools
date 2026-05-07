@@ -123,10 +123,13 @@ if (!textColor) {
     textColor = isDark ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)';
 }
 
+// Skip footer rendering for pages that opt out via data-hide-footer="1"
+const skipFooter = document.body.dataset.hideFooter === '1';
+
 // Check if body uses flex or grid layout that could break footer positioning
 const bodyStyle = window.getComputedStyle(document.body);
 const bodyDisplay = bodyStyle.display;
-const needsLayoutFix = (bodyDisplay === 'flex' || bodyDisplay === 'grid');
+const needsLayoutFix = !skipFooter && (bodyDisplay === 'flex' || bodyDisplay === 'grid');
 
 if (needsLayoutFix) {
     // Wrap existing body content to preserve the original layout behavior
@@ -157,36 +160,38 @@ if (needsLayoutFix) {
     document.body.appendChild(wrapper);
 }
 
-// Create the footer element
-const footer = document.createElement('footer');
-footer.style.cssText = 'flex-shrink: 0; width: 100%; box-sizing: border-box;';
-footer.innerHTML = `
-    <hr style="margin: 2rem 0 1rem 0; border: none; border-top: 1px solid ${textColor};">
-    <nav style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; text-align: center; font-style: normal; padding-bottom: 1rem;">
-        <a href="/" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">Home</a>
-        <a href="/colophon#${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">About ${pageName}</a>
-        <a href="https://github.com/simonw/tools/blob/main/${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">View source</a>
-        <a href="https://github.com/simonw/tools/commits/main/${filename}" style="color: ${textColor}; text-decoration: underline;" id="footer-changes-link">Changes</a>
-    </nav>
-`;
+if (!skipFooter) {
+    // Create the footer element
+    const footer = document.createElement('footer');
+    footer.style.cssText = 'flex-shrink: 0; width: 100%; box-sizing: border-box;';
+    footer.innerHTML = `
+        <hr style="margin: 2rem 0 1rem 0; border: none; border-top: 1px solid ${textColor};">
+        <nav style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; text-align: center; font-style: normal; padding-bottom: 1rem;">
+            <a href="/" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">Home</a>
+            <a href="/colophon#${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">About ${pageName}</a>
+            <a href="https://github.com/simonw/tools/blob/main/${filename}" style="color: ${textColor}; text-decoration: underline; margin-right: 1.5rem;">View source</a>
+            <a href="https://github.com/simonw/tools/commits/main/${filename}" style="color: ${textColor}; text-decoration: underline;" id="footer-changes-link">Changes</a>
+        </nav>
+    `;
 
-document.body.appendChild(footer);
+    document.body.appendChild(footer);
 
-// Fetch dates.json and update the Changes link with the last updated date
-fetch('/dates.json')
-    .then(response => response.json())
-    .then(dates => {
-        const date = dates[filename];
-        if (date) {
-            const link = document.getElementById('footer-changes-link');
-            if (link) {
-                link.textContent = `Updated ${date}`;
+    // Fetch dates.json and update the Changes link with the last updated date
+    fetch('/dates.json')
+        .then(response => response.json())
+        .then(dates => {
+            const date = dates[filename];
+            if (date) {
+                const link = document.getElementById('footer-changes-link');
+                if (link) {
+                    link.textContent = `Updated ${date}`;
+                }
             }
-        }
-    })
-    .catch(() => {
-        // Silently fail - keep "Changes" as fallback
-    });
+        })
+        .catch(() => {
+            // Silently fail - keep "Changes" as fallback
+        });
+}
 
     class PageWeightMonitor extends HTMLElement {
   constructor() {
