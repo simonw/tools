@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub Repo Stats</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.25rem;
+  color: #1f2328;
+  background: #f6f8fa;
+  line-height: 1.5;
+}
+h1 { margin: 0 0 0.5rem; font-size: 1.6rem; }
+.subtitle { color: #57606a; margin-bottom: 1rem; font-size: 0.9rem; }
+form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+input[type=text] {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #d1d9e0;
+  border-radius: 6px;
+  background: #fff;
+}
+button {
+  padding: 0.55rem 1rem;
+  font-size: 1rem;
+  background: #2da44e;
+  color: #fff;
+  border: 1px solid rgba(27,31,36,0.15);
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:hover { background: #2c974b; }
+button:disabled { background: #94d3a2; cursor: not-allowed; }
+.token-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: #57606a;
+  flex-wrap: wrap;
+}
+.token-row a { color: #0969da; cursor: pointer; }
+.token-row .ok { color: #1a7f37; font-weight: 600; }
+#error {
+  display: none;
+  padding: 0.75rem 1rem;
+  background: #ffebe9;
+  border: 1px solid #ff8182;
+  color: #82071e;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+#result { display: none; }
+.card {
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.repo-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.repo-header img {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+}
+.repo-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.repo-header h2 a { color: #0969da; text-decoration: none; }
+.repo-header h2 a:hover { text-decoration: underline; }
+.badges { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  background: #ddf4ff;
+  color: #0969da;
+  border-radius: 1rem;
+}
+.badge.archived { background: #fff8c5; color: #7d4e00; }
+.badge.fork { background: #f0eaff; color: #6639ba; }
+.badge.private { background: #ffebe9; color: #82071e; }
+.description { margin-top: 0.5rem; color: #1f2328; }
+.topics { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.topic {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.6rem;
+  background: #ddf4ff;
+  color: #0969da;
+  border-radius: 1rem;
+  text-decoration: none;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+.stat {
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+.stat-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #57606a;
+  margin-bottom: 0.25rem;
+}
+.stat-value {
+  font-size: 1.4rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.stat-value.muted { color: #57606a; font-size: 1rem; font-weight: 400; }
+.stat-sub { font-size: 0.75rem; color: #57606a; margin-top: 0.15rem; }
+h3 {
+  font-size: 1rem;
+  margin: 0 0 0.6rem;
+}
+.lang-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+  background: #eaeef2;
+}
+.lang-bar > span { display: block; height: 100%; }
+.lang-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: 0.85rem;
+}
+.lang-list .swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+}
+.meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1rem;
+  font-size: 0.9rem;
+}
+.meta dt { color: #57606a; }
+.meta dd { margin: 0; word-break: break-word; }
+.meta a { color: #0969da; }
+.contributor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.contributor {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+  color: #1f2328;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  padding: 0.25rem 0.5rem 0.25rem 0.25rem;
+  border-radius: 1rem;
+  font-size: 0.85rem;
+}
+.contributor img { width: 22px; height: 22px; border-radius: 50%; }
+.contributor .count {
+  color: #57606a;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+}
+.note {
+  font-size: 0.8rem;
+  color: #57606a;
+  margin-top: 0.5rem;
+}
+@media (max-width: 600px) {
+  body { padding: 0.75rem; }
+  h1 { font-size: 1.3rem; }
+  .stat-value { font-size: 1.15rem; }
+}
+</style>
+</head>
+<body>
+<h1>GitHub Repo Stats</h1>
+<p class="subtitle">Enter <code>owner/repo</code> or a GitHub URL to see commit counts, contributors, languages, and more — fetched directly from the GitHub REST API in your browser.</p>
+
+<form id="form">
+  <input id="input" type="text" placeholder="owner/repo or https://github.com/owner/repo" autofocus>
+  <button type="submit" id="submitBtn">Fetch</button>
+</form>
+<div class="token-row">
+  <span id="tokenStatus">No token — anonymous requests (60/hour limit).</span>
+  <a id="authLink">Authenticate with GitHub</a>
+  <a id="clearToken" style="display:none">Clear token</a>
+</div>
+
+<div id="error"></div>
+<div id="result"></div>
+
+<script type="module">
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const submitBtn = document.getElementById('submitBtn');
+const errorDiv = document.getElementById('error');
+const resultDiv = document.getElementById('result');
+const tokenStatus = document.getElementById('tokenStatus');
+const authLink = document.getElementById('authLink');
+const clearTokenLink = document.getElementById('clearToken');
+
+function updateTokenStatus() {
+  const token = localStorage.getItem('GITHUB_TOKEN');
+  if (token) {
+    tokenStatus.innerHTML = '<span class="ok">Authenticated</span> — using your GitHub token (5,000/hour limit).';
+    authLink.style.display = 'none';
+    clearTokenLink.style.display = '';
+  } else {
+    tokenStatus.textContent = 'No token — anonymous requests (60/hour limit).';
+    authLink.style.display = '';
+    clearTokenLink.style.display = 'none';
+  }
+}
+
+authLink.addEventListener('click', (e) => {
+  e.preventDefault();
+  const popup = window.open('https://tools.simonwillison.net/github-auth', 'github-auth', 'width=600,height=800');
+  const poll = setInterval(() => {
+    if (localStorage.getItem('GITHUB_TOKEN')) {
+      clearInterval(poll);
+      updateTokenStatus();
+    }
+    if (popup && popup.closed) clearInterval(poll);
+  }, 1000);
+});
+
+clearTokenLink.addEventListener('click', (e) => {
+  e.preventDefault();
+  localStorage.removeItem('GITHUB_TOKEN');
+  updateTokenStatus();
+});
+
+function parseRepo(value) {
+  value = value.trim().replace(/\.git$/, '').replace(/\/+$/, '');
+  if (!value) return null;
+  const urlMatch = value.match(/github\.com[/:]([^/\s]+)\/([^/\s?#]+)/i);
+  if (urlMatch) return `${urlMatch[1]}/${urlMatch[2]}`;
+  if (/^[^/\s]+\/[^/\s]+$/.test(value)) return value;
+  return null;
+}
+
+function ghHeaders() {
+  const headers = { 'Accept': 'application/vnd.github+json' };
+  const token = localStorage.getItem('GITHUB_TOKEN');
+  if (token) headers['Authorization'] = `token ${token}`;
+  return headers;
+}
+
+async function gh(path) {
+  const res = await fetch(`https://api.github.com${path}`, { headers: ghHeaders() });
+  return res;
+}
+
+// Use the trick of ?per_page=1 then read the Link header's rel="last" page number
+// to determine the total count of items in a paginated collection. This avoids
+// paging through everything just to get a count. Returns null if there's no
+// Link header (which means 0 or 1 items).
+function parseLastPage(linkHeader) {
+  if (!linkHeader) return null;
+  const match = linkHeader.match(/<[^>]*[?&]page=(\d+)[^>]*>;\s*rel="last"/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+async function countViaPagination(path) {
+  // path should already include ?per_page=1 (or & form)
+  const res = await gh(path);
+  if (!res.ok) {
+    if (res.status === 409) return 0; // empty repo
+    return null;
+  }
+  const link = res.headers.get('Link');
+  const last = parseLastPage(link);
+  if (last !== null) return last;
+  // No "last" link means we're already on the only page; count items in body.
+  const body = await res.json();
+  return Array.isArray(body) ? body.length : 0;
+}
+
+function fmt(n) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString();
+}
+
+function fmtSize(kb) {
+  if (kb < 1024) return `${kb.toLocaleString()} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  return `${(mb / 1024).toFixed(2)} GB`;
+}
+
+function relativeDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  const abs = Math.abs(diff);
+  let label;
+  if (abs < 60) label = 'just now';
+  else if (abs < 3600) label = `${Math.round(abs / 60)} min`;
+  else if (abs < 86400) label = `${Math.round(abs / 3600)} hr`;
+  else if (abs < 86400 * 30) label = `${Math.round(abs / 86400)} d`;
+  else if (abs < 86400 * 365) label = `${Math.round(abs / (86400 * 30))} mo`;
+  else label = `${(abs / (86400 * 365)).toFixed(1)} yr`;
+  const suffix = diff >= 0 ? ' ago' : ' from now';
+  return `${d.toISOString().slice(0, 10)} (${label}${suffix})`;
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// Stable hash to assign each language a colour without relying on a static list.
+function langColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  const hue = Math.abs(h) % 360;
+  return `hsl(${hue}, 65%, 55%)`;
+}
+
+function showError(message) {
+  errorDiv.textContent = message;
+  errorDiv.style.display = 'block';
+  resultDiv.style.display = 'none';
+}
+
+async function loadRepo(repo) {
+  errorDiv.style.display = 'none';
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = '<div class="card">Loading…</div>';
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Loading…';
+  try {
+    const repoRes = await gh(`/repos/${repo}`);
+    if (!repoRes.ok) {
+      if (repoRes.status === 404) throw new Error(`Repository "${repo}" not found (or private without a token).`);
+      if (repoRes.status === 403) throw new Error('Rate limit hit or forbidden. Try authenticating to raise your limit.');
+      throw new Error(`GitHub API error: ${repoRes.status} ${repoRes.statusText}`);
+    }
+    const data = await repoRes.json();
+
+    // Kick off all the secondary requests in parallel.
+    const [
+      commitCount,
+      contributorCount,
+      branchCount,
+      tagCount,
+      releaseCount,
+      openPRCount,
+      languages,
+      topContribsRes,
+      latestReleaseRes,
+    ] = await Promise.all([
+      countViaPagination(`/repos/${repo}/commits?per_page=1`),
+      countViaPagination(`/repos/${repo}/contributors?per_page=1&anon=true`),
+      countViaPagination(`/repos/${repo}/branches?per_page=1`),
+      countViaPagination(`/repos/${repo}/tags?per_page=1`),
+      countViaPagination(`/repos/${repo}/releases?per_page=1`),
+      countViaPagination(`/repos/${repo}/pulls?state=open&per_page=1`),
+      gh(`/repos/${repo}/languages`).then(r => r.ok ? r.json() : {}),
+      gh(`/repos/${repo}/contributors?per_page=8&anon=true`).then(r => r.ok ? r.json() : []),
+      gh(`/repos/${repo}/releases/latest`).then(r => r.ok ? r.json() : null),
+    ]);
+
+    render(data, {
+      commitCount, contributorCount, branchCount, tagCount, releaseCount, openPRCount,
+      languages, topContribs: topContribsRes, latestRelease: latestReleaseRes,
+    });
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Fetch';
+  }
+}
+
+function render(data, extra) {
+  const badges = [];
+  if (data.archived) badges.push('<span class="badge archived">archived</span>');
+  if (data.fork) badges.push('<span class="badge fork">fork</span>');
+  if (data.private) badges.push('<span class="badge private">private</span>');
+  if (data.is_template) badges.push('<span class="badge">template</span>');
+  if (data.disabled) badges.push('<span class="badge archived">disabled</span>');
+
+  const topicsHtml = (data.topics || []).map(t =>
+    `<a class="topic" href="https://github.com/topics/${encodeURIComponent(t)}" target="_blank" rel="noopener">${escapeHtml(t)}</a>`
+  ).join('');
+
+  const langs = extra.languages || {};
+  const langTotal = Object.values(langs).reduce((a, b) => a + b, 0);
+  const langEntries = Object.entries(langs).sort((a, b) => b[1] - a[1]);
+  const langBarHtml = langTotal
+    ? langEntries.map(([name, bytes]) => {
+        const pct = (bytes / langTotal) * 100;
+        return `<span style="width:${pct}%;background:${langColor(name)}" title="${escapeHtml(name)} ${pct.toFixed(1)}%"></span>`;
+      }).join('')
+    : '';
+  const langListHtml = langEntries.map(([name, bytes]) => {
+    const pct = ((bytes / langTotal) * 100).toFixed(1);
+    return `<span><span class="swatch" style="background:${langColor(name)}"></span>${escapeHtml(name)} <span style="color:#57606a">${pct}%</span></span>`;
+  }).join('');
+
+  const contribHtml = (extra.topContribs || []).map(c => {
+    if (c.type === 'Anonymous') {
+      return `<span class="contributor"><span style="width:22px;height:22px;border-radius:50%;background:#d0d7de;display:inline-block"></span>${escapeHtml(c.name || c.login || 'anon')} <span class="count">${fmt(c.contributions)}</span></span>`;
+    }
+    return `<a class="contributor" href="${escapeHtml(c.html_url)}" target="_blank" rel="noopener">
+      <img src="${escapeHtml(c.avatar_url)}" alt="" loading="lazy">
+      <span>${escapeHtml(c.login)}</span>
+      <span class="count">${fmt(c.contributions)}</span>
+    </a>`;
+  }).join('');
+
+  const release = extra.latestRelease;
+  const releaseHtml = release
+    ? `<a href="${escapeHtml(release.html_url)}" target="_blank" rel="noopener">${escapeHtml(release.tag_name)}</a>${release.name && release.name !== release.tag_name ? ` — ${escapeHtml(release.name)}` : ''} <span style="color:#57606a">(${relativeDate(release.published_at)})</span>`
+    : '<span style="color:#57606a">none</span>';
+
+  resultDiv.innerHTML = `
+    <div class="card">
+      <div class="repo-header">
+        <img src="${escapeHtml(data.owner.avatar_url)}" alt="">
+        <div style="flex:1; min-width:0;">
+          <h2><a href="${escapeHtml(data.html_url)}" target="_blank" rel="noopener">${escapeHtml(data.full_name)}</a></h2>
+          <div class="badges">${badges.join('')}</div>
+        </div>
+      </div>
+      ${data.description ? `<p class="description">${escapeHtml(data.description)}</p>` : ''}
+      ${topicsHtml ? `<div class="topics">${topicsHtml}</div>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-label">Commits</div><div class="stat-value">${fmt(extra.commitCount)}</div><div class="stat-sub">on <code>${escapeHtml(data.default_branch)}</code></div></div>
+        <div class="stat"><div class="stat-label">Stars</div><div class="stat-value">${fmt(data.stargazers_count)}</div></div>
+        <div class="stat"><div class="stat-label">Forks</div><div class="stat-value">${fmt(data.forks_count)}</div></div>
+        <div class="stat"><div class="stat-label">Watchers</div><div class="stat-value">${fmt(data.subscribers_count)}</div></div>
+        <div class="stat"><div class="stat-label">Open issues + PRs</div><div class="stat-value">${fmt(data.open_issues_count)}</div><div class="stat-sub">${fmt(extra.openPRCount)} open PRs</div></div>
+        <div class="stat"><div class="stat-label">Contributors</div><div class="stat-value">${fmt(extra.contributorCount)}</div></div>
+        <div class="stat"><div class="stat-label">Branches</div><div class="stat-value">${fmt(extra.branchCount)}</div></div>
+        <div class="stat"><div class="stat-label">Tags</div><div class="stat-value">${fmt(extra.tagCount)}</div></div>
+        <div class="stat"><div class="stat-label">Releases</div><div class="stat-value">${fmt(extra.releaseCount)}</div></div>
+        <div class="stat"><div class="stat-label">Size</div><div class="stat-value">${fmtSize(data.size)}</div></div>
+        <div class="stat"><div class="stat-label">Network</div><div class="stat-value">${fmt(data.network_count)}</div><div class="stat-sub">forks in network</div></div>
+        <div class="stat"><div class="stat-label">Primary language</div><div class="stat-value muted">${escapeHtml(data.language || '—')}</div></div>
+      </div>
+      <p class="note">Commit/contributor/branch/tag/release counts are derived from the <code>Link</code> header on a <code>?per_page=1</code> request — the standard REST trick for fast totals.</p>
+    </div>
+
+    ${langTotal ? `<div class="card">
+      <h3>Languages</h3>
+      <div class="lang-bar">${langBarHtml}</div>
+      <div class="lang-list">${langListHtml}</div>
+    </div>` : ''}
+
+    ${contribHtml ? `<div class="card">
+      <h3>Top contributors</h3>
+      <div class="contributor-list">${contribHtml}</div>
+    </div>` : ''}
+
+    <div class="card">
+      <h3>Details</h3>
+      <dl class="meta">
+        <dt>Default branch</dt><dd><code>${escapeHtml(data.default_branch)}</code></dd>
+        <dt>Created</dt><dd>${relativeDate(data.created_at)}</dd>
+        <dt>Last updated</dt><dd>${relativeDate(data.updated_at)}</dd>
+        <dt>Last push</dt><dd>${relativeDate(data.pushed_at)}</dd>
+        <dt>License</dt><dd>${data.license ? escapeHtml(data.license.spdx_id || data.license.name) : '<span style="color:#57606a">none</span>'}</dd>
+        <dt>Latest release</dt><dd>${releaseHtml}</dd>
+        ${data.homepage ? `<dt>Homepage</dt><dd><a href="${escapeHtml(data.homepage)}" target="_blank" rel="noopener">${escapeHtml(data.homepage)}</a></dd>` : ''}
+        <dt>Visibility</dt><dd>${escapeHtml(data.visibility || (data.private ? 'private' : 'public'))}</dd>
+        <dt>Has issues</dt><dd>${data.has_issues ? 'yes' : 'no'}</dd>
+        <dt>Has wiki</dt><dd>${data.has_wiki ? 'yes' : 'no'}</dd>
+        <dt>Has discussions</dt><dd>${data.has_discussions ? 'yes' : 'no'}</dd>
+        <dt>Has pages</dt><dd>${data.has_pages ? 'yes' : 'no'}</dd>
+      </dl>
+    </div>
+  `;
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const repo = parseRepo(input.value);
+  if (!repo) {
+    showError('Enter a valid repo: owner/repo or a github.com URL.');
+    return;
+  }
+  const url = new URL(location.href);
+  url.searchParams.set('repo', repo);
+  history.replaceState(null, '', url);
+  loadRepo(repo);
+});
+
+updateTokenStatus();
+const initial = new URLSearchParams(location.search).get('repo');
+if (initial) {
+  input.value = initial;
+  loadRepo(parseRepo(initial) || initial);
+}
+</script>
+</body>
+</html>
