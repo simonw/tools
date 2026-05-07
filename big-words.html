@@ -47,7 +47,6 @@
         text-align: center;
         line-height: 1.05;
         word-break: break-word;
-        white-space: pre-wrap;
         max-width: 100%;
         font-weight: 800;
         font-size: 12vmin;
@@ -320,9 +319,39 @@
     const form = $('form');
     const hint = $('hint');
 
+    function escapeHtml(s) {
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    }
+
+    function renderInlineMarkdown(line) {
+        const SENTINEL = String.fromCharCode(0xE000);
+        const tokens = [];
+        const stash = (value) => {
+            tokens.push(value);
+            return SENTINEL + (tokens.length - 1) + SENTINEL;
+        };
+        let s = escapeHtml(line);
+        s = s.replace(/\\([\\*_`])/g, (_, ch) => stash(ch));
+        s = s.replace(/`([^`\n]+)`/g, (_, code) => stash('<code>' + code + '</code>'));
+        s = s.replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
+        s = s.replace(/\*([^*\n]+?)\*/g, '<em>$1</em>');
+        s = s.replace(/_([^_\n]+?)_/g, '<u>$1</u>');
+        return s.replace(
+            new RegExp(SENTINEL + '(\\d+)' + SENTINEL, 'g'),
+            (_, i) => tokens[+i]
+        );
+    }
+
+    function renderMarkdown(text) {
+        return text.split('\n').map(renderInlineMarkdown).join('<br>');
+    }
+
     function applyFromState(state) {
         const text = state.text || '';
-        words.textContent = state.uppercase === '1' ? text.toUpperCase() : text;
+        const transformed = state.uppercase === '1' ? text.toUpperCase() : text;
+        words.innerHTML = renderMarkdown(transformed);
 
         document.body.style.color = state.color;
         if (state.gradient === '1') {
