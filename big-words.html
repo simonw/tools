@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Big Words</title>
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+        color: #fff;
+        cursor: default;
+        -webkit-user-select: none;
+        user-select: none;
+        touch-action: manipulation;
+    }
+    #stage {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4vmin;
+        box-sizing: border-box;
+        transition: padding-right 0.25s ease;
+    }
+    body.panel-open #stage {
+        padding-right: calc(320px + 4vmin);
+    }
+    @media (max-width: 600px) {
+        body.panel-open #stage {
+            padding-right: 4vmin;
+            opacity: 0.25;
+        }
+    }
+    #words {
+        text-align: center;
+        line-height: 1.05;
+        word-break: break-word;
+        white-space: pre-wrap;
+        max-width: 100%;
+        font-weight: 800;
+        font-size: 12vmin;
+    }
+    #panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        height: 100%;
+        width: 320px;
+        max-width: 90vw;
+        background: rgba(20, 20, 20, 0.92);
+        color: #eee;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
+        padding: 18px;
+        box-sizing: border-box;
+        overflow-y: auto;
+        transform: translateX(100%);
+        transition: transform 0.25s ease;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 14px;
+        font-weight: normal;
+        z-index: 10;
+        cursor: auto;
+        user-select: auto;
+        -webkit-user-select: auto;
+    }
+    #panel.open {
+        transform: translateX(0);
+    }
+    #panel h2 {
+        margin: 0 0 12px 0;
+        font-size: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    #panel .close {
+        background: transparent;
+        border: none;
+        color: #aaa;
+        font-size: 22px;
+        cursor: pointer;
+        padding: 0 4px;
+        line-height: 1;
+    }
+    #panel .close:hover { color: #fff; }
+    .field {
+        margin-bottom: 12px;
+    }
+    .field label {
+        display: block;
+        font-size: 12px;
+        color: #aaa;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .field input[type="text"],
+    .field textarea,
+    .field select {
+        width: 100%;
+        box-sizing: border-box;
+        background: #111;
+        color: #eee;
+        border: 1px solid #333;
+        border-radius: 4px;
+        padding: 6px 8px;
+        font: inherit;
+    }
+    .field textarea { resize: vertical; min-height: 60px; }
+    .field input[type="color"] {
+        width: 100%;
+        height: 32px;
+        background: #111;
+        border: 1px solid #333;
+        border-radius: 4px;
+        padding: 2px;
+        cursor: pointer;
+    }
+    .field input[type="range"] {
+        width: 100%;
+    }
+    .row {
+        display: flex;
+        gap: 8px;
+    }
+    .row .field { flex: 1; }
+    .checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .checkbox label {
+        margin: 0;
+        text-transform: none;
+        letter-spacing: 0;
+        font-size: 14px;
+        color: #eee;
+    }
+    .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 18px;
+    }
+    .actions button {
+        flex: 1;
+        padding: 10px;
+        border-radius: 4px;
+        border: 1px solid #444;
+        background: #2a2a2a;
+        color: #eee;
+        font: inherit;
+        cursor: pointer;
+    }
+    .actions button.primary {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: #fff;
+    }
+    .actions button:hover { filter: brightness(1.15); }
+    .hint {
+        position: fixed;
+        bottom: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.35);
+        font-size: 12px;
+        font-weight: normal;
+        pointer-events: none;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        transition: opacity 0.5s ease;
+    }
+    .hint.fade { opacity: 0; }
+    @media (max-width: 480px) {
+        #panel { width: 100%; max-width: 100%; }
+    }
+</style>
+</head>
+<body>
+    <div id="stage"><div id="words"></div></div>
+    <div class="hint" id="hint">double-click to edit</div>
+
+    <div id="panel" aria-hidden="true">
+        <h2>Slide settings <button class="close" id="closeBtn" aria-label="Close">&times;</button></h2>
+        <form id="form">
+            <div class="field">
+                <label for="text">Text</label>
+                <textarea id="text" name="text"></textarea>
+            </div>
+            <div class="row">
+                <div class="field">
+                    <label for="color">Text color</label>
+                    <input type="color" id="color" name="color">
+                </div>
+                <div class="field">
+                    <label for="bgcolor">Background</label>
+                    <input type="color" id="bgcolor" name="bgcolor">
+                </div>
+            </div>
+            <div class="checkbox">
+                <input type="checkbox" id="gradientEnabled">
+                <label for="gradientEnabled">Use gradient background</label>
+            </div>
+            <div class="row" id="gradientRow" style="display:none;">
+                <div class="field">
+                    <label for="bgcolor2">Second color</label>
+                    <input type="color" id="bgcolor2" name="bgcolor2">
+                </div>
+                <div class="field">
+                    <label for="angle">Angle <span id="angleVal">135</span>&deg;</label>
+                    <input type="range" id="angle" name="angle" min="0" max="360" value="135">
+                </div>
+            </div>
+            <div class="row">
+                <div class="field">
+                    <label for="font">Font</label>
+                    <select id="font" name="font">
+                        <option value="system">System sans-serif</option>
+                        <option value="serif">Serif</option>
+                        <option value="mono">Monospace</option>
+                        <option value="impact">Impact</option>
+                        <option value="georgia">Georgia</option>
+                        <option value="comic">Comic Sans MS</option>
+                        <option value="courier">Courier</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="weight">Weight</label>
+                    <select id="weight" name="weight">
+                        <option value="400">Regular</option>
+                        <option value="700">Bold</option>
+                        <option value="800" selected>Heavy</option>
+                        <option value="900">Black</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field">
+                <label for="size">Size <span id="sizeVal">12</span>vmin</label>
+                <input type="range" id="size" name="size" min="3" max="30" step="0.5" value="12">
+            </div>
+            <div class="checkbox">
+                <input type="checkbox" id="italic" name="italic">
+                <label for="italic">Italic</label>
+            </div>
+            <div class="checkbox">
+                <input type="checkbox" id="uppercase" name="uppercase">
+                <label for="uppercase">Uppercase</label>
+            </div>
+            <div class="checkbox">
+                <input type="checkbox" id="shadowEnabled">
+                <label for="shadowEnabled">Drop shadow</label>
+            </div>
+            <div id="shadowRow" style="display:none;">
+                <div class="row">
+                    <div class="field">
+                        <label for="shadow">Shadow color</label>
+                        <input type="color" id="shadow" name="shadow" value="#000000">
+                    </div>
+                    <div class="field">
+                        <label for="shadowBlur">Blur <span id="shadowBlurVal">12</span>px</label>
+                        <input type="range" id="shadowBlur" name="shadowBlur" min="0" max="80" value="12">
+                    </div>
+                </div>
+            </div>
+            <div class="checkbox">
+                <input type="checkbox" id="outlineEnabled">
+                <label for="outlineEnabled">Outline</label>
+            </div>
+            <div id="outlineRow" style="display:none;">
+                <div class="row">
+                    <div class="field">
+                        <label for="outline">Outline color</label>
+                        <input type="color" id="outline" name="outline" value="#000000">
+                    </div>
+                    <div class="field">
+                        <label for="outlineWidth">Width <span id="outlineWidthVal">2</span>px</label>
+                        <input type="range" id="outlineWidth" name="outlineWidth" min="1" max="12" value="2">
+                    </div>
+                </div>
+            </div>
+            <div class="actions">
+                <button type="button" id="resetBtn">Reset</button>
+                <button type="submit" class="primary">Save URL</button>
+            </div>
+        </form>
+    </div>
+
+<script>
+(function () {
+    const FONTS = {
+        system: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        serif: 'Georgia, "Times New Roman", serif',
+        mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        impact: 'Impact, "Arial Black", sans-serif',
+        georgia: 'Georgia, serif',
+        comic: '"Comic Sans MS", "Comic Sans", cursive',
+        courier: '"Courier New", Courier, monospace',
+    };
+
+    const DEFAULTS = {
+        text: 'Big Words',
+        color: '#ffffff',
+        bgcolor: '#000000',
+        bgcolor2: '#1e3a8a',
+        gradient: '0',
+        angle: '135',
+        font: 'system',
+        weight: '800',
+        size: '12',
+        italic: '0',
+        uppercase: '0',
+        shadow: '',
+        shadowBlur: '12',
+        outline: '',
+        outlineWidth: '2',
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    const get = (k) => params.has(k) ? params.get(k) : DEFAULTS[k];
+
+    const $ = (id) => document.getElementById(id);
+    const stage = $('stage');
+    const words = $('words');
+    const panel = $('panel');
+    const form = $('form');
+    const hint = $('hint');
+
+    function applyFromState(state) {
+        const text = state.text || '';
+        words.textContent = state.uppercase === '1' ? text.toUpperCase() : text;
+
+        document.body.style.color = state.color;
+        if (state.gradient === '1') {
+            document.body.style.background =
+                `linear-gradient(${state.angle}deg, ${state.bgcolor}, ${state.bgcolor2})`;
+        } else {
+            document.body.style.background = state.bgcolor;
+        }
+
+        words.style.fontFamily = FONTS[state.font] || FONTS.system;
+        words.style.fontWeight = state.weight;
+        words.style.fontStyle = state.italic === '1' ? 'italic' : 'normal';
+        words.style.fontSize = state.size + 'vmin';
+
+        const filters = [];
+        if (state.shadow) {
+            filters.push(`drop-shadow(0 0 ${state.shadowBlur}px ${state.shadow})`);
+        }
+        words.style.filter = filters.join(' ');
+
+        if (state.outline) {
+            const w = state.outlineWidth + 'px';
+            const c = state.outline;
+            words.style.webkitTextStroke = `${w} ${c}`;
+            words.style.textShadow = '';
+        } else {
+            words.style.webkitTextStroke = '';
+        }
+    }
+
+    function readURLState() {
+        return {
+            text: get('text'),
+            color: get('color'),
+            bgcolor: get('bgcolor'),
+            bgcolor2: get('bgcolor2'),
+            gradient: get('gradient'),
+            angle: get('angle'),
+            font: get('font'),
+            weight: get('weight'),
+            size: get('size'),
+            italic: get('italic'),
+            uppercase: get('uppercase'),
+            shadow: get('shadow') || '',
+            shadowBlur: get('shadowBlur'),
+            outline: get('outline') || '',
+            outlineWidth: get('outlineWidth'),
+        };
+    }
+
+    function readFormState() {
+        return {
+            text: $('text').value,
+            color: $('color').value,
+            bgcolor: $('bgcolor').value,
+            bgcolor2: $('bgcolor2').value,
+            gradient: $('gradientEnabled').checked ? '1' : '0',
+            angle: $('angle').value,
+            font: $('font').value,
+            weight: $('weight').value,
+            size: $('size').value,
+            italic: $('italic').checked ? '1' : '0',
+            uppercase: $('uppercase').checked ? '1' : '0',
+            shadow: $('shadowEnabled').checked ? $('shadow').value : '',
+            shadowBlur: $('shadowBlur').value,
+            outline: $('outlineEnabled').checked ? $('outline').value : '',
+            outlineWidth: $('outlineWidth').value,
+        };
+    }
+
+    function populateFormFromState(state) {
+        $('text').value = state.text;
+        $('color').value = state.color;
+        $('bgcolor').value = state.bgcolor;
+        $('bgcolor2').value = state.bgcolor2;
+        $('gradientEnabled').checked = state.gradient === '1';
+        $('angle').value = state.angle;
+        $('angleVal').textContent = state.angle;
+        $('font').value = state.font in FONTS ? state.font : 'system';
+        $('weight').value = state.weight;
+        $('size').value = state.size;
+        $('sizeVal').textContent = state.size;
+        $('italic').checked = state.italic === '1';
+        $('uppercase').checked = state.uppercase === '1';
+        $('shadowEnabled').checked = !!state.shadow;
+        if (state.shadow) $('shadow').value = state.shadow;
+        $('shadowBlur').value = state.shadowBlur;
+        $('shadowBlurVal').textContent = state.shadowBlur;
+        $('outlineEnabled').checked = !!state.outline;
+        if (state.outline) $('outline').value = state.outline;
+        $('outlineWidth').value = state.outlineWidth;
+        $('outlineWidthVal').textContent = state.outlineWidth;
+        toggleConditionalRows();
+    }
+
+    function toggleConditionalRows() {
+        $('gradientRow').style.display = $('gradientEnabled').checked ? '' : 'none';
+        $('shadowRow').style.display = $('shadowEnabled').checked ? '' : 'none';
+        $('outlineRow').style.display = $('outlineEnabled').checked ? '' : 'none';
+    }
+
+    function buildURL(state) {
+        const sp = new URLSearchParams();
+        for (const k of Object.keys(DEFAULTS)) {
+            const v = state[k] == null ? '' : String(state[k]);
+            if (v !== String(DEFAULTS[k])) sp.set(k, v);
+        }
+        const qs = sp.toString();
+        return window.location.pathname + (qs ? '?' + qs : '');
+    }
+
+    function openPanel() {
+        populateFormFromState(readURLState());
+        panel.classList.add('open');
+        document.body.classList.add('panel-open');
+        panel.setAttribute('aria-hidden', 'false');
+        setTimeout(() => $('text').focus(), 100);
+    }
+
+    function closePanel() {
+        panel.classList.remove('open');
+        document.body.classList.remove('panel-open');
+        panel.setAttribute('aria-hidden', 'true');
+        applyFromState(readURLState());
+    }
+
+    applyFromState(readURLState());
+
+    setTimeout(() => hint.classList.add('fade'), 4000);
+
+    stage.addEventListener('dblclick', (e) => {
+        if (panel.contains(e.target)) return;
+        openPanel();
+    });
+
+    let lastTap = 0;
+    stage.addEventListener('touchend', (e) => {
+        if (panel.contains(e.target)) return;
+        const now = Date.now();
+        if (now - lastTap < 350) {
+            e.preventDefault();
+            openPanel();
+        }
+        lastTap = now;
+    });
+
+    $('closeBtn').addEventListener('click', closePanel);
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && panel.classList.contains('open')) closePanel();
+    });
+
+    form.addEventListener('input', () => {
+        toggleConditionalRows();
+        $('angleVal').textContent = $('angle').value;
+        $('sizeVal').textContent = $('size').value;
+        $('shadowBlurVal').textContent = $('shadowBlur').value;
+        $('outlineWidthVal').textContent = $('outlineWidth').value;
+        applyFromState(readFormState());
+    });
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const url = buildURL(readFormState());
+        window.location.href = url;
+    });
+
+    $('resetBtn').addEventListener('click', () => {
+        populateFormFromState(DEFAULTS);
+        applyFromState(readFormState());
+    });
+})();
+</script>
+</body>
+</html>
