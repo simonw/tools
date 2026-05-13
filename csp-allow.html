@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSP Allow-list Experiment</title>
+  <style>
+    :root {
+      --border: #d7dee8;
+      --ink: #17202f;
+      --muted: #627084;
+      --panel: #f7f9fc;
+      --accent: #0b6fcb;
+      --danger: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: white;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-height: 52px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      background: white;
+    }
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 650;
+    }
+    button {
+      border: 1px solid var(--border);
+      background: white;
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: white;
+    }
+    button.danger {
+      border-color: #f3b8b4;
+      color: var(--danger);
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    main {
+      display: grid;
+      grid-template-columns: minmax(360px, 48%) minmax(420px, 52%);
+      height: calc(100vh - 52px);
+      min-height: 520px;
+    }
+    .left,
+    .right {
+      min-width: 0;
+      min-height: 0;
+    }
+    .left {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .editor-wrap {
+      padding: 12px;
+      min-height: 0;
+    }
+    textarea {
+      width: 100%;
+      height: 100%;
+      min-height: 300px;
+      resize: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #111827;
+      background: white;
+      tab-size: 2;
+    }
+    .settings {
+      border-top: 1px solid var(--border);
+      padding: 12px;
+      background: white;
+    }
+    .settings h2,
+    .events h2 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+    .origin-form {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    input[type="url"] {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 9px;
+      font: inherit;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 30px;
+      align-items: center;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: #f8fafc;
+      font-size: 12px;
+    }
+    .chip button {
+      border: 0;
+      padding: 0 2px;
+      background: transparent;
+      color: var(--muted);
+    }
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .right {
+      display: grid;
+      grid-template-rows: minmax(320px, 1fr) 180px;
+      background: white;
+    }
+    .preview-shell {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    .preview-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      min-height: 42px;
+    }
+    .preview-head code {
+      font-size: 12px;
+      color: var(--muted);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: white;
+    }
+    .events {
+      border-top: 1px solid var(--border);
+      padding: 10px 12px;
+      overflow: auto;
+      background: #fbfcfe;
+    }
+    .event-list {
+      display: grid;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .event {
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--danger);
+      border-radius: 6px;
+      background: white;
+      padding: 7px 9px;
+      font-size: 12px;
+    }
+    .event code {
+      word-break: break-all;
+    }
+    @media (max-width: 900px) {
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .toolbar {
+        margin-left: 0;
+        justify-content: flex-start;
+      }
+      main {
+        grid-template-columns: 1fr;
+        grid-template-rows: 52vh 48vh;
+        height: auto;
+      }
+      .left {
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CSP Allow-list Experiment</h1>
+    <div class="toolbar">
+      <button id="sampleButton">Reset sample</button>
+      <button id="clearButton" class="danger">Clear allow-list</button>
+      <button id="refreshButton" class="primary">Refresh preview</button>
+    </div>
+  </header>
+  <main>
+    <section class="left">
+      <div class="editor-wrap">
+        <textarea id="editor" spellcheck="false"></textarea>
+      </div>
+      <div class="settings">
+        <h2>Allowed fetch() origins</h2>
+        <form id="originForm" class="origin-form">
+          <input id="originInput" type="url" placeholder="https://api.github.com" autocomplete="off">
+          <button type="submit">Add</button>
+        </form>
+        <div id="chips" class="chips"></div>
+      </div>
+    </section>
+    <section class="right">
+      <div class="preview-shell">
+        <div class="preview-head">
+          <strong>Preview</strong>
+          <code id="cspLabel"></code>
+        </div>
+        <iframe id="preview" sandbox="allow-scripts" title="Sandboxed app preview"></iframe>
+      </div>
+      <div class="events">
+        <h2>Messages from sandbox</h2>
+        <ul id="events" class="event-list"></ul>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_CODE = "csp-allow-experiment:code";
+    const STORAGE_ORIGINS = "csp-allow-experiment:origins";
+
+    const SAMPLE_APP = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 24px;
+      color: #142033;
+    }
+    button {
+      border: 1px solid #b7c4d6;
+      border-radius: 6px;
+      background: white;
+      padding: 8px 12px;
+      margin-right: 8px;
+      cursor: pointer;
+    }
+    pre {
+      background: #f6f8fb;
+      border: 1px solid #d8e0ea;
+      border-radius: 6px;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sandbox fetch test</h1>
+  <p>Try the buttons. The parent page will offer to add blocked origins to the CSP allow-list.</p>
+  <button id="github">Fetch GitHub</button>
+  <button id="inat">Fetch iNaturalist</button>
+  <button id="example">Fetch example.com</button>
+  <pre id="output">No request yet.</pre>
+
+  <script>
+    const output = document.getElementById("output");
+
+    async function tryFetch(url) {
+      output.textContent = "Fetching " + url + "...";
+      try {
+        const response = await fetch(url);
+        const text = await response.text();
+        output.textContent =
+          "Success: HTTP " + response.status + "\\n\\n" + text.slice(0, 700);
+      } catch (error) {
+        output.textContent = "Fetch failed: " + error;
+      }
+    }
+
+    document.getElementById("github").addEventListener("click", () => {
+      tryFetch("https://api.github.com/repos/simonw/datasette");
+    });
+    document.getElementById("inat").addEventListener("click", () => {
+      tryFetch("https://api.inaturalist.org/v1/observations?per_page=1");
+    });
+    document.getElementById("example").addEventListener("click", () => {
+      tryFetch("https://example.com/");
+    });
+  <\/script>
+</body>
+</html>`;
+
+    const editor = document.getElementById("editor");
+    const preview = document.getElementById("preview");
+    const cspLabel = document.getElementById("cspLabel");
+    const chips = document.getElementById("chips");
+    const events = document.getElementById("events");
+    const originForm = document.getElementById("originForm");
+    const originInput = document.getElementById("originInput");
+    const refreshButton = document.getElementById("refreshButton");
+    const sampleButton = document.getElementById("sampleButton");
+    const clearButton = document.getElementById("clearButton");
+
+    let origins = loadOrigins();
+    let deniedThisSession = new Set();
+    let renderTimer = null;
+
+    editor.value = localStorage.getItem(STORAGE_CODE) || SAMPLE_APP;
+
+    function loadOrigins() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_ORIGINS) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveOrigins() {
+      localStorage.setItem(STORAGE_ORIGINS, JSON.stringify(origins));
+    }
+
+    function normalizeOrigin(value) {
+      const url = new URL(value);
+      if (url.protocol !== "https:") {
+        throw new Error("Only https:// origins are allowed in this experiment.");
+      }
+      if (!url.hostname) {
+        throw new Error("Origin must include a host.");
+      }
+      if (url.username || url.password) {
+        throw new Error("Origins cannot include usernames or passwords.");
+      }
+      if (url.pathname !== "/" || url.search || url.hash) {
+        throw new Error("Enter just the origin, without a path, query, or fragment.");
+      }
+      if (url.hostname.includes("*")) {
+        throw new Error("Wildcard hosts are not supported.");
+      }
+      return url.origin;
+    }
+
+    function originFromBlockedUri(blockedURI) {
+      if (!blockedURI || blockedURI === "inline" || blockedURI === "eval") {
+        return null;
+      }
+      try {
+        return new URL(blockedURI).origin;
+      } catch {
+        return null;
+      }
+    }
+
+    function buildCsp() {
+      const parts = [
+        "default-src 'none'",
+        "script-src 'unsafe-inline'",
+        "style-src 'unsafe-inline'",
+        origins.length ? "connect-src " + origins.join(" ") : "connect-src 'none'",
+      ];
+      return parts.join("; ") + ";";
+    }
+
+    function escapeAttribute(value) {
+      return value
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function escapeText(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function guardScript() {
+      return `<script>
+(function () {
+  function send(payload) {
+    payload.type = "csp-violation";
+    parent.postMessage(payload, "*");
+  }
+
+  document.addEventListener("securitypolicyviolation", function (event) {
+    send({
+      source: "securitypolicyviolation",
+      blockedURI: event.blockedURI,
+      effectiveDirective: event.effectiveDirective,
+      violatedDirective: event.violatedDirective,
+      originalPolicy: event.originalPolicy,
+    });
+  });
+
+  var originalFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var attemptedUrl = "";
+    try {
+      attemptedUrl = typeof input === "string" ? input : input && input.url;
+    } catch (e) {}
+    return originalFetch.apply(this, arguments).catch(function (error) {
+      send({
+        source: "fetch-catch",
+        blockedURI: attemptedUrl,
+        effectiveDirective: "connect-src",
+        error: String(error),
+      });
+      throw error;
+    });
+  };
+})();
+<\/script>`;
+    }
+
+    function buildSrcdoc() {
+      const csp = buildCsp();
+      cspLabel.textContent = csp;
+      return (
+        `<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(csp)}">` +
+        guardScript() +
+        editor.value
+      );
+    }
+
+    function renderPreview() {
+      localStorage.setItem(STORAGE_CODE, editor.value);
+      preview.setAttribute("csp", buildCsp());
+      preview.srcdoc = buildSrcdoc();
+      renderChips();
+    }
+
+    function scheduleRender() {
+      clearTimeout(renderTimer);
+      renderTimer = setTimeout(renderPreview, 350);
+    }
+
+    function renderChips() {
+      chips.innerHTML = "";
+      if (!origins.length) {
+        const empty = document.createElement("span");
+        empty.className = "muted";
+        empty.textContent = "No external network access.";
+        chips.appendChild(empty);
+        return;
+      }
+      for (const origin of origins) {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        const label = document.createElement("span");
+        label.textContent = origin;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "x";
+        remove.title = "Remove " + origin;
+        remove.addEventListener("click", () => {
+          origins = origins.filter((item) => item !== origin);
+          saveOrigins();
+          renderPreview();
+        });
+        chip.append(label, remove);
+        chips.appendChild(chip);
+      }
+    }
+
+    function addEventRow(payload, origin) {
+      const item = document.createElement("li");
+      item.className = "event";
+      const directive = payload.effectiveDirective || payload.violatedDirective || "unknown directive";
+      item.innerHTML =
+        `<strong>${escapeText(payload.source || "message")}</strong> ` +
+        `blocked <code>${escapeText(payload.blockedURI || "(unknown URL)")}</code>` +
+        `<br><span class="muted">${escapeText(directive)}${origin ? " · " + escapeText(origin) : ""}</span>`;
+      events.prepend(item);
+    }
+
+    function maybePromptForOrigin(payload) {
+      const origin = originFromBlockedUri(payload.blockedURI);
+      addEventRow(payload, origin);
+      if (!origin) return;
+      if (origins.includes(origin)) return;
+      if (deniedThisSession.has(origin)) return;
+
+      const directive = payload.effectiveDirective || payload.violatedDirective || "";
+      if (directive && directive !== "connect-src" && directive !== "default-src") {
+        return;
+      }
+
+      const yes = window.confirm(
+        "The sandbox tried to connect to:\n\n" +
+        origin +
+        "\n\nAdd this origin to the CSP connect-src allow-list and refresh the page?"
+      );
+      if (yes) {
+        origins.push(origin);
+        origins = Array.from(new Set(origins)).sort();
+        saveOrigins();
+        localStorage.setItem(STORAGE_CODE, editor.value);
+        window.location.reload();
+      } else {
+        deniedThisSession.add(origin);
+      }
+    }
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== preview.contentWindow) return;
+      if (!event.data || event.data.type !== "csp-violation") return;
+      maybePromptForOrigin(event.data);
+    });
+
+    editor.addEventListener("input", scheduleRender);
+    refreshButton.addEventListener("click", renderPreview);
+    sampleButton.addEventListener("click", () => {
+      editor.value = SAMPLE_APP;
+      renderPreview();
+    });
+    clearButton.addEventListener("click", () => {
+      origins = [];
+      saveOrigins();
+      renderPreview();
+    });
+    originForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      try {
+        const origin = normalizeOrigin(originInput.value.trim());
+        origins = Array.from(new Set([...origins, origin])).sort();
+        saveOrigins();
+        originInput.value = "";
+        renderPreview();
+      } catch (error) {
+        window.alert(error.message);
+      }
+    });
+
+    renderPreview();
+  </script>
+</body>
+</html>
