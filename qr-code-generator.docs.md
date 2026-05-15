@@ -1,0 +1,3 @@
+Generate QR codes from URLs or text with customizable size and color options. Enter any content into the input field and click generate to create a scannable code that can be downloaded as a PNG or copied to your clipboard. Adjust the code size between small, medium, and large, and choose a custom color for the QR pattern before generating.
+
+<!-- Generated from commit: 0192a135ea0696c4630d901678050e37adc3e39a -->
