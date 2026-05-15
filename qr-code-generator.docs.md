@@ -1,3 +1,3 @@
-Generate QR codes from any URL or text with customizable styling options. This tool supports multiple design styles including square and liquid patterns, adjustable sizes, custom colors, and optional borders. The generated QR codes can be downloaded as PNG files or copied directly to your clipboard for immediate use.
+Generate scannable QR codes from URLs, text, or WiFi network details with customizable styling options. The tool supports multiple encoding modes, including WiFi networks with security settings, and offers various visual styles such as square or liquid designs with adjustable sizes and colors. Generated codes can be downloaded as PNG images or copied directly to the clipboard.
 
-<!-- Generated from commit: ef6bd22cf21bafee4f34890fbccef6cfb426d642 -->
+<!-- Generated from commit: 8116af397b485d39dfd3f41b1d07c518da67ad7a -->
