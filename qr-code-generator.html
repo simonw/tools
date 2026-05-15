@@ -73,8 +73,9 @@ box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
 .row {
 display: flex;
 gap: 12px;
-margin-top: 16px;
+margin-top: 14px;
 align-items: center;
+flex-wrap: wrap;
 }
 
 .row label {
@@ -100,6 +101,22 @@ border: 1px solid #d2d2d7;
 border-radius: 8px;
 background: #fff;
 cursor: pointer;
+}
+
+.toggle {
+display: inline-flex;
+align-items: center;
+gap: 8px;
+font-size: 14px;
+cursor: pointer;
+margin-left: auto;
+}
+
+.toggle input {
+width: 18px;
+height: 18px;
+accent-color: #0071e3;
+margin: 0;
 }
 
 button {
@@ -141,7 +158,6 @@ margin-top: 20px;
 padding: 20px;
 background: #fff;
 border-radius: 16px;
-display: flex;
 flex-direction: column;
 align-items: center;
 box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -200,11 +216,23 @@ display: block;
 
 ```
 <div class="row">
+  <label for="style-select">Style</label>
+  <select id="style-select">
+    <option value="square" selected>Square</option>
+    <option value="liquid">Liquid</option>
+  </select>
+  <label class="toggle" for="border-toggle">
+    <input type="checkbox" id="border-toggle">
+    Border
+  </label>
+</div>
+
+<div class="row">
   <label for="size-select">Size</label>
   <select id="size-select">
-    <option value="200">Small</option>
-    <option value="320" selected>Medium</option>
-    <option value="480">Large</option>
+    <option value="240">Small</option>
+    <option value="360" selected>Medium</option>
+    <option value="520">Large</option>
   </select>
   <label for="color-input" style="margin-left:auto;">Color</label>
   <input type="color" id="color-input" class="color-input" value="#000000">
@@ -231,6 +259,8 @@ display: block;
 
 <script type="module">
 const urlInput = document.getElementById('url-input');
+const styleSelect = document.getElementById('style-select');
+const borderToggle = document.getElementById('border-toggle');
 const sizeSelect = document.getElementById('size-select');
 const colorInput = document.getElementById('color-input');
 const generateBtn = document.getElementById('generate-btn');
@@ -253,19 +283,81 @@ function clearError() {
   errorMsg.classList.remove('visible');
 }
 
-function drawQR(value, size, color) {
-  // qrcode-generator: typeNumber 0 = auto, errorCorrectionLevel 'M'
-  const qr = qrcode(0, 'M');
+function buildMatrix(qr) {
+  const n = qr.getModuleCount();
+  const m = [];
+  for (let r = 0; r < n; r++) {
+    const row = [];
+    for (let c = 0; c < n; c++) row.push(qr.isDark(r, c));
+    m.push(row);
+  }
+  return m;
+}
+
+function isFinderModule(row, col, n) {
+  if (row < 7 && col < 7) return true;
+  if (row < 7 && col >= n - 7) return true;
+  if (row >= n - 7 && col < 7) return true;
+  return false;
+}
+
+function drawFinder(ctx, x, y, s, color) {
+  // x,y = top-left of the 7x7 finder. s = cell size.
+  const cx = x + 3.5 * s;
+  const cy = y + 3.5 * s;
+  ctx.fillStyle = color;
+  // Outer ring (replaces the 7x7 outline), using even-odd fill
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3.5 * s, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 2.5 * s, 0, Math.PI * 2, true);
+  ctx.fill('evenodd');
+  // Inner disc (replaces the 3x3 center)
+  ctx.beginPath();
+  ctx.arc(cx, cy, 1.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawLiquidCell(ctx, modules, r, c, x, y, s) {
+  const n = modules.length;
+  const get = (rr, cc) => rr >= 0 && rr < n && cc >= 0 && cc < n && modules[rr][cc];
+  const north = get(r - 1, c);
+  const south = get(r + 1, c);
+  const east = get(r, c + 1);
+  const west = get(r, c - 1);
+
+  const rad = s / 2;
+  const tl = (north || west) ? 0 : rad;
+  const tr = (north || east) ? 0 : rad;
+  const br = (south || east) ? 0 : rad;
+  const bl = (south || west) ? 0 : rad;
+
+  ctx.beginPath();
+  ctx.moveTo(x + tl, y);
+  ctx.lineTo(x + s - tr, y);
+  if (tr > 0) ctx.arcTo(x + s, y, x + s, y + tr, tr);
+  ctx.lineTo(x + s, y + s - br);
+  if (br > 0) ctx.arcTo(x + s, y + s, x + s - br, y + s, br);
+  ctx.lineTo(x + bl, y + s);
+  if (bl > 0) ctx.arcTo(x, y + s, x, y + s - bl, bl);
+  ctx.lineTo(x, y + tl);
+  if (tl > 0) ctx.arcTo(x, y, x + tl, y, tl);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawQR(value, targetSize, color, style, withBorder) {
+  // Higher error correction for liquid since stylization can be a bit lossy
+  const qr = qrcode(0, style === 'liquid' ? 'H' : 'M');
   qr.addData(value);
   qr.make();
 
-  const moduleCount = qr.getModuleCount();
+  const modules = buildMatrix(qr);
+  const moduleCount = modules.length;
   const margin = 4;
   const totalModules = moduleCount + margin * 2;
-  const cellSize = Math.floor(size / totalModules);
+  const cellSize = Math.max(2, Math.floor(targetSize / totalModules));
   const actualSize = cellSize * totalModules;
 
-  // Use device pixel ratio for crisp rendering
   const dpr = window.devicePixelRatio || 1;
   qrCanvas.width = actualSize * dpr;
   qrCanvas.height = actualSize * dpr;
@@ -274,21 +366,67 @@ function drawQR(value, size, color) {
 
   const ctx = qrCanvas.getContext('2d');
   ctx.scale(dpr, dpr);
+  ctx.imageSmoothingEnabled = true;
 
   // Background
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, actualSize, actualSize);
 
-  // Modules
   ctx.fillStyle = color;
-  for (let row = 0; row < moduleCount; row++) {
-    for (let col = 0; col < moduleCount; col++) {
-      if (qr.isDark(row, col)) {
-        const x = (col + margin) * cellSize;
-        const y = (row + margin) * cellSize;
-        ctx.fillRect(x, y, cellSize, cellSize);
+  const offset = margin * cellSize;
+
+  if (style === 'square') {
+    for (let r = 0; r < moduleCount; r++) {
+      for (let c = 0; c < moduleCount; c++) {
+        if (modules[r][c]) {
+          ctx.fillRect(offset + c * cellSize, offset + r * cellSize, cellSize, cellSize);
+        }
       }
     }
+  } else {
+    // Liquid: non-finder cells with adaptive rounding
+    for (let r = 0; r < moduleCount; r++) {
+      for (let c = 0; c < moduleCount; c++) {
+        if (!modules[r][c]) continue;
+        if (isFinderModule(r, c, moduleCount)) continue;
+        drawLiquidCell(
+          ctx, modules, r, c,
+          offset + c * cellSize,
+          offset + r * cellSize,
+          cellSize
+        );
+      }
+    }
+    // Three finder patterns as concentric circles
+    drawFinder(ctx, offset, offset, cellSize, color);
+    drawFinder(ctx, offset + (moduleCount - 7) * cellSize, offset, cellSize, color);
+    drawFinder(ctx, offset, offset + (moduleCount - 7) * cellSize, cellSize, color);
+  }
+
+  // Outer rounded border
+  if (withBorder) {
+    const inset = cellSize * 1.2;
+    const borderThickness = Math.max(2, cellSize * 0.55);
+    const cornerRadius = cellSize * 2.2;
+    const bx = inset;
+    const by = inset;
+    const bw = actualSize - inset * 2;
+    const bh = actualSize - inset * 2;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = borderThickness;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bx + cornerRadius, by);
+    ctx.lineTo(bx + bw - cornerRadius, by);
+    ctx.arcTo(bx + bw, by, bx + bw, by + cornerRadius, cornerRadius);
+    ctx.lineTo(bx + bw, by + bh - cornerRadius);
+    ctx.arcTo(bx + bw, by + bh, bx + bw - cornerRadius, by + bh, cornerRadius);
+    ctx.lineTo(bx + cornerRadius, by + bh);
+    ctx.arcTo(bx, by + bh, bx, by + bh - cornerRadius, cornerRadius);
+    ctx.lineTo(bx, by + cornerRadius);
+    ctx.arcTo(bx, by, bx + cornerRadius, by, cornerRadius);
+    ctx.closePath();
+    ctx.stroke();
   }
 }
 
@@ -302,7 +440,9 @@ function generate() {
   try {
     const size = parseInt(sizeSelect.value, 10);
     const color = colorInput.value;
-    drawQR(value, size, color);
+    const style = styleSelect.value;
+    const withBorder = borderToggle.checked;
+    drawQR(value, size, color, style, withBorder);
     currentValue = value;
     qrUrlEl.textContent = value;
     qrDisplay.classList.add('visible');
@@ -351,8 +491,10 @@ urlInput.addEventListener('input', () => {
   if (errorMsg.classList.contains('visible')) clearError();
 });
 
-// Live update when options change after first generation
-sizeSelect.addEventListener('change', () => { if (currentValue) generate(); });
+// Live update after first generation
+[styleSelect, sizeSelect, borderToggle].forEach(el => {
+  el.addEventListener('change', () => { if (currentValue) generate(); });
+});
 colorInput.addEventListener('input', () => { if (currentValue) generate(); });
 </script>
 
