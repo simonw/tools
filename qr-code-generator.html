@@ -201,17 +201,128 @@ display: none;
 .error.visible {
 display: block;
 }
+
+.mode-tabs {
+display: flex;
+gap: 4px;
+background: #f5f5f7;
+border-radius: 10px;
+padding: 4px;
+margin-bottom: 16px;
+}
+
+.mode-tab {
+flex: 1;
+font-family: Helvetica, Arial, sans-serif;
+font-size: 14px;
+font-weight: 500;
+padding: 8px 12px;
+border-radius: 7px;
+border: none;
+background: transparent;
+color: #1d1d1f;
+cursor: pointer;
+width: auto;
+margin: 0;
+transition: background 0.15s ease;
+}
+
+.mode-tab.active {
+background: #fff;
+box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.mode-panel {
+display: none;
+}
+
+.mode-panel.active {
+display: block;
+}
+
+.field {
+margin-bottom: 12px;
+}
+
+.field:last-child {
+margin-bottom: 0;
+}
+
+.password-wrap {
+position: relative;
+}
+
+.password-wrap input {
+padding-right: 64px;
+}
+
+.password-toggle {
+position: absolute;
+right: 8px;
+top: 50%;
+transform: translateY(-50%);
+background: transparent;
+border: none;
+color: #0071e3;
+font-size: 13px;
+padding: 4px 8px;
+width: auto;
+margin: 0;
+cursor: pointer;
+}
+
+.hint {
+margin: 10px 0 0;
+font-size: 12px;
+color: #6e6e73;
+line-height: 1.4;
+}
 </style>
 
 </head>
 <body>
 <div class="container">
   <h1>QR code generator</h1>
-  <p class="subtitle">Paste any URL or text to create a scannable code.</p>
+  <p class="subtitle">Create a scannable code for a URL, text, or WiFi network.</p>
 
   <div class="card">
-    <label for="url-input">URL or text</label>
-    <input type="text" id="url-input" placeholder="https://example.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="mode-tabs" role="tablist">
+      <button class="mode-tab active" id="mode-tab-text" type="button" role="tab" aria-selected="true" aria-controls="mode-panel-text">URL / text</button>
+      <button class="mode-tab" id="mode-tab-wifi" type="button" role="tab" aria-selected="false" aria-controls="mode-panel-wifi">WiFi</button>
+    </div>
+
+    <div class="mode-panel active" id="mode-panel-text" role="tabpanel" aria-labelledby="mode-tab-text">
+      <label for="url-input">URL or text</label>
+      <input type="text" id="url-input" placeholder="https://example.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </div>
+
+    <div class="mode-panel" id="mode-panel-wifi" role="tabpanel" aria-labelledby="mode-tab-wifi">
+      <div class="field">
+        <label for="wifi-ssid">Network name (SSID)</label>
+        <input type="text" id="wifi-ssid" placeholder="My WiFi" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="wifi-password">Password</label>
+        <div class="password-wrap">
+          <input type="password" id="wifi-password" placeholder="Password" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button type="button" class="password-toggle" id="wifi-password-toggle" aria-label="Show password">Show</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:0;">
+        <label for="wifi-encryption">Security</label>
+        <select id="wifi-encryption">
+          <option value="WPA" selected>WPA / WPA2 / WPA3 (most common)</option>
+          <option value="WEP">WEP (legacy)</option>
+          <option value="nopass">None (open network)</option>
+        </select>
+        <label class="toggle" for="wifi-hidden">
+          <input type="checkbox" id="wifi-hidden">
+          Hidden
+        </label>
+      </div>
+      <p class="hint">Not sure? Leave it on WPA / WPA2 / WPA3 — that covers almost every home WiFi network.</p>
+    </div>
+
     <div class="error" id="error-msg"></div>
 
 ```
@@ -259,6 +370,15 @@ display: block;
 
 <script type="module">
 const urlInput = document.getElementById('url-input');
+const wifiSsidInput = document.getElementById('wifi-ssid');
+const wifiPasswordInput = document.getElementById('wifi-password');
+const wifiEncryptionSelect = document.getElementById('wifi-encryption');
+const wifiHiddenToggle = document.getElementById('wifi-hidden');
+const wifiPasswordToggle = document.getElementById('wifi-password-toggle');
+const modeTabText = document.getElementById('mode-tab-text');
+const modeTabWifi = document.getElementById('mode-tab-wifi');
+const modePanelText = document.getElementById('mode-panel-text');
+const modePanelWifi = document.getElementById('mode-panel-wifi');
 const styleSelect = document.getElementById('style-select');
 const borderToggle = document.getElementById('border-toggle');
 const sizeSelect = document.getElementById('size-select');
@@ -273,6 +393,40 @@ const emptyState = document.getElementById('empty-state');
 const errorMsg = document.getElementById('error-msg');
 
 let currentValue = '';
+let currentLabel = '';
+let mode = 'text';
+
+function setMode(next) {
+  mode = next;
+  const isWifi = next === 'wifi';
+  modeTabText.classList.toggle('active', !isWifi);
+  modeTabWifi.classList.toggle('active', isWifi);
+  modeTabText.setAttribute('aria-selected', String(!isWifi));
+  modeTabWifi.setAttribute('aria-selected', String(isWifi));
+  modePanelText.classList.toggle('active', !isWifi);
+  modePanelWifi.classList.toggle('active', isWifi);
+  clearError();
+  if (currentValue) generate();
+}
+
+function escapeWifiField(value) {
+  // Per the WiFi QR spec, these chars must be backslash-escaped: \ ; , " :
+  return String(value).replace(/([\\;,":])/g, '\\$1');
+}
+
+function buildWifiPayload() {
+  const ssid = wifiSsidInput.value;
+  const password = wifiPasswordInput.value;
+  const encryption = wifiEncryptionSelect.value;
+  const hidden = wifiHiddenToggle.checked;
+  if (!ssid) return null;
+  const parts = [`T:${encryption}`, `S:${escapeWifiField(ssid)}`];
+  if (encryption !== 'nopass') {
+    parts.push(`P:${escapeWifiField(password)}`);
+  }
+  if (hidden) parts.push('H:true');
+  return `WIFI:${parts.join(';')};;`;
+}
 
 function showError(msg) {
   errorMsg.textContent = msg;
@@ -431,10 +585,22 @@ function drawQR(value, targetSize, color, style, withBorder) {
 }
 
 function generate() {
-  const value = urlInput.value.trim();
-  if (!value) {
-    showError('Please enter a URL or text.');
-    return;
+  let value;
+  let label;
+  if (mode === 'wifi') {
+    if (!wifiSsidInput.value) {
+      showError('Please enter a network name (SSID).');
+      return;
+    }
+    value = buildWifiPayload();
+    label = `WiFi: ${wifiSsidInput.value}`;
+  } else {
+    value = urlInput.value.trim();
+    if (!value) {
+      showError('Please enter a URL or text.');
+      return;
+    }
+    label = value;
   }
   clearError();
   try {
@@ -444,7 +610,8 @@ function generate() {
     const withBorder = borderToggle.checked;
     drawQR(value, size, color, style, withBorder);
     currentValue = value;
-    qrUrlEl.textContent = value;
+    currentLabel = label;
+    qrUrlEl.textContent = label;
     qrDisplay.classList.add('visible');
     emptyState.style.display = 'none';
   } catch (err) {
@@ -483,19 +650,30 @@ generateBtn.addEventListener('click', generate);
 downloadBtn.addEventListener('click', downloadPNG);
 copyBtn.addEventListener('click', copyImage);
 
-urlInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') generate();
+modeTabText.addEventListener('click', () => setMode('text'));
+modeTabWifi.addEventListener('click', () => setMode('wifi'));
+
+wifiPasswordToggle.addEventListener('click', () => {
+  const showing = wifiPasswordInput.type === 'text';
+  wifiPasswordInput.type = showing ? 'password' : 'text';
+  wifiPasswordToggle.textContent = showing ? 'Show' : 'Hide';
+  wifiPasswordToggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
 });
 
-urlInput.addEventListener('input', () => {
-  if (errorMsg.classList.contains('visible')) clearError();
+[urlInput, wifiSsidInput, wifiPasswordInput].forEach(el => {
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') generate(); });
+  el.addEventListener('input', () => {
+    if (errorMsg.classList.contains('visible')) clearError();
+  });
 });
 
 // Live update after first generation
-[styleSelect, sizeSelect, borderToggle].forEach(el => {
+[styleSelect, sizeSelect, borderToggle, wifiEncryptionSelect, wifiHiddenToggle].forEach(el => {
   el.addEventListener('change', () => { if (currentValue) generate(); });
 });
-colorInput.addEventListener('input', () => { if (currentValue) generate(); });
+[colorInput, wifiSsidInput, wifiPasswordInput].forEach(el => {
+  el.addEventListener('input', () => { if (currentValue) generate(); });
+});
 </script>
 
 </body>
