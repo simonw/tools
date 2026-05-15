@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR code generator</title>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+font-family: Helvetica, Arial, sans-serif;
+margin: 0;
+padding: 24px 16px;
+background: #f5f5f7;
+color: #1d1d1f;
+min-height: 100vh;
+}
+
+.container {
+max-width: 480px;
+margin: 0 auto;
+}
+
+h1 {
+font-size: 24px;
+font-weight: 600;
+margin: 0 0 4px;
+}
+
+.subtitle {
+color: #6e6e73;
+font-size: 14px;
+margin: 0 0 24px;
+}
+
+.card {
+background: #fff;
+border-radius: 16px;
+padding: 20px;
+box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+label {
+display: block;
+font-size: 13px;
+font-weight: 500;
+color: #1d1d1f;
+margin-bottom: 6px;
+}
+
+input[type=“text”] {
+width: 100%;
+font-size: 16px;
+font-family: Helvetica, Arial, sans-serif;
+padding: 12px 14px;
+border: 1px solid #d2d2d7;
+border-radius: 10px;
+background: #fff;
+color: #1d1d1f;
+-webkit-appearance: none;
+appearance: none;
+}
+
+input[type=“text”]:focus {
+outline: none;
+border-color: #0071e3;
+box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+.row {
+display: flex;
+gap: 12px;
+margin-top: 16px;
+align-items: center;
+}
+
+.row label {
+margin-bottom: 0;
+flex-shrink: 0;
+}
+
+select {
+font-size: 16px;
+font-family: Helvetica, Arial, sans-serif;
+padding: 8px 10px;
+border: 1px solid #d2d2d7;
+border-radius: 8px;
+background: #fff;
+color: #1d1d1f;
+}
+
+.color-input {
+width: 40px;
+height: 36px;
+padding: 2px;
+border: 1px solid #d2d2d7;
+border-radius: 8px;
+background: #fff;
+cursor: pointer;
+}
+
+button {
+font-family: Helvetica, Arial, sans-serif;
+font-size: 15px;
+font-weight: 500;
+padding: 12px 20px;
+border-radius: 10px;
+border: none;
+cursor: pointer;
+transition: opacity 0.15s ease;
+width: 100%;
+}
+
+button:active {
+opacity: 0.7;
+}
+
+button.primary {
+background: #0071e3;
+color: #fff;
+margin-top: 16px;
+}
+
+button.secondary {
+background: #f5f5f7;
+color: #1d1d1f;
+border: 1px solid #d2d2d7;
+margin-top: 8px;
+}
+
+button:disabled {
+opacity: 0.4;
+cursor: not-allowed;
+}
+
+.qr-display {
+margin-top: 20px;
+padding: 20px;
+background: #fff;
+border-radius: 16px;
+display: flex;
+flex-direction: column;
+align-items: center;
+box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+display: none;
+}
+
+.qr-display.visible {
+display: flex;
+}
+
+.qr-display canvas {
+max-width: 100%;
+height: auto;
+border-radius: 8px;
+}
+
+.qr-url {
+margin-top: 12px;
+font-size: 13px;
+color: #6e6e73;
+word-break: break-all;
+text-align: center;
+max-width: 100%;
+}
+
+.empty-state {
+margin-top: 20px;
+padding: 40px 20px;
+text-align: center;
+color: #86868b;
+font-size: 14px;
+}
+
+.error {
+color: #d70015;
+font-size: 13px;
+margin-top: 8px;
+display: none;
+}
+
+.error.visible {
+display: block;
+}
+</style>
+
+</head>
+<body>
+<div class="container">
+  <h1>QR code generator</h1>
+  <p class="subtitle">Paste any URL or text to create a scannable code.</p>
+
+  <div class="card">
+    <label for="url-input">URL or text</label>
+    <input type="text" id="url-input" placeholder="https://example.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="error" id="error-msg"></div>
+
+```
+<div class="row">
+  <label for="size-select">Size</label>
+  <select id="size-select">
+    <option value="200">Small</option>
+    <option value="320" selected>Medium</option>
+    <option value="480">Large</option>
+  </select>
+  <label for="color-input" style="margin-left:auto;">Color</label>
+  <input type="color" id="color-input" class="color-input" value="#000000">
+</div>
+
+<button class="primary" id="generate-btn">Generate QR code</button>
+```
+
+  </div>
+
+  <div class="qr-display" id="qr-display">
+    <canvas id="qr-canvas"></canvas>
+    <div class="qr-url" id="qr-url"></div>
+    <button class="secondary" id="download-btn">Download PNG</button>
+    <button class="secondary" id="copy-btn">Copy image</button>
+  </div>
+
+  <div class="empty-state" id="empty-state">
+    Your QR code will appear here.
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+
+<script type="module">
+const urlInput = document.getElementById('url-input');
+const sizeSelect = document.getElementById('size-select');
+const colorInput = document.getElementById('color-input');
+const generateBtn = document.getElementById('generate-btn');
+const downloadBtn = document.getElementById('download-btn');
+const copyBtn = document.getElementById('copy-btn');
+const qrDisplay = document.getElementById('qr-display');
+const qrCanvas = document.getElementById('qr-canvas');
+const qrUrlEl = document.getElementById('qr-url');
+const emptyState = document.getElementById('empty-state');
+const errorMsg = document.getElementById('error-msg');
+
+let currentValue = '';
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.classList.add('visible');
+}
+
+function clearError() {
+  errorMsg.classList.remove('visible');
+}
+
+function drawQR(value, size, color) {
+  // qrcode-generator: typeNumber 0 = auto, errorCorrectionLevel 'M'
+  const qr = qrcode(0, 'M');
+  qr.addData(value);
+  qr.make();
+
+  const moduleCount = qr.getModuleCount();
+  const margin = 4;
+  const totalModules = moduleCount + margin * 2;
+  const cellSize = Math.floor(size / totalModules);
+  const actualSize = cellSize * totalModules;
+
+  // Use device pixel ratio for crisp rendering
+  const dpr = window.devicePixelRatio || 1;
+  qrCanvas.width = actualSize * dpr;
+  qrCanvas.height = actualSize * dpr;
+  qrCanvas.style.width = actualSize + 'px';
+  qrCanvas.style.height = actualSize + 'px';
+
+  const ctx = qrCanvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, actualSize, actualSize);
+
+  // Modules
+  ctx.fillStyle = color;
+  for (let row = 0; row < moduleCount; row++) {
+    for (let col = 0; col < moduleCount; col++) {
+      if (qr.isDark(row, col)) {
+        const x = (col + margin) * cellSize;
+        const y = (row + margin) * cellSize;
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+  }
+}
+
+function generate() {
+  const value = urlInput.value.trim();
+  if (!value) {
+    showError('Please enter a URL or text.');
+    return;
+  }
+  clearError();
+  try {
+    const size = parseInt(sizeSelect.value, 10);
+    const color = colorInput.value;
+    drawQR(value, size, color);
+    currentValue = value;
+    qrUrlEl.textContent = value;
+    qrDisplay.classList.add('visible');
+    emptyState.style.display = 'none';
+  } catch (err) {
+    showError('Could not generate QR code. Text may be too long.');
+    console.error(err);
+  }
+}
+
+function downloadPNG() {
+  if (!currentValue) return;
+  const link = document.createElement('a');
+  link.download = 'qrcode.png';
+  link.href = qrCanvas.toDataURL('image/png');
+  link.click();
+}
+
+async function copyImage() {
+  if (!currentValue) return;
+  try {
+    const blob = await new Promise(resolve => qrCanvas.toBlob(resolve, 'image/png'));
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy image'; }, 1500);
+    } else {
+      copyBtn.textContent = 'Not supported';
+      setTimeout(() => { copyBtn.textContent = 'Copy image'; }, 1500);
+    }
+  } catch (err) {
+    copyBtn.textContent = 'Copy failed';
+    setTimeout(() => { copyBtn.textContent = 'Copy image'; }, 1500);
+  }
+}
+
+generateBtn.addEventListener('click', generate);
+downloadBtn.addEventListener('click', downloadPNG);
+copyBtn.addEventListener('click', copyImage);
+
+urlInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') generate();
+});
+
+urlInput.addEventListener('input', () => {
+  if (errorMsg.classList.contains('visible')) clearError();
+});
+
+// Live update when options change after first generation
+sizeSelect.addEventListener('change', () => { if (currentValue) generate(); });
+colorInput.addEventListener('input', () => { if (currentValue) generate(); });
+</script>
+
+</body>
+</html>
