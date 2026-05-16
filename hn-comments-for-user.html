@@ -48,7 +48,10 @@
       if (!html) return '';
       const div = document.createElement('div');
       div.innerHTML = html;
-      return (div.textContent || div.innerText || '').trim();
+      const text = (div.textContent || div.innerText || '').trim();
+      return text.replace(/(%[0-9A-Fa-f]{2})+/g, m => {
+        try { return decodeURIComponent(m); } catch(e) { return m; }
+      });
     };
 
     async function fetchComments(user) {
@@ -65,7 +68,7 @@
         const date = formatDate(h.created_at);
         const commentUrl = `https://news.ycombinator.com/item?id=${h.objectID}`;
         const threadUrl = h.story_id ? `https://news.ycombinator.com/item?id=${h.story_id}` : '';
-        const storyTitle = h.story_title || h.title || '(no title)';
+        const storyTitle = htmlToText(h.story_title || h.title || '') || '(no title)';
         const text = htmlToText(h.comment_text);
         return [
           `Date: ${date}`,
