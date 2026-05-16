@@ -2,7 +2,7 @@
 """Print every change to the first line of a file across its git history.
 
 Output format, one line per change (oldest first):
-    <iso-datetime> <6-char-hash> <first line content>
+    <iso-datetime> <7-char-hash> <first line content>
 """
 import os
 import subprocess
@@ -107,7 +107,7 @@ def main(argv):
         if first is None:
             continue
         if first != previous:
-            print(f"{date} {sha[:6]} {first}")
+            print(f"{date} {sha[:7]} {first}")
             previous = first
 
     if not saw_any:

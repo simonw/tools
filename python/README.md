@@ -13,9 +13,9 @@ uv run https://tools.simonwillison.net/python/first_line_history.py ~/dev/datase
 ```
 Output example:
 ```
-2017-11-13T10:41:53-08:00 e838bd # datasette
-2017-11-24T19:46:24-08:00 efb82d # Datasette
-2021-11-12T06:18:31-08:00 c92ab5 <img src="https://datasette.io/static/datasette-logo.svg" alt="Datasette">
+2017-11-13T10:41:53-08:00 e838bd7 # datasette
+2017-11-24T19:46:24-08:00 efb82da # Datasette
+2021-11-12T06:18:31-08:00 c92ab51 <img src="https://datasette.io/static/datasette-logo.svg" alt="Datasette">
 ```
 
 ## macos-windows.py
