@@ -1,0 +1,2222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndexedDB Playground</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --accent: #e94560;
+            --accent-hover: #ff6b6b;
+            --text-primary: #eee;
+            --text-secondary: #aaa;
+            --success: #4ecca3;
+            --warning: #ffc107;
+            --error: #e94560;
+            --border: #2a2a4a;
+            --code-bg: #0d1117;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 280px 1fr 320px;
+            grid-template-rows: auto 1fr auto;
+            height: 100vh;
+            gap: 1px;
+            background: var(--border);
+        }
+
+        header {
+            grid-column: 1 / -1;
+            background: var(--bg-secondary);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+        }
+
+        header h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        header h1 .icon {
+            font-size: 1.5rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .sidebar {
+            background: var(--bg-secondary);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-section {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-header {
+            padding: 12px 15px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-content {
+            padding: 8px;
+        }
+
+        .db-item, .store-item {
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            transition: background 0.15s;
+        }
+
+        .db-item:hover, .store-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .db-item.active, .store-item.active {
+            background: var(--accent);
+        }
+
+        .db-item .db-icon, .store-item .store-icon {
+            opacity: 0.7;
+        }
+
+        .db-version {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-left: auto;
+        }
+
+        .main-panel {
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tabs {
+            display: flex;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+            color: var(--text-secondary);
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .tab-content {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .right-panel {
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .console-panel {
+            grid-column: 1 / -1;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            height: 200px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .console-header {
+            padding: 8px 15px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            background: var(--bg-tertiary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .console-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.8rem;
+        }
+
+        .log-entry {
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .log-entry.info { background: rgba(78, 204, 163, 0.1); color: var(--success); }
+        .log-entry.error { background: rgba(233, 69, 96, 0.1); color: var(--error); }
+        .log-entry.warn { background: rgba(255, 193, 7, 0.1); color: var(--warning); }
+        .log-entry.debug { background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); }
+
+        .log-time {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .btn-danger {
+            background: var(--error);
+            color: white;
+        }
+
+        .btn-small {
+            padding: 4px 10px;
+            font-size: 0.75rem;
+        }
+
+        .btn-icon {
+            padding: 6px 10px;
+            background: transparent;
+            color: var(--text-secondary);
+        }
+
+        .btn-icon:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        input, textarea, select {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            width: 100%;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .form-row > * {
+            flex: 1;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .data-table th, .data-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .data-table tr:hover td {
+            background: var(--bg-secondary);
+        }
+
+        .data-table .key-cell {
+            color: var(--accent);
+            font-family: monospace;
+        }
+
+        .data-table .value-cell {
+            font-family: monospace;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .data-table .actions-cell {
+            width: 100px;
+            text-align: right;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        .code-block {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .code-block code {
+            color: var(--text-primary);
+        }
+
+        .code-block .keyword { color: #ff79c6; }
+        .code-block .string { color: #f1fa8c; }
+        .code-block .comment { color: #6272a4; }
+        .code-block .function { color: #50fa7b; }
+        .code-block .number { color: #bd93f9; }
+
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+
+        .card-header {
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-success { background: rgba(78, 204, 163, 0.2); color: var(--success); }
+        .badge-warning { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
+        .badge-error { background: rgba(233, 69, 96, 0.2); color: var(--error); }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            padding: 15px;
+            background: var(--bg-primary);
+            border-radius: 6px;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 25px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            transform: translateY(-20px);
+            transition: transform 0.2s;
+        }
+
+        .modal-overlay.active .modal {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            font-size: 1.2rem;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .doc-section {
+            margin-bottom: 25px;
+        }
+
+        .doc-section h3 {
+            font-size: 1rem;
+            margin-bottom: 10px;
+            color: var(--accent);
+        }
+
+        .doc-section p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .doc-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .doc-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+
+        .doc-list li:last-child {
+            border-bottom: none;
+        }
+
+        .doc-list code {
+            background: var(--code-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .split-view {
+            display: flex;
+            gap: 20px;
+        }
+
+        .split-view > * {
+            flex: 1;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: auto;
+        }
+
+        .json-editor {
+            min-height: 200px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            resize: vertical;
+        }
+
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            padding: 10px 15px;
+            background: var(--bg-tertiary);
+            font-size: 0.8rem;
+        }
+
+        .stat-item {
+            display: flex;
+            gap: 5px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+        }
+
+        .stat-value {
+            font-weight: 600;
+        }
+
+        .tree-view {
+            font-size: 0.85rem;
+        }
+
+        .tree-item {
+            padding: 5px 0;
+        }
+
+        .tree-item-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .tree-item-header:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .tree-item-children {
+            margin-left: 20px;
+            border-left: 1px solid var(--border);
+            padding-left: 10px;
+        }
+
+        .index-item {
+            padding: 8px 12px;
+            background: var(--bg-primary);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+
+        .index-name {
+            font-weight: 600;
+            color: var(--success);
+        }
+
+        .index-props {
+            display: flex;
+            gap: 15px;
+            margin-top: 5px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .query-builder {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .range-inputs {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .range-separator {
+            padding-bottom: 10px;
+            color: var(--text-secondary);
+        }
+
+        .results-count {
+            padding: 10px 15px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 250px 1fr;
+            }
+            .right-panel {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                display: none;
+            }
+        }
+
+        .collapsible-header {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .collapsible-header::before {
+            content: '▶';
+            display: inline-block;
+            margin-right: 8px;
+            font-size: 0.7rem;
+            transition: transform 0.2s;
+        }
+
+        .collapsible-header.expanded::before {
+            transform: rotate(90deg);
+        }
+
+        .highlight {
+            animation: highlight 1s ease;
+        }
+
+        @keyframes highlight {
+            0% { background: rgba(233, 69, 96, 0.3); }
+            100% { background: transparent; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <span class="icon">🗄️</span>
+                IndexedDB Playground
+            </h1>
+            <div class="header-actions">
+                <button class="btn-secondary btn-small" onclick="refreshDatabases()">↻ Refresh</button>
+                <button class="btn-primary btn-small" onclick="showModal('createDbModal')">+ New Database</button>
+            </div>
+        </header>
+
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-header">
+                    Databases
+                    <span id="dbCount">0</span>
+                </div>
+                <div class="sidebar-content" id="databaseList">
+                    <div class="empty-state">
+                        <div>No databases found</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-header">
+                    Object Stores
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <span id="storeCount">0</span>
+                        <button class="btn-icon btn-small" onclick="showModal('createStoreModal')" id="createStoreBtnSidebar" disabled title="Create Object Store">+</button>
+                    </span>
+                </div>
+                <div class="sidebar-content" id="storeList">
+                    <div class="empty-state">
+                        <div>Select a database</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section" style="flex: 1;">
+                <div class="sidebar-header">
+                    Indexes
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <span id="indexCount">0</span>
+                        <button class="btn-icon btn-small" onclick="showModal('createIndexModal')" id="createIndexBtnSidebar" disabled title="Create Index">+</button>
+                    </span>
+                </div>
+                <div class="sidebar-content" id="indexList">
+                    <div class="empty-state">
+                        <div>Select an object store</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-panel">
+            <div class="tabs">
+                <div class="tab active" data-tab="data">Data</div>
+                <div class="tab" data-tab="query">Query</div>
+                <div class="tab" data-tab="schema">Schema</div>
+                <div class="tab" data-tab="import-export">Import/Export</div>
+                <div class="tab" data-tab="docs">Documentation</div>
+            </div>
+
+            <div class="tab-content">
+                <!-- Data Tab -->
+                <div class="tab-panel active" id="data-panel">
+                    <div class="toolbar">
+                        <button class="btn-primary btn-small" onclick="showModal('addRecordModal')" id="addRecordBtn" disabled>+ Add Record</button>
+                        <button class="btn-secondary btn-small" onclick="clearAllRecords()" id="clearRecordsBtn" disabled>Clear All</button>
+                        <div style="flex: 1;"></div>
+                        <input type="text" id="searchInput" placeholder="Filter records..." style="max-width: 250px;" oninput="filterRecords()">
+                    </div>
+                    <div id="dataContent">
+                        <div class="empty-state">
+                            <div class="icon">📋</div>
+                            <h3>No Data to Display</h3>
+                            <p>Select a database and object store to view records</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Query Tab -->
+                <div class="tab-panel" id="query-panel">
+                    <div class="card">
+                        <div class="card-header">Query Builder</div>
+                        <div class="form-group">
+                            <label>Query Type</label>
+                            <select id="queryType" onchange="updateQueryUI()">
+                                <option value="all">Get All Records</option>
+                                <option value="key">Get by Key</option>
+                                <option value="range">Key Range Query</option>
+                                <option value="index">Index Query</option>
+                                <option value="count">Count Records</option>
+                            </select>
+                        </div>
+
+                        <div id="queryKeyInput" class="form-group" style="display: none;">
+                            <label>Key Value</label>
+                            <input type="text" id="queryKey" placeholder="Enter key value">
+                        </div>
+
+                        <div id="queryRangeInputs" style="display: none;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Lower Bound</label>
+                                    <input type="text" id="rangeLower" placeholder="Min value (optional)">
+                                </div>
+                                <div class="form-group">
+                                    <label>Upper Bound</label>
+                                    <input type="text" id="rangeUpper" placeholder="Max value (optional)">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="lowerExclusive"> Exclude lower bound
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="upperExclusive"> Exclude upper bound
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="queryIndexInput" class="form-group" style="display: none;">
+                            <label>Select Index</label>
+                            <select id="queryIndex">
+                                <option value="">-- Select Index --</option>
+                            </select>
+                            <div class="form-group" style="margin-top: 15px;">
+                                <label>Index Value</label>
+                                <input type="text" id="indexValue" placeholder="Enter index value">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Limit Results</label>
+                            <input type="number" id="queryLimit" placeholder="No limit" min="1">
+                        </div>
+
+                        <button class="btn-primary" onclick="executeQuery()" id="executeQueryBtn" disabled>Execute Query</button>
+                    </div>
+
+                    <div id="queryResults">
+                        <div class="results-count" id="resultsCount" style="display: none;">
+                            Found <strong>0</strong> records
+                        </div>
+                        <div id="queryResultsTable"></div>
+                    </div>
+                </div>
+
+                <!-- Schema Tab -->
+                <div class="tab-panel" id="schema-panel">
+                    <div id="schemaContent">
+                        <div class="empty-state">
+                            <div class="icon">📊</div>
+                            <h3>No Schema to Display</h3>
+                            <p>Select a database to view its schema</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Import/Export Tab -->
+                <div class="tab-panel" id="import-export-panel">
+                    <div class="split-view">
+                        <div class="card">
+                            <div class="card-header">Export Data</div>
+                            <div class="form-group">
+                                <label>Export Scope</label>
+                                <select id="exportScope">
+                                    <option value="store">Current Object Store</option>
+                                    <option value="database">Entire Database</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Format</label>
+                                <select id="exportFormat">
+                                    <option value="json">JSON</option>
+                                    <option value="csv">CSV (flat data only)</option>
+                                </select>
+                            </div>
+                            <button class="btn-primary" onclick="exportData()" id="exportBtn" disabled>Export</button>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">Import Data</div>
+                            <div class="form-group">
+                                <label>JSON Data</label>
+                                <textarea class="json-editor" id="importData" placeholder='[{"key": "value"}, ...]'></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="clearBeforeImport"> Clear existing data before import
+                                </label>
+                            </div>
+                            <button class="btn-primary" onclick="importData()" id="importBtn" disabled>Import</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documentation Tab -->
+                <div class="tab-panel" id="docs-panel">
+                    <div class="doc-section">
+                        <h3>What is IndexedDB?</h3>
+                        <p>IndexedDB is a low-level API for storing large amounts of structured data in the browser. It's a transactional database system using key-value pairs with support for indexes.</p>
+                    </div>
+
+                    <div class="doc-section">
+                        <h3>Key Concepts</h3>
+                        <ul class="doc-list">
+                            <li><strong>Database</strong> - Container for object stores. Has a name and version number.</li>
+                            <li><strong>Object Store</strong> - Like a table. Holds records as key-value pairs.</li>
+                            <li><strong>Key</strong> - Unique identifier for records. Can be in-line (keyPath) or out-of-line.</li>
+                            <li><strong>Index</strong> - Enables searching by properties other than the primary key.</li>
+                            <li><strong>Transaction</strong> - All operations happen within transactions (readonly/readwrite/versionchange).</li>
+                            <li><strong>Cursor</strong> - Mechanism for iterating over records.</li>
+                        </ul>
+                    </div>
+
+                    <div class="doc-section">
+                        <h3>Quick Reference</h3>
+
+                        <h4 style="margin: 15px 0 10px; font-size: 0.9rem;">Opening a Database</h4>
+                        <div class="code-block"><code><span class="keyword">const</span> request = indexedDB.<span class="function">open</span>(<span class="string">'myDB'</span>, <span class="number">1</span>);
+request.<span class="function">onupgradeneeded</span> = (e) => {
+  <span class="keyword">const</span> db = e.target.result;
+  db.<span class="function">createObjectStore</span>(<span class="string">'users'</span>, { keyPath: <span class="string">'id'</span> });
+};</code></div>
+
+                        <h4 style="margin: 15px 0 10px; font-size: 0.9rem;">Adding Data</h4>
+                        <div class="code-block"><code><span class="keyword">const</span> tx = db.<span class="function">transaction</span>(<span class="string">'users'</span>, <span class="string">'readwrite'</span>);
+<span class="keyword">const</span> store = tx.<span class="function">objectStore</span>(<span class="string">'users'</span>);
+store.<span class="function">add</span>({ id: <span class="number">1</span>, name: <span class="string">'Alice'</span> });</code></div>
+
+                        <h4 style="margin: 15px 0 10px; font-size: 0.9rem;">Reading Data</h4>
+                        <div class="code-block"><code><span class="keyword">const</span> tx = db.<span class="function">transaction</span>(<span class="string">'users'</span>, <span class="string">'readonly'</span>);
+<span class="keyword">const</span> store = tx.<span class="function">objectStore</span>(<span class="string">'users'</span>);
+<span class="keyword">const</span> request = store.<span class="function">get</span>(<span class="number">1</span>);
+request.<span class="function">onsuccess</span> = () => console.log(request.result);</code></div>
+
+                        <h4 style="margin: 15px 0 10px; font-size: 0.9rem;">Using Cursors</h4>
+                        <div class="code-block"><code>store.<span class="function">openCursor</span>().<span class="function">onsuccess</span> = (e) => {
+  <span class="keyword">const</span> cursor = e.target.result;
+  <span class="keyword">if</span> (cursor) {
+    console.log(cursor.key, cursor.value);
+    cursor.<span class="function">continue</span>();
+  }
+};</code></div>
+
+                        <h4 style="margin: 15px 0 10px; font-size: 0.9rem;">Key Ranges</h4>
+                        <div class="code-block"><code><span class="comment">// Records with keys from 1 to 10</span>
+IDBKeyRange.<span class="function">bound</span>(<span class="number">1</span>, <span class="number">10</span>);
+<span class="comment">// Records with keys > 5</span>
+IDBKeyRange.<span class="function">lowerBound</span>(<span class="number">5</span>, <span class="keyword">true</span>);
+<span class="comment">// Records with keys <= 100</span>
+IDBKeyRange.<span class="function">upperBound</span>(<span class="number">100</span>);</code></div>
+                    </div>
+
+                    <div class="doc-section">
+                        <h3>Data Types</h3>
+                        <p>IndexedDB can store most JavaScript types including:</p>
+                        <ul class="doc-list">
+                            <li><code>String</code>, <code>Number</code>, <code>Boolean</code>, <code>null</code></li>
+                            <li><code>Array</code>, <code>Object</code> (plain objects)</li>
+                            <li><code>Date</code>, <code>RegExp</code></li>
+                            <li><code>Blob</code>, <code>File</code>, <code>ArrayBuffer</code></li>
+                            <li><strong>Note:</strong> Functions and DOM nodes cannot be stored</li>
+                        </ul>
+                    </div>
+
+                    <div class="doc-section">
+                        <h3>Browser Support</h3>
+                        <p>IndexedDB is supported in all modern browsers. Storage limits vary but typically allow several GB per origin.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <aside class="right-panel">
+            <div class="sidebar-header">Database Info</div>
+            <div id="dbInfo" style="padding: 15px;">
+                <div class="empty-state">
+                    <p>Select a database</p>
+                </div>
+            </div>
+
+            <div class="sidebar-header">Store Info</div>
+            <div id="storeInfo" style="padding: 15px; flex: 1; overflow-y: auto;">
+                <div class="empty-state">
+                    <p>Select an object store</p>
+                </div>
+            </div>
+
+            <div class="sidebar-header">Quick Actions</div>
+            <div style="padding: 10px;">
+                <button class="btn-secondary btn-small" style="width: 100%; margin-bottom: 8px;" onclick="showModal('createStoreModal')" id="createStoreBtn" disabled>+ Create Object Store</button>
+                <button class="btn-secondary btn-small" style="width: 100%; margin-bottom: 8px;" onclick="showModal('createIndexModal')" id="createIndexBtn" disabled>+ Create Index</button>
+                <button class="btn-danger btn-small" style="width: 100%;" onclick="deleteCurrentDb()" id="deleteDbBtn" disabled>Delete Database</button>
+            </div>
+        </aside>
+
+        <div class="console-panel">
+            <div class="console-header">
+                Console
+                <button class="btn-icon btn-small" onclick="clearConsole()">Clear</button>
+            </div>
+            <div class="console-output" id="consoleOutput"></div>
+        </div>
+    </div>
+
+    <!-- Create Database Modal -->
+    <div class="modal-overlay" id="createDbModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Create New Database</h3>
+                <button class="btn-icon" onclick="hideModal('createDbModal')">✕</button>
+            </div>
+            <div class="form-group">
+                <label>Database Name</label>
+                <input type="text" id="newDbName" placeholder="my-database">
+            </div>
+            <div class="form-group">
+                <label>Version (optional)</label>
+                <input type="number" id="newDbVersion" value="1" min="1">
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="hideModal('createDbModal')">Cancel</button>
+                <button class="btn-primary" onclick="createDatabase()">Create Database</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Object Store Modal -->
+    <div class="modal-overlay" id="createStoreModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Create Object Store</h3>
+                <button class="btn-icon" onclick="hideModal('createStoreModal')">✕</button>
+            </div>
+            <div class="form-group">
+                <label>Store Name</label>
+                <input type="text" id="newStoreName" placeholder="my-store">
+            </div>
+            <div class="form-group">
+                <label>Key Path (optional)</label>
+                <input type="text" id="newStoreKeyPath" placeholder="id">
+                <small style="color: var(--text-secondary); font-size: 0.75rem;">Property to use as primary key (leave empty for out-of-line keys)</small>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="newStoreAutoIncrement"> Auto-increment keys
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="hideModal('createStoreModal')">Cancel</button>
+                <button class="btn-primary" onclick="createObjectStore()">Create Store</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Index Modal -->
+    <div class="modal-overlay" id="createIndexModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Create Index</h3>
+                <button class="btn-icon" onclick="hideModal('createIndexModal')">✕</button>
+            </div>
+            <div class="form-group">
+                <label>Index Name</label>
+                <input type="text" id="newIndexName" placeholder="by-name">
+            </div>
+            <div class="form-group">
+                <label>Key Path</label>
+                <input type="text" id="newIndexKeyPath" placeholder="name">
+                <small style="color: var(--text-secondary); font-size: 0.75rem;">Property to index on</small>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="newIndexUnique"> Unique
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="newIndexMultiEntry"> Multi-entry (for array values)
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="hideModal('createIndexModal')">Cancel</button>
+                <button class="btn-primary" onclick="createIndex()">Create Index</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Record Modal -->
+    <div class="modal-overlay" id="addRecordModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Add Record</h3>
+                <button class="btn-icon" onclick="hideModal('addRecordModal')">✕</button>
+            </div>
+            <div class="form-group" id="outOfLineKeyGroup" style="display: none;">
+                <label>Key</label>
+                <input type="text" id="recordKey" placeholder="Enter key">
+            </div>
+            <div class="form-group">
+                <label>Value (JSON)</label>
+                <textarea class="json-editor" id="recordValue" placeholder='{"name": "John", "email": "john@example.com"}'></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="hideModal('addRecordModal')">Cancel</button>
+                <button class="btn-primary" onclick="addRecord()">Add Record</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Record Modal -->
+    <div class="modal-overlay" id="editRecordModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Edit Record</h3>
+                <button class="btn-icon" onclick="hideModal('editRecordModal')">✕</button>
+            </div>
+            <div class="form-group">
+                <label>Key</label>
+                <input type="text" id="editRecordKey" readonly style="opacity: 0.7;">
+            </div>
+            <div class="form-group">
+                <label>Value (JSON)</label>
+                <textarea class="json-editor" id="editRecordValue"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="hideModal('editRecordModal')">Cancel</button>
+                <button class="btn-primary" onclick="updateRecord()">Update Record</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentDb = null;
+        let currentDbName = null;
+        let currentStoreName = null;
+        let allRecords = [];
+
+        // Utility Functions
+        function log(message, type = 'info') {
+            const output = document.getElementById('consoleOutput');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="log-time">${time}</span><span>${escapeHtml(message)}</span>`;
+            output.appendChild(entry);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function clearConsole() {
+            document.getElementById('consoleOutput').innerHTML = '';
+        }
+
+        function showModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function hideModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function formatValue(value) {
+            if (value === null) return 'null';
+            if (value === undefined) return 'undefined';
+            if (typeof value === 'object') {
+                try {
+                    return JSON.stringify(value);
+                } catch {
+                    return '[Object]';
+                }
+            }
+            return String(value);
+        }
+
+        function parseKey(keyStr) {
+            if (!keyStr) return undefined;
+            // Try to parse as number
+            const num = Number(keyStr);
+            if (!isNaN(num)) return num;
+            // Try to parse as JSON
+            try {
+                return JSON.parse(keyStr);
+            } catch {
+                return keyStr;
+            }
+        }
+
+        // Database Operations
+        async function refreshDatabases() {
+            const listEl = document.getElementById('databaseList');
+            const countEl = document.getElementById('dbCount');
+
+            try {
+                const databases = await indexedDB.databases();
+                countEl.textContent = databases.length;
+
+                if (databases.length === 0) {
+                    listEl.innerHTML = '<div class="empty-state"><div>No databases found</div></div>';
+                    return;
+                }
+
+                listEl.innerHTML = databases.map(db => `
+                    <div class="db-item ${currentDbName === db.name ? 'active' : ''}" onclick="selectDatabase('${db.name}')">
+                        <span class="db-icon">🗄️</span>
+                        <span>${escapeHtml(db.name)}</span>
+                        <span class="db-version">v${db.version}</span>
+                    </div>
+                `).join('');
+
+                log(`Found ${databases.length} database(s)`, 'debug');
+            } catch (err) {
+                log(`Error listing databases: ${err.message}`, 'error');
+                listEl.innerHTML = '<div class="empty-state"><div>Error loading databases</div></div>';
+            }
+        }
+
+        async function selectDatabase(name) {
+            if (currentDb) {
+                currentDb.close();
+            }
+
+            currentDbName = name;
+            currentStoreName = null;
+
+            try {
+                currentDb = await new Promise((resolve, reject) => {
+                    const request = indexedDB.open(name);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                });
+
+                log(`Opened database: ${name} (v${currentDb.version})`, 'info');
+                refreshDatabases();
+                updateStoreList();
+                updateDbInfo();
+                updateSchemaView();
+                enableDatabaseActions();
+            } catch (err) {
+                log(`Error opening database: ${err.message}`, 'error');
+            }
+        }
+
+        function enableDatabaseActions() {
+            document.getElementById('createStoreBtn').disabled = false;
+            document.getElementById('createStoreBtnSidebar').disabled = false;
+            document.getElementById('deleteDbBtn').disabled = false;
+            document.getElementById('exportBtn').disabled = false;
+        }
+
+        function updateStoreList() {
+            const listEl = document.getElementById('storeList');
+            const countEl = document.getElementById('storeCount');
+
+            if (!currentDb) {
+                listEl.innerHTML = '<div class="empty-state"><div>Select a database</div></div>';
+                countEl.textContent = '0';
+                return;
+            }
+
+            const storeNames = Array.from(currentDb.objectStoreNames);
+            countEl.textContent = storeNames.length;
+
+            if (storeNames.length === 0) {
+                listEl.innerHTML = '<div class="empty-state"><div>No object stores</div></div>';
+                return;
+            }
+
+            listEl.innerHTML = storeNames.map(name => `
+                <div class="store-item ${currentStoreName === name ? 'active' : ''}" onclick="selectStore('${name}')">
+                    <span class="store-icon">📦</span>
+                    <span>${escapeHtml(name)}</span>
+                </div>
+            `).join('');
+        }
+
+        async function selectStore(name) {
+            currentStoreName = name;
+            updateStoreList();
+            updateStoreInfo();
+            updateIndexList();
+            await loadRecords();
+            updateQueryIndexSelect();
+            enableStoreActions();
+        }
+
+        function enableStoreActions() {
+            document.getElementById('addRecordBtn').disabled = false;
+            document.getElementById('clearRecordsBtn').disabled = false;
+            document.getElementById('createIndexBtn').disabled = false;
+            document.getElementById('createIndexBtnSidebar').disabled = false;
+            document.getElementById('executeQueryBtn').disabled = false;
+            document.getElementById('importBtn').disabled = false;
+        }
+
+        function updateDbInfo() {
+            const infoEl = document.getElementById('dbInfo');
+
+            if (!currentDb) {
+                infoEl.innerHTML = '<div class="empty-state"><p>Select a database</p></div>';
+                return;
+            }
+
+            infoEl.innerHTML = `
+                <div class="info-item">
+                    <div class="info-label">Name</div>
+                    <div class="info-value">${escapeHtml(currentDb.name)}</div>
+                </div>
+                <div class="info-item" style="margin-top: 10px;">
+                    <div class="info-label">Version</div>
+                    <div class="info-value">${currentDb.version}</div>
+                </div>
+                <div class="info-item" style="margin-top: 10px;">
+                    <div class="info-label">Object Stores</div>
+                    <div class="info-value">${currentDb.objectStoreNames.length}</div>
+                </div>
+            `;
+        }
+
+        function updateStoreInfo() {
+            const infoEl = document.getElementById('storeInfo');
+
+            if (!currentDb || !currentStoreName) {
+                infoEl.innerHTML = '<div class="empty-state"><p>Select an object store</p></div>';
+                return;
+            }
+
+            try {
+                const tx = currentDb.transaction(currentStoreName, 'readonly');
+                const store = tx.objectStore(currentStoreName);
+
+                infoEl.innerHTML = `
+                    <div class="info-item">
+                        <div class="info-label">Name</div>
+                        <div class="info-value">${escapeHtml(store.name)}</div>
+                    </div>
+                    <div class="info-item" style="margin-top: 10px;">
+                        <div class="info-label">Key Path</div>
+                        <div class="info-value">${store.keyPath || '(none - out-of-line keys)'}</div>
+                    </div>
+                    <div class="info-item" style="margin-top: 10px;">
+                        <div class="info-label">Auto Increment</div>
+                        <div class="info-value">${store.autoIncrement ? 'Yes' : 'No'}</div>
+                    </div>
+                    <div class="info-item" style="margin-top: 10px;">
+                        <div class="info-label">Indexes</div>
+                        <div class="info-value">${store.indexNames.length}</div>
+                    </div>
+                `;
+
+                // Update the add record modal to show/hide key field
+                const keyGroup = document.getElementById('outOfLineKeyGroup');
+                keyGroup.style.display = store.keyPath || store.autoIncrement ? 'none' : 'block';
+            } catch (err) {
+                log(`Error getting store info: ${err.message}`, 'error');
+            }
+        }
+
+        function updateIndexList() {
+            const listEl = document.getElementById('indexList');
+            const countEl = document.getElementById('indexCount');
+
+            if (!currentDb || !currentStoreName) {
+                listEl.innerHTML = '<div class="empty-state"><div>Select an object store</div></div>';
+                countEl.textContent = '0';
+                return;
+            }
+
+            try {
+                const tx = currentDb.transaction(currentStoreName, 'readonly');
+                const store = tx.objectStore(currentStoreName);
+                const indexNames = Array.from(store.indexNames);
+
+                countEl.textContent = indexNames.length;
+
+                if (indexNames.length === 0) {
+                    listEl.innerHTML = '<div class="empty-state"><div>No indexes</div></div>';
+                    return;
+                }
+
+                listEl.innerHTML = indexNames.map(name => {
+                    const index = store.index(name);
+                    return `
+                        <div class="index-item">
+                            <div class="index-name">${escapeHtml(name)}</div>
+                            <div class="index-props">
+                                <span>keyPath: ${index.keyPath}</span>
+                                ${index.unique ? '<span class="badge badge-warning">unique</span>' : ''}
+                                ${index.multiEntry ? '<span class="badge badge-success">multi</span>' : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                log(`Error getting indexes: ${err.message}`, 'error');
+            }
+        }
+
+        async function loadRecords() {
+            const contentEl = document.getElementById('dataContent');
+
+            if (!currentDb || !currentStoreName) {
+                contentEl.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📋</div>
+                        <h3>No Data to Display</h3>
+                        <p>Select a database and object store to view records</p>
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const tx = currentDb.transaction(currentStoreName, 'readonly');
+                const store = tx.objectStore(currentStoreName);
+
+                allRecords = await new Promise((resolve, reject) => {
+                    const records = [];
+                    const request = store.openCursor();
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = (e) => {
+                        const cursor = e.target.result;
+                        if (cursor) {
+                            records.push({ key: cursor.key, value: cursor.value });
+                            cursor.continue();
+                        } else {
+                            resolve(records);
+                        }
+                    };
+                });
+
+                renderRecords(allRecords);
+                log(`Loaded ${allRecords.length} record(s) from ${currentStoreName}`, 'debug');
+            } catch (err) {
+                log(`Error loading records: ${err.message}`, 'error');
+                contentEl.innerHTML = `<div class="empty-state"><p>Error loading records</p></div>`;
+            }
+        }
+
+        function renderRecords(records) {
+            const contentEl = document.getElementById('dataContent');
+
+            if (records.length === 0) {
+                contentEl.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📋</div>
+                        <h3>No Records</h3>
+                        <p>This object store is empty. Click "Add Record" to add data.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            contentEl.innerHTML = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 150px;">Key</th>
+                            <th>Value</th>
+                            <th class="actions-cell">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${records.map(r => `
+                            <tr>
+                                <td class="key-cell">${escapeHtml(formatValue(r.key))}</td>
+                                <td class="value-cell" title="${escapeHtml(formatValue(r.value))}">${escapeHtml(formatValue(r.value))}</td>
+                                <td class="actions-cell">
+                                    <button class="btn-icon btn-small" onclick="editRecord('${escapeHtml(JSON.stringify(r.key))}')">✏️</button>
+                                    <button class="btn-icon btn-small" onclick="deleteRecord('${escapeHtml(JSON.stringify(r.key))}')">🗑️</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function filterRecords() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            if (!query) {
+                renderRecords(allRecords);
+                return;
+            }
+
+            const filtered = allRecords.filter(r => {
+                const keyStr = formatValue(r.key).toLowerCase();
+                const valueStr = formatValue(r.value).toLowerCase();
+                return keyStr.includes(query) || valueStr.includes(query);
+            });
+
+            renderRecords(filtered);
+        }
+
+        // CRUD Operations
+        async function createDatabase() {
+            const name = document.getElementById('newDbName').value.trim();
+            const version = parseInt(document.getElementById('newDbVersion').value) || 1;
+
+            if (!name) {
+                log('Database name is required', 'error');
+                return;
+            }
+
+            try {
+                const request = indexedDB.open(name, version);
+                request.onupgradeneeded = () => {
+                    log(`Database ${name} created/upgraded to version ${version}`, 'info');
+                };
+                request.onsuccess = () => {
+                    request.result.close();
+                    hideModal('createDbModal');
+                    refreshDatabases();
+                    log(`Database ${name} opened successfully`, 'info');
+                };
+                request.onerror = () => {
+                    log(`Error creating database: ${request.error}`, 'error');
+                };
+            } catch (err) {
+                log(`Error creating database: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteCurrentDb() {
+            if (!currentDbName) return;
+
+            if (!confirm(`Are you sure you want to delete "${currentDbName}"? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                if (currentDb) {
+                    currentDb.close();
+                    currentDb = null;
+                }
+
+                const request = indexedDB.deleteDatabase(currentDbName);
+                request.onsuccess = () => {
+                    log(`Database ${currentDbName} deleted`, 'info');
+                    currentDbName = null;
+                    refreshDatabases();
+                    updateStoreList();
+                    updateDbInfo();
+                    document.getElementById('dataContent').innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">📋</div>
+                            <h3>No Data to Display</h3>
+                            <p>Select a database and object store to view records</p>
+                        </div>
+                    `;
+                };
+                request.onerror = () => {
+                    log(`Error deleting database: ${request.error}`, 'error');
+                };
+            } catch (err) {
+                log(`Error deleting database: ${err.message}`, 'error');
+            }
+        }
+
+        async function createObjectStore() {
+            const name = document.getElementById('newStoreName').value.trim();
+            const keyPath = document.getElementById('newStoreKeyPath').value.trim();
+            const autoIncrement = document.getElementById('newStoreAutoIncrement').checked;
+
+            if (!name) {
+                log('Store name is required', 'error');
+                return;
+            }
+
+            if (!currentDb) {
+                log('No database selected', 'error');
+                return;
+            }
+
+            try {
+                currentDb.close();
+                const newVersion = currentDb.version + 1;
+
+                const request = indexedDB.open(currentDbName, newVersion);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    const options = { autoIncrement };
+                    if (keyPath) options.keyPath = keyPath;
+                    db.createObjectStore(name, options);
+                    log(`Created object store: ${name}`, 'info');
+                };
+                request.onsuccess = () => {
+                    currentDb = request.result;
+                    hideModal('createStoreModal');
+                    updateStoreList();
+                    updateDbInfo();
+                    updateSchemaView();
+                };
+                request.onerror = () => {
+                    log(`Error creating store: ${request.error}`, 'error');
+                };
+            } catch (err) {
+                log(`Error creating store: ${err.message}`, 'error');
+            }
+        }
+
+        async function createIndex() {
+            const name = document.getElementById('newIndexName').value.trim();
+            const keyPath = document.getElementById('newIndexKeyPath').value.trim();
+            const unique = document.getElementById('newIndexUnique').checked;
+            const multiEntry = document.getElementById('newIndexMultiEntry').checked;
+
+            if (!name || !keyPath) {
+                log('Index name and key path are required', 'error');
+                return;
+            }
+
+            if (!currentDb || !currentStoreName) {
+                log('No object store selected', 'error');
+                return;
+            }
+
+            try {
+                currentDb.close();
+                const newVersion = currentDb.version + 1;
+
+                const request = indexedDB.open(currentDbName, newVersion);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    const tx = e.target.transaction;
+                    const store = tx.objectStore(currentStoreName);
+                    store.createIndex(name, keyPath, { unique, multiEntry });
+                    log(`Created index: ${name} on ${keyPath}`, 'info');
+                };
+                request.onsuccess = () => {
+                    currentDb = request.result;
+                    hideModal('createIndexModal');
+                    updateIndexList();
+                    updateSchemaView();
+                    updateQueryIndexSelect();
+                };
+                request.onerror = () => {
+                    log(`Error creating index: ${request.error}`, 'error');
+                };
+            } catch (err) {
+                log(`Error creating index: ${err.message}`, 'error');
+            }
+        }
+
+        async function addRecord() {
+            if (!currentDb || !currentStoreName) {
+                log('No object store selected', 'error');
+                return;
+            }
+
+            const keyInput = document.getElementById('recordKey').value.trim();
+            const valueInput = document.getElementById('recordValue').value.trim();
+
+            let value;
+            try {
+                value = JSON.parse(valueInput);
+            } catch {
+                log('Invalid JSON value', 'error');
+                return;
+            }
+
+            try {
+                const tx = currentDb.transaction(currentStoreName, 'readwrite');
+                const store = tx.objectStore(currentStoreName);
+
+                let request;
+                if (!store.keyPath && !store.autoIncrement && keyInput) {
+                    const key = parseKey(keyInput);
+                    request = store.add(value, key);
+                } else {
+                    request = store.add(value);
+                }
+
+                request.onsuccess = () => {
+                    log(`Record added with key: ${request.result}`, 'info');
+                    hideModal('addRecordModal');
+                    document.getElementById('recordKey').value = '';
+                    document.getElementById('recordValue').value = '';
+                    loadRecords();
+                };
+
+                request.onerror = () => {
+                    log(`Error adding record: ${request.error}`, 'error');
+                };
+            } catch (err) {
+                log(`Error adding record: ${err.message}`, 'error');
+            }
+        }
+
+        function editRecord(keyJson) {
+            const key = JSON.parse(keyJson);
+            const record = allRecords.find(r => JSON.stringify(r.key) === JSON.stringify(key));
+
+            if (!record) {
+                log('Record not found', 'error');
+                return;
+            }
+
+            document.getElementById('editRecordKey').value = formatValue(key);
+            document.getElementById('editRecordValue').value = JSON.stringify(record.value, null, 2);
+            document.getElementById('editRecordModal').dataset.key = keyJson;
+            showModal('editRecordModal');
+        }
+
+        async function updateRecord() {
+            if (!currentDb || !currentStoreName) return;
+
+            const keyJson = document.getElementById('editRecordModal').dataset.key;
+            const key = JSON.parse(keyJson);
+            const valueInput = document.getElementById('editRecordValue').value.trim();
+
+            let value;
+            try {
+                value = JSON.parse(valueInput);
+            } catch {
+                log('Invalid JSON value', 'error');
+                return;
+            }
+
+            try {
+                const tx = currentDb.transaction(currentStoreName, 'readwrite');
+                const store = tx.objectStore(currentStoreName);
+
+                let request;
+                if (store.keyPath) {
+                    request = store.put(value);
+                } else {
+                    request = store.put(value, key);
+                }
+
+                request.onsuccess = () => {
+                    log(`Record updated`, 'info');
+                    hideModal('editRecordModal');
+                    loadRecords();
+                };
+
+                request.onerror = () => {
+                    log(`Error updating record: ${request.error}`, 'error');
+                };
+            } catch (err) {
+                log(`Error updating record: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteRecord(keyJson) {
+            if (!currentDb || !currentStoreName) return;
+
+            const key = JSON.parse(keyJson);
+
+            if (!confirm('Delete this record?')) return;
+
+            try {
+                const tx = currentDb.transaction(currentStoreName, 'readwrite');
+                const store = tx.objectStore(currentStoreName);
+                const request = store.delete(key);
+
+                request.onsuccess = () => {
+                    log(`Record deleted`, 'info');
+                    loadRecords();
+                };
+
+                request.onerror = () => {
+                    log(`Error deleting record: ${request.error}`, 'error');
+                };
+            } catch (err) {
+                log(`Error deleting record: ${err.message}`, 'error');
+            }
+        }
+
+        async function clearAllRecords() {
+            if (!currentDb || !currentStoreName) return;
+
+            if (!confirm(`Clear all records from "${currentStoreName}"?`)) return;
+
+            try {
+                const tx = currentDb.transaction(currentStoreName, 'readwrite');
+                const store = tx.objectStore(currentStoreName);
+                const request = store.clear();
+
+                request.onsuccess = () => {
+                    log(`All records cleared from ${currentStoreName}`, 'info');
+                    loadRecords();
+                };
+
+                request.onerror = () => {
+                    log(`Error clearing records: ${request.error}`, 'error');
+                };
+            } catch (err) {
+                log(`Error clearing records: ${err.message}`, 'error');
+            }
+        }
+
+        // Query Operations
+        function updateQueryUI() {
+            const type = document.getElementById('queryType').value;
+            document.getElementById('queryKeyInput').style.display = type === 'key' ? 'block' : 'none';
+            document.getElementById('queryRangeInputs').style.display = type === 'range' ? 'block' : 'none';
+            document.getElementById('queryIndexInput').style.display = type === 'index' ? 'block' : 'none';
+        }
+
+        function updateQueryIndexSelect() {
+            const select = document.getElementById('queryIndex');
+            select.innerHTML = '<option value="">-- Select Index --</option>';
+
+            if (!currentDb || !currentStoreName) return;
+
+            try {
+                const tx = currentDb.transaction(currentStoreName, 'readonly');
+                const store = tx.objectStore(currentStoreName);
+
+                Array.from(store.indexNames).forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    select.appendChild(option);
+                });
+            } catch (err) {
+                log(`Error loading indexes: ${err.message}`, 'error');
+            }
+        }
+
+        async function executeQuery() {
+            if (!currentDb || !currentStoreName) {
+                log('No object store selected', 'error');
+                return;
+            }
+
+            const type = document.getElementById('queryType').value;
+            const limit = parseInt(document.getElementById('queryLimit').value) || Infinity;
+
+            try {
+                const tx = currentDb.transaction(currentStoreName, 'readonly');
+                const store = tx.objectStore(currentStoreName);
+                let results = [];
+
+                switch (type) {
+                    case 'all':
+                        results = await cursorToArray(store.openCursor(), limit);
+                        break;
+
+                    case 'key':
+                        const key = parseKey(document.getElementById('queryKey').value);
+                        const record = await promisifyRequest(store.get(key));
+                        if (record !== undefined) {
+                            results = [{ key, value: record }];
+                        }
+                        break;
+
+                    case 'range':
+                        const lower = document.getElementById('rangeLower').value;
+                        const upper = document.getElementById('rangeUpper').value;
+                        const lowerEx = document.getElementById('lowerExclusive').checked;
+                        const upperEx = document.getElementById('upperExclusive').checked;
+
+                        let range = null;
+                        if (lower && upper) {
+                            range = IDBKeyRange.bound(parseKey(lower), parseKey(upper), lowerEx, upperEx);
+                        } else if (lower) {
+                            range = IDBKeyRange.lowerBound(parseKey(lower), lowerEx);
+                        } else if (upper) {
+                            range = IDBKeyRange.upperBound(parseKey(upper), upperEx);
+                        }
+
+                        results = await cursorToArray(store.openCursor(range), limit);
+                        break;
+
+                    case 'index':
+                        const indexName = document.getElementById('queryIndex').value;
+                        const indexValue = parseKey(document.getElementById('indexValue').value);
+
+                        if (!indexName) {
+                            log('Select an index', 'error');
+                            return;
+                        }
+
+                        const index = store.index(indexName);
+                        results = await cursorToArray(index.openCursor(IDBKeyRange.only(indexValue)), limit);
+                        break;
+
+                    case 'count':
+                        const count = await promisifyRequest(store.count());
+                        document.getElementById('resultsCount').style.display = 'block';
+                        document.getElementById('resultsCount').innerHTML = `Total records: <strong>${count}</strong>`;
+                        document.getElementById('queryResultsTable').innerHTML = '';
+                        log(`Count: ${count} records`, 'info');
+                        return;
+                }
+
+                displayQueryResults(results);
+                log(`Query returned ${results.length} result(s)`, 'info');
+            } catch (err) {
+                log(`Query error: ${err.message}`, 'error');
+            }
+        }
+
+        function promisifyRequest(request) {
+            return new Promise((resolve, reject) => {
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        function cursorToArray(request, limit = Infinity) {
+            return new Promise((resolve, reject) => {
+                const results = [];
+                request.onsuccess = (e) => {
+                    const cursor = e.target.result;
+                    if (cursor && results.length < limit) {
+                        results.push({ key: cursor.key, value: cursor.value });
+                        cursor.continue();
+                    } else {
+                        resolve(results);
+                    }
+                };
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        function displayQueryResults(results) {
+            document.getElementById('resultsCount').style.display = 'block';
+            document.getElementById('resultsCount').innerHTML = `Found <strong>${results.length}</strong> record(s)`;
+
+            if (results.length === 0) {
+                document.getElementById('queryResultsTable').innerHTML = '<p style="color: var(--text-secondary);">No results found</p>';
+                return;
+            }
+
+            document.getElementById('queryResultsTable').innerHTML = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Key</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${results.map(r => `
+                            <tr>
+                                <td class="key-cell">${escapeHtml(formatValue(r.key))}</td>
+                                <td class="value-cell">${escapeHtml(formatValue(r.value))}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // Schema View
+        function updateSchemaView() {
+            const contentEl = document.getElementById('schemaContent');
+
+            if (!currentDb) {
+                contentEl.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📊</div>
+                        <h3>No Schema to Display</h3>
+                        <p>Select a database to view its schema</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const stores = Array.from(currentDb.objectStoreNames);
+
+            if (stores.length === 0) {
+                contentEl.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">${escapeHtml(currentDb.name)} (v${currentDb.version})</div>
+                        <p style="color: var(--text-secondary);">No object stores defined</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div class="card">
+                    <div class="card-header">
+                        ${escapeHtml(currentDb.name)}
+                        <span class="badge badge-success">v${currentDb.version}</span>
+                    </div>
+            `;
+
+            try {
+                const tx = currentDb.transaction(stores, 'readonly');
+
+                stores.forEach(storeName => {
+                    const store = tx.objectStore(storeName);
+                    const indexes = Array.from(store.indexNames);
+
+                    html += `
+                        <div class="tree-item">
+                            <div class="tree-item-header">
+                                <span>📦</span>
+                                <strong>${escapeHtml(storeName)}</strong>
+                                <span style="color: var(--text-secondary); font-size: 0.8rem;">
+                                    keyPath: ${store.keyPath || 'none'}
+                                    ${store.autoIncrement ? '| autoIncrement' : ''}
+                                </span>
+                            </div>
+                            ${indexes.length > 0 ? `
+                                <div class="tree-item-children">
+                                    ${indexes.map(indexName => {
+                                        const index = store.index(indexName);
+                                        return `
+                                            <div class="tree-item">
+                                                <span style="color: var(--success);">🔍 ${escapeHtml(indexName)}</span>
+                                                <span style="color: var(--text-secondary); font-size: 0.8rem;">
+                                                    → ${index.keyPath}
+                                                    ${index.unique ? '(unique)' : ''}
+                                                    ${index.multiEntry ? '(multi)' : ''}
+                                                </span>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                log(`Error building schema view: ${err.message}`, 'error');
+            }
+
+            html += '</div>';
+            contentEl.innerHTML = html;
+        }
+
+        // Import/Export
+        async function exportData() {
+            if (!currentDb) {
+                log('No database selected', 'error');
+                return;
+            }
+
+            const scope = document.getElementById('exportScope').value;
+            const format = document.getElementById('exportFormat').value;
+
+            try {
+                let data = {};
+
+                if (scope === 'store' && currentStoreName) {
+                    const tx = currentDb.transaction(currentStoreName, 'readonly');
+                    const store = tx.objectStore(currentStoreName);
+                    data[currentStoreName] = await cursorToArray(store.openCursor());
+                } else {
+                    const stores = Array.from(currentDb.objectStoreNames);
+                    const tx = currentDb.transaction(stores, 'readonly');
+
+                    for (const storeName of stores) {
+                        const store = tx.objectStore(storeName);
+                        data[storeName] = await cursorToArray(store.openCursor());
+                    }
+                }
+
+                let content, filename, type;
+
+                if (format === 'json') {
+                    content = JSON.stringify(data, null, 2);
+                    filename = `${currentDbName}-export.json`;
+                    type = 'application/json';
+                } else {
+                    // CSV - flatten first store's data
+                    const firstStore = Object.keys(data)[0];
+                    const records = data[firstStore] || [];
+
+                    if (records.length === 0) {
+                        log('No data to export', 'warn');
+                        return;
+                    }
+
+                    const headers = ['key', ...Object.keys(records[0].value || {})];
+                    const rows = records.map(r => {
+                        return [r.key, ...headers.slice(1).map(h => r.value?.[h] ?? '')].map(v =>
+                            typeof v === 'string' ? `"${v.replace(/"/g, '""')}"` : v
+                        ).join(',');
+                    });
+
+                    content = [headers.join(','), ...rows].join('\n');
+                    filename = `${currentDbName}-export.csv`;
+                    type = 'text/csv';
+                }
+
+                const blob = new Blob([content], { type });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                log(`Exported data to ${filename}`, 'info');
+            } catch (err) {
+                log(`Export error: ${err.message}`, 'error');
+            }
+        }
+
+        async function importData() {
+            if (!currentDb || !currentStoreName) {
+                log('Select a database and object store first', 'error');
+                return;
+            }
+
+            const dataInput = document.getElementById('importData').value.trim();
+            const clearFirst = document.getElementById('clearBeforeImport').checked;
+
+            if (!dataInput) {
+                log('Enter data to import', 'error');
+                return;
+            }
+
+            let records;
+            try {
+                records = JSON.parse(dataInput);
+                if (!Array.isArray(records)) {
+                    records = [records];
+                }
+            } catch {
+                log('Invalid JSON', 'error');
+                return;
+            }
+
+            try {
+                const tx = currentDb.transaction(currentStoreName, 'readwrite');
+                const store = tx.objectStore(currentStoreName);
+
+                if (clearFirst) {
+                    await promisifyRequest(store.clear());
+                }
+
+                let imported = 0;
+                for (const record of records) {
+                    if (record.key !== undefined && record.value !== undefined) {
+                        // Import format from export
+                        if (store.keyPath) {
+                            await promisifyRequest(store.put(record.value));
+                        } else {
+                            await promisifyRequest(store.put(record.value, record.key));
+                        }
+                    } else {
+                        // Plain objects
+                        await promisifyRequest(store.put(record));
+                    }
+                    imported++;
+                }
+
+                log(`Imported ${imported} record(s)`, 'info');
+                loadRecords();
+                document.getElementById('importData').value = '';
+            } catch (err) {
+                log(`Import error: ${err.message}`, 'error');
+            }
+        }
+
+        // Tab Navigation
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+                tab.classList.add('active');
+                document.getElementById(`${tabName}-panel`).classList.add('active');
+            });
+        });
+
+        // Close modals on overlay click
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('active');
+                }
+            });
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+            }
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            log('IndexedDB Playground initialized', 'info');
+            log(`Browser: ${navigator.userAgent.split(' ').pop()}`, 'debug');
+
+            // Check IndexedDB support
+            if (!window.indexedDB) {
+                log('IndexedDB is not supported in this browser', 'error');
+                return;
+            }
+
+            // Check for databases() support
+            if (!indexedDB.databases) {
+                log('indexedDB.databases() not supported - some features may be limited', 'warn');
+            }
+
+            refreshDatabases();
+        });
+    </script>
+</body>
+</html>
