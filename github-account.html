@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GitHub Account Info Lookup</title>
+  <title>GitHub account lookup</title>
   <style>
     :root {
       --bg: #0f172a; /* slate-900 */
@@ -31,8 +31,27 @@
     }
     h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: 0.3px; }
     p.sub { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
-    form { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin: 12px 0 8px; }
-    label { display: none; }
+    form { display: grid; gap: 12px; margin: 12px 0 8px; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .mode-control {
+      display: inline-grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;
+      padding: 4px; border-radius: 12px; border: 1px solid rgba(148,163,184,0.25);
+      background: #0b1220; width: min(100%, 320px);
+    }
+    .mode-control input { position: absolute; opacity: 0; pointer-events: none; }
+    .mode-control label {
+      display: flex; align-items: center; justify-content: center; min-height: 36px;
+      padding: 8px 12px; border-radius: 8px; border: 1px solid transparent;
+      color: var(--muted); cursor: pointer; font-size: 14px; font-weight: 600;
+    }
+    .mode-control input:checked + label {
+      background: rgba(34,211,238,0.14); border-color: rgba(34,211,238,0.35); color: var(--text);
+    }
+    .mode-control input:focus-visible + label { box-shadow: 0 0 0 3px rgba(34,211,238,0.2); }
+    .lookup-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; }
     input[type="text"] {
       appearance: none; -webkit-appearance: none;
       width: 100%; padding: 14px 14px; border-radius: 12px; border: 1px solid rgba(148,163,184,0.25);
@@ -61,17 +80,29 @@
     .footer { margin-top: 12px; font-size: 12px; color: var(--muted); }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
+    @media (max-width: 520px) {
+      .lookup-row { grid-template-columns: 1fr; }
+      button { width: 100%; }
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>GitHub Account Info</h1>
-    <p class="sub">Enter a GitHub username to get its numeric <strong>Account ID</strong> and <strong>Creation Date</strong> via the public GitHub API.</p>
+    <h1>GitHub account lookup</h1>
+    <p class="sub">Look up account details by GitHub username or by numeric account ID.</p>
 
     <form id="lookup-form" autocomplete="off">
-      <label for="username">GitHub username</label>
-      <input id="username" name="username" type="text" inputmode="latin" pattern="[A-Za-z0-9-]+" placeholder="e.g. torvalds" required />
-      <button id="submit-btn" type="submit">Lookup</button>
+      <div class="mode-control" role="radiogroup" aria-label="Lookup type">
+        <input id="lookup-username" name="lookup-type" type="radio" value="username" checked />
+        <label for="lookup-username">Username</label>
+        <input id="lookup-account-id" name="lookup-type" type="radio" value="id" />
+        <label for="lookup-account-id">Account ID</label>
+      </div>
+      <div class="lookup-row">
+        <label id="lookup-label" class="sr-only" for="username">GitHub username</label>
+        <input id="username" name="username" type="text" inputmode="latin" pattern="[A-Za-z0-9-]+" placeholder="e.g. torvalds or 9599" required />
+        <button id="submit-btn" type="submit">Lookup</button>
+      </div>
     </form>
 
     <div id="result" class="result" role="status" aria-live="polite">
@@ -86,6 +117,11 @@
     const result = document.getElementById('result');
     const submitBtn = document.getElementById('submit-btn');
     const input = document.getElementById('username');
+    const lookupLabel = document.getElementById('lookup-label');
+    const usernameMode = document.getElementById('lookup-username');
+    const accountIdMode = document.getElementById('lookup-account-id');
+    const modeInputs = document.querySelectorAll('input[name="lookup-type"]');
+    const RATE_LIMIT_STORAGE_KEY = 'github-account-rate-limit-reset';
 
     function formatDate(iso) {
       try {
@@ -97,30 +133,162 @@
       } catch { return iso; }
     }
 
-    function sanitize(text) { return text.replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+    function sanitize(text) { return String(text).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
 
     function setLoading(isLoading) {
       submitBtn.disabled = isLoading;
       submitBtn.textContent = isLoading ? 'Looking…' : 'Lookup';
     }
 
-    async function lookup(username) {
-      const url = `https://api.github.com/users/${encodeURIComponent(username)}`;
+    function getStoredRateLimitReset() {
+      let stored;
+      try {
+        stored = Number(localStorage.getItem(RATE_LIMIT_STORAGE_KEY));
+      } catch {
+        return null;
+      }
+      if (!Number.isFinite(stored) || stored <= Date.now()) {
+        try {
+          localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
+        } catch {}
+        return null;
+      }
+      return new Date(stored);
+    }
+
+    function getRateLimitResetFromResponse(resp) {
+      const retryAfter = Number(resp.headers.get('Retry-After'));
+      if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        return new Date(Date.now() + retryAfter * 1000);
+      }
+
+      const reset = Number(resp.headers.get('X-RateLimit-Reset'));
+      if (Number.isFinite(reset) && reset > 0) {
+        const resetAt = new Date(reset * 1000);
+        return resetAt.getTime() > Date.now() ? resetAt : null;
+      }
+
+      return null;
+    }
+
+    function rememberRateLimit(resetAt) {
+      if (resetAt && resetAt.getTime() > Date.now()) {
+        try {
+          localStorage.setItem(RATE_LIMIT_STORAGE_KEY, String(resetAt.getTime()));
+        } catch {}
+      }
+    }
+
+    function formatReset(resetAt) {
+      if (!resetAt) return 'later';
+      return resetAt.toLocaleTimeString([], {
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      });
+    }
+
+    function showRateLimitMessage(resetAt) {
+      result.innerHTML = `<div class="error">GitHub API rate limit reached. Try again after ${sanitize(formatReset(resetAt))}.</div>`;
+    }
+
+    function getLookupType() {
+      return accountIdMode.checked ? 'id' : 'username';
+    }
+
+    function setLookupType(type) {
+      accountIdMode.checked = type === 'id';
+      usernameMode.checked = type !== 'id';
+      updateInputForLookupType();
+    }
+
+    function updateInputForLookupType() {
+      if (getLookupType() === 'id') {
+        lookupLabel.textContent = 'GitHub account ID';
+        input.name = 'id';
+        input.inputMode = 'numeric';
+        input.pattern = '\\d+';
+        input.placeholder = 'e.g. 583231';
+        input.title = 'Enter a numeric GitHub account ID';
+      } else {
+        lookupLabel.textContent = 'GitHub username';
+        input.name = 'username';
+        input.inputMode = 'latin';
+        input.pattern = '[A-Za-z0-9-]+';
+        input.placeholder = 'e.g. torvalds or 9599';
+        input.title = 'Enter a GitHub username';
+      }
+    }
+
+    function parseLookup(value, type = getLookupType()) {
+      const trimmed = value.trim();
+      return {
+        value: trimmed,
+        type,
+        label: type === 'id' ? 'Account ID' : 'User',
+        apiPath: type === 'id' ? `/user/${encodeURIComponent(trimmed)}` : `/users/${encodeURIComponent(trimmed)}`
+      };
+    }
+
+    function updateUrl(lookupInfo) {
+      const url = new URL(location.href);
+      url.searchParams.delete('username');
+      url.searchParams.delete('account_id');
+      url.searchParams.delete('id');
+      url.searchParams.set(lookupInfo.type, lookupInfo.value);
+      history.replaceState(null, '', url);
+    }
+
+    function getInitialLookup() {
+      const params = new URLSearchParams(location.search);
+      const accountId = params.get('id');
+      if (accountId) {
+        return parseLookup(accountId, 'id');
+      }
+
+      const username = params.get('username');
+      if (username) {
+        return parseLookup(username, 'username');
+      }
+
+      return null;
+    }
+
+    async function readGitHubError(resp) {
+      const text = await resp.text();
+      try {
+        const data = JSON.parse(text);
+        return data.message || text;
+      } catch {
+        return text;
+      }
+    }
+
+    async function lookup(lookupInfo) {
+      const url = `https://api.github.com${lookupInfo.apiPath}`;
       const headers = { 'Accept': 'application/vnd.github+json' };
       const started = Date.now();
       try {
         const resp = await fetch(url, { headers });
         const elapsed = Date.now() - started;
         if (resp.status === 404) {
-          result.innerHTML = `<span class="error">User not found.</span>`;
+          result.innerHTML = `<span class="error">${lookupInfo.label} not found.</span>`;
           return;
         }
-        if (resp.status === 403) {
-          // Likely rate limit when unauthenticated
-          const rem = resp.headers.get('X-RateLimit-Remaining');
-          const reset = resp.headers.get('X-RateLimit-Reset');
-          const resetAt = reset ? new Date(parseInt(reset, 10) * 1000) : null;
-          result.innerHTML = `<div class="error">Request blocked (403). You may have hit the unauthenticated rate limit${rem === '0' ? ' (0 requests remaining)' : ''}. Try again later${resetAt ? ` (~${resetAt.toLocaleTimeString()} local)` : ''} or run this page with a GitHub token added as an <code>Authorization</code> header.</div>`;
+        if (resp.status === 403 || resp.status === 429) {
+          const message = await readGitHubError(resp);
+          const remaining = resp.headers.get('X-RateLimit-Remaining');
+          const resetAt = getRateLimitResetFromResponse(resp);
+          const isRateLimit = resp.status === 429 || remaining === '0' || /rate limit/i.test(message);
+
+          if (isRateLimit) {
+            const cooldownUntil = resetAt || new Date(Date.now() + 60 * 1000);
+            rememberRateLimit(cooldownUntil);
+            showRateLimitMessage(cooldownUntil);
+            return;
+          }
+
+          result.innerHTML = `<div class="error">Request blocked (${resp.status}). ${sanitize(message).slice(0, 240)}</div>`;
           return;
         }
         if (!resp.ok) {
@@ -131,9 +299,12 @@
         const data = await resp.json();
         const created = formatDate(data.created_at);
         const avatar = sanitize(data.avatar_url || '');
-        const htmlUrl = sanitize(data.html_url || `https://github.com/${username}`);
         const name = sanitize(data.name || '');
-        const login = sanitize(data.login || username);
+        const login = sanitize(data.login || lookupInfo.value);
+        const htmlUrl = sanitize(data.html_url || (data.login ? `https://github.com/${data.login}` : ''));
+        const accountLink = htmlUrl
+          ? `<a href="${htmlUrl}" target="_blank" rel="noreferrer noopener">${name || login}</a>`
+          : `${name || login}`;
 
         result.innerHTML = `
           <div class="row">
@@ -141,7 +312,7 @@
             <div class="value flex">
               <img class="avatar" src="${avatar}" alt="Avatar of ${login}" />
               <div>
-                <div><a href="${htmlUrl}" target="_blank" rel="noreferrer noopener">${name || login}</a></div>
+                <div>${accountLink}</div>
                 <div class="muted">@${login}</div>
               </div>
             </div>
@@ -164,20 +335,44 @@
       }
     }
 
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const username = input.value.trim();
-      if (!username) return;
+    async function runLookup(lookupInfo, { shouldUpdateUrl = true } = {}) {
+      if (!lookupInfo.value) return;
+      if (shouldUpdateUrl) {
+        updateUrl(lookupInfo);
+      }
+
+      const resetAt = getStoredRateLimitReset();
+      if (resetAt) {
+        showRateLimitMessage(resetAt);
+        return;
+      }
+
       setLoading(true);
       result.innerHTML = '<span class="muted">Fetching…</span>';
-      lookup(username).finally(() => setLoading(false));
+      try {
+        await lookup(lookupInfo);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      runLookup(parseLookup(input.value));
     });
 
-    // Convenience: run an initial demo on load
+    modeInputs.forEach((modeInput) => {
+      modeInput.addEventListener('change', updateInputForLookupType);
+    });
+
     window.addEventListener('DOMContentLoaded', () => {
-      if (!input.value) {
-        input.value = 'octocat';
-        form.dispatchEvent(new Event('submit'));
+      const lookupInfo = getInitialLookup();
+      if (lookupInfo) {
+        setLookupType(lookupInfo.type);
+        input.value = lookupInfo.value;
+        runLookup(lookupInfo, { shouldUpdateUrl: false });
+      } else {
+        updateInputForLookupType();
       }
     });
   </script>
