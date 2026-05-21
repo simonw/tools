@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curly Quote and Em Dash Highlighter</title>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+  line-height: 1.5;
+  background: #f6f7f9;
+  color: #24292f;
+}
+
+h1 {
+  margin: 0 0 6px;
+  color: #111827;
+}
+
+.description {
+  margin: 0 0 18px;
+  color: #5f6b7a;
+}
+
+.tool {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.panel {
+  background: white;
+  border: 1px solid #d8dee4;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(27, 31, 36, 0.06);
+}
+
+.panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.panel h2 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.count {
+  color: #5f6b7a;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+textarea,
+.preview {
+  width: 100%;
+  min-height: 380px;
+  border: 1px solid #cfd7df;
+  border-radius: 6px;
+  padding: 12px;
+  font: 16px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+textarea {
+  display: block;
+  resize: vertical;
+}
+
+.preview {
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #fbfcfd;
+}
+
+.preview.empty {
+  color: #7b8794;
+}
+
+.mark {
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 700;
+}
+
+.mark.quote {
+  background: #fff1a8;
+  color: #5c4200;
+}
+
+.mark.apostrophe {
+  background: #c8f7dc;
+  color: #0f5132;
+}
+
+.mark.dash {
+  background: #ffd6d6;
+  color: #842029;
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d8dee4;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: white;
+  font-size: 14px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.swatch.quote {
+  background: #fff1a8;
+}
+
+.swatch.apostrophe {
+  background: #c8f7dc;
+}
+
+.swatch.dash {
+  background: #ffd6d6;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+button {
+  appearance: none;
+  border: 1px solid #0969da;
+  border-radius: 6px;
+  background: #0969da;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 12px;
+}
+
+button.secondary {
+  background: white;
+  color: #0969da;
+}
+
+button:hover {
+  filter: brightness(0.95);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 760px) {
+  body {
+    padding: 14px;
+  }
+
+  .tool {
+    grid-template-columns: 1fr;
+  }
+
+  textarea,
+  .preview {
+    min-height: 260px;
+  }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Curly Quote and Em Dash Highlighter</h1>
+  <p class="description">Paste text to spot curly quotes, curly apostrophes, and em dash characters.</p>
+
+  <div class="summary" aria-live="polite">
+    <span class="badge"><span class="swatch quote"></span> Curly quotes: <strong id="quoteCount">0</strong></span>
+    <span class="badge"><span class="swatch apostrophe"></span> Curly apostrophes: <strong id="apostropheCount">0</strong></span>
+    <span class="badge"><span class="swatch dash"></span> Em dashes: <strong id="dashCount">0</strong></span>
+    <span class="badge">Total matches: <strong id="totalCount">0</strong></span>
+  </div>
+
+  <section class="tool">
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Input</h2>
+        <span class="count"><span id="charCount">0</span> characters</span>
+      </div>
+      <textarea id="input" placeholder="Paste text here..." autofocus></textarea>
+      <div class="actions">
+        <button id="clearButton" class="secondary" type="button">Clear</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Highlighted Text</h2>
+        <span class="count" id="status">No matches</span>
+      </div>
+      <pre id="preview" class="preview empty">Highlighted text will appear here.</pre>
+    </div>
+  </section>
+</main>
+
+<script>
+const input = document.getElementById('input');
+const preview = document.getElementById('preview');
+const charCount = document.getElementById('charCount');
+const quoteCount = document.getElementById('quoteCount');
+const apostropheCount = document.getElementById('apostropheCount');
+const dashCount = document.getElementById('dashCount');
+const totalCount = document.getElementById('totalCount');
+const status = document.getElementById('status');
+const clearButton = document.getElementById('clearButton');
+
+const characterTypes = new Map([
+  ['\u201c', 'quote'],
+  ['\u201d', 'quote'],
+  ['\u201e', 'quote'],
+  ['\u201f', 'quote'],
+  ['\u2018', 'apostrophe'],
+  ['\u2019', 'apostrophe'],
+  ['\u201a', 'apostrophe'],
+  ['\u201b', 'apostrophe'],
+  ['\u2014', 'dash']
+]);
+
+function labelForCount(count, singular, plural) {
+  return count === 1 ? singular : plural;
+}
+
+function updatePreview() {
+  const text = input.value;
+  const counts = {
+    quote: 0,
+    apostrophe: 0,
+    dash: 0
+  };
+
+  charCount.textContent = text.length.toLocaleString();
+  preview.textContent = '';
+
+  if (!text) {
+    preview.classList.add('empty');
+    preview.textContent = 'Highlighted text will appear here.';
+    quoteCount.textContent = '0';
+    apostropheCount.textContent = '0';
+    dashCount.textContent = '0';
+    totalCount.textContent = '0';
+    status.textContent = 'No matches';
+    return;
+  }
+
+  preview.classList.remove('empty');
+  const fragment = document.createDocumentFragment();
+
+  for (const char of text) {
+    const type = characterTypes.get(char);
+
+    if (!type) {
+      fragment.append(document.createTextNode(char));
+      continue;
+    }
+
+    counts[type] += 1;
+
+    const mark = document.createElement('span');
+    mark.className = `mark ${type}`;
+    mark.textContent = char;
+    fragment.append(mark);
+  }
+
+  preview.append(fragment);
+
+  const total = counts.quote + counts.apostrophe + counts.dash;
+  quoteCount.textContent = counts.quote.toLocaleString();
+  apostropheCount.textContent = counts.apostrophe.toLocaleString();
+  dashCount.textContent = counts.dash.toLocaleString();
+  totalCount.textContent = total.toLocaleString();
+  status.textContent = total
+    ? `${total.toLocaleString()} ${labelForCount(total, 'match', 'matches')}`
+    : 'No matches';
+}
+
+input.addEventListener('input', updatePreview);
+
+clearButton.addEventListener('click', () => {
+  input.value = '';
+  input.focus();
+  updatePreview();
+});
+
+updatePreview();
+</script>
+</body>
+</html>
