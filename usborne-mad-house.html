@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Mad House — Usborne Creepy Computer Games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --phosphor: #4dff6e;
+    --phosphor-dim: #1e7a30;
+    --phosphor-deep: #0a3013;
+    --phosphor-glow: rgba(77, 255, 110, 0.45);
+    --danger: #ff5a3c;
+    --bg: #050807;
+    --bg-screen: #08120a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--phosphor);
+    font-family: 'VT323', 'Courier New', monospace;
+    min-height: 100vh;
+    min-height: 100dvh;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* CRT scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(0,0,0,0.22) 3px,
+      rgba(0,0,0,0.22) 4px
+    );
+    z-index: 1000;
+    mix-blend-mode: multiply;
+  }
+
+  /* Subtle vignette */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%);
+    z-index: 999;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 12px max(20px, env(safe-area-inset-bottom)) 12px;
+    text-shadow: 0 0 4px var(--phosphor-glow), 0 0 12px rgba(77, 255, 110, 0.25);
+    user-select: none;
+    -webkit-user-select: none;
+    position: relative;
+    gap: 14px;
+  }
+
+  .marquee {
+    width: 100%;
+    max-width: 640px;
+    text-align: center;
+    border-top: 1px solid var(--phosphor-dim);
+    border-bottom: 1px solid var(--phosphor-dim);
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    letter-spacing: 0.35em;
+    color: var(--phosphor-dim);
+    text-transform: uppercase;
+  }
+
+  .title {
+    font-size: clamp(2.4rem, 11vw, 3.6rem);
+    font-weight: normal;
+    letter-spacing: 0.18em;
+    text-align: center;
+    line-height: 1;
+    margin: 4px 0 -2px;
+    color: var(--phosphor);
+    text-shadow:
+      0 0 8px var(--phosphor),
+      0 0 24px var(--phosphor-glow),
+      2px 0 0 rgba(255, 30, 30, 0.35),
+      -2px 0 0 rgba(30, 200, 255, 0.25);
+    animation: flicker 4s infinite;
+  }
+
+  @keyframes flicker {
+    0%, 96%, 100% { opacity: 1; }
+    97% { opacity: 0.85; }
+    98% { opacity: 1; }
+    99% { opacity: 0.92; }
+  }
+
+  .tagline {
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: 0.75rem;
+    color: var(--phosphor-dim);
+    text-align: center;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+
+  /* The CRT screen */
+  .screen {
+    width: 100%;
+    max-width: 640px;
+    border: 2px solid var(--phosphor-dim);
+    border-radius: 14px;
+    padding: 14px 10px 10px;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(77, 255, 110, 0.08), transparent 60%),
+      var(--bg-screen);
+    box-shadow:
+      inset 0 0 40px rgba(77, 255, 110, 0.12),
+      inset 0 0 8px rgba(0,0,0,0.6),
+      0 0 28px rgba(77, 255, 110, 0.18),
+      0 0 1px var(--phosphor);
+    position: relative;
+  }
+
+  .screen::before {
+    content: '● REC';
+    position: absolute;
+    top: 4px;
+    right: 12px;
+    font-size: 0.65rem;
+    color: var(--danger);
+    text-shadow: 0 0 6px var(--danger);
+    letter-spacing: 0.15em;
+    opacity: 0.7;
+  }
+
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.85rem;
+    padding: 0 4px 6px;
+    border-bottom: 1px dashed var(--phosphor-dim);
+    margin-bottom: 8px;
+    letter-spacing: 0.1em;
+  }
+
+  .hud .label { color: var(--phosphor-dim); font-size: 0.75rem; }
+  .hud .value { font-size: 1.4rem; color: var(--phosphor); }
+  .hud .value.low { color: var(--danger); text-shadow: 0 0 8px var(--danger); animation: pulse 0.6s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  #display {
+    font-family: 'VT323', 'Courier New', monospace;
+    font-size: clamp(0.95rem, 4.2vw, 1.5rem);
+    line-height: 1.05;
+    white-space: pre;
+    color: var(--phosphor);
+    margin: 0;
+    text-align: center;
+    overflow: hidden;
+    letter-spacing: 0.02em;
+  }
+
+  .status {
+    margin-top: 10px;
+    padding: 6px 8px;
+    text-align: center;
+    min-height: 1.8em;
+    font-size: 1.1rem;
+    color: var(--phosphor);
+    letter-spacing: 0.05em;
+    border-top: 1px dashed var(--phosphor-dim);
+  }
+  .status.win {
+    color: var(--phosphor);
+    animation: pulse 0.4s infinite;
+    font-size: 1.4rem;
+  }
+  .status.lose {
+    color: var(--danger);
+    text-shadow: 0 0 8px var(--danger);
+    font-size: 1.2rem;
+  }
+
+  .controls {
+    width: 100%;
+    max-width: 640px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .pad {
+    background: rgba(77, 255, 110, 0.04);
+    border: 1px solid var(--phosphor-dim);
+    border-radius: 10px;
+    padding: 10px 8px 12px;
+    position: relative;
+  }
+
+  .pad-label {
+    font-size: 0.8rem;
+    color: var(--phosphor-dim);
+    text-align: center;
+    margin-bottom: 8px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .pad-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  button {
+    flex: 1;
+    background: transparent;
+    color: var(--phosphor);
+    border: 2px solid var(--phosphor);
+    font-family: 'VT323', 'Courier New', monospace;
+    font-size: 1.5rem;
+    padding: 14px 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 0.12em;
+    text-shadow: 0 0 6px var(--phosphor-glow);
+    transition: all 0.08s ease-out;
+    min-height: 58px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  button::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent, rgba(77, 255, 110, 0.08));
+    pointer-events: none;
+  }
+
+  button:active, button.active {
+    background: var(--phosphor);
+    color: #000;
+    text-shadow: none;
+    box-shadow: 0 0 18px var(--phosphor), inset 0 0 8px rgba(0,0,0,0.3);
+    transform: translateY(1px);
+  }
+
+  .start-btn {
+    width: 100%;
+    max-width: 640px;
+    padding: 16px;
+    font-size: 1.25rem;
+    letter-spacing: 0.25em;
+    border-style: double;
+    border-width: 4px;
+  }
+
+  .info {
+    width: 100%;
+    max-width: 640px;
+    border: 1px solid var(--phosphor-dim);
+    padding: 12px 14px;
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--phosphor);
+    background: rgba(77, 255, 110, 0.03);
+    border-radius: 4px;
+  }
+  .info h3 {
+    font-family: 'VT323', monospace;
+    font-size: 1.1rem;
+    letter-spacing: 0.15em;
+    color: var(--phosphor-dim);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .info p { margin-bottom: 6px; }
+  .info kbd {
+    font-family: 'VT323', monospace;
+    background: var(--phosphor-deep);
+    border: 1px solid var(--phosphor-dim);
+    padding: 0 5px;
+    border-radius: 3px;
+    color: var(--phosphor);
+    font-size: 0.95rem;
+  }
+
+  .credit {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 4px;
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: 0.75rem;
+    color: var(--phosphor-dim);
+    text-align: center;
+    line-height: 1.6;
+    padding: 8px;
+  }
+  .credit em { color: var(--phosphor); font-style: italic; }
+  .credit a {
+    color: var(--phosphor);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--phosphor);
+    word-break: break-all;
+  }
+  .credit a:hover, .credit a:active {
+    background: var(--phosphor);
+    color: #000;
+    text-shadow: none;
+  }
+
+  @media (min-width: 640px) {
+    .title { font-size: 4.2rem; }
+  }
+
+  @media (max-width: 360px) {
+    .pad-label { font-size: 0.7rem; letter-spacing: 0.1em; }
+    button { font-size: 1.2rem; min-height: 52px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="marquee">▓░ Usborne Computer Books · 1983 ░▓</div>
+
+<h1 class="title">MAD HOUSE</h1>
+
+<div class="tagline">— a real nightmare —</div>
+
+<div class="screen" id="screen">
+  <div class="hud">
+    <span><span class="label">FOOTSTEPS</span> <span class="value" id="counter">240</span></span>
+    <span><span class="label">DOORS</span> <span class="value" id="align">3</span></span>
+  </div>
+  <pre id="display"></pre>
+  <div class="status" id="status">PRESS START TO BEGIN</div>
+</div>
+
+<div class="controls">
+  <div class="pad">
+    <div class="pad-label">Near Door ▲</div>
+    <div class="pad-row">
+      <button data-key="x" aria-label="Near door left">◄ X</button>
+      <button data-key="c" aria-label="Near door right">C ►</button>
+    </div>
+  </div>
+  <div class="pad">
+    <div class="pad-label">Far Door ▼</div>
+    <div class="pad-row">
+      <button data-key="n" aria-label="Far door left">◄ N</button>
+      <button data-key="m" aria-label="Far door right">M ►</button>
+    </div>
+  </div>
+</div>
+
+<button id="restart" class="start-btn">▶ START / RESTART</button>
+
+<div class="info">
+  <h3>How to escape</h3>
+  <p>You're trapped in a weird house where everything moves — including the walls. If three doorways line up, even for a moment, you can dash for freedom.</p>
+  <p>The console controls the doorway <em>nearest</em> you (<kbd>X</kbd>/<kbd>C</kbd>) and the one <em>furthest</em> from you (<kbd>N</kbd>/<kbd>M</kbd>). The centre doorway has a mind of its own.</p>
+  <p>Footsteps are pounding down the corridor behind you. If they catch up before you escape… <em>agghhhh!</em></p>
+</div>
+
+<div class="credit">
+  Faithfully recreated from <em>Creepy Computer Games</em> (Usborne, 1983).<br>
+  Mad House by Keith Campbell, illustrated by Rob McCaig.<br>
+  <a href="https://usborne.com/us/books/computer-and-coding-books" target="_blank" rel="noopener">usborne.com/us/books/computer-and-coding-books</a>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ─── Game constants (faithful to the original listing) ──────────────────
+  const W = 31;                // screen width
+  const DOOR_GAP = 3;          // "> <"
+  const MAX_POS = W - 4;       // 27 — max P value (clamped in original line 360)
+  const MIN_POS = 1;
+  const ROWS = 15;             // walls at rows 5, 10, 15
+  const START_COUNTER = 240;
+  const MIDDLE_RANDOM_INTERVAL = 25;
+  const TICK_MS = 130;         // tuned for playability — ZX81 was much slower
+
+  // ─── DOM refs ───────────────────────────────────────────────────────────
+  const display = document.getElementById('display');
+  const statusEl = document.getElementById('status');
+  const counterEl = document.getElementById('counter');
+  const alignEl = document.getElementById('align');
+  const restartBtn = document.getElementById('restart');
+
+  // ─── Game state ─────────────────────────────────────────────────────────
+  let positions = [1, 1, 1];    // P(1), P(2), P(3) — 1-indexed like the BASIC
+  let directions = [1, 0, -1];  // S(1), (unused), S(3)
+  let counter = START_COUNTER;
+  let running = false;
+  let ended = false;
+  let tickHandle = null;
+
+  // ─── Render helpers ─────────────────────────────────────────────────────
+  function emptyRow() { return ' '.repeat(W); }
+
+  function wallRow(pos) {
+    // Original BASIC PRINT AT row, pos; "> <"  — with screen col 0 = leftmost.
+    // We treat pos as 0-indexed offset in our array; in the original P=1..27,
+    // so we use indices [pos, pos+1, pos+2] for '>', ' ', '<'.
+    const chars = new Array(W).fill('*');
+    chars[pos]     = '>';
+    chars[pos + 1] = ' ';
+    chars[pos + 2] = '<';
+    return chars.join('');
+  }
+
+  function render(overlay) {
+    // overlay = { col: number, throughRow: number }  (for dash anim) or null
+    const lines = [];
+    for (let r = 1; r <= ROWS; r++) {
+      let line;
+      if (r === 5 || r === 10 || r === 15) {
+        const idx = (r / 5) - 1;
+        line = wallRow(positions[idx]);
+      } else {
+        line = emptyRow();
+      }
+      if (overlay && r <= overlay.throughRow) {
+        const arr = line.split('');
+        arr[overlay.col] = 'M';
+        line = arr.join('');
+      }
+      lines.push(line);
+    }
+    display.textContent = lines.join('\n');
+
+    // HUD
+    counterEl.textContent = Math.max(0, counter);
+    counterEl.classList.toggle('low', counter <= 30 && running);
+
+    // "doors-aligned" indicator: how many distinct positions
+    const unique = new Set(positions).size;
+    const aligned = 4 - unique; // 1 unique => 3 aligned; 3 unique => 1 aligned
+    alignEl.textContent = unique === 1 ? '★★★' : unique === 2 ? '◆◆ ' : '◆  ';
+  }
+
+  function clamp(p) {
+    if (p < MIN_POS) return MIN_POS;
+    if (p > MAX_POS) return MAX_POS;
+    return p;
+  }
+
+  // ─── Main loop (mirrors lines 170–380 of the original) ──────────────────
+  function tick() {
+    if (!running) return;
+
+    // Line 220 — out of time?
+    if (counter < 0) { endGame(false); return; }
+
+    // Line 230 — all three doorways line up?
+    if (positions[0] === positions[1] && positions[1] === positions[2]) {
+      endGame(true);
+      return;
+    }
+
+    // Line 300 — middle doorway jumps every 25 footsteps
+    if (counter % MIDDLE_RANDOM_INTERVAL === 0) {
+      positions[1] = clamp(positions[1] + Math.floor(Math.random() * 20) - 10);
+    }
+
+    // Line 310 — decrement counter
+    counter--;
+
+    // Lines 320–370 — move + clamp doors
+    positions[0] = clamp(positions[0] + directions[0]);
+    positions[2] = clamp(positions[2] + directions[2]);
+
+    render();
+  }
+
+  // ─── End-game animations ────────────────────────────────────────────────
+  function endGame(won) {
+    running = false;
+    ended = true;
+    clearInterval(tickHandle);
+    tickHandle = null;
+
+    if (won) {
+      // Original: PRINT AT I, P(1)+1, "M" for I=1..15
+      // P(1) is the column of '>', so P(1)+1 is the middle gap.
+      const dashCol = positions[0] + 1;
+      let through = 0;
+      statusEl.textContent = '>>> DASHING THROUGH <<<';
+      statusEl.className = 'status';
+      const dashHandle = setInterval(() => {
+        through++;
+        render({ col: dashCol, throughRow: through });
+        if (through >= ROWS) {
+          clearInterval(dashHandle);
+          statusEl.textContent = '★ YOU ARE FREE !! ★';
+          statusEl.className = 'status win';
+        }
+      }, 55);
+    } else {
+      statusEl.innerHTML = 'TOO LATE! THE FOOTSTEPS HAVE STOPPED.<br>arghhh!!!';
+      statusEl.className = 'status lose';
+      // Garble the display slightly
+      const lines = display.textContent.split('\n').map(line => {
+        if (Math.random() < 0.4) {
+          return line.split('').map(c =>
+            c !== ' ' && Math.random() < 0.3 ? '?' : c
+          ).join('');
+        }
+        return line;
+      });
+      display.textContent = lines.join('\n');
+    }
+  }
+
+  // ─── New game ───────────────────────────────────────────────────────────
+  function newGame() {
+    if (tickHandle) clearInterval(tickHandle);
+    positions = [
+      Math.floor(Math.random() * MAX_POS) + 1,
+      Math.floor(Math.random() * MAX_POS) + 1,
+      Math.floor(Math.random() * MAX_POS) + 1
+    ];
+    directions = [1, 0, -1];
+    counter = START_COUNTER;
+    running = true;
+    ended = false;
+    statusEl.textContent = 'RUN! THEY ARE COMING...';
+    statusEl.className = 'status';
+    render();
+    tickHandle = setInterval(tick, TICK_MS);
+  }
+
+  // ─── Idle splash (before first start) ───────────────────────────────────
+  function splash() {
+    positions = [10, 16, 12];
+    render();
+    counterEl.textContent = '240';
+    alignEl.textContent = '◆  ';
+  }
+
+  // ─── Input ──────────────────────────────────────────────────────────────
+  function handleKey(k) {
+    if (!running) return;
+    if (k === 'x') directions[0] = -1;
+    else if (k === 'c') directions[0] = 1;
+    else if (k === 'n') directions[2] = -1;
+    else if (k === 'm') directions[2] = 1;
+  }
+
+  function flashBtn(k) {
+    const btn = document.querySelector(`button[data-key="${k}"]`);
+    if (btn) {
+      btn.classList.add('active');
+      setTimeout(() => btn.classList.remove('active'), 110);
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (['x', 'c', 'n', 'm'].includes(k)) {
+      e.preventDefault();
+      handleKey(k);
+      flashBtn(k);
+    } else if (k === ' ' || k === 'enter') {
+      e.preventDefault();
+      newGame();
+    }
+  });
+
+  document.querySelectorAll('button[data-key]').forEach(btn => {
+    const key = btn.dataset.key;
+    let handled = false;
+    const fire = (e) => {
+      e.preventDefault();
+      if (handled) return;
+      handled = true;
+      handleKey(key);
+      setTimeout(() => { handled = false; }, 60);
+    };
+    btn.addEventListener('pointerdown', fire);
+  });
+
+  restartBtn.addEventListener('click', newGame);
+  restartBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); newGame(); });
+
+  // Boot
+  splash();
+})();
+</script>
+</body>
+</html>
