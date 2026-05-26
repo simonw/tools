@@ -149,11 +149,11 @@ def build_index() -> None:
     body_html = md.convert(markdown_content)
 
     tools = _load_tools()
-    recently_added = _select_recent(tools, key="created", limit=5)
+    recently_added = _select_recent(tools, key="created", limit=10)
     added_slugs = [tool.get("slug") for tool in recently_added]
     tools_with_updates = [tool for tool in tools if _has_distinct_update(tool)]
     recently_updated = _select_recent(
-        tools_with_updates, key="updated", limit=5, exclude_slugs=added_slugs
+        tools_with_updates, key="updated", limit=10, exclude_slugs=added_slugs
     )
 
     recent_section_html = _render_recent_section(recently_added, recently_updated)
