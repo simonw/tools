@@ -216,26 +216,63 @@ body {
   </div>
 </div>
 
+<script
+  src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.1/dist/markdown-it.min.js"
+  integrity="sha384-VjNpj0uWy3ya2VFiHXeS6MxjLjWGb1mSZTNAF0xfbZguX+9CXmTkYSmOxEyUWJ9S"
+  crossorigin="anonymous"></script>
+<script
+  src="https://cdn.jsdelivr.net/npm/dompurify@3.3.3/dist/purify.min.js"
+  integrity="sha384-pcBjnGbkyKeOXaoFkmJiuR9E08/6gkmus6/Strimnxtl3uk0Hx23v345pWyC/MMr"
+  crossorigin="anonymous"></script>
+
 <script type="module">
 // ---- SVG tab web component ----
+function svgAspectRatio(svg) {
+  let ratio = "1 / 1";
+  const m = svg.match(/viewBox\s*=\s*["']([\d.\s-]+)["']/i);
+  if (m) {
+    const parts = m[1].trim().split(/\s+/).map(Number);
+    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+      ratio = `${parts[2]} / ${parts[3]}`;
+    }
+  } else {
+    const w = svg.match(/\bwidth\s*=\s*["']?([\d.]+)/i);
+    const h = svg.match(/\bheight\s*=\s*["']?([\d.]+)/i);
+    if (w && h && +h[1] > 0) ratio = `${+w[1]} / ${+h[1]}`;
+  }
+  return ratio;
+}
+
+function svgPreviewDocument(svg) {
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #fff;
+}
+svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+</style>
+</head>
+<body>${svg}</body>
+</html>`;
+}
+
 class SvgBlock extends HTMLElement {
   connectedCallback() {
+    if (this.shadowRoot) return;
+
     const code = this.getAttribute("data-svg") || "";
     const shadow = this.attachShadow({ mode: "open" });
-
-    // Parse SVG to find aspect ratio for sizing.
-    let ratio = "1 / 1";
-    const m = code.match(/viewBox\s*=\s*["']([\d.\s-]+)["']/i);
-    if (m) {
-      const parts = m[1].trim().split(/\s+/).map(Number);
-      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-        ratio = `${parts[2]} / ${parts[3]}`;
-      }
-    } else {
-      const w = code.match(/\bwidth\s*=\s*["']?([\d.]+)/i);
-      const h = code.match(/\bheight\s*=\s*["']?([\d.]+)/i);
-      if (w && h && +h[1] > 0) ratio = `${+w[1]} / ${+h[1]}`;
-    }
 
     shadow.innerHTML = `
       <style>
@@ -274,11 +311,16 @@ class SvgBlock extends HTMLElement {
         .panel.active { display: block; }
         .svg-wrap {
           width: 100%;
-          aspect-ratio: ${ratio};
           background: #fff;
           padding: 12px;
         }
-        .svg-wrap svg { width: 100%; height: 100%; display: block; }
+        iframe {
+          display: block;
+          width: 100%;
+          height: 100%;
+          border: 0;
+          background: #fff;
+        }
         pre {
           margin: 0;
           padding: 14px 16px;
@@ -295,11 +337,15 @@ class SvgBlock extends HTMLElement {
         <button data-tab="code">Code</button>
       </div>
       <div class="panel active" data-panel="render">
-        <div class="svg-wrap">${code}</div>
+        <div class="svg-wrap">
+          <iframe title="Rendered SVG" sandbox="" referrerpolicy="no-referrer"></iframe>
+        </div>
       </div>
       <div class="panel" data-panel="code"><pre></pre></div>
     `;
 
+    shadow.querySelector(".svg-wrap").style.aspectRatio = svgAspectRatio(code);
+    shadow.querySelector("iframe").srcdoc = svgPreviewDocument(code);
     shadow.querySelector("pre").textContent = code;
 
     const buttons = shadow.querySelectorAll("button");
@@ -317,154 +363,79 @@ class SvgBlock extends HTMLElement {
 }
 customElements.define("svg-block", SvgBlock);
 
-// ---- Minimal markdown renderer ----
-function escapeHtml(s) {
+// ---- Markdown rendering ----
+const markdownSanitizeConfig = {
+  USE_PROFILES: { html: true },
+  ADD_ATTR: ["data-svg"],
+  FORBID_ATTR: ["style"],
+  FORBID_TAGS: ["style"]
+};
+
+const svgSanitizeConfig = {
+  USE_PROFILES: { svg: true },
+  FORBID_ATTR: ["href", "xlink:href", "src", "style"],
+  FORBID_TAGS: [
+    "animate",
+    "animateMotion",
+    "animatemotion",
+    "animateTransform",
+    "animatetransform",
+    "audio",
+    "embed",
+    "foreignObject",
+    "foreignobject",
+    "iframe",
+    "image",
+    "link",
+    "object",
+    "script",
+    "set",
+    "style",
+    "use",
+    "video"
+  ]
+};
+
+const md = window.markdownit({
+  html: false,
+  linkify: false,
+  typographer: false
+});
+
+function escapeAttr(s) {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-function inline(s) {
-  // images
-  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
-    (_, alt, src) => `<img src="${src}" alt="${alt}">`);
-  // links
-  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
-    (_, text, href) => `<a href="${href}">${text}</a>`);
-  // bold
-  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
-  // italic
-  s = s.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  s = s.replace(/(^|[^\w])_([^_]+)_($|[^\w])/g, "$1<em>$2</em>$3");
-  // inline code
-  s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${escapeHtml(c)}</code>`);
-  return s;
+const defaultFenceRenderer = md.renderer.rules.fence;
+md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const token = tokens[idx];
+  const lang = (token.info || "").trim().split(/\s+/)[0].toLowerCase();
+
+  if (lang === "svg") {
+    const svg = window.DOMPurify.sanitize(token.content, svgSanitizeConfig).trim();
+    if (svg) {
+      return `<div class="svg-block-placeholder" data-svg="${escapeAttr(svg)}"></div>\n`;
+    }
+  }
+
+  return defaultFenceRenderer(tokens, idx, options, env, self);
+};
+
+function hydrateSvgBlocks(root) {
+  root.querySelectorAll(".svg-block-placeholder[data-svg]").forEach((placeholder) => {
+    const block = document.createElement("svg-block");
+    block.setAttribute("data-svg", placeholder.getAttribute("data-svg") || "");
+    placeholder.replaceWith(block);
+  });
 }
 
 function renderMarkdown(src) {
-  const lines = src.replace(/\r\n/g, "\n").split("\n");
-  const out = [];
-  let i = 0;
-
-  const flushList = (items, ordered) => {
-    const tag = ordered ? "ol" : "ul";
-    out.push(`<${tag}>${items.map((it) => `<li>${inline(it)}</li>`).join("")}</${tag}>`);
-  };
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    // fenced code block
-    const fence = line.match(/^```(\S*)\s*$/);
-    if (fence) {
-      const lang = fence[1];
-      const buf = [];
-      i++;
-      while (i < lines.length && !/^```\s*$/.test(lines[i])) {
-        buf.push(lines[i]);
-        i++;
-      }
-      i++; // skip closing fence
-      const content = buf.join("\n");
-      if (lang.toLowerCase() === "svg") {
-        const el = document.createElement("svg-block");
-        el.setAttribute("data-svg", content);
-        out.push(el.outerHTML);
-      } else {
-        const cls = lang ? ` class="language-${lang}"` : "";
-        out.push(`<pre><code${cls}>${escapeHtml(content)}</code></pre>`);
-      }
-      continue;
-    }
-
-    // blank line
-    if (/^\s*$/.test(line)) { i++; continue; }
-
-    // heading
-    const h = line.match(/^(#{1,6})\s+(.*)$/);
-    if (h) {
-      const lvl = h[1].length;
-      out.push(`<h${lvl}>${inline(h[2].trim())}</h${lvl}>`);
-      i++;
-      continue;
-    }
-
-    // horizontal rule
-    if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(line.trim())) {
-      out.push("<hr>");
-      i++;
-      continue;
-    }
-
-    // blockquote
-    if (/^>\s?/.test(line)) {
-      const buf = [];
-      while (i < lines.length && /^>\s?/.test(lines[i])) {
-        buf.push(lines[i].replace(/^>\s?/, ""));
-        i++;
-      }
-      out.push(`<blockquote>${inline(buf.join(" "))}</blockquote>`);
-      continue;
-    }
-
-    // table
-    if (/\|/.test(line) && i + 1 < lines.length &&
-        /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i + 1]) && /-/.test(lines[i + 1])) {
-      const parseRow = (r) =>
-        r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
-      const header = parseRow(line);
-      i += 2;
-      const rows = [];
-      while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim() !== "") {
-        rows.push(parseRow(lines[i]));
-        i++;
-      }
-      let t = "<table><thead><tr>" +
-        header.map((c) => `<th>${inline(c)}</th>`).join("") + "</tr></thead><tbody>";
-      t += rows.map((r) =>
-        "<tr>" + r.map((c) => `<td>${inline(c)}</td>`).join("") + "</tr>").join("");
-      t += "</tbody></table>";
-      out.push(t);
-      continue;
-    }
-
-    // unordered list
-    if (/^\s*[-*+]\s+/.test(line)) {
-      const items = [];
-      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*[-*+]\s+/, ""));
-        i++;
-      }
-      flushList(items, false);
-      continue;
-    }
-
-    // ordered list
-    if (/^\s*\d+\.\s+/.test(line)) {
-      const items = [];
-      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*\d+\.\s+/, ""));
-        i++;
-      }
-      flushList(items, true);
-      continue;
-    }
-
-    // paragraph
-    const buf = [];
-    while (i < lines.length && !/^\s*$/.test(lines[i]) &&
-           !/^```/.test(lines[i]) && !/^#{1,6}\s/.test(lines[i]) &&
-           !/^>\s?/.test(lines[i]) && !/^\s*[-*+]\s+/.test(lines[i]) &&
-           !/^\s*\d+\.\s+/.test(lines[i])) {
-      buf.push(lines[i]);
-      i++;
-    }
-    out.push(`<p>${inline(buf.join(" "))}</p>`);
-  }
-
-  return out.join("\n");
+  const html = md.render(src);
+  return window.DOMPurify.sanitize(html, markdownSanitizeConfig);
 }
 
 const input = document.getElementById("input");
@@ -478,6 +449,7 @@ const urlStatus = document.getElementById("url-status");
 
 function update() {
   output.innerHTML = renderMarkdown(input.value);
+  hydrateSvgBlocks(output);
 }
 
 input.addEventListener("input", update);
@@ -515,8 +487,22 @@ function setStatus(msg, isError) {
 // Match a gist URL and capture the gist id (the long hex segment).
 const gistRe = /^https?:\/\/gist\.github\.com\/(?:[^/]+\/)?([0-9a-f]+)/i;
 
+function normalizeSourceUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl.trim());
+  } catch {
+    throw new Error("Enter a valid URL");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Only http and https URLs are supported");
+  }
+  return parsed.href;
+}
+
 async function fetchSource(url) {
-  const gistMatch = gistRe.exec(url.trim());
+  const sourceUrl = normalizeSourceUrl(url);
+  const gistMatch = gistRe.exec(sourceUrl);
   if (gistMatch) {
     const id = gistMatch[1];
     const res = await fetch(`https://api.github.com/gists/${id}`);
@@ -535,9 +521,15 @@ async function fetchSource(url) {
     return first.content;
   }
   // Plain raw markdown URL.
-  const res = await fetch(url.trim());
+  const res = await fetch(sourceUrl);
   if (!res.ok) throw new Error(`Fetch returned ${res.status}`);
   return await res.text();
+}
+
+function restoreUrlFromHash(url) {
+  setMode("url");
+  urlInput.value = url;
+  setStatus("URL restored. Press Load to fetch it.");
 }
 
 async function loadFromUrl(url, recordHash) {
@@ -581,7 +573,7 @@ function urlFromHash() {
 window.addEventListener("popstate", () => {
   const url = urlFromHash();
   if (url) {
-    loadFromUrl(url, false);
+    restoreUrlFromHash(url);
   }
 });
 
@@ -616,7 +608,7 @@ Paste **markdown** here and watch it render on the right.
 // On load: if a URL is in the fragment, switch to URL tab and load it.
 const startupUrl = urlFromHash();
 if (startupUrl) {
-  loadFromUrl(startupUrl, false);
+  restoreUrlFromHash(startupUrl);
 } else {
   input.value = sample;
   update();
