@@ -1,0 +1,624 @@
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  margin: 0;
+  background: #fafafa;
+  color: #1a1a1a;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100vh;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pane-header {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+  border-bottom: 1px solid #e2e2e2;
+  background: #fff;
+}
+
+.editor-pane {
+  border-right: 1px solid #e2e2e2;
+}
+
+.source-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.source-tabs button {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid #e2e2e2;
+  background: #f6f6f6;
+  color: #888;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.source-tabs button.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.url-bar {
+  display: none;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e2e2;
+  background: #fff;
+}
+
+.url-bar.active { display: flex; }
+
+#url-input {
+  flex: 1;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  outline: none;
+}
+
+#url-input:focus { border-color: #2563eb; }
+
+#url-load {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#url-status {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #888;
+  border-bottom: 1px solid #e2e2e2;
+  background: #fff;
+  display: none;
+}
+
+#url-status.active { display: block; }
+#url-status.error { color: #dc2626; }
+
+#input {
+  flex: 1;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 16px;
+  font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 16px;
+  line-height: 1.5;
+  background: #fff;
+}
+
+#output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+  line-height: 1.6;
+}
+
+#output h1, #output h2, #output h3, #output h4 {
+  line-height: 1.25;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+#output h1 { font-size: 2em; border-bottom: 1px solid #e2e2e2; padding-bottom: 0.3em; }
+#output h2 { font-size: 1.5em; border-bottom: 1px solid #e2e2e2; padding-bottom: 0.3em; }
+#output h3 { font-size: 1.25em; }
+
+#output p { margin: 0.8em 0; }
+
+#output code {
+  background: #f0f0f0;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+#output pre {
+  background: #f6f6f6;
+  padding: 14px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  border: 1px solid #e8e8e8;
+}
+
+#output pre code {
+  background: none;
+  padding: 0;
+}
+
+#output blockquote {
+  margin: 0.8em 0;
+  padding-left: 16px;
+  border-left: 4px solid #ddd;
+  color: #666;
+}
+
+#output table {
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+
+#output th, #output td {
+  border: 1px solid #ddd;
+  padding: 6px 12px;
+}
+
+#output th { background: #f6f6f6; }
+
+#output a { color: #2563eb; }
+
+#output img { max-width: 100%; }
+
+#output hr {
+  border: none;
+  border-top: 1px solid #e2e2e2;
+  margin: 1.5em 0;
+}
+
+@media (max-width: 700px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .editor-pane { border-right: none; border-bottom: 1px solid #e2e2e2; }
+}
+</style>
+
+<div class="app">
+  <div class="pane editor-pane">
+    <div class="pane-header">
+      <span class="source-tabs">
+        <button id="tab-paste" class="active" type="button">Paste</button>
+        <button id="tab-url" type="button">URL</button>
+      </span>
+    </div>
+    <div class="url-bar" id="url-bar">
+      <input id="url-input" type="url" spellcheck="false"
+        placeholder="Raw markdown URL or https://gist.github.com/...">
+      <button id="url-load" type="button">Load</button>
+    </div>
+    <div id="url-status"></div>
+    <textarea id="input" spellcheck="false"></textarea>
+  </div>
+  <div class="pane">
+    <div class="pane-header">Preview</div>
+    <div id="output"></div>
+  </div>
+</div>
+
+<script type="module">
+// ---- SVG tab web component ----
+class SvgBlock extends HTMLElement {
+  connectedCallback() {
+    const code = this.getAttribute("data-svg") || "";
+    const shadow = this.attachShadow({ mode: "open" });
+
+    // Parse SVG to find aspect ratio for sizing.
+    let ratio = "1 / 1";
+    const m = code.match(/viewBox\s*=\s*["']([\d.\s-]+)["']/i);
+    if (m) {
+      const parts = m[1].trim().split(/\s+/).map(Number);
+      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+        ratio = `${parts[2]} / ${parts[3]}`;
+      }
+    } else {
+      const w = code.match(/\bwidth\s*=\s*["']?([\d.]+)/i);
+      const h = code.match(/\bheight\s*=\s*["']?([\d.]+)/i);
+      if (w && h && +h[1] > 0) ratio = `${+w[1]} / ${+h[1]}`;
+    }
+
+    shadow.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          max-width: 100%;
+          margin: 1em 0;
+          border: 1px solid #e2e2e2;
+          border-radius: 8px;
+          overflow: hidden;
+          font-family: Helvetica, Arial, sans-serif;
+        }
+        .tabs {
+          display: flex;
+          border-bottom: 1px solid #e2e2e2;
+          background: #f6f6f6;
+        }
+        button {
+          font-family: inherit;
+          font-size: 13px;
+          border: none;
+          background: none;
+          padding: 8px 16px;
+          cursor: pointer;
+          color: #666;
+          border-bottom: 2px solid transparent;
+          margin-bottom: -1px;
+        }
+        button.active {
+          color: #1a1a1a;
+          font-weight: bold;
+          border-bottom-color: #2563eb;
+          background: #fff;
+        }
+        .panel { display: none; }
+        .panel.active { display: block; }
+        .svg-wrap {
+          width: 100%;
+          aspect-ratio: ${ratio};
+          background: #fff;
+          padding: 12px;
+        }
+        .svg-wrap svg { width: 100%; height: 100%; display: block; }
+        pre {
+          margin: 0;
+          padding: 14px 16px;
+          overflow-x: auto;
+          background: #1e1e1e;
+          color: #e8e8e8;
+          font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+          font-size: 13px;
+          line-height: 1.5;
+        }
+      </style>
+      <div class="tabs">
+        <button class="active" data-tab="render">Rendered</button>
+        <button data-tab="code">Code</button>
+      </div>
+      <div class="panel active" data-panel="render">
+        <div class="svg-wrap">${code}</div>
+      </div>
+      <div class="panel" data-panel="code"><pre></pre></div>
+    `;
+
+    shadow.querySelector("pre").textContent = code;
+
+    const buttons = shadow.querySelectorAll("button");
+    const panels = shadow.querySelectorAll(".panel");
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = btn.dataset.tab;
+        buttons.forEach((b) => b.classList.toggle("active", b === btn));
+        panels.forEach((p) =>
+          p.classList.toggle("active", p.dataset.panel === tab)
+        );
+      });
+    });
+  }
+}
+customElements.define("svg-block", SvgBlock);
+
+// ---- Minimal markdown renderer ----
+function escapeHtml(s) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function inline(s) {
+  // images
+  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
+    (_, alt, src) => `<img src="${src}" alt="${alt}">`);
+  // links
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
+    (_, text, href) => `<a href="${href}">${text}</a>`);
+  // bold
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+  // italic
+  s = s.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  s = s.replace(/(^|[^\w])_([^_]+)_($|[^\w])/g, "$1<em>$2</em>$3");
+  // inline code
+  s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${escapeHtml(c)}</code>`);
+  return s;
+}
+
+function renderMarkdown(src) {
+  const lines = src.replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let i = 0;
+
+  const flushList = (items, ordered) => {
+    const tag = ordered ? "ol" : "ul";
+    out.push(`<${tag}>${items.map((it) => `<li>${inline(it)}</li>`).join("")}</${tag}>`);
+  };
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // fenced code block
+    const fence = line.match(/^```(\S*)\s*$/);
+    if (fence) {
+      const lang = fence[1];
+      const buf = [];
+      i++;
+      while (i < lines.length && !/^```\s*$/.test(lines[i])) {
+        buf.push(lines[i]);
+        i++;
+      }
+      i++; // skip closing fence
+      const content = buf.join("\n");
+      if (lang.toLowerCase() === "svg") {
+        const el = document.createElement("svg-block");
+        el.setAttribute("data-svg", content);
+        out.push(el.outerHTML);
+      } else {
+        const cls = lang ? ` class="language-${lang}"` : "";
+        out.push(`<pre><code${cls}>${escapeHtml(content)}</code></pre>`);
+      }
+      continue;
+    }
+
+    // blank line
+    if (/^\s*$/.test(line)) { i++; continue; }
+
+    // heading
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) {
+      const lvl = h[1].length;
+      out.push(`<h${lvl}>${inline(h[2].trim())}</h${lvl}>`);
+      i++;
+      continue;
+    }
+
+    // horizontal rule
+    if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(line.trim())) {
+      out.push("<hr>");
+      i++;
+      continue;
+    }
+
+    // blockquote
+    if (/^>\s?/.test(line)) {
+      const buf = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) {
+        buf.push(lines[i].replace(/^>\s?/, ""));
+        i++;
+      }
+      out.push(`<blockquote>${inline(buf.join(" "))}</blockquote>`);
+      continue;
+    }
+
+    // table
+    if (/\|/.test(line) && i + 1 < lines.length &&
+        /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i + 1]) && /-/.test(lines[i + 1])) {
+      const parseRow = (r) =>
+        r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+      const header = parseRow(line);
+      i += 2;
+      const rows = [];
+      while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim() !== "") {
+        rows.push(parseRow(lines[i]));
+        i++;
+      }
+      let t = "<table><thead><tr>" +
+        header.map((c) => `<th>${inline(c)}</th>`).join("") + "</tr></thead><tbody>";
+      t += rows.map((r) =>
+        "<tr>" + r.map((c) => `<td>${inline(c)}</td>`).join("") + "</tr>").join("");
+      t += "</tbody></table>";
+      out.push(t);
+      continue;
+    }
+
+    // unordered list
+    if (/^\s*[-*+]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*[-*+]\s+/, ""));
+        i++;
+      }
+      flushList(items, false);
+      continue;
+    }
+
+    // ordered list
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*\d+\.\s+/, ""));
+        i++;
+      }
+      flushList(items, true);
+      continue;
+    }
+
+    // paragraph
+    const buf = [];
+    while (i < lines.length && !/^\s*$/.test(lines[i]) &&
+           !/^```/.test(lines[i]) && !/^#{1,6}\s/.test(lines[i]) &&
+           !/^>\s?/.test(lines[i]) && !/^\s*[-*+]\s+/.test(lines[i]) &&
+           !/^\s*\d+\.\s+/.test(lines[i])) {
+      buf.push(lines[i]);
+      i++;
+    }
+    out.push(`<p>${inline(buf.join(" "))}</p>`);
+  }
+
+  return out.join("\n");
+}
+
+const input = document.getElementById("input");
+const output = document.getElementById("output");
+const tabPaste = document.getElementById("tab-paste");
+const tabUrl = document.getElementById("tab-url");
+const urlBar = document.getElementById("url-bar");
+const urlInput = document.getElementById("url-input");
+const urlLoad = document.getElementById("url-load");
+const urlStatus = document.getElementById("url-status");
+
+function update() {
+  output.innerHTML = renderMarkdown(input.value);
+}
+
+input.addEventListener("input", update);
+
+// ---- Source mode switching ----
+function setMode(mode) {
+  const isUrl = mode === "url";
+  tabUrl.classList.toggle("active", isUrl);
+  tabPaste.classList.toggle("active", !isUrl);
+  urlBar.classList.toggle("active", isUrl);
+  input.readOnly = isUrl;
+  input.style.background = isUrl ? "#f9f9f9" : "#fff";
+}
+
+tabPaste.addEventListener("click", () => {
+  setMode("paste");
+  input.readOnly = false;
+  input.style.background = "#fff";
+  if (location.hash) history.pushState("", document.title, location.pathname + location.search);
+});
+
+tabUrl.addEventListener("click", () => setMode("url"));
+
+function setStatus(msg, isError) {
+  if (!msg) {
+    urlStatus.classList.remove("active", "error");
+    urlStatus.textContent = "";
+    return;
+  }
+  urlStatus.textContent = msg;
+  urlStatus.classList.add("active");
+  urlStatus.classList.toggle("error", !!isError);
+}
+
+// Match a gist URL and capture the gist id (the long hex segment).
+const gistRe = /^https?:\/\/gist\.github\.com\/(?:[^/]+\/)?([0-9a-f]+)/i;
+
+async function fetchSource(url) {
+  const gistMatch = gistRe.exec(url.trim());
+  if (gistMatch) {
+    const id = gistMatch[1];
+    const res = await fetch(`https://api.github.com/gists/${id}`);
+    if (!res.ok) throw new Error(`Gist API returned ${res.status}`);
+    const data = await res.json();
+    const files = data.files || {};
+    const names = Object.keys(files);
+    if (!names.length) throw new Error("Gist contains no files");
+    const first = files[names[0]];
+    // The API truncates large files; fall back to raw_url if so.
+    if (first.truncated && first.raw_url) {
+      const raw = await fetch(first.raw_url);
+      if (!raw.ok) throw new Error(`Raw fetch returned ${raw.status}`);
+      return await raw.text();
+    }
+    return first.content;
+  }
+  // Plain raw markdown URL.
+  const res = await fetch(url.trim());
+  if (!res.ok) throw new Error(`Fetch returned ${res.status}`);
+  return await res.text();
+}
+
+async function loadFromUrl(url, recordHash) {
+  setMode("url");
+  urlInput.value = url;
+  setStatus("Loading…");
+  try {
+    const text = await fetchSource(url);
+    input.value = text;
+    update();
+    setStatus("");
+    if (recordHash) {
+      const newHash = "#url=" + encodeURIComponent(url);
+      if (location.hash !== newHash) {
+        history.pushState({ url }, "", newHash);
+      }
+    }
+  } catch (err) {
+    setStatus("Error: " + err.message, true);
+  }
+}
+
+urlLoad.addEventListener("click", () => {
+  const url = urlInput.value.trim();
+  if (url) loadFromUrl(url, true);
+});
+
+urlInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    urlLoad.click();
+  }
+});
+
+// ---- Fragment-based load on startup / navigation ----
+function urlFromHash() {
+  const m = /^#url=(.+)$/.exec(location.hash);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+window.addEventListener("popstate", () => {
+  const url = urlFromHash();
+  if (url) {
+    loadFromUrl(url, false);
+  }
+});
+
+const sample = `# Markdown renderer
+
+Paste **markdown** here and watch it render on the right.
+
+## Features
+
+- Headings, *emphasis*, and \`inline code\`
+- Lists, tables, blockquotes
+- Standard \`\`\`code\`\`\` blocks
+- Special SVG blocks with tabs
+- Load from a raw markdown URL or a Gist
+
+> SVG fenced blocks render as a tabbed component.
+
+\`\`\`svg
+<svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="200" height="120" fill="#2563eb"/>
+  <circle cx="100" cy="60" r="40" fill="#fbbf24"/>
+  <text x="100" y="66" text-anchor="middle" font-family="Helvetica" font-size="18" fill="#1a1a1a">SVG</text>
+</svg>
+\`\`\`
+
+| Feature | Supported |
+|---------|-----------|
+| Tables  | Yes       |
+| SVG tabs| Yes       |
+`;
+
+// On load: if a URL is in the fragment, switch to URL tab and load it.
+const startupUrl = urlFromHash();
+if (startupUrl) {
+  loadFromUrl(startupUrl, false);
+} else {
+  input.value = sample;
+  update();
+}
+</script>
