@@ -1,3 +1,3 @@
-View and render markdown content with live preview, supporting standard formatting, code blocks, tables, and interactive SVG visualization tabs. Load markdown from raw URLs, GitHub Gists, or paste content directly into the editor to see formatted output instantly. The split-pane interface displays your markdown source on the left and the rendered preview on the right, making it easy to edit and review formatting in real time.
+View Mozilla Bugzilla bug reports and other markdown documents with a live preview renderer. Paste markdown directly into the editor or load content from a raw markdown URL or GitHub Gist to see instant formatted output with support for tables, code blocks, and interactive SVG components. Use the source toggle button to switch between editor and preview modes for focused viewing.
 
-<!-- Generated from commit: 696e96617c0471a97c8b350791b105837444df9c -->
+<!-- Generated from commit: e8eaa26222b668c5c7204783e3d70611158b6992 -->
