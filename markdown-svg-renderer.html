@@ -16,6 +16,14 @@ body {
   height: 100vh;
 }
 
+.app.viewer-mode {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app.viewer-mode .editor-pane {
+  display: none;
+}
+
 .pane {
   display: flex;
   flex-direction: column;
@@ -35,6 +43,53 @@ body {
 
 .editor-pane {
   border-right: 1px solid #e2e2e2;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.source-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+  background: #fff;
+  color: #777;
+  cursor: pointer;
+}
+
+.source-toggle:hover,
+.source-toggle:focus-visible {
+  color: #2563eb;
+  border-color: #bfdbfe;
+  outline: none;
+}
+
+.source-toggle svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+}
+
+.app.has-url-content .source-toggle {
+  display: inline-flex;
+}
+
+.app.viewer-mode .source-toggle {
+  opacity: 0.72;
+}
+
+.app.viewer-mode #output {
+  max-width: 980px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .source-tabs {
@@ -190,6 +245,7 @@ body {
 
 @media (max-width: 700px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .app.viewer-mode { grid-template-rows: 1fr; }
   .editor-pane { border-right: none; border-bottom: 1px solid #e2e2e2; }
 }
 </style>
@@ -210,8 +266,19 @@ body {
     <div id="url-status"></div>
     <textarea id="input" spellcheck="false"></textarea>
   </div>
-  <div class="pane">
-    <div class="pane-header">Preview</div>
+  <div class="pane preview-pane">
+    <div class="pane-header preview-header">
+      <span>Preview</span>
+      <button id="source-toggle" class="source-toggle" type="button"
+        title="Show source" aria-label="Show source" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+          <path d="M9 4v16"></path>
+          <path d="m14 9 3 3-3 3"></path>
+        </svg>
+      </button>
+    </div>
     <div id="output"></div>
   </div>
 </div>
@@ -438,6 +505,7 @@ function renderMarkdown(src) {
   return window.DOMPurify.sanitize(html, markdownSanitizeConfig);
 }
 
+const app = document.querySelector(".app");
 const input = document.getElementById("input");
 const output = document.getElementById("output");
 const tabPaste = document.getElementById("tab-paste");
@@ -446,6 +514,7 @@ const urlBar = document.getElementById("url-bar");
 const urlInput = document.getElementById("url-input");
 const urlLoad = document.getElementById("url-load");
 const urlStatus = document.getElementById("url-status");
+const sourceToggle = document.getElementById("source-toggle");
 
 function update() {
   output.innerHTML = renderMarkdown(input.value);
@@ -453,6 +522,22 @@ function update() {
 }
 
 input.addEventListener("input", update);
+
+function setViewerMode(enabled) {
+  app.classList.toggle("viewer-mode", enabled);
+  sourceToggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+  sourceToggle.setAttribute("aria-label", enabled ? "Show source" : "Hide source");
+  sourceToggle.title = enabled ? "Show source" : "Hide source";
+}
+
+function setUrlContentLoaded(enabled) {
+  app.classList.toggle("has-url-content", enabled);
+  if (!enabled) setViewerMode(false);
+}
+
+sourceToggle.addEventListener("click", () => {
+  setViewerMode(!app.classList.contains("viewer-mode"));
+});
 
 // ---- Source mode switching ----
 function setMode(mode) {
@@ -465,6 +550,7 @@ function setMode(mode) {
 }
 
 tabPaste.addEventListener("click", () => {
+  setUrlContentLoaded(false);
   setMode("paste");
   input.readOnly = false;
   input.style.background = "#fff";
@@ -527,6 +613,7 @@ async function fetchSource(url) {
 }
 
 function restoreUrlFromHash(url) {
+  setUrlContentLoaded(false);
   setMode("url");
   urlInput.value = url;
   setStatus("URL restored. Press Load to fetch it.");
@@ -541,6 +628,8 @@ async function loadFromUrl(url, recordHash) {
     input.value = text;
     update();
     setStatus("");
+    setUrlContentLoaded(true);
+    setViewerMode(true);
     if (recordHash) {
       const newHash = "#url=" + encodeURIComponent(url);
       if (location.hash !== newHash) {
