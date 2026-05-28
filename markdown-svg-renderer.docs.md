@@ -1,3 +1,3 @@
-View Mozilla Bugzilla bug reports and other markdown documents with a live preview renderer. Paste markdown directly into the editor or load content from a raw markdown URL or GitHub Gist to see instant formatted output with support for tables, code blocks, and interactive SVG components. Use the source toggle button to switch between editor and preview modes for focused viewing.
+View Mozilla Bugzilla bug reports and render formatted markdown content with live preview. Paste markdown directly or load from a raw URL or GitHub Gist, with support for standard markdown formatting, tables, code blocks, and interactive SVG previews with tabbed display. Toggle between editor and full-screen viewer modes to focus on the rendered output.
 
-<!-- Generated from commit: e8eaa26222b668c5c7204783e3d70611158b6992 -->
+<!-- Generated from commit: befd53c835a08b273c4ee3582f0bad69e76494e2 -->
