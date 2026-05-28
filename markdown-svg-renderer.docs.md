@@ -1,3 +1,3 @@
-View markdown documentation rendered in real-time with support for tables, code blocks, blockquotes, and links. Load content directly from a raw markdown URL or GitHub Gist, or paste markdown text into the editor and see the formatted output instantly in the preview pane. Special SVG code blocks render as interactive components with tabs to toggle between the rendered graphic and source code.
+View and render markdown content with live preview, supporting standard formatting, code blocks, tables, and interactive SVG visualization tabs. Load markdown from raw URLs, GitHub Gists, or paste content directly into the editor to see formatted output instantly. The split-pane interface displays your markdown source on the left and the rendered preview on the right, making it easy to edit and review formatting in real time.
 
-<!-- Generated from commit: 71e4944766b577a327ff048cc63b739ba4cbade9 -->
+<!-- Generated from commit: 696e96617c0471a97c8b350791b105837444df9c -->
