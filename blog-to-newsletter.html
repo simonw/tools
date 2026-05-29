@@ -361,23 +361,34 @@
     }
     .newsletter-item .delete-item-btn {
       position: absolute;
-      top: 0;
-      right: 0;
-      background: #dc3545;
-      color: white;
-      border: none;
+      top: 6px;
+      right: 6px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid #e7b7bf;
       border-radius: 50%;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
+      color: #a61b2b;
+      display: inline-flex;
+      font-size: 18px;
+      font-weight: 600;
       width: 24px;
       height: 24px;
-      font-size: 16px;
-      line-height: 22px;
-      text-align: center;
+      justify-content: center;
+      line-height: 1;
+      padding: 0;
       cursor: pointer;
-      opacity: 0.5;
-      transition: opacity 0.15s;
+      opacity: 0.72;
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s, transform 0.15s;
     }
-    .newsletter-item .delete-item-btn:hover {
+    .newsletter-item .delete-item-btn:hover,
+    .newsletter-item .delete-item-btn:focus-visible {
+      background: #a61b2b;
+      border-color: #a61b2b;
+      color: white;
       opacity: 1;
+      outline: none;
+      transform: scale(1.04);
     }
   </style>
 </head>
@@ -565,7 +576,7 @@ with content as (
     created,
     slug,
     '<p><strong>Link</strong> ' || date(created) || ' <a href="'|| link_url || '">'
-      || link_title || '</a>:</p><p>' || ' ' || replace(commentary, '
+      || replace(replace(replace(link_title, '&', '&amp;'), '<', '&lt;'), '>', '&gt;') || '</a>:</p><p>' || ' ' || replace(commentary, '
 ', '<br>') || '</p>'
       as html,
     json_object(
@@ -824,7 +835,7 @@ order by
 
       // Render first three paragraphs of a chapter with word count suffix
       function renderChapterExcerpt(body, chapterUrl) {
-        const fullHtml = marked.parse(body);
+        const fullHtml = renderMarkdown(body);
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = fullHtml;
         const paragraphs = tempDiv.querySelectorAll(':scope > p');
@@ -906,6 +917,35 @@ order by
         return `<hr>\n<p><strong>Sponsor message:</strong> ${sponsorMessageHtml}</p>\n<hr>\n`;
       }
 
+      function escapeHtml(text) {
+        return String(text || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+
+      function escapeAttribute(text) {
+        return escapeHtml(text)
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function unescapeMarkdownText(text) {
+        return String(text || '').replace(/\\([\\`*{}\[\]()#+\-.!_<>"])/g, '$1');
+      }
+
+      function renderMarkdown(markdown) {
+        const markdownWithSafeImages = String(markdown || '').replace(
+          /!\[([^\]]*)\]\(([^)\s]+)(?:\s+(?:"([^"]*)"|'([^']*)'|\(([^)]*)\)))?\)/g,
+          (match, alt, src, doubleQuotedTitle, singleQuotedTitle, parenTitle) => {
+            const title = doubleQuotedTitle || singleQuotedTitle || parenTitle;
+            const titleHtml = title ? ` title="${escapeAttribute(unescapeMarkdownText(title))}"` : '';
+            return `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(unescapeMarkdownText(alt))}"${titleHtml}>`;
+          }
+        );
+        return marked.parse(markdownWithSafeImages);
+      }
+
       // Filter content based on settings
       function filterContent() {
         const skipExisting = skipExistingInput.checked;
@@ -936,10 +976,10 @@ order by
               if (info.use_markdown) {
                 const entry = { ...e };
                 if (e.type === 'blogmark') {
-                  const commentary = marked.parse(info.commentary || '');
-                  entry.html = `<p><strong>Link</strong> ${info.created} <a href="${info.link_url}">${info.link_title}</a>:</p>${commentary}`;
+                  const commentary = renderMarkdown(info.commentary);
+                  entry.html = `<p><strong>Link</strong> ${info.created} <a href="${info.link_url}">${escapeHtml(info.link_title)}</a>:</p>${commentary}`;
                 } else if (e.type === 'note') {
-                  const commentary = marked.parse(info.commentary || '');
+                  const commentary = renderMarkdown(info.commentary);
                   entry.html = `<p><strong>Note</strong> <a href="${e.url}">${info.created}</a></p>${commentary}`;
                 }
                 return entry;
@@ -949,7 +989,7 @@ order by
             if (e.type === 'quotation' && e.json !== 'null') {
               const info = typeof e.json === 'string' ? JSON.parse(e.json) : e.json;
               const entry = { ...e };
-              const quotationHtml = marked.parse(info.quotation || '');
+              const quotationHtml = renderMarkdown(info.quotation);
               const contextHtml = info.context ? ', ' + marked.parseInline(info.context) : '';
               entry.html = `<p><strong>Quote</strong> ${info.created}</p><blockquote>${quotationHtml}</blockquote><p><a href="${info.source_url || '#'}">${info.source}</a>${contextHtml}</p>`;
               return entry;
@@ -984,7 +1024,7 @@ order by
             const info = getBeatInfo(e);
             const entry = { ...e };
             const label = beatTypeDisplay[info.beat_type] || info.beat_type;
-            const noteHtml = info.note ? marked.parse(info.note) : '';
+            const noteHtml = info.note ? renderMarkdown(info.note) : '';
             entry.html = `<p><strong>${label}:</strong> <a href="${info.url}">${info.title}</a></p>${noteHtml}`;
             return entry;
           }
