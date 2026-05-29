@@ -71,6 +71,13 @@
       border-radius: 4px;
       resize: vertical;
     }
+    .sponsor-message-form {
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
     .buttons {
       display: flex;
       gap: 10px;
@@ -382,6 +389,13 @@
     <p>See: <a href="https://simonwillison.net/2023/Apr/4/substack-observable/" target="_blank">Semi-automating a Substack newsletter with an Observable notebook</a></p>
   </div>
 
+  <form class="sponsor-message-form" id="sponsorMessageForm">
+    <div class="control-group">
+      <label for="sponsorMessageInput">Sponsor message</label>
+      <textarea id="sponsorMessageInput" placeholder="Optional Markdown"></textarea>
+    </div>
+  </form>
+
   <div class="days-since" id="daysSince">Loading...</div>
 
   <div class="controls">
@@ -461,6 +475,8 @@
       const numDaysValue = document.getElementById('numDaysValue');
       const skipExistingInput = document.getElementById('skipExisting');
       const onlyPreCutoffInput = document.getElementById('onlyPreCutoff');
+      const sponsorMessageForm = document.getElementById('sponsorMessageForm');
+      const sponsorMessageInput = document.getElementById('sponsorMessageInput');
       const rssInput = document.getElementById('rssInput');
       const statusEl = document.getElementById('status');
       const previewEl = document.getElementById('preview');
@@ -475,6 +491,23 @@
 
       // URL replacements map (old URL -> new URL)
       let urlReplacements = new Map();
+      const sponsorMessageStorageKey = 'blog-to-newsletter:sponsor-message';
+
+      function restoreSponsorMessage() {
+        const savedSponsorMessage = localStorage.getItem(sponsorMessageStorageKey);
+        if (savedSponsorMessage) {
+          sponsorMessageInput.value = savedSponsorMessage;
+        }
+      }
+
+      function saveSponsorMessage() {
+        const sponsorMessage = sponsorMessageInput.value;
+        if (sponsorMessage.trim()) {
+          localStorage.setItem(sponsorMessageStorageKey, sponsorMessage);
+        } else {
+          localStorage.removeItem(sponsorMessageStorageKey);
+        }
+      }
 
       // Persist story order in URL hash fragment
       function updateUrlHash() {
@@ -633,6 +666,7 @@ with content as (
     url as external_url
   from blog_beat
   where coalesce(note, '') != '' and is_draft = 0
+    and beat_type not in ('sighting', 'til_update')
 ),
 collected as (
   select
@@ -815,6 +849,63 @@ order by
         return excerptHtml;
       }
 
+      const excludedBeatTypes = new Set(['sighting', 'til_update']);
+      const beatTypeDisplay = {
+        release: 'Release',
+        til: 'TIL',
+        research: 'Research',
+        tool: 'Tool',
+        museum: 'Museum'
+      };
+      const beatSummaryOrder = ['release', 'til', 'research', 'tool', 'museum'];
+      const beatSummaryLabels = {
+        release: ['release', 'releases'],
+        til: ['TIL', 'TILs'],
+        research: ['research report', 'research reports'],
+        tool: ['tool', 'tools'],
+        museum: ['museum', 'museums']
+      };
+
+      function getBeatInfo(entry) {
+        if (!entry.json || entry.json === 'null') return {};
+        return typeof entry.json === 'string' ? JSON.parse(entry.json) : entry.json;
+      }
+
+      function formatBeatSummary(beatType, count) {
+        const labels = beatSummaryLabels[beatType];
+        const label = labels
+          ? labels[count === 1 ? 0 : 1]
+          : beatType.replace(/_/g, ' ');
+        return `${count} ${label}`;
+      }
+
+      function getBeatSummaryItems() {
+        const counts = new Map();
+
+        beats.forEach(beat => {
+          const beatType = getBeatInfo(beat).beat_type;
+          if (!beatType || excludedBeatTypes.has(beatType)) return;
+          counts.set(beatType, (counts.get(beatType) || 0) + 1);
+        });
+
+        const knownTypes = beatSummaryOrder.filter(beatType => counts.has(beatType));
+        const otherTypes = Array.from(counts.keys())
+          .filter(beatType => !beatSummaryOrder.includes(beatType))
+          .sort();
+
+        return [...knownTypes, ...otherTypes].map(beatType => (
+          formatBeatSummary(beatType, counts.get(beatType))
+        ));
+      }
+
+      function renderTopSponsorMessage() {
+        const sponsorMessage = sponsorMessageInput.value.trim();
+        if (!sponsorMessage) return '';
+
+        const sponsorMessageHtml = marked.parseInline(sponsorMessage);
+        return `<hr>\n<p><strong>Sponsor message:</strong> ${sponsorMessageHtml}</p>\n<hr>\n`;
+      }
+
       // Filter content based on settings
       function filterContent() {
         const skipExisting = skipExistingInput.checked;
@@ -830,6 +921,12 @@ order by
           ...rest,
           tags: typeof tags === 'string' ? JSON.parse(tags) : tags
         }));
+
+        // Skip beat types that should not be included in the newsletter.
+        filtered = filtered.filter(e => {
+          if (e.type !== 'beat') return true;
+          return !excludedBeatTypes.has(getBeatInfo(e).beat_type);
+        });
 
         // Apply cutoff and markdown rendering
         if (onlyPreCutoff) {
@@ -882,17 +979,9 @@ order by
         });
 
         // Always render beat HTML from the JSON payload (matches the Atom everything feed)
-        const beatTypeDisplay = {
-          release: 'Release',
-          til: 'TIL',
-          til_update: 'TIL updated',
-          research: 'Research',
-          tool: 'Tool',
-          museum: 'Museum'
-        };
         filtered = filtered.map(e => {
           if (e.type === 'beat' && e.json !== 'null') {
-            const info = typeof e.json === 'string' ? JSON.parse(e.json) : e.json;
+            const info = getBeatInfo(e);
             const entry = { ...e };
             const label = beatTypeDisplay[info.beat_type] || info.beat_type;
             const noteHtml = info.note ? marked.parse(info.note) : '';
@@ -1266,9 +1355,7 @@ order by
         if (chapters.length) {
           extras.push(`${chapters.length} guide chapter${chapters.length > 1 ? 's' : ''}`);
         }
-        if (beats.length) {
-          extras.push(`${beats.length} beat${beats.length > 1 ? 's' : ''}`);
-        }
+        extras.push(...getBeatSummaryItems());
         if (extras.length) {
           headerHtml += `<p>Plus ${extras.join(' and ')}</p>`;
         }
@@ -1291,7 +1378,8 @@ order by
 
         // Clean newsletter HTML (for copying)
         const footerHtml = generateSponsorMessage();
-        let html = headerHtml + sortedContent.map(c => c.html + '<hr>').join('\n') + footerHtml;
+        const topSponsorHtml = renderTopSponsorMessage();
+        let html = headerHtml + topSponsorHtml + sortedContent.map(c => c.html + '<hr>').join('\n') + footerHtml;
         newsletterHTML = applyReplacements(html);
         htmlLengthEl.textContent = `Length of HTML: ${newsletterHTML.length.toLocaleString()} characters`;
 
@@ -1303,7 +1391,7 @@ order by
           }
           return itemHtml + '<hr>';
         }).join('\n');
-        previewEl.innerHTML = applyReplacements(headerHtml) + previewContentHtml + applyReplacements(footerHtml);
+        previewEl.innerHTML = applyReplacements(headerHtml + topSponsorHtml) + previewContentHtml + applyReplacements(footerHtml);
 
         // Check for long URLs and display warnings
         checkLongUrls(newsletterHTML);
@@ -1468,8 +1556,19 @@ order by
 
       linksSearch.addEventListener('input', renderLinksTable);
 
+      sponsorMessageForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveSponsorMessage();
+        generateNewsletter();
+      });
+      sponsorMessageInput.addEventListener('input', () => {
+        saveSponsorMessage();
+        generateNewsletter();
+      });
+
       // Initialize
       async function init() {
+        restoreSponsorMessage();
         showStatus('Loading...');
         try {
           // Fetch RSS first to get previous links and days since
