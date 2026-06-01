@@ -1,3 +1,3 @@
-View Hacker News comments for any user by entering their handle and fetching up to 1,000 recent comments in a single request. The tool displays each comment with its date, story title, direct links to both the comment and discussion thread, and the full comment text, which can be easily copied to your clipboard. This makes it convenient to archive, analyze, or review a user's comment history on Hacker News.
+View Hacker News comments for any user by entering their handle to retrieve up to 1,000 of their most recent comments. The tool displays each comment with its date, the story title, links to both the comment and the thread, and the full comment text in an easily readable format. You can then copy all the results to your clipboard for further analysis or archiving.
 
-<!-- Generated from commit: c329a2637283fed57a45a0c4757896e533a24020 -->
+<!-- Generated from commit: 18f0014bf86f1f7fd6e20862cd8c1e77e7583021 -->
