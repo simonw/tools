@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pasted File Editor</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #596579;
+      --line: #d8dee8;
+      --panel: #ffffff;
+      --paper: #f4f6f9;
+      --accent: #146c94;
+      --accent-soft: #e4f3f8;
+      --danger: #aa2433;
+      --shadow: 0 18px 45px rgba(23, 32, 42, 0.14);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 24px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    .app {
+      width: min(920px, 100%);
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(1.8rem, 4vw, 2.55rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .intro {
+      margin: 0;
+      max-width: 680px;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .editor-shell {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(23, 32, 42, 0.06);
+      padding: 16px;
+    }
+
+    label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      color: #2e3a4b;
+      font-weight: 700;
+    }
+
+    .threshold {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 400;
+      white-space: nowrap;
+    }
+
+    .editor-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
+
+    .attach-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 36px;
+      padding: 7px 11px;
+      border: 1px solid #bfc8d7;
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .attach-button:hover,
+    .attach-button:focus-visible {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(20, 108, 148, 0.12);
+      outline: none;
+    }
+
+    textarea {
+      display: block;
+      width: 100%;
+      min-height: 260px;
+      resize: vertical;
+      padding: 14px;
+      border: 1px solid #bfc8d7;
+      border-radius: 6px;
+      color: var(--ink);
+      font: 16px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #fbfcfe;
+    }
+
+    .editor-shell.is-drop-target textarea {
+      border-color: var(--accent);
+      background: #f0fbfd;
+      box-shadow: inset 0 0 0 2px rgba(20, 108, 148, 0.2), 0 0 0 4px rgba(20, 108, 148, 0.14);
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(20, 108, 148, 0.16);
+      outline: none;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .files {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .file-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: start;
+      min-height: 76px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .file-card:hover,
+    .file-card:focus-visible {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(20, 108, 148, 0.12);
+      outline: none;
+    }
+
+    .file-card.is-processing {
+      background: #f1f4f7;
+      color: #5c6878;
+      opacity: 0.72;
+    }
+
+    .file-card.is-processing .file-preview {
+      font-style: italic;
+    }
+
+    .file-icon {
+      display: inline-flex;
+      width: 32px;
+      height: 38px;
+      color: var(--accent);
+      flex: 0 0 auto;
+    }
+
+    .file-thumb {
+      width: 42px;
+      height: 42px;
+      object-fit: cover;
+      border: 1px solid #bfc8d7;
+      border-radius: 6px;
+      background: #eef2f6;
+      flex: 0 0 auto;
+    }
+
+    .file-name {
+      display: block;
+      margin-bottom: 3px;
+      font-weight: 700;
+    }
+
+    .file-preview {
+      display: -webkit-box;
+      max-height: 2.8em;
+      overflow: hidden;
+      color: var(--muted);
+      font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      word-break: break-word;
+    }
+
+    .remove-file {
+      display: inline-grid;
+      width: 28px;
+      height: 28px;
+      place-items: center;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: #697589;
+      cursor: pointer;
+    }
+
+    .remove-file:hover,
+    .remove-file:focus-visible {
+      background: #fff0f2;
+      color: var(--danger);
+      outline: none;
+    }
+
+    .empty-files {
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(15, 23, 34, 0.52);
+      z-index: 10;
+    }
+
+    .modal-backdrop[open] {
+      display: flex;
+    }
+
+    .modal {
+      width: min(860px, 100%);
+      max-height: min(760px, calc(100vh - 48px));
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--accent-soft);
+    }
+
+    .modal-title {
+      min-width: 0;
+    }
+
+    .modal-title h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      letter-spacing: 0;
+    }
+
+    .modal-title p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .close-modal {
+      display: inline-grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      flex: 0 0 auto;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .close-modal:hover,
+    .close-modal:focus-visible {
+      border-color: #a8bfd0;
+      background: #ffffff;
+      outline: none;
+    }
+
+    .modal-content {
+      margin: 0;
+      overflow: auto;
+      padding: 16px;
+      background: #fbfcfe;
+      color: #18212e;
+      font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .modal-content.has-image {
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      white-space: normal;
+    }
+
+    .modal-image {
+      display: block;
+      max-width: 100%;
+      max-height: calc(100vh - 180px);
+      border-radius: 6px;
+      box-shadow: 0 1px 8px rgba(23, 32, 42, 0.18);
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 620px) {
+      body {
+        padding: 14px;
+      }
+
+      label,
+      .status-row {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .threshold {
+        white-space: normal;
+      }
+
+      .editor-shell {
+        padding: 12px;
+      }
+
+      .files {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>Pasted File Editor</h1>
+      <p class="intro">Type normally in the editor. Pasting a copied file, or 1,000 characters or more, attaches it below and leaves the editor text unchanged.</p>
+    </header>
+
+    <section id="editor-shell" class="editor-shell" aria-labelledby="editor-label">
+      <label id="editor-label" for="editor">
+        Draft
+        <span class="threshold">Large paste threshold: 1,000 characters</span>
+      </label>
+      <div class="editor-toolbar">
+        <button id="attach-button" class="attach-button" type="button">
+          <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+          Attach file
+        </button>
+        <input id="file-input" class="sr-only" type="file" multiple>
+      </div>
+      <textarea id="editor" spellcheck="true" placeholder="Start typing here, or paste a copied text file or long document to attach it below..."></textarea>
+      <div class="status-row">
+        <span id="editor-count">0 characters in editor</span>
+        <span id="file-count">0 pasted files</span>
+      </div>
+      <div id="files" class="files" aria-live="polite"></div>
+      <p id="empty-files" class="empty-files">No pasted files yet.</p>
+    </section>
+  </main>
+
+  <div id="modal-backdrop" class="modal-backdrop" role="presentation">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-heading">
+      <div class="modal-header">
+        <div class="modal-title">
+          <h2 id="modal-heading">Pasted file</h2>
+          <p id="modal-meta"></p>
+        </div>
+        <button id="close-modal" class="close-modal" type="button" aria-label="Close pasted file preview">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <pre id="modal-content" class="modal-content"></pre>
+    </section>
+  </div>
+
+  <script>
+    const PASTE_FILE_THRESHOLD = 1000;
+    const PREVIEW_LIMIT = 120;
+    const PREVIEW_READ_LIMIT = 4096;
+
+    const editorShell = document.getElementById('editor-shell');
+    const editor = document.getElementById('editor');
+    const attachButton = document.getElementById('attach-button');
+    const fileInput = document.getElementById('file-input');
+    const editorCount = document.getElementById('editor-count');
+    const fileCount = document.getElementById('file-count');
+    const filesEl = document.getElementById('files');
+    const emptyFilesEl = document.getElementById('empty-files');
+    const modalBackdrop = document.getElementById('modal-backdrop');
+    const closeModalButton = document.getElementById('close-modal');
+    const modalHeading = document.getElementById('modal-heading');
+    const modalMeta = document.getElementById('modal-meta');
+    const modalContent = document.getElementById('modal-content');
+
+    const pastedFiles = [];
+    let lastFocusedElement = null;
+    let dragDepth = 0;
+
+    function formatCount(count, singular, plural) {
+      return `${count.toLocaleString()} ${count === 1 ? singular : plural}`;
+    }
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes)) {
+        return '';
+      }
+
+      const units = ['bytes', 'KB', 'MB', 'GB'];
+      let value = bytes;
+      let unitIndex = 0;
+
+      while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+      }
+
+      const formatted = unitIndex === 0 ? value : value.toFixed(value >= 10 ? 1 : 2);
+      return `${formatted} ${units[unitIndex]}`;
+    }
+
+    function updateStatus() {
+      editorCount.textContent = `${formatCount(editor.value.length, 'character', 'characters')} in editor`;
+      fileCount.textContent = formatCount(pastedFiles.length, 'pasted file', 'pasted files');
+      emptyFilesEl.hidden = pastedFiles.length > 0;
+    }
+
+    function visiblePreview(text) {
+      const sample = text.slice(0, PREVIEW_READ_LIMIT);
+      const compactText = sample.replace(/\s+/g, ' ').trim();
+      if (!compactText) {
+        return '(empty file)';
+      }
+      if (compactText.length <= PREVIEW_LIMIT && text.length <= sample.length) {
+        return compactText;
+      }
+      return `${compactText.slice(0, PREVIEW_LIMIT).trim()}...`;
+    }
+
+    function filePreviewText(file) {
+      if (file.processing) {
+        return 'Processing...';
+      }
+
+      if (file.isImage) {
+        const details = [file.type || 'image', formatBytes(file.size)].filter(Boolean).join(', ');
+        return details ? `Image file (${details})` : 'Image file';
+      }
+
+      return file.preview || visiblePreview(file.text || '');
+    }
+
+    function createFileIcon() {
+      const wrapper = document.createElement('span');
+      wrapper.className = 'file-icon';
+      wrapper.innerHTML = `
+        <svg aria-hidden="true" viewBox="0 0 28 34" fill="none">
+          <path d="M4 1.5h13.3L24 8.2V30a2.5 2.5 0 0 1-2.5 2.5H4A2.5 2.5 0 0 1 1.5 30V4A2.5 2.5 0 0 1 4 1.5Z" fill="#e4f3f8" stroke="currentColor" stroke-width="2"/>
+          <path d="M17 2v7h7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M7 15h14M7 20h14M7 25h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      `;
+      return wrapper;
+    }
+
+    function renderFiles() {
+      filesEl.textContent = '';
+
+      pastedFiles.forEach((file) => {
+        const card = document.createElement('div');
+        card.className = 'file-card';
+        card.classList.toggle('is-processing', file.processing);
+        card.dataset.id = file.id;
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', `Open ${file.name}`);
+
+        let visual = createFileIcon();
+        if (file.isImage && file.objectUrl) {
+          visual = document.createElement('img');
+          visual.className = 'file-thumb';
+          visual.src = file.objectUrl;
+          visual.alt = '';
+        }
+
+        const details = document.createElement('span');
+        const name = document.createElement('span');
+        name.className = 'file-name';
+        name.textContent = file.name;
+
+        const preview = document.createElement('span');
+        preview.className = 'file-preview';
+        preview.textContent = filePreviewText(file);
+
+        details.append(name, preview);
+
+        const removeButton = document.createElement('button');
+        removeButton.className = 'remove-file';
+        removeButton.type = 'button';
+        removeButton.setAttribute('aria-label', `Remove ${file.name}`);
+        removeButton.innerHTML = `
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+        `;
+
+        card.append(visual, details, removeButton);
+        filesEl.append(card);
+      });
+
+      updateStatus();
+    }
+
+    function addPastedFile({ text, name, source = 'paste' }) {
+      const attachment = {
+        id: crypto.randomUUID(),
+        name: name || `Pasted file ${pastedFiles.length + 1}`,
+        source,
+        type: 'text/plain',
+        size: text.length,
+        isImage: false,
+        processing: true,
+        preview: 'Processing...',
+        text,
+        textLoaded: true,
+        createdAt: new Date()
+      };
+
+      pastedFiles.unshift(attachment);
+      renderFiles();
+
+      requestAnimationFrame(() => {
+        attachment.preview = visiblePreview(text);
+        attachment.processing = false;
+        renderFiles();
+      });
+    }
+
+    function getClipboardFiles(dataTransfer) {
+      if (!dataTransfer) {
+        return [];
+      }
+
+      const files = [...dataTransfer.files];
+      const fileNames = new Set(files.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
+
+      for (const item of dataTransfer.items) {
+        if (item.kind !== 'file') continue;
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        const key = `${file.name}:${file.size}:${file.lastModified}`;
+        if (!fileNames.has(key)) {
+          fileNames.add(key);
+          files.push(file);
+        }
+      }
+
+      return files;
+    }
+
+    async function loadTextPreview(file) {
+      try {
+        const text = await file.blob.slice(0, PREVIEW_READ_LIMIT).text();
+        file.preview = visiblePreview(text);
+      } catch (error) {
+        file.preview = `Could not read preview: ${error.message}`;
+      } finally {
+        file.processing = false;
+        renderFiles();
+      }
+    }
+
+    async function loadFullText(file) {
+      if (file.textLoaded) {
+        return file.text || '';
+      }
+
+      file.processing = true;
+      modalMeta.textContent = `Loading ${formatBytes(file.size)} from ${file.source}...`;
+      modalContent.classList.remove('has-image');
+      modalContent.textContent = 'Processing...';
+      renderFiles();
+
+      try {
+        file.text = await file.blob.text();
+        file.textLoaded = true;
+        return file.text;
+      } catch (error) {
+        file.text = `Could not read this file as text: ${error.message}`;
+        file.textLoaded = true;
+        return file.text;
+      } finally {
+        file.processing = false;
+        renderFiles();
+      }
+    }
+
+    function addFiles(files, source) {
+      const capturedFiles = [...files].map((file, index) => {
+        const name = file.name || `Pasted file ${pastedFiles.length + index + 1}`;
+        const isImage = file.type.startsWith('image/');
+        const sourceLabel = isImage ? `${source} image` : `${source} file`;
+
+        if (isImage) {
+          return {
+            name,
+            source: sourceLabel,
+            type: file.type,
+            size: file.size,
+            isImage: true,
+            processing: false,
+            preview: '',
+            objectUrl: URL.createObjectURL(file),
+            blob: file,
+            text: '',
+            textLoaded: true
+          };
+        }
+
+        return {
+          name,
+          source: sourceLabel,
+          type: file.type || 'text/plain',
+          size: file.size,
+          isImage: false,
+          processing: true,
+          preview: 'Processing...',
+          blob: file,
+          text: '',
+          textLoaded: false
+        };
+      });
+
+      const attachments = capturedFiles.map((file) => ({
+        ...file,
+        id: crypto.randomUUID(),
+        createdAt: new Date()
+      }));
+
+      pastedFiles.unshift(...attachments);
+      renderFiles();
+
+      attachments
+        .filter((file) => file.processing && file.blob && !file.isImage && !file.textLoaded)
+        .forEach(loadTextPreview);
+    }
+
+    function hasDraggedFiles(dataTransfer) {
+      return Array.from(dataTransfer?.types || []).includes('Files');
+    }
+
+    function showDropTarget() {
+      editorShell.classList.add('is-drop-target');
+    }
+
+    function hideDropTarget() {
+      dragDepth = 0;
+      editorShell.classList.remove('is-drop-target');
+    }
+
+    async function openFile(file) {
+      lastFocusedElement = document.activeElement;
+      modalHeading.textContent = file.name;
+      modalContent.textContent = '';
+      modalContent.classList.toggle('has-image', file.isImage);
+
+      if (file.isImage && file.objectUrl) {
+        const meta = [file.type || 'image', formatBytes(file.size), `captured from ${file.source}`]
+          .filter(Boolean)
+          .join(' - ');
+        const image = document.createElement('img');
+        image.className = 'modal-image';
+        image.src = file.objectUrl;
+        image.alt = file.name;
+        modalMeta.textContent = meta;
+        modalContent.append(image);
+      } else {
+        modalMeta.textContent = file.textLoaded
+          ? `${formatCount((file.text || '').length, 'character', 'characters')} captured from ${file.source}`
+          : `Loading ${formatBytes(file.size)} from ${file.source}...`;
+        modalContent.textContent = file.textLoaded ? file.text : 'Processing...';
+      }
+
+      modalBackdrop.setAttribute('open', '');
+      closeModalButton.focus();
+
+      if (!file.isImage) {
+        const text = await loadFullText(file);
+        modalMeta.textContent = `${formatCount(text.length, 'character', 'characters')} captured from ${file.source}`;
+        modalContent.textContent = text;
+      }
+    }
+
+    function closeModal() {
+      modalBackdrop.removeAttribute('open');
+      modalContent.classList.remove('has-image');
+      modalContent.textContent = '';
+      if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+      }
+    }
+
+    function removeFile(id) {
+      const index = pastedFiles.findIndex((file) => file.id === id);
+      if (index >= 0) {
+        if (pastedFiles[index].objectUrl) {
+          URL.revokeObjectURL(pastedFiles[index].objectUrl);
+        }
+        pastedFiles.splice(index, 1);
+        renderFiles();
+      }
+    }
+
+    editor.addEventListener('input', updateStatus);
+
+    editor.addEventListener('paste', async (event) => {
+      const files = getClipboardFiles(event.clipboardData);
+      if (files.length > 0) {
+        event.preventDefault();
+        await addFiles(files, 'clipboard');
+        return;
+      }
+
+      const pastedText = event.clipboardData?.getData('text/plain') || '';
+      if (pastedText.length >= PASTE_FILE_THRESHOLD) {
+        event.preventDefault();
+        addPastedFile({ text: pastedText });
+      }
+    });
+
+    editorShell.addEventListener('dragenter', (event) => {
+      if (!hasDraggedFiles(event.dataTransfer)) return;
+
+      dragDepth += 1;
+      event.preventDefault();
+      showDropTarget();
+    });
+
+    editorShell.addEventListener('dragover', (event) => {
+      if (!hasDraggedFiles(event.dataTransfer)) return;
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+      showDropTarget();
+    });
+
+    editorShell.addEventListener('dragleave', (event) => {
+      if (!hasDraggedFiles(event.dataTransfer)) return;
+
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) {
+        editorShell.classList.remove('is-drop-target');
+      }
+    });
+
+    editorShell.addEventListener('drop', async (event) => {
+      const files = [...(event.dataTransfer?.files || [])];
+      if (files.length === 0) return;
+
+      event.preventDefault();
+      hideDropTarget();
+      await addFiles(files, 'dropped');
+    });
+
+    attachButton.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', async () => {
+      const files = [...fileInput.files];
+      if (files.length > 0) {
+        await addFiles(files, 'selected');
+      }
+      fileInput.value = '';
+    });
+
+    filesEl.addEventListener('click', (event) => {
+      const remove = event.target.closest('.remove-file');
+      const card = event.target.closest('.file-card');
+      if (!card) return;
+
+      const id = card.dataset.id;
+      if (remove) {
+        event.stopPropagation();
+        removeFile(id);
+        return;
+      }
+
+      const file = pastedFiles.find((item) => item.id === id);
+      if (file) openFile(file);
+    });
+
+    filesEl.addEventListener('keydown', (event) => {
+      const remove = event.target.closest('.remove-file');
+      const card = event.target.closest('.file-card');
+      if (!card || (event.key !== 'Enter' && event.key !== ' ')) return;
+
+      event.preventDefault();
+      if (remove) {
+        removeFile(card.dataset.id);
+        return;
+      }
+
+      const file = pastedFiles.find((item) => item.id === card.dataset.id);
+      if (file) openFile(file);
+    });
+
+    closeModalButton.addEventListener('click', closeModal);
+
+    modalBackdrop.addEventListener('click', (event) => {
+      if (event.target === modalBackdrop) closeModal();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && modalBackdrop.hasAttribute('open')) {
+        closeModal();
+      }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      pastedFiles.forEach((file) => {
+        if (file.objectUrl) {
+          URL.revokeObjectURL(file.objectUrl);
+        }
+      });
+    });
+
+    updateStatus();
+  </script>
+</body>
+</html>
