@@ -3,22 +3,29 @@
 # ///
 
 PROMPT = """
-Write a paragraph of documentation for this page as markdown.
+Write or update a paragraph of documentation for this page as markdown.
 Do not include any headings
 Do not use words like just or simply.
 Keep it to 2-3 sentences.
+Return only the final description text, with no extra commentary.
+
+You may be given the full text of the previous description. Use that previous
+description as the starting point, updating it only when the current HTML shows
+user-facing behavior that should be reflected in the description. If no updates
+are required, return the previous description unchanged.
 
 Instead of starting with something like "This Bugzilla Bug Viewer is a web application for..."
 start with "View Mozilla Bugzilla bug reports..." or similar
 """.strip()
 
 import os
-import shlex
 import subprocess
 import glob
 import re
 import argparse
 from pathlib import Path
+
+COMMIT_MARKER_RE = re.compile(r"<!-- Generated from commit: ([a-f0-9]+) -->")
 
 
 def get_current_commit_hash(file_path):
@@ -43,19 +50,62 @@ def extract_commit_hash_from_docs(docs_file_path):
     with open(docs_file_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    hash_match = re.search(r"<!-- Generated from commit: ([a-f0-9]+) -->", content)
+    hash_match = COMMIT_MARKER_RE.search(content)
     if hash_match:
         return hash_match.group(1)
 
     return None
 
 
-def generate_documentation(html_file_path):
+def extract_previous_description_from_docs(docs_file_path):
+    """Extract the existing generated description without the commit marker."""
+    if not os.path.exists(docs_file_path):
+        return None
+
+    with open(docs_file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    description = COMMIT_MARKER_RE.sub("", content).strip()
+    return description or None
+
+
+def build_llm_input(html_file_path, previous_description=None):
+    """Build the user prompt sent to the documentation model."""
+    with open(html_file_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    if previous_description:
+        return f"""
+Previous description:
+
+```markdown
+{previous_description}
+```
+
+Current HTML:
+
+```html
+{html}
+```
+""".strip()
+
+    return f"""
+No previous description exists. Write a new description for this HTML.
+
+Current HTML:
+
+```html
+{html}
+```
+""".strip()
+
+
+def generate_documentation(html_file_path, previous_description=None):
     """Generate documentation for an HTML file using Claude."""
     try:
         result = subprocess.run(
-            f"cat '{html_file_path}' | llm -m claude-haiku-4.5 --system {shlex.quote(PROMPT)}",
-            shell=True,
+            ["llm", "-m", "claude-haiku-4.5", "--system", PROMPT],
+            input=build_llm_input(html_file_path, previous_description),
             capture_output=True,
             text=True,
             check=True,
@@ -127,7 +177,8 @@ def main():
         if args.verbose:
             print(f"  Generating documentation for {html_file}")
 
-        doc_content = generate_documentation(html_file)
+        previous_description = extract_previous_description_from_docs(docs_file)
+        doc_content = generate_documentation(html_file, previous_description)
         if not doc_content:
             print(f"  Failed to generate documentation for {html_file}")
             skipped_count += 1
