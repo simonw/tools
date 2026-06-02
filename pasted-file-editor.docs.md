@@ -1,0 +1,3 @@
+Create and manage a text editor with automatic file attachment capabilities. Paste files or text content of 1,000 characters or more to attach them below the editor, while keeping the editor text unchanged. View attached files as previews or in full, and remove files as needed using drag-and-drop, file selection, or clipboard paste functionality.
+
+<!-- Generated from commit: a0e9782f3bc74ec08c3901a402628e4f6d499303 -->
