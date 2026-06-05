@@ -1,3 +1,5 @@
 Convert Apple Notes content to Markdown and HTML formats while preserving hyperlinks and formatting. Paste your notes into the text area to automatically generate both Markdown and HTML outputs, with a live preview of the rendered content. The tool parses RTF data from Apple Notes and provides copy buttons for easy transfer of the converted content.
 
+<!-- topics: text-writing -->
+<!-- features: clipboard -->
 <!-- Generated from commit: 8dff45c03b3353aced9c4f7832d0609d8ca076aa -->

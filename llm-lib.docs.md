@@ -1,3 +1,5 @@
 This is an interactive demonstration of a unified JavaScript library that provides a consistent interface for working with multiple large language model providers. The tool allows users to seamlessly switch between OpenAI, Anthropic Claude, and Google Gemini while managing API keys and configuring system prompts. Both streaming and non-streaming response modes are supported, with real-time status updates and syntax-highlighted code examples showing how to integrate the library into projects.
 
+<!-- topics: ai-llm -->
+<!-- features: local-storage, fetch-network -->
 <!-- Generated from commit: 5b63ef8fd4300ee0f35ceb3e4572748da3363e01 -->

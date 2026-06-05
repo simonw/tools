@@ -1,3 +1,5 @@
 Parse SQLite SELECT queries into abstract syntax trees and view the results in JSON and Python representations. This tool uses the sqlite-ast library running in your browser via Pyodide to analyze SQL syntax and display both the dictionary-based parse tree and a rich pretty-printed representation. It supports complex queries including compound selects, common table expressions, and window functions, and can display partial parse results when encountering syntax errors.
 
+<!-- topics: sqlite-databases, developer-tools -->
+<!-- features: webassembly -->
 <!-- Generated from commit: 763e22bf8457c261a33c9a54e32322c6436d3faf -->

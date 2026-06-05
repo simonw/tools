@@ -1,3 +1,5 @@
 View Mozilla's browser compatibility data to track when web APIs were first supported across different browsers. Search for any API by name to see a chronological timeline of support additions, including release dates and version numbers for each browser. The interface also displays relevant MDN documentation links, specification URLs, and status indicators to help developers understand the maturity and adoption timeline of web platform features.
 
+<!-- topics: reference-education, developer-tools -->
+<!-- features: fetch-network, url-state -->
 <!-- Generated from commit: 41ce0b8bbae876c4abd9549ce34f13bb37f07c16 -->

@@ -1,3 +1,5 @@
 Create annotated presentation slides with alt text and markdown notes. Upload your slide images, add accessibility descriptions and annotations with markdown support, then generate HTML output using customizable templates. The tool automatically saves your work and includes optional OCR functionality to extract text from slides.
 
+<!-- topics: documents-pdf, accessibility -->
+<!-- features: file-upload, local-storage, webassembly -->
 <!-- Generated from commit: 6c429482d2b7eb09c5e2554fe33c6157137f7bcc -->

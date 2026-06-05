@@ -1,3 +1,5 @@
 Analyze images using the Google Gemini API and visualize detected objects as bounding boxes or points overlaid on the original image with coordinate grid lines. The tool supports multiple Gemini model versions and can extract either bounding box coordinates in normalized format or point locations with labels, displaying the results alongside a detailed visualization canvas. Store your API key locally for convenient access across multiple sessions.
 
+<!-- topics: ai-llm, images-graphics -->
+<!-- features: fetch-network, canvas, file-upload, local-storage -->
 <!-- Generated from commit: 36d731382a722df612088913dcc9e648118636b6 -->

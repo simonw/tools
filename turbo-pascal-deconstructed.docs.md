@@ -1,3 +1,4 @@
 Explore an interactive breakdown of Turbo Pascal 3.02A's 39,731-byte executable, mapping each function from the header and display system through the parser and symbol table. Navigate the binary segments with an overhead visualization and detailed hex dumps with annotated disassembly, revealing how a complete compiler, editor, and runtime fit within the constraints of 1986 DOS memory while routing all file I/O through a single INT 21h dispatcher gateway.
 
+<!-- topics: reference-education, developer-tools -->
 <!-- Generated from commit: b0e0ad77b9ac19eb0074f122fbb7f41e67b941ae -->

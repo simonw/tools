@@ -1,3 +1,5 @@
 Decode QR codes from images or your device's camera with this interactive web application. Upload an image by dragging and dropping, clicking to select a file, or pasting from your clipboard, and the decoder will extract the encoded data instantly. Switch to webcam mode for real-time scanning with support for multiple cameras and pinch-to-zoom functionality on touch devices.
 
+<!-- topics: developer-tools -->
+<!-- features: canvas, drag-and-drop, file-upload, camera-mic -->
 <!-- Generated from commit: d4336f4693a0ab5a417d152d6ce79b9bf1325f10 -->

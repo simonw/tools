@@ -1,3 +1,5 @@
 Adjust indentation levels in your text with this tool that offers multiple formatting options. Add or remove spaces from the beginning of each line, strip all leading whitespace, eliminate trailing spaces, and apply or remove quote markers (>) for formatted text. Copy the processed result directly to your clipboard with a single click.
 
+<!-- topics: text-writing, productivity -->
+<!-- features: clipboard -->
 <!-- Generated from commit: 42c83ef2843c8e5d1645b3921b8ee05a1a81bbea -->

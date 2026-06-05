@@ -1,3 +1,5 @@
 Analyze and explain SQLite queries using APSW by entering SQL code and executing it in an in-browser Python environment. The tool provides detailed query analysis including execution plans, expanded SQL, and query information to help understand how SQLite processes your queries. Optional setup SQL can be run before the main query to create tables or initialize data, and parameterized queries are supported through labeled input fields.
 
+<!-- topics: sqlite-databases, developer-tools -->
+<!-- features: webassembly -->
 <!-- Generated from commit: 0af31729167e3de7f6ac73afd5e5bc03ba3b68fb -->

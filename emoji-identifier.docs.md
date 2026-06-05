@@ -1,3 +1,5 @@
 Extract and identify all emojis from text by pasting or typing into the input field, and instantly view their names and Unicode codepoint values. The tool uses a comprehensive emoji detection regex pattern combined with a Unicode emoji dataset to recognize a wide variety of emoji characters, including skin tone variants and zero-width joiner sequences. Results are displayed in real-time, showing each unique emoji found along with its standardized name and corresponding Unicode representation.
 
+<!-- topics: developer-tools, reference-education -->
+<!-- features: fetch-network -->
 <!-- Generated from commit: 5072713dbebf789683182021f37c6b3f654008a4 -->

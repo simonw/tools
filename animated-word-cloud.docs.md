@@ -1,3 +1,5 @@
 View animated word cloud visualizations that use an Archimedean spiral placement algorithm to position words on a canvas. Each word spirals outward from the center until it finds an unoccupied space, with grid-based spatial indexing accelerating collision detection to handle large datasets efficiently. Control the animation playback speed, step through frames manually, download the final result as a PNG, or paste your own text to generate a custom word cloud.
 
+<!-- topics: data-visualization -->
+<!-- features: canvas, url-state, fetch-network -->
 <!-- Generated from commit: 92c3a111e91f93397273845d2b76bb3cb59c3ca7 -->

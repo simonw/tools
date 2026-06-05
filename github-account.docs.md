@@ -1,3 +1,5 @@
 Look up GitHub user profiles and account information by username or numeric account ID. This tool fetches account details from the GitHub REST API, displaying information such as the user's name, login handle, account ID, creation date, and profile avatar. The application stores rate limit information locally to prevent repeated requests during API throttling periods.
 
+<!-- topics: developer-tools -->
+<!-- features: fetch-network, local-storage, url-state -->
 <!-- Generated from commit: 8fe6f1d70bd695e2f8e1cc9458e0c77a39c470a9 -->

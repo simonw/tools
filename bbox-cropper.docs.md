@@ -1,3 +1,5 @@
 Draw bounding boxes on images using an interactive cropping tool powered by CropperJS. Load an image by pasting, dragging and dropping, or selecting a file, then click and drag to create a box around your region of interest. The tool automatically outputs normalized coordinates as percentages of the image dimensions in a format ready for command-line use.
 
+<!-- topics: images-graphics, developer-tools -->
+<!-- features: file-upload, drag-and-drop, clipboard -->
 <!-- Generated from commit: d117432950c0c71f304ef9c89da6c91a83883df4 -->

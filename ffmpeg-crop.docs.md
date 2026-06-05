@@ -1,3 +1,5 @@
 Generate FFmpeg crop commands by uploading a video file and interactively defining a crop area using a draggable overlay. The tool provides both standard and iPhone-compatible FFmpeg command formats that automatically update as you adjust the crop box dimensions and position. This eliminates the need to manually calculate crop parameters for video editing workflows.
 
+<!-- topics: audio-video, developer-tools -->
+<!-- features: file-upload -->
 <!-- Generated from commit: c86f2226030d4506d32d7d652231d0cd60f0c17b -->

@@ -1,3 +1,4 @@
 Compare two blocks of text to identify character-level differences between them. This tool uses a dynamic programming algorithm to compute the longest common subsequence and highlights removed text in red and added text in green for easy visualization of changes. The results are displayed character-by-character in a dedicated output section that clearly indicates what was deleted from the original text and what was inserted in the modified version.
 
+<!-- topics: text-writing, developer-tools -->
 <!-- Generated from commit: b3c628b84c5c6a3b7fcfff10aa5de98b7f5d6962 -->

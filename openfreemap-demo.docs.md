@@ -1,3 +1,4 @@
 Explore an interactive map of San Francisco rendered with MapLibre GL and OpenFreeMap tiles, displaying 1000 randomly distributed markers across the city. The demo showcases three different approaches for rendering large numbers of points—scaled markers, custom HTML elements, and GeoJSON circle layers—with the map automatically adjusted to fit all markers in view. Users can interact with the tilted 3D map to navigate and explore the marker distribution across the San Francisco area.
 
+<!-- topics: maps-geo -->
 <!-- Generated from commit: 450728011c3a103bcd44b2f4440d3dcc56a651a6 -->

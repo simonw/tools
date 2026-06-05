@@ -1,3 +1,5 @@
 Generate responses from Google's Gemini API with support for system prompts, model selection, and streaming output. The interface stores your API key securely in local storage and maintains a history of system prompts for quick reuse. Markdown formatting is automatically rendered in the output area, and you can copy responses to your clipboard with a single click.
 
+<!-- topics: ai-llm -->
+<!-- features: fetch-network, clipboard, local-storage -->
 <!-- Generated from commit: 8ef8fd6737514504f0debeebc858fcde651fc7f5 -->

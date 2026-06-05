@@ -1,3 +1,5 @@
 Crop and customize images for social media platforms with precise control over composition and framing. This tool supports multiple popular aspect ratios including Twitter/LinkedIn (2:1), Facebook (1.91:1), Substack (1.4:1), and Instagram (1:1), with an intelligent background color detection system that automatically matches the image's edge tones. The interface offers both mouse and touch-friendly controls, including press-and-hold zoom buttons, pinch-to-zoom on mobile devices, and toggleable drag modes to move either the image or the crop box.
 
+<!-- topics: images-graphics -->
+<!-- features: canvas, file-upload, drag-and-drop -->
 <!-- Generated from commit: 152fd93b7a6fdd3447ec55798e54dbef1630b911 -->

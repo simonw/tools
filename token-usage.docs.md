@@ -1,3 +1,4 @@
 Calculate token usage across your Claude and other LLM API calls by pasting YAML output from the LLM tool's `llm logs -su` command. The calculator automatically groups token consumption by model and displays total input and output tokens for each. This helps you track and analyze API usage patterns across multiple conversations and model versions.
 
+<!-- topics: ai-llm, productivity -->
 <!-- Generated from commit: 330106eb4f9fd2b4db6ca48c8b520445f62797ba -->

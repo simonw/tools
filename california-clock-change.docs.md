@@ -1,3 +1,4 @@
 Track California's Daylight Saving Time changes with this tool that displays the most recent clock adjustment and alerts you to the next one. The page automatically detects your timezone and restricts functionality to Pacific Time users, while offering detailed information about when clocks spring forward or fall back, along with a note about how the change might affect your dog's internal schedule. An embedded test suite verifies the accuracy of DST date calculations for multiple years.
 
+<!-- topics: productivity, reference-education -->
 <!-- Generated from commit: 181166fe79f697569e96f05e44f71d9a652146ff -->

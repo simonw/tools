@@ -1,3 +1,5 @@
 Create real-time audio-reactive visualizations with eight distinct modes including plasma, particles, tunnel effects, kaleidoscope patterns, Matrix rain, terrain, fire, and starfield animations. The visualizer captures frequency data from your microphone and responds dynamically to bass, mid, and high frequencies, with beat detection triggering visual flashes and intensity changes. Sequence mode automatically cycles through all visualization styles with smooth transitions, while fullscreen capability allows for immersive display on any screen.
 
+<!-- topics: audio-video, data-visualization -->
+<!-- features: canvas, web-audio, camera-mic, fullscreen -->
 <!-- Generated from commit: bf3c8537cf1236df1be6fb48ec6600bbf50dd2b3 -->

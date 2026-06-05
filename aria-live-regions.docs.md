@@ -1,3 +1,4 @@
 Explore live region notifications with this interactive accessibility demo that allows you to test how screen readers announce dynamic content updates. The page provides instructions for testing with VoiceOver on macOS and iOS, plus interactive controls to trigger notifications with different aria-live settings (assertive or polite) to observe how screen readers prioritize and announce content changes.
 
+<!-- topics: accessibility, reference-education -->
 <!-- Generated from commit: 30ad8d445379deeab726dc7d6c94a67e18de2f32 -->

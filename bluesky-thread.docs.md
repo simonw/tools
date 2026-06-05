@@ -1,3 +1,5 @@
 View Bluesky thread conversations with multiple display options including nested thread view, chronological sorting, and media support. This viewer fetches complete discussion threads from Bluesky posts and renders them with color-coded depth indicators, clickable reply relationships, and embedded images and videos. Users can switch between different viewing modes, copy thread text or raw JSON data, and optionally hide non-author replies to focus on the original poster's main conversation.
 
+<!-- topics: social-feeds -->
+<!-- features: fetch-network, clipboard, svg, url-state -->
 <!-- Generated from commit: e766dd32ea7be2d0ab72afaddfa7787cb690da77 -->

@@ -1,3 +1,5 @@
 Parse Pipfile.lock files to extract Python package dependencies and convert them into multiple formats for easy management and sharing. The tool automatically extracts package names and versions from the lock file and displays them in both Pipfile and requirements.txt formats, with one-click copying functionality for each output format.
 
+<!-- topics: developer-tools -->
+<!-- features: clipboard -->
 <!-- Generated from commit: 0a11eb24ddca33a9315f879b170e8dad3399c719 -->

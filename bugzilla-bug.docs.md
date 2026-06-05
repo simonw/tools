@@ -1,3 +1,5 @@
 View Mozilla Bugzilla bug reports with a streamlined interface that displays bug details, comments, and change history in an organized timeline format. Enter a bug ID, URL, or Bugzilla link to retrieve comprehensive information including status, dependencies, keywords, and all activity related to the bug. The viewer automatically fetches and displays details about related bugs referenced in dependencies and history changes, making it easy to navigate connections between issues.
 
+<!-- topics: developer-tools -->
+<!-- features: fetch-network, url-state -->
 <!-- Generated from commit: 96d20a53f6df95e709fc2702450febf6619c99b2 -->

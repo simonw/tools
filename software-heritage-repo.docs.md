@@ -1,3 +1,5 @@
 Download archived Git repositories from Software Heritage, the universal archive of software source code. This tool queries the Software Heritage GraphQL API to locate repositories and creates downloadable bare Git archives through the vault service. Enter a repository URL to retrieve the latest snapshot and access detailed archive information including the Software Heritage identifier (SWHID) for future reference.
 
+<!-- topics: developer-tools -->
+<!-- features: fetch-network, url-state -->
 <!-- Generated from commit: dc4748ca4471e30f9fd8b108c99d918fb5f65a43 -->

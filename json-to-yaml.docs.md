@@ -1,3 +1,5 @@
 Convert JSON data into multiple YAML formats with a single paste. The tool generates three output variations—block style for readability, flow style for compactness, and quoted strings style for explicit formatting—allowing you to choose the best format for your needs. Each output can be copied to your clipboard with a single click.
 
+<!-- topics: data-json -->
+<!-- features: clipboard -->
 <!-- Generated from commit: 5426b541ed61cf6a9d0b74c3acce637ca60a825a -->

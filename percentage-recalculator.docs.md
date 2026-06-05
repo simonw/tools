@@ -1,3 +1,4 @@
 Calculate and normalize multiple percentages to sum to 100%, with the option to exclude specific values from the recalculation. Enter up to four percentage values and check the "Ignore this" box next to any percentages you want to exclude; the tool will automatically recalculate the remaining percentages proportionally so they add up to 100%.
 
+<!-- topics: productivity -->
 <!-- Generated from commit: 417e7ad6970acf77842caa52d1eb00c4761f1c5f -->

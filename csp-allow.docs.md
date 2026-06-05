@@ -1,3 +1,5 @@
 Experiment with Content Security Policy (CSP) allow-lists by editing HTML code in the left panel and observing how network requests are handled in the sandboxed preview on the right. Add trusted origins to the connect-src allow-list, and the application will prompt you to approve blocked requests from the sandbox, automatically updating your CSP configuration. This tool helps developers understand how CSP policies control resource loading and test dynamic allow-list management in real-time.
 
+<!-- topics: developer-tools, reference-education -->
+<!-- features: local-storage -->
 <!-- Generated from commit: 4dbfb23264757d118ca890c1d9f561ce4516ed4b -->

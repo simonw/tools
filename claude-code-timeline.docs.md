@@ -1,3 +1,5 @@
 View Claude Code session `.jsonl` files as an interactive timeline with customizable filtering and search capabilities. This tool displays events chronologically, extracting conversation messages, tool calls, and file snapshots with formatted previews of text content, code blocks, and embedded images. Use the file picker, drag-and-drop, paste input, or URL fetch to load your session data and explore it with timezone switching, content-type filters, and easy JSON export.
 
+<!-- topics: developer-tools, ai-llm -->
+<!-- features: file-upload, drag-and-drop, fetch-network, clipboard, url-state -->
 <!-- Generated from commit: fdf7dab46adb9661766455cbf81a611969c6a778 -->

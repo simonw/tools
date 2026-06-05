@@ -1,3 +1,5 @@
 Access a collection of practical bookmarklets for web development and general browsing tasks. Each bookmarklet can be installed by dragging it to your bookmarks bar on desktop browsers or by copying the code for mobile Safari. The collection includes tools for revealing page anchor points and viewing page source code with formatting options, all presented with detailed documentation and source code inspection capabilities.
 
+<!-- topics: developer-tools -->
+<!-- features: clipboard -->
 <!-- Generated from commit: 0804a5a97e69c724db4cab72661e5967730be7fe -->

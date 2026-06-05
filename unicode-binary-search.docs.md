@@ -1,3 +1,5 @@
 View Unicode characters and their properties through an interactive binary search algorithm that makes real HTTP Range requests to fetch individual records from a binary database. Enter a character or Unicode codepoint to see each step of the search visualized in a network log, including fetch times and comparisons. The tool supports both standard binary search and interpolation search, which estimates the target's position based on codepoint values rather than always splitting the middle, potentially reducing the number of network requests needed.
 
+<!-- topics: reference-education, developer-tools -->
+<!-- features: fetch-network -->
 <!-- Generated from commit: 0beead964c12f300b6484a0126cb89cfe928a2ee -->
