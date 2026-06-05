@@ -1,10 +1,9 @@
-"""Render a classic Yahoo-style directory of tools.
+"""Render the classic Yahoo-style tool directory.
 
-The directory has two levels: top-level categories (e.g. "Development & APIs")
-each containing subcategories (e.g. "Developer Tools", "Code Sandboxes & REPLs"),
-with the tools listed under each subcategory. A second section groups tools by
-the browser feature they use. The output is static HTML that works with no
-JavaScript; feature chips are anchor links into the feature section.
+The homepage shows a compact two-level category index (top-level categories with
+their subcategories as inline links). Each subcategory links to its own standalone
+page listing the tools; a single "All tools by category" page shows the whole
+hierarchy plus a browse-by-browser-feature section.
 """
 
 from __future__ import annotations
@@ -12,6 +11,16 @@ from __future__ import annotations
 import html
 from collections import defaultdict
 from typing import Dict, List, Sequence
+
+ALL_URL = "/categories"
+
+
+def subcategory_filename(slug: str) -> str:
+    return f"category-{slug}.html"
+
+
+def subcategory_url(slug: str) -> str:
+    return f"/category-{slug}"
 
 
 def _bucket(tools: Sequence[dict], namespace: str) -> Dict[str, List[dict]]:
@@ -27,17 +36,27 @@ def _display(vocab_group: Dict[str, str], slug: str) -> str:
     return vocab_group.get(slug, slug.replace("-", " ").title())
 
 
-def _subcat_block(anchor: str, display: str, members: Sequence[dict]) -> str:
-    members = sorted(members, key=lambda t: t.get("title", "").lower())
-    links = "\n".join(
+def _sorted(members: Sequence[dict]) -> List[dict]:
+    return sorted(members, key=lambda t: t.get("title", "").lower())
+
+
+def _tool_links(members: Sequence[dict]) -> str:
+    return "\n".join(
         f'        <li><a href="{html.escape(tool.get("url", "#"))}">'
         f'{html.escape(tool.get("title", tool.get("slug", "")))}</a></li>'
-        for tool in members
+        for tool in _sorted(members)
     )
-    return f"""    <div class="dir-cat" id="{html.escape(anchor)}">
-      <h3>{html.escape(display)} <span class="dir-count">({len(members)})</span></h3>
+
+
+def _subcat_block(slug: str, display: str, members: Sequence[dict]) -> str:
+    heading = (
+        f'<a href="{subcategory_url(slug)}">{html.escape(display)}</a> '
+        f'<span class="dir-count">({len(members)})</span>'
+    )
+    return f"""    <div class="dir-cat" id="topic-{html.escape(slug)}">
+      <h3>{heading}</h3>
       <ul>
-{links}
+{_tool_links(members)}
       </ul>
     </div>"""
 
@@ -46,12 +65,11 @@ def _grid(blocks: Sequence[str]) -> str:
     return '<div class="dir-grid">\n' + "\n".join(blocks) + "\n</div>"
 
 
-def _collect_categories(tools: Sequence[dict], vocab: dict):
+def collect_categories(tools: Sequence[dict], vocab: dict):
     """Return ``[(category, [(sub_slug, sub_display, members), ...]), ...]``.
 
-    Categories and subcategories with no tools are dropped. Any topic tag not
-    assigned to a category (e.g. newly coined) is gathered under a "More"
-    category at the end.
+    Categories and subcategories with no tools are dropped. Topic tags not
+    assigned to any category are gathered under a "More" category at the end.
     """
     buckets = _bucket(tools, "topics")
     topics_map = vocab.get("topics", {})
@@ -77,50 +95,30 @@ def _collect_categories(tools: Sequence[dict], vocab: dict):
     return collected
 
 
-def _render_index(collected) -> str:
-    """Render the compact Yahoo-style two-column category index."""
+def render_index(tools: Sequence[dict], vocab: dict) -> str:
+    """Render the homepage category index (top-level categories + inline subs)."""
+    collected = collect_categories(tools, vocab)
     entries = []
     for cat, subs in collected:
         cat_slug = html.escape(cat.get("slug", ""))
         cat_name = html.escape(cat.get("name", ""))
         total = sum(len(m) for _, _, m in subs)
         sub_links = ", ".join(
-            f'<a href="#topic-{html.escape(slug)}">{html.escape(display)}</a>'
+            f'<a href="{subcategory_url(slug)}">{html.escape(display)}</a>'
             for slug, display, _ in subs
         )
         entries.append(
             f"""  <div class="yh-cat">
-    <h3><a href="#cat-{cat_slug}">{cat_name}</a> <span class="yh-xtra">[{total}]</span></h3>
+    <h3><a href="{ALL_URL}#cat-{cat_slug}">{cat_name}</a> <span class="yh-xtra">[{total}]</span></h3>
     <p>{sub_links}</p>
   </div>"""
         )
-    return '<div class="yh-index">\n' + "\n".join(entries) + "\n</div>"
-
-
-def _render_detail(collected) -> str:
-    """Render the full per-category tool listings beneath the index."""
-    sections = []
-    for cat, subs in collected:
-        cat_slug = html.escape(cat.get("slug", ""))
-        cat_name = html.escape(cat.get("name", ""))
-        blocks = [
-            _subcat_block(f"topic-{slug}", display, members)
-            for slug, display, members in subs
-        ]
-        sections.append(
-            f'<h3 class="dir-toplevel" id="cat-{cat_slug}">{cat_name}</h3>\n'
-            + _grid(blocks)
-        )
-    return "\n".join(sections)
-
-
-def _render_topics(tools: Sequence[dict], vocab: dict) -> str:
-    collected = _collect_categories(tools, vocab)
     return (
+        '<div class="directory" data-directory>\n'
         '<h2 class="dir-heading">Browse by category</h2>\n'
-        + _render_index(collected)
-        + '\n<h2 class="dir-heading">All tools by category</h2>\n'
-        + _render_detail(collected)
+        '<div class="yh-index">\n' + "\n".join(entries) + "\n</div>\n"
+        f'<p class="browse-all-link"><a href="{ALL_URL}">Browse all tools by category &raquo;</a></p>\n'
+        "</div>"
     )
 
 
@@ -130,27 +128,63 @@ def _render_features(tools: Sequence[dict], vocab: dict) -> str:
     ordered = [slug for slug in features_map if buckets.get(slug)]
     ordered += [slug for slug in buckets if slug not in features_map]
 
-    chips = "\n".join(
-        f'    <a class="dir-chip" href="#feature-{html.escape(slug)}">'
-        f'{html.escape(_display(features_map, slug))} '
-        f'<span class="dir-count">({len(buckets[slug])})</span></a>'
-        for slug in ordered
-    )
-    blocks = [
-        _subcat_block(f"feature-{slug}", _display(features_map, slug), buckets[slug])
-        for slug in ordered
-    ]
+    blocks = []
+    for slug in ordered:
+        members = buckets[slug]
+        blocks.append(
+            f"""    <div class="dir-cat" id="feature-{html.escape(slug)}">
+      <h3>{html.escape(_display(features_map, slug))} <span class="dir-count">({len(members)})</span></h3>
+      <ul>
+{_tool_links(members)}
+      </ul>
+    </div>"""
+        )
     return (
-        '<h2 class="dir-heading">Browse by browser feature</h2>\n'
-        f'<div class="dir-chips">\n{chips}\n</div>\n' + _grid(blocks)
+        '<h2 class="dir-heading">Browse by browser feature</h2>\n' + _grid(blocks)
     )
 
 
-def render_directory(tools: Sequence[dict], vocab: dict) -> str:
-    """Render the full directory HTML fragment from tools and the tag vocabulary."""
-    return f"""<div class="directory" data-directory>
-<p class="dir-intro">A classic directory of every tool, sorted into categories.
-Pick a category below, or jump to the browser features a tool uses.</p>
-{_render_topics(tools, vocab)}
-{_render_features(tools, vocab)}
-</div>"""
+def render_all_page_body(tools: Sequence[dict], vocab: dict) -> str:
+    """Render the body of the standalone 'All tools by category' page."""
+    collected = collect_categories(tools, vocab)
+    sections = []
+    for cat, subs in collected:
+        cat_slug = html.escape(cat.get("slug", ""))
+        cat_name = html.escape(cat.get("name", ""))
+        blocks = [_subcat_block(slug, display, members) for slug, display, members in subs]
+        sections.append(
+            f'<h3 class="dir-toplevel" id="cat-{cat_slug}">{cat_name}</h3>\n' + _grid(blocks)
+        )
+    return (
+        '<p class="breadcrumb"><a href="/">Home</a> &rsaquo; All tools by category</p>\n'
+        "<h1>All tools by category</h1>\n"
+        '<div class="directory">\n'
+        + "\n".join(sections)
+        + "\n"
+        + _render_features(tools, vocab)
+        + "\n</div>"
+    )
+
+
+def render_subcategory_body(slug: str, display: str, members: Sequence[dict], cat_name: str) -> str:
+    """Render the body of a single subcategory page."""
+    items = "\n".join(
+        f'  <li><a href="{html.escape(t.get("url", "#"))}">{html.escape(t.get("title", t.get("slug", "")))}</a>'
+        + (
+            f'\n    <p class="tool-desc">{html.escape(t.get("description", ""))}</p>'
+            if t.get("description")
+            else ""
+        )
+        + "</li>"
+        for t in _sorted(members)
+    )
+    return (
+        '<p class="breadcrumb"><a href="/">Home</a> &rsaquo; '
+        f'<a href="{ALL_URL}">All tools by category</a> &rsaquo; {html.escape(cat_name)}</p>\n'
+        f"<h1>{html.escape(display)} <span class=\"dir-count\">({len(members)})</span></h1>\n"
+        f'<ul class="tool-list">\n{items}\n</ul>'
+    )
+
+
+# Backwards-compatible alias used by build_index.
+render_directory = render_index
