@@ -1,3 +1,3 @@
-Format and visualize incomplete or truncated JSON data with automatic live formatting as you type. This tool handles malformed JSON structures by applying consistent indentation and proper spacing, making it easier to read and understand partial JSON snippets. The formatted output can be copied to the clipboard with a single click, and example data is available to test the functionality.
+Format truncated or incomplete JSON into readable structures with automatic live formatting as you type. This tool applies consistent indentation and proper spacing to malformed or partial JSON snippets, and displays validation status while the formatted output can be copied to the clipboard. Example data is available to test the functionality.
 
-<!-- Generated from commit: 85618b7bf0d4877fb4836d434adf29dbd646ee52 -->
+<!-- Generated from commit: 390a83ad24b691c897b16de5565fecbf9c63c8cc -->
