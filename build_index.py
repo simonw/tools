@@ -8,6 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
+import directory
+import tags_lib
+
 try:
     import markdown
 except ModuleNotFoundError as exc:  # pragma: no cover - dependency should be installed
@@ -158,7 +161,11 @@ def build_index() -> None:
 
     recent_section_html = _render_recent_section(recently_added, recently_updated)
 
-    # Inject the recent section between the comment markers
+    vocab = tags_lib.load_vocabulary()
+    directory_html = directory.render_directory(tools, vocab)
+
+    # Inject the recent section between the comment markers, then the directory
+    # immediately after the closing marker.
     start_marker = '<!-- recently starts -->'
     end_marker = '<!-- recently stops -->'
     if start_marker in body_html and end_marker in body_html:
@@ -171,6 +178,9 @@ def build_index() -> None:
                 '\n' + recent_section_html +
                 body_html[end_idx:]
             )
+        body_html = body_html.replace(
+            end_marker, end_marker + '\n' + directory_html, 1
+        )
     else:
         # Fallback: inject before Image and media heading if markers not found
         injection_marker = '<h2 id="image-and-media">Image and media</h2>'
@@ -180,6 +190,7 @@ def build_index() -> None:
             )
         else:
             body_html = recent_section_html + body_html
+        body_html = body_html + '\n' + directory_html
 
     full_html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -333,6 +344,93 @@ def build_index() -> None:
             color: #666;
             font-size: 0.9em;
             margin-top: 0.5em;
+        }}
+        html {{
+            scroll-behavior: smooth;
+        }}
+        .directory {{
+            margin-top: 2.5em;
+            border-top: 3px double #9a67af;
+            padding-top: 1em;
+        }}
+        .dir-intro {{
+            color: #444;
+            font-size: 0.95em;
+            max-width: 48em;
+            margin: 0.5em 0 1em;
+        }}
+        .dir-heading {{
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            font-size: 1.35em;
+            color: #4a2f63;
+            border-bottom: 2px solid #9a67af;
+            padding-bottom: 2px;
+            margin: 1.4em 0 0.8em;
+        }}
+        .dir-chips {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 0 0 1.5em;
+        }}
+        .dir-chip {{
+            font-size: 0.82em;
+            background: #f0ebf5;
+            border: 1px solid #d3c4e0;
+            border-radius: 3px;
+            padding: 2px 8px;
+            color: #5a3d73 !important;
+            white-space: nowrap;
+        }}
+        .dir-chip:hover {{
+            background: #5a3d73;
+            color: #fff !important;
+            text-decoration: none;
+        }}
+        .dir-grid {{
+            column-width: 280px;
+            column-gap: 30px;
+        }}
+        .dir-cat {{
+            break-inside: avoid;
+            -webkit-column-break-inside: avoid;
+            display: inline-block;
+            width: 100%;
+            margin: 0 0 1.4em;
+            vertical-align: top;
+        }}
+        .dir-cat h3 {{
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            font-size: 1.05em;
+            font-weight: bold;
+            margin: 0 0 0.3em;
+            padding-bottom: 2px;
+            border-bottom: 1px solid #c9b8d6;
+            color: #5a3d73;
+        }}
+        .dir-cat ul {{
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }}
+        .dir-cat li {{
+            font-size: 0.9em;
+            line-height: 1.5;
+            padding-left: 0.9em;
+            text-indent: -0.9em;
+        }}
+        .dir-cat li::before {{
+            content: "\\203A";
+            color: #b8a3c9;
+            margin-right: 0.4em;
+        }}
+        .dir-count {{
+            color: #999;
+            font-weight: normal;
+            font-size: 0.85em;
+        }}
+        :target > h3 {{
+            background: #fdf6a8;
         }}
     </style>
 </head>
