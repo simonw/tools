@@ -1,3 +1,3 @@
-Browse the latest Hacker News stories with customizable content filtering to exclude topics of your choice. Enter comma-separated terms to filter out posts matching those keywords across titles, URLs, and descriptions, and refresh the feed to load the newest stories. Your filter preferences are automatically saved in your browser for future visits.
+Browse the latest Hacker News stories with customizable content filtering to exclude topics of your choice. Enter comma-separated terms to filter out posts matching those keywords across titles, URLs, and descriptions, and click Refresh to load the newest stories or press Enter to re-filter the current feed. Your filter preferences are automatically saved in your browser for future visits.
 
-<!-- Generated from commit: be1fcc15eca432e646ba2f9750e7a6c6faf7e113 -->
+<!-- Generated from commit: d98df82ebff829fe4b12aa72a68dff2173307a40 -->
