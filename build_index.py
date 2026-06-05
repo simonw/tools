@@ -380,6 +380,44 @@ def build_index() -> None:
             padding: 4px 10px;
             margin: 1.5em 0 0.9em;
             border-radius: 2px;
+            scroll-margin-top: 8px;
+        }}
+        .yh-index {{
+            column-width: 330px;
+            column-gap: 44px;
+            margin: 0.5em 0 1em;
+        }}
+        .yh-cat {{
+            break-inside: avoid;
+            -webkit-column-break-inside: avoid;
+            display: inline-block;
+            width: 100%;
+            margin: 0 0 1.1em;
+            vertical-align: top;
+        }}
+        .yh-cat h3 {{
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            font-size: 1.1em;
+            margin: 0 0 0.15em;
+        }}
+        .yh-cat h3 a {{
+            color: #4a2f63;
+            font-weight: bold;
+        }}
+        .yh-xtra {{
+            color: #cc0000;
+            font-size: 0.7em;
+            font-weight: normal;
+            vertical-align: super;
+        }}
+        .yh-cat p {{
+            margin: 0;
+            font-size: 0.9em;
+            line-height: 1.45;
+            color: #555;
+        }}
+        .dir-cat h3 {{
+            scroll-margin-top: 8px;
         }}
         .dir-chips {{
             display: flex;

@@ -46,54 +46,81 @@ def _grid(blocks: Sequence[str]) -> str:
     return '<div class="dir-grid">\n' + "\n".join(blocks) + "\n</div>"
 
 
-def _render_topics(tools: Sequence[dict], vocab: dict) -> str:
+def _collect_categories(tools: Sequence[dict], vocab: dict):
+    """Return ``[(category, [(sub_slug, sub_display, members), ...]), ...]``.
+
+    Categories and subcategories with no tools are dropped. Any topic tag not
+    assigned to a category (e.g. newly coined) is gathered under a "More"
+    category at the end.
+    """
     buckets = _bucket(tools, "topics")
     topics_map = vocab.get("topics", {})
-    categories = list(vocab.get("categories", []))
-
     placed = set()
-    sections = []
-    nav_links = []
+    collected = []
 
-    def emit_category(cat_slug, cat_name, sub_slugs):
-        blocks = []
-        for sub in sub_slugs:
+    for cat in vocab.get("categories", []):
+        subs = []
+        for sub in cat.get("subcategories", []):
+            placed.add(sub)
             members = buckets.get(sub)
-            if not members:
-                continue
-            blocks.append(
-                _subcat_block(f"topic-{sub}", _display(topics_map, sub), members)
-            )
-        if not blocks:
-            return
-        nav_links.append(
-            f'<a href="#cat-{html.escape(cat_slug)}">{html.escape(cat_name)}</a>'
-        )
-        sections.append(
-            f'<h3 class="dir-toplevel" id="cat-{html.escape(cat_slug)}">'
-            f"{html.escape(cat_name)}</h3>\n" + _grid(blocks)
-        )
+            if members:
+                subs.append((sub, _display(topics_map, sub), members))
+        if subs:
+            collected.append((cat, subs))
 
-    for cat in categories:
-        sub_slugs = cat.get("subcategories", [])
-        placed.update(sub_slugs)
-        emit_category(cat.get("slug", ""), cat.get("name", ""), sub_slugs)
-
-    # Any topic tag not assigned to a category (e.g. newly coined) lands here.
-    leftover = [slug for slug in buckets if slug not in placed]
+    leftover = sorted(slug for slug in buckets if slug not in placed)
     if leftover:
-        emit_category("more", "More", sorted(leftover))
+        more = {"slug": "more", "name": "More"}
+        subs = [(s, _display(topics_map, s), buckets[s]) for s in leftover]
+        collected.append((more, subs))
 
-    nav = (
-        '<div class="dir-nav">' + " &middot; ".join(nav_links) + "</div>"
-        if nav_links
-        else ""
-    )
+    return collected
+
+
+def _render_index(collected) -> str:
+    """Render the compact Yahoo-style two-column category index."""
+    entries = []
+    for cat, subs in collected:
+        cat_slug = html.escape(cat.get("slug", ""))
+        cat_name = html.escape(cat.get("name", ""))
+        total = sum(len(m) for _, _, m in subs)
+        sub_links = ", ".join(
+            f'<a href="#topic-{html.escape(slug)}">{html.escape(display)}</a>'
+            for slug, display, _ in subs
+        )
+        entries.append(
+            f"""  <div class="yh-cat">
+    <h3><a href="#cat-{cat_slug}">{cat_name}</a> <span class="yh-xtra">[{total}]</span></h3>
+    <p>{sub_links}</p>
+  </div>"""
+        )
+    return '<div class="yh-index">\n' + "\n".join(entries) + "\n</div>"
+
+
+def _render_detail(collected) -> str:
+    """Render the full per-category tool listings beneath the index."""
+    sections = []
+    for cat, subs in collected:
+        cat_slug = html.escape(cat.get("slug", ""))
+        cat_name = html.escape(cat.get("name", ""))
+        blocks = [
+            _subcat_block(f"topic-{slug}", display, members)
+            for slug, display, members in subs
+        ]
+        sections.append(
+            f'<h3 class="dir-toplevel" id="cat-{cat_slug}">{cat_name}</h3>\n'
+            + _grid(blocks)
+        )
+    return "\n".join(sections)
+
+
+def _render_topics(tools: Sequence[dict], vocab: dict) -> str:
+    collected = _collect_categories(tools, vocab)
     return (
         '<h2 class="dir-heading">Browse by category</h2>\n'
-        + nav
-        + "\n"
-        + "\n".join(sections)
+        + _render_index(collected)
+        + '\n<h2 class="dir-heading">All tools by category</h2>\n'
+        + _render_detail(collected)
     )
 
 

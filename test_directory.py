@@ -52,7 +52,7 @@ TOOLS = [
 
 def test_renders_top_level_categories_and_subcategories():
     html = directory.render_directory(TOOLS, VOCAB)
-    # Top-level category headings
+    # Top-level category headings (in the detail listing)
     assert 'id="cat-development"' in html
     assert "Development &amp; APIs" in html
     # Subcategory headings under them
@@ -60,10 +60,20 @@ def test_renders_top_level_categories_and_subcategories():
     assert 'id="topic-code-sandboxes"' in html
 
 
-def test_top_level_nav_links_to_categories():
+def test_yahoo_index_lists_categories_with_inline_subcategory_links():
     html = directory.render_directory(TOOLS, VOCAB)
+    assert 'class="yh-index"' in html
+    # Category name links to its detail section
     assert 'href="#cat-development"' in html
-    assert 'href="#cat-web-life"' in html
+    # Subcategories appear as inline links into their tool listings
+    assert 'href="#topic-developer-tools"' in html
+    assert 'href="#topic-code-sandboxes"' in html
+
+
+def test_index_shows_tool_count_per_category():
+    html = directory.render_directory(TOOLS, VOCAB)
+    # development has json-diff (developer-tools) + pyrepl (code-sandboxes) = 2
+    assert "[2]" in html
 
 
 def test_empty_subcategories_are_omitted():
