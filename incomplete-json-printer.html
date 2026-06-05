@@ -13,13 +13,13 @@
       --text-color: #333333;
       --border-color: #e0e0e0;
     }
-    
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-    
+
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       line-height: 1.6;
@@ -29,13 +29,13 @@
       max-width: 1000px;
       margin: 0 auto;
     }
-    
+
     .container {
       display: flex;
       flex-direction: column;
       gap: 20px;
     }
-    
+
     .card {
       background: var(--card-background);
       border-radius: 8px;
@@ -43,22 +43,22 @@
       padding: 20px;
       transition: all 0.3s ease;
     }
-    
+
     h2 {
       color: var(--primary-color);
       margin-bottom: 10px;
       font-weight: 600;
     }
-    
+
     h3 {
       margin-bottom: 10px;
     }
-    
+
     p {
       margin-bottom: 15px;
       color: #666;
     }
-    
+
     textarea {
       width: 100%;
       height: 180px;
@@ -70,20 +70,20 @@
       resize: vertical;
       transition: border 0.3s ease;
     }
-    
+
     textarea:focus {
       outline: none;
       border-color: var(--primary-color);
       box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
     }
-    
+
     .button-group {
       display: flex;
       gap: 10px;
       margin: 15px 0;
       flex-wrap: wrap;
     }
-    
+
     button {
       background-color: var(--primary-color);
       color: white;
@@ -97,11 +97,11 @@
       align-items: center;
       gap: 6px;
     }
-    
+
     button:hover {
       background-color: var(--secondary-color);
     }
-    
+
     pre {
       background: #f0f0f0;
       padding: 15px;
@@ -115,14 +115,55 @@
       line-height: 1.5;
       min-height: 50px;
     }
-    
+
     .output-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
+      gap: 12px;
+      flex-wrap: wrap;
     }
-    
+
+    .output-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .output-title h3 {
+      margin-bottom: 0;
+    }
+
+    .json-status {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.25;
+      padding: 5px 8px;
+    }
+
+    .json-status.valid {
+      background: #1f8f4d;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .json-status.invalid {
+      background: #fce8e6;
+      border: 1px solid #f5c2c7;
+      color: #a33a2f;
+      max-width: min(100%, 560px);
+    }
+
+    .json-status[hidden] {
+      display: none;
+    }
+
     .copy-button {
       background-color: #f0f0f0;
       color: #333;
@@ -130,32 +171,32 @@
       border-radius: 4px;
       font-size: 12px;
     }
-    
+
     .copy-button:hover {
       background-color: #e0e0e0;
     }
-    
+
     .copy-success {
       background-color: #27ae60;
       color: white;
     }
-    
+
     /* Responsive adjustments */
     @media (max-width: 768px) {
       body {
         padding: 12px;
       }
-      
+
       textarea {
         height: 150px;
       }
     }
-    
+
     @media (max-width: 480px) {
       .button-group {
         flex-direction: column;
       }
-      
+
       button {
         width: 100%;
         justify-content: center;
@@ -168,9 +209,9 @@
     <div class="card">
       <h2>Incomplete JSON Pretty Printer</h2>
       <p>Format truncated or incomplete JSON into a readable structure - updates automatically as you type.</p>
-      
+
       <textarea id="inputJson" placeholder="Paste incomplete JSON here..."></textarea>
-      
+
       <div class="button-group">
         <button id="exampleButton">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -195,7 +236,10 @@
 
     <div class="card">
       <div class="output-header">
-        <h3>Formatted JSON</h3>
+        <div class="output-title">
+          <h3>Formatted JSON</h3>
+          <span id="jsonStatus" class="json-status" hidden></span>
+        </div>
         <button id="copyButton" class="copy-button">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -215,73 +259,109 @@
       const copyButton = document.getElementById('copyButton');
       const exampleButton = document.getElementById('exampleButton');
       const clearButton = document.getElementById('clearButton');
-      
+      const jsonStatus = document.getElementById('jsonStatus');
+
       // Auto-update when input changes
       inputJson.addEventListener('input', function() {
         updateOutput();
       });
-      
+
       // Copy to clipboard functionality
       copyButton.addEventListener('click', function() {
         const textToCopy = outputJson.textContent;
-        
+
         navigator.clipboard.writeText(textToCopy).then(function() {
           // Success feedback
           copyButton.classList.add('copy-success');
           copyButton.textContent = '✓ Copied!';
-          
+
           setTimeout(function() {
             copyButton.classList.remove('copy-success');
             copyButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy to Clipboard';
           }, 2000);
         });
       });
-      
+
       // Load example JSON
       exampleButton.addEventListener('click', function() {
         const pelicanExample = `{"pelican":{"name":"Brown Pelican","scientificName":"Pelecanus occidentalis","features":{"wingspan":"2.3 meters","weight":"3.5 kg","colors":["brown","white","gray"]},"habitat":"coastal areas","diet":["fish","crustaceans"],"conservation`;
-        
+
         inputJson.value = pelicanExample;
         updateOutput();
       });
-      
+
       // Clear input
       clearButton.addEventListener('click', function() {
         inputJson.value = '';
         outputJson.textContent = '';
+        setJsonStatus();
       });
-      
+
       // Function to update output
       function updateOutput() {
         const input = inputJson.value.trim();
-        
+
         if (!input) {
           outputJson.textContent = '';
+          setJsonStatus();
           return;
         }
-        
+
         const formatted = prettyFormat(input);
         outputJson.textContent = formatted;
+        const validation = getJsonValidation(input);
+        if (validation.valid) {
+          setJsonStatus('valid');
+        } else {
+          setJsonStatus('invalid', validation.message);
+        }
       }
-      
+
+      function getJsonValidation(jsonString) {
+        try {
+          JSON.parse(jsonString);
+          return { valid: true };
+        } catch (error) {
+          return {
+            valid: false,
+            message: error instanceof Error ? error.message : 'Unknown parse error'
+          };
+        }
+      }
+
+      function setJsonStatus(status, message) {
+        jsonStatus.className = 'json-status';
+        jsonStatus.hidden = !status;
+
+        if (status === 'valid') {
+          jsonStatus.classList.add('valid');
+          jsonStatus.textContent = 'Valid JSON';
+        } else if (status === 'invalid') {
+          jsonStatus.classList.add('invalid');
+          jsonStatus.textContent = `Invalid JSON: ${message}`;
+        } else {
+          jsonStatus.textContent = '';
+        }
+      }
+
       // Function to format JSON
       function prettyFormat(jsonString) {
         let result = '';
         let indentLevel = 0;
         let inString = false;
         const indentSize = 2;
-        
+
         for (let i = 0; i < jsonString.length; i++) {
           const char = jsonString[i];
           const prevChar = i > 0 ? jsonString[i - 1] : '';
-          
+
           // Handle string content
           if (char === '"' && prevChar !== '\\') {
             inString = !inString;
             result += char;
             continue;
           }
-          
+
           if (inString) {
             // Inside string, add characters as-is
             result += char;
@@ -294,40 +374,40 @@
                 indentLevel++;
                 result += '\n' + ' '.repeat(indentLevel * indentSize);
                 break;
-                
+
               case '}':
               case ']':
                 indentLevel--;
                 result = result.trimEnd();
                 result += '\n' + ' '.repeat(indentLevel * indentSize) + char;
                 break;
-                
+
               case ',':
                 result += char;
                 result += '\n' + ' '.repeat(indentLevel * indentSize);
                 break;
-                
+
               case ':':
                 result += ': ';
                 break;
-                
+
               case ' ':
               case '\n':
               case '\r':
               case '\t':
                 // Skip all whitespace in non-string context
                 break;
-                
+
               default:
                 result += char;
                 break;
             }
           }
         }
-        
+
         return result;
       }
-      
+
       // Initialize on page load
       updateOutput();
     });
