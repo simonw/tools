@@ -115,6 +115,33 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   }
 
+  .transcript-box {
+    background: #0f172a;
+    color: #f8fafc;
+    border-radius: 4px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+
+  .transcript-box h2 {
+    margin: 0 0 10px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+  }
+
+  .transcript-value {
+    font-size: 1.15rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .transcript-placeholder {
+    color: #94a3b8;
+    font-style: italic;
+  }
+
   .stats-box h2 {
     margin: 0 0 15px 0;
     padding-bottom: 10px;
@@ -196,13 +223,29 @@
           <option value="verse">Verse</option>
         </select>
       </div>
-      <button id="startButton">Start Session</button>
+      <div class="form-group">
+        <label for="modelSelect">Model</label>
+        <select id="modelSelect">
+          <option value="gpt-realtime-2">gpt-realtime-2</option>
+          <option value="gpt-realtime-1.5">gpt-realtime-1.5</option>
+          <option value="gpt-realtime-mini">gpt-realtime-mini</option>
+          <option value="gpt-realtime">gpt-realtime</option>
+        </select>
+      </div>
+      <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button id="startButton">Start Session</button>
+        <button id="muteButton" disabled>Mute Mic</button>
+      </div>
     </div>
 
     <div id="status" class="status"></div>
     
     <div class="stats-container">
       <div class="stats-box">
+        <div class="transcript-box">
+          <h2>Last transcript</h2>
+          <div id="lastTranscript" class="transcript-value transcript-placeholder">Waiting for the first response...</div>
+        </div>
         <h2>Most recent interaction</h2>
         <div class="stats-grid">
           <div class="stats-section">
@@ -270,7 +313,7 @@ let sessionTotals = {
   totalCost: 0
 }
 
-async function createRealtimeSession(inStream, token, voice) {
+async function createRealtimeSession(inStream, token, voice, model) {
   const pc = new RTCPeerConnection()
   
   pc.ontrack = e => {
@@ -286,29 +329,31 @@ async function createRealtimeSession(inStream, token, voice) {
     try {
       const eventData = JSON.parse(e.data)
       
-      if (eventData.type === 'response.done' && 
-          eventData.response && 
-          eventData.response.usage) {
-        const usage = eventData.response.usage
-        const inputDetails = usage.input_token_details
-        const outputDetails = usage.output_token_details
-        const cachedDetails = inputDetails.cached_tokens_details
+      if (eventData.type === 'response.done' && eventData.response) {
+        updateLastTranscript(eventData)
 
-        const currentStats = {
-          audioInputTokens: inputDetails.audio_tokens - cachedDetails.audio_tokens,
-          textInputTokens: inputDetails.text_tokens - cachedDetails.text_tokens,
-          cachedInputTokens: inputDetails.cached_tokens,
-          audioOutputTokens: outputDetails.audio_tokens,
-          textOutputTokens: outputDetails.text_tokens
+        if (eventData.response.usage) {
+          const usage = eventData.response.usage
+          const inputDetails = usage.input_token_details
+          const outputDetails = usage.output_token_details
+          const cachedDetails = inputDetails.cached_tokens_details
+
+          const currentStats = {
+            audioInputTokens: inputDetails.audio_tokens - cachedDetails.audio_tokens,
+            textInputTokens: inputDetails.text_tokens - cachedDetails.text_tokens,
+            cachedInputTokens: inputDetails.cached_tokens,
+            audioOutputTokens: outputDetails.audio_tokens,
+            textOutputTokens: outputDetails.text_tokens
+          }
+
+          const costs = calculateCosts(currentStats, model)
+          
+          // Update current interaction display
+          updateCurrentStats(currentStats, costs)
+          
+          // Update session totals
+          updateSessionTotals(currentStats, costs)
         }
-
-        const costs = calculateCosts(currentStats)
-        
-        // Update current interaction display
-        updateCurrentStats(currentStats, costs)
-        
-        // Update session totals
-        updateSessionTotals(currentStats, costs)
       }
       
       addEventToLog(eventData)
@@ -321,19 +366,33 @@ async function createRealtimeSession(inStream, token, voice) {
   await pc.setLocalDescription(offer)
   
   const headers = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/sdp'
+    Authorization: `Bearer ${token}`
   }
   
   const opts = {
     method: 'POST',
-    body: offer.sdp,
     headers
   }
-  
-  const model = 'gpt-4o-realtime-preview-2024-12-17'
-  const resp = await fetch(`https://api.openai.com/v1/realtime?model=${model}&voice=${voice}`, opts)
-  
+
+  const fd = new FormData()
+  fd.set('sdp', offer.sdp)
+  fd.set('session', JSON.stringify({
+    type: 'realtime',
+    model,
+    audio: {
+      output: {
+        voice
+      }
+    }
+  }))
+  opts.body = fd
+
+  const resp = await fetch('https://api.openai.com/v1/realtime/calls', opts)
+
+  if (!resp.ok) {
+    throw new Error(`OpenAI realtime handshake failed: ${resp.status} ${await resp.text()}`)
+  }
+
   await pc.setRemoteDescription({
     type: 'answer',
     sdp: await resp.text()
@@ -342,24 +401,60 @@ async function createRealtimeSession(inStream, token, voice) {
   return pc
 }
 
-function calculateCosts({audioInputTokens, textInputTokens, cachedInputTokens, audioOutputTokens, textOutputTokens}) {
-  const AUDIO_INPUT_COST = 0.00004
-  const AUDIO_OUTPUT_COST = 0.00008
-  const CACHED_AUDIO_COST = 0.0000025
-  const TEXT_INPUT_COST = 0.0000025
-  const TEXT_OUTPUT_COST = 0.00001
+function calculateCosts({audioInputTokens, textInputTokens, cachedInputTokens, audioOutputTokens, textOutputTokens}, model) {
+  const pricing = getModelPricing(model)
 
-  const audioInputCost = audioInputTokens * AUDIO_INPUT_COST
-  const cachedInputCost = cachedInputTokens * CACHED_AUDIO_COST
-  const textInputCost = textInputTokens * TEXT_INPUT_COST
-  const audioOutputCost = audioOutputTokens * AUDIO_OUTPUT_COST
-  const textOutputCost = textOutputTokens * TEXT_OUTPUT_COST
+  const audioInputCost = audioInputTokens * pricing.audioInput
+  const cachedAudioInputCost = cachedInputTokens * pricing.cachedAudioInput
+  const textInputCost = textInputTokens * pricing.textInput
+  const cachedTextInputCost = cachedInputTokens * pricing.cachedTextInput
+  const audioOutputCost = audioOutputTokens * pricing.audioOutput
+  const textOutputCost = textOutputTokens * pricing.textOutput
 
   return {
-    inputCost: audioInputCost + cachedInputCost + textInputCost,
+    inputCost: audioInputCost + cachedAudioInputCost + textInputCost + cachedTextInputCost,
     outputCost: audioOutputCost + textOutputCost,
-    totalCost: audioInputCost + cachedInputCost + textInputCost + audioOutputCost + textOutputCost
+    totalCost: audioInputCost + cachedAudioInputCost + textInputCost + cachedTextInputCost + audioOutputCost + textOutputCost
   }
+}
+
+function getModelPricing(model) {
+  const pricingByModel = {
+    'gpt-realtime-2': {
+      audioInput: 0.000032,
+      cachedAudioInput: 0.0000004,
+      textInput: 0.000004,
+      cachedTextInput: 0.0000004,
+      audioOutput: 0.000064,
+      textOutput: 0.000016
+    },
+    'gpt-realtime-1.5': {
+      audioInput: 0.000032,
+      cachedAudioInput: 0.0000004,
+      textInput: 0.000004,
+      cachedTextInput: 0.0000004,
+      audioOutput: 0.000064,
+      textOutput: 0.000016
+    },
+    'gpt-realtime-mini': {
+      audioInput: 0.00001,
+      cachedAudioInput: 0.0000003,
+      textInput: 0.0000006,
+      cachedTextInput: 0.00000006,
+      audioOutput: 0.000024,
+      textOutput: 0.0000024
+    },
+    'gpt-realtime': {
+      audioInput: 0.000032,
+      cachedAudioInput: 0.0000004,
+      textInput: 0.000004,
+      cachedTextInput: 0.0000004,
+      audioOutput: 0.000064,
+      textOutput: 0.000016
+    }
+  }
+
+  return pricingByModel[model] || pricingByModel['gpt-realtime-2']
 }
 
 function updateCurrentStats(stats, costs) {
@@ -395,6 +490,40 @@ function updateSessionTotals(currentStats, costs) {
   document.getElementById('totalTotalCost').textContent = `$${sessionTotals.totalCost.toFixed(4)}`
 }
 
+function updateLastTranscript(eventData) {
+  const transcript = extractLastTranscript(eventData)
+  if (!transcript) {
+    return
+  }
+
+  lastTranscript.textContent = transcript
+  lastTranscript.classList.remove('transcript-placeholder')
+}
+
+function extractLastTranscript(eventData) {
+  const outputs = eventData?.response?.output
+  if (!Array.isArray(outputs)) {
+    return null
+  }
+
+  for (let i = outputs.length - 1; i >= 0; i -= 1) {
+    const item = outputs[i]
+    const content = item?.content
+    if (!Array.isArray(content)) {
+      continue
+    }
+
+    for (let j = content.length - 1; j >= 0; j -= 1) {
+      const part = content[j]
+      if (typeof part?.transcript === 'string' && part.transcript.trim()) {
+        return part.transcript.trim()
+      }
+    }
+  }
+
+  return null
+}
+
 function addEventToLog(eventData) {
       const eventsContainer = document.getElementById('events');
       const eventEntry = document.createElement('div');
@@ -420,20 +549,29 @@ function addEventToLog(eventData) {
     }
 
     const startButton = document.getElementById('startButton')
+    const muteButton = document.getElementById('muteButton')
     const tokenInput = document.getElementById('tokenInput')
     const voiceSelect = document.getElementById('voiceSelect')
+    const modelSelect = document.getElementById('modelSelect')
     const status = document.getElementById('status')
     const audioIndicator = document.getElementById('audioIndicator')
+    const lastTranscript = document.getElementById('lastTranscript')
 
     let peerConnection = null
     let audioContext = null
     let audioStream = null
+    let micMuted = false
 
     // Load saved API key on page load
     document.addEventListener('DOMContentLoaded', () => {
       const savedToken = localStorage.getItem('openai_api_key')
       if (savedToken) {
         tokenInput.value = savedToken
+      }
+
+      const savedModel = localStorage.getItem('openai_realtime_model')
+      if (savedModel) {
+        modelSelect.value = savedModel
       }
     })
 
@@ -466,6 +604,7 @@ function addEventToLog(eventData) {
       try {
         // Save API key to localStorage
         localStorage.setItem('openai_api_key', tokenInput.value)
+        localStorage.setItem('openai_realtime_model', modelSelect.value)
         
         status.className = 'status'
         status.textContent = 'Requesting microphone access...'
@@ -482,12 +621,16 @@ function addEventToLog(eventData) {
         peerConnection = await createRealtimeSession(
           audioStream,
           tokenInput.value,
-          voiceSelect.value
+          voiceSelect.value,
+          modelSelect.value
         )
-        
+
         status.className = 'status success'
         status.textContent = 'Session established successfully!'
         startButton.textContent = 'Stop Session'
+        muteButton.disabled = false
+        muteButton.textContent = 'Mute Mic'
+        micMuted = false
         
       } catch (err) {
         status.className = 'status error'
@@ -515,6 +658,22 @@ function addEventToLog(eventData) {
       
       audioIndicator.classList.remove('active')
       startButton.textContent = 'Start Session'
+      muteButton.disabled = true
+      muteButton.textContent = 'Mute Mic'
+      micMuted = false
+    }
+
+    function toggleMicMute() {
+      if (!audioStream) {
+        return
+      }
+
+      micMuted = !micMuted
+      audioStream.getAudioTracks().forEach(track => {
+        track.enabled = !micMuted
+      })
+
+      muteButton.textContent = micMuted ? 'Unmute Mic' : 'Mute Mic'
     }
 
     startButton.addEventListener('click', () => {
@@ -529,6 +688,8 @@ function addEventToLog(eventData) {
         startSession()
       }
     })
+
+    muteButton.addEventListener('click', toggleMicMute)
 
     // Cleanup on page unload
     window.addEventListener('beforeunload', stopSession)
