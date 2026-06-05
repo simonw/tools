@@ -2,12 +2,22 @@
 # requires-python = ">=3.12"
 # ///
 
-PROMPT = """
-Write or update a paragraph of documentation for this page as markdown.
+import os
+import json
+import subprocess
+import glob
+import argparse
+from pathlib import Path
+
+import tags_lib
+
+PROMPT_TEMPLATE = """
+Write or update documentation for this page, then tag it.
+
+First write a paragraph of documentation as markdown.
 Do not include any headings
 Do not use words like just or simply.
 Keep it to 2-3 sentences.
-Return only the final description text, with no extra commentary.
 
 You may be given the full text of the previous description. Use that previous
 description as the starting point, updating it only when the current HTML shows
@@ -16,16 +26,23 @@ are required, return the previous description unchanged.
 
 Instead of starting with something like "This Bugzilla Bug Viewer is a web application for..."
 start with "View Mozilla Bugzilla bug reports..." or similar
+
+Then choose tags. Pick one or more "topic" tags describing what the tool does,
+and zero or more "feature" tags naming the browser capabilities it actually uses
+(read the HTML/JavaScript to confirm — do not guess at features that are not
+present). Strongly prefer reusing an existing tag below; only coin a new
+lower-case hyphenated slug when nothing existing fits.
+
+{vocabulary}
+
+Return exactly the description paragraph, then on its own final line:
+TAGS: {{"topics": ["slug", ...], "features": ["slug", ...]}}
+Return nothing else.
 """.strip()
 
-import os
-import subprocess
-import glob
-import re
-import argparse
-from pathlib import Path
 
-COMMIT_MARKER_RE = re.compile(r"<!-- Generated from commit: ([a-f0-9]+) -->")
+def build_system_prompt():
+    return PROMPT_TEMPLATE.format(vocabulary=tags_lib.vocabulary_prompt_block())
 
 
 def get_current_commit_hash(file_path):
@@ -42,31 +59,60 @@ def get_current_commit_hash(file_path):
         return None
 
 
-def extract_commit_hash_from_docs(docs_file_path):
-    """Extract the commit hash from a documentation file if it exists."""
+def read_docs(docs_file_path):
+    """Read a docs file's content, or return None if it does not exist."""
     if not os.path.exists(docs_file_path):
         return None
-
     with open(docs_file_path, "r", encoding="utf-8") as f:
-        content = f.read()
+        return f.read()
 
-    hash_match = COMMIT_MARKER_RE.search(content)
-    if hash_match:
-        return hash_match.group(1)
 
-    return None
+def extract_commit_hash_from_docs(docs_file_path):
+    """Extract the commit hash from a documentation file if it exists."""
+    content = read_docs(docs_file_path)
+    return tags_lib.extract_commit_hash(content) if content else None
 
 
 def extract_previous_description_from_docs(docs_file_path):
-    """Extract the existing generated description without the commit marker."""
-    if not os.path.exists(docs_file_path):
+    """Extract the existing generated description without any comments."""
+    content = read_docs(docs_file_path)
+    if not content:
         return None
+    return tags_lib.extract_description(content) or None
 
-    with open(docs_file_path, "r", encoding="utf-8") as f:
-        content = f.read()
 
-    description = COMMIT_MARKER_RE.sub("", content).strip()
-    return description or None
+def docs_have_tags(docs_file_path):
+    """Return True if the docs file already has at least one topic tag."""
+    content = read_docs(docs_file_path)
+    if not content:
+        return False
+    topics, _ = tags_lib.parse_tags(content)
+    return bool(topics)
+
+
+def parse_model_output(output):
+    """Split model output into (description, topics, features).
+
+    The model returns the description paragraph followed by a final
+    ``TAGS: {json}`` line. A missing or malformed TAGS line yields empty tags.
+    """
+    topics, features = [], []
+    lines = output.strip().splitlines()
+    description_lines = lines
+    for index in range(len(lines) - 1, -1, -1):
+        stripped = lines[index].strip()
+        if not stripped:
+            continue
+        if stripped.upper().startswith("TAGS:"):
+            try:
+                payload = json.loads(stripped[len("TAGS:") :].strip())
+                topics = [str(t).strip() for t in payload.get("topics", []) if str(t).strip()]
+                features = [str(f).strip() for f in payload.get("features", []) if str(f).strip()]
+            except (ValueError, AttributeError):
+                pass
+            description_lines = lines[:index]
+        break
+    return "\n".join(description_lines).strip(), topics, features
 
 
 def build_llm_input(html_file_path, previous_description=None):
@@ -101,19 +147,42 @@ Current HTML:
 
 
 def generate_documentation(html_file_path, previous_description=None):
-    """Generate documentation for an HTML file using Claude."""
+    """Generate documentation and tags for an HTML file using Claude.
+
+    Returns ``(description, topics, features)`` or ``None`` on failure.
+    """
     try:
         result = subprocess.run(
-            ["llm", "-m", "claude-haiku-4.5", "--system", PROMPT],
+            ["llm", "-m", "claude-haiku-4.5", "--system", build_system_prompt()],
             input=build_llm_input(html_file_path, previous_description),
             capture_output=True,
             text=True,
             check=True,
         )
-        return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         print(f"Error generating documentation for {html_file_path}: {e}")
         return None
+
+    description, topics, features = parse_model_output(result.stdout)
+    if not description:
+        return None
+    return description, topics, features
+
+
+def merge_new_tags(topics, features):
+    """Add any newly coined tags to tags.json so the vocabulary persists."""
+    vocab = tags_lib.load_vocabulary()
+    changed = False
+    for namespace, slugs in (("topics", topics), ("features", features)):
+        bucket = vocab.setdefault(namespace, {})
+        for slug in slugs:
+            if slug not in bucket:
+                bucket[slug] = slug.replace("-", " ").title()
+                changed = True
+    if changed:
+        with tags_lib.TAGS_PATH.open("w", encoding="utf-8") as fp:
+            json.dump(vocab, fp, indent=2, ensure_ascii=False)
+            fp.write("\n")
 
 
 def main():
@@ -161,8 +230,9 @@ def main():
         # Get the commit hash from the existing docs file (if it exists)
         existing_hash = extract_commit_hash_from_docs(docs_file)
 
-        # Check if documentation needs to be updated
-        if existing_hash == current_hash:
+        # Regenerate when the HTML changed, or when an up-to-date docs file is
+        # still missing its tags (so existing tools get backfilled over time).
+        if existing_hash == current_hash and docs_have_tags(docs_file):
             if args.verbose:
                 print(f"  Documentation is up to date for {html_file}")
             skipped_count += 1
@@ -178,14 +248,20 @@ def main():
             print(f"  Generating documentation for {html_file}")
 
         previous_description = extract_previous_description_from_docs(docs_file)
-        doc_content = generate_documentation(html_file, previous_description)
-        if not doc_content:
+        generated = generate_documentation(html_file, previous_description)
+        if not generated:
             print(f"  Failed to generate documentation for {html_file}")
             skipped_count += 1
             continue
 
-        # Add the commit hash marker
-        doc_content += f"\n\n<!-- Generated from commit: {current_hash} -->"
+        description, topics, features = generated
+        merge_new_tags(topics, features)
+        doc_content = tags_lib.render_docs(
+            description,
+            topics=topics,
+            features=features,
+            commit_hash=current_hash,
+        )
 
         # Write the documentation to file
         with open(docs_file, "w", encoding="utf-8") as f:
