@@ -1,5 +1,5 @@
 Check the size of any GitHub repository by entering the owner and repository name or pasting a GitHub URL. The tool fetches repository data from the GitHub API and displays the total size in kilobytes, megabytes, or gigabytes depending on the repository's scale. Results are automatically saved to the browser URL, allowing you to share or revisit repository size checks.
 
-<!-- topics: developer-tools -->
+<!-- topics: apis-services -->
 <!-- features: fetch-network, url-state -->
 <!-- Generated from commit: 24e094de34a2936a429e6fce8f6c736039c1d9c7 -->

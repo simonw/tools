@@ -1,5 +1,5 @@
 Execute Python code in a sandboxed MicroPython WebAssembly environment with output displayed in real-time. Code is automatically saved to the URL for convenient sharing and persistence, and the environment supports JavaScript interoperability including the `fetch()` API for making HTTP requests. Built-in examples demonstrate common programming patterns from basic operations to working with APIs.
 
-<!-- topics: developer-tools -->
+<!-- topics: code-sandboxes -->
 <!-- features: webassembly, url-state, fetch-network -->
 <!-- Generated from commit: 425e8773f146b1678787bd972744fc309317849c -->

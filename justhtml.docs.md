@@ -1,5 +1,5 @@
 Test the JustHTML Python HTML5 parser directly in your browser with this interactive playground. Parse, query, and manipulate HTML using CSS selectors, pretty-print documents, extract text content, and convert HTML to Markdown—all running client-side with Pyodide. The playground supports multiple analysis modes including tree structure visualization and streaming event inspection for comprehensive HTML document exploration.
 
-<!-- topics: developer-tools -->
+<!-- topics: code-sandboxes -->
 <!-- features: webassembly, fetch-network -->
 <!-- Generated from commit: 172cd5ab9919eda995b8162c87b84bea7d58fb3a -->

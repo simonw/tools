@@ -1,5 +1,5 @@
 Convert web pages to structured content using the Jina Reader API, with support for multiple output formats including markdown, HTML, and text. The interface allows you to fetch and preview page content while optionally running AI-powered analysis through Claude to generate summaries, extract quotes, and identify key ideas from the retrieved material.
 
-<!-- topics: ai-llm, developer-tools -->
+<!-- topics: ai-llm, apis-services -->
 <!-- features: fetch-network, local-storage, clipboard -->
 <!-- Generated from commit: 0e83c1a01b476b112d05f3d57972c31907b21bdc -->

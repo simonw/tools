@@ -1,4 +1,4 @@
 Convert text to NATO phonetic alphabet equivalents for clear communication in radio, military, and aviation contexts. Enter any combination of letters and numbers, then click the convert button to display the phonetic representation with each character separated by spaces. Spaces in the original text are marked as "(SPACE)" in the output.
 
-<!-- topics: developer-tools, reference-education -->
+<!-- topics: reference-education -->
 <!-- Generated from commit: 9da6f96d4e3c886f1776cdc5b658e47087a279dd -->

@@ -1,5 +1,5 @@
 Execute JavaScript code in a sandboxed QuickJS WebAssembly environment with a built-in synchronous `fetch()` function for retrieving remote content. Code is automatically encoded in the URL hash, allowing you to easily share executable snippets with others. The interface provides a collection of ready-to-run examples covering common programming tasks and JavaScript features, making it useful for learning, testing, and demonstrating code behavior.
 
-<!-- topics: developer-tools, reference-education -->
+<!-- topics: reference-education, code-sandboxes -->
 <!-- features: webassembly, url-state, clipboard, fetch-network -->
 <!-- Generated from commit: a226383c7fc2643d4087fdfe9e52c780849bb270 -->

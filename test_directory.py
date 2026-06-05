@@ -1,10 +1,27 @@
-"""Unit tests for the Yahoo-style directory renderer."""
+"""Unit tests for the Yahoo-style hierarchical directory renderer."""
 
 import directory
 
 
 VOCAB = {
-    "topics": {"developer-tools": "Developer Tools", "games-fun": "Games & Fun"},
+    "categories": [
+        {
+            "slug": "development",
+            "name": "Development & APIs",
+            "subcategories": ["developer-tools", "code-sandboxes"],
+        },
+        {
+            "slug": "web-life",
+            "name": "Web, Social & Fun",
+            "subcategories": ["games-fun", "maps-geo"],
+        },
+    ],
+    "topics": {
+        "developer-tools": "Developer Tools",
+        "code-sandboxes": "Code Sandboxes & REPLs",
+        "games-fun": "Games & Fun",
+        "maps-geo": "Maps & Geography",
+    },
     "features": {"clipboard": "Clipboard", "canvas": "Canvas"},
 }
 
@@ -20,36 +37,69 @@ TOOLS = [
         "slug": "snake",
         "title": "Snake Game",
         "url": "/snake",
-        "topics": ["games-fun", "developer-tools"],
+        "topics": ["games-fun"],
         "features": ["canvas"],
+    },
+    {
+        "slug": "pyrepl",
+        "title": "Python REPL",
+        "url": "/pyrepl",
+        "topics": ["code-sandboxes"],
+        "features": [],
     },
 ]
 
 
-def test_groups_tools_under_each_topic():
+def test_renders_top_level_categories_and_subcategories():
     html = directory.render_directory(TOOLS, VOCAB)
-    # developer-tools has both tools; games-fun has one
-    assert "Developer Tools" in html
-    assert "Games &amp; Fun" in html or "Games & Fun" in html
-    # json-diff: 1 topic (developer-tools) + 1 feature (clipboard)
-    assert html.count('href="/json-diff"') == 2
-    # snake: 2 topics (games-fun, developer-tools) + 1 feature (canvas)
-    assert html.count('href="/snake"') == 3
+    # Top-level category headings
+    assert 'id="cat-development"' in html
+    assert "Development &amp; APIs" in html
+    # Subcategory headings under them
+    assert 'id="topic-developer-tools"' in html
+    assert 'id="topic-code-sandboxes"' in html
 
 
-def test_counts_reflect_membership():
+def test_top_level_nav_links_to_categories():
     html = directory.render_directory(TOOLS, VOCAB)
-    assert "Developer Tools" in html and "(2)" in html
-    assert "(1)" in html
+    assert 'href="#cat-development"' in html
+    assert 'href="#cat-web-life"' in html
 
 
-def test_empty_categories_are_omitted():
+def test_empty_subcategories_are_omitted():
+    # maps-geo has no tools -> should not render
+    html = directory.render_directory(TOOLS, VOCAB)
+    assert 'id="topic-maps-geo"' not in html
+
+
+def test_empty_top_level_category_is_omitted():
     vocab = {
-        "topics": {"developer-tools": "Developer Tools", "maps-geo": "Maps & Geography"},
-        "features": {"clipboard": "Clipboard"},
+        "categories": [
+            {"slug": "empty", "name": "Empty Cat", "subcategories": ["maps-geo"]},
+            {"slug": "development", "name": "Development", "subcategories": ["developer-tools"]},
+        ],
+        "topics": {"developer-tools": "Developer Tools", "maps-geo": "Maps"},
+        "features": {},
     }
     html = directory.render_directory(TOOLS, vocab)
-    assert "Maps &amp; Geography" not in html and "Maps & Geography" not in html
+    assert 'id="cat-empty"' not in html
+    assert "Empty Cat" not in html
+
+
+def test_uncategorized_topics_fall_under_more():
+    tools = TOOLS + [
+        {"slug": "x", "title": "X", "url": "/x", "topics": ["mystery-tag"], "features": []}
+    ]
+    html = directory.render_directory(tools, VOCAB)
+    assert 'id="cat-more"' in html
+    assert 'href="/x"' in html
+
+
+def test_feature_section_present_with_chips():
+    html = directory.render_directory(TOOLS, VOCAB)
+    assert "Browse by browser feature" in html
+    assert 'href="#feature-clipboard"' in html
+    assert 'id="feature-canvas"' in html
 
 
 def test_escapes_titles():
@@ -65,10 +115,3 @@ def test_escapes_titles():
     html = directory.render_directory(tools, VOCAB)
     assert "<script>" not in html
     assert "A &amp; B" in html
-
-
-def test_feature_section_present():
-    html = directory.render_directory(TOOLS, VOCAB)
-    assert "Browse by browser feature" in html
-    assert "Clipboard" in html
-    assert "Canvas" in html

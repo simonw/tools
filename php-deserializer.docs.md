@@ -1,5 +1,5 @@
 Convert serialized PHP data to JSON format for easy viewing and manipulation. Paste your PHP serialized string into the input field to automatically parse and display the equivalent JSON output. Use the copy button to quickly transfer the JSON to your clipboard.
 
-<!-- topics: developer-tools, data-json -->
+<!-- topics: data-json -->
 <!-- features: clipboard -->
 <!-- Generated from commit: 4c11c72c3badd4f2754287461b3c3b1a5dfc8d73 -->

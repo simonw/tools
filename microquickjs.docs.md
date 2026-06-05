@@ -1,5 +1,5 @@
 Execute JavaScript code in a lightweight MicroQuickJS sandbox environment running via WebAssembly, with results displayed directly on the page. The sandbox supports ES5-like JavaScript features and automatically saves your code in the URL for easy sharing and recovery. Choose between optimized and original WebAssembly versions, try built-in examples, and use Ctrl+Enter to quickly run your code.
 
-<!-- topics: developer-tools -->
+<!-- topics: code-sandboxes -->
 <!-- features: webassembly, url-state -->
 <!-- Generated from commit: a226383c7fc2643d4087fdfe9e52c780849bb270 -->

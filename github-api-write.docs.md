@@ -1,5 +1,5 @@
 Upload files and images to GitHub repositories using the GitHub API. This tool accepts either text content or image files and commits them to a specified repository path with proper authentication via personal access tokens. The interface automatically adapts to show relevant input fields based on whether you're uploading text or an image file.
 
-<!-- topics: developer-tools -->
+<!-- topics: apis-services -->
 <!-- features: fetch-network, file-upload -->
 <!-- Generated from commit: 4b7902dd659f4a47a4f3e751198fa8b48b5c3514 -->

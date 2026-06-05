@@ -1,4 +1,4 @@
 Process HTML content to automatically generate unique IDs for all header elements and create a table of contents with anchor links. This tool is useful for adding navigation functionality to static HTML pages or preparing content for documentation systems that require header identification. Simply paste your HTML and provide the page URL, then the processor will output the modified HTML and a formatted list of clickable header links.
 
-<!-- topics: developer-tools, text-writing -->
+<!-- topics: text-writing -->
 <!-- Generated from commit: 2dbdc12b1eecf73a8a8b51c3b221774e149a2048 -->

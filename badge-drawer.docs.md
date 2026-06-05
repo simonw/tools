@@ -2,6 +2,6 @@
 
 Draw pixel art for e-ink badge displays with this web-based canvas editor supporting multiple brush sizes, undo/redo functionality, and real-time black-and-white preview. Export your designs as PNG files or transfer them directly to Badger2040 devices running MicroPython via Web Serial. The editor maintains device-native resolution while offering adjustable zoom levels and includes features like grid overlay, background image loading, and URL-based bookmarking for saving your work.
 
-<!-- topics: images-graphics, developer-tools -->
+<!-- topics: images-graphics -->
 <!-- features: canvas, url-state, file-upload, web-serial -->
 <!-- Generated from commit: 914fd7c3e36f51e88c6674ffa2d9557f881c8072 -->

@@ -1,5 +1,5 @@
 Extract all strings from JSON data that exceed 20 characters in length or contain line breaks. This tool is useful for identifying longer text content within complex JSON structures for review, localization, or documentation purposes. Simply paste JSON into the textarea to automatically display matching strings along with their object paths, and use the copy button to quickly transfer any string to your clipboard.
 
-<!-- topics: data-json, developer-tools -->
+<!-- topics: data-json -->
 <!-- features: clipboard, fetch-network, url-state -->
 <!-- Generated from commit: 6fbfc694190f24e8c08abfd816cdf64edf42f3a1 -->

@@ -1,4 +1,4 @@
 Check XML documents for well-formedness by pasting content into the input area and clicking the validate button. The tool parses the XML and displays any syntax errors with precise line and column information, highlighting the problematic line in the code view below.
 
-<!-- topics: developer-tools, data-json -->
+<!-- topics: data-json -->
 <!-- Generated from commit: 8c49c1a81f9cf0673bcd8d20c30fc929c18909b6 -->

@@ -1,5 +1,5 @@
 Read TIFF orientation metadata from JPEG images by uploading or dragging files into the drop zone. The tool parses the EXIF data embedded in the image file to extract the orientation tag, which indicates how the image should be displayed (normal, rotated 90° clockwise, rotated 180°, or rotated 270° clockwise). Debug information shows the file analysis process, including EXIF location, endianness detection, and TIFF header validation.
 
-<!-- topics: images-graphics, developer-tools -->
+<!-- topics: images-graphics -->
 <!-- features: file-upload, drag-and-drop -->
 <!-- Generated from commit: 9b6cdd52381f1acf2c1148ed23478da1ce1f199f -->

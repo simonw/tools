@@ -367,6 +367,20 @@ def build_index() -> None:
             padding-bottom: 2px;
             margin: 1.4em 0 0.8em;
         }}
+        .dir-nav {{
+            font-size: 0.9em;
+            margin: 0 0 1.4em;
+            line-height: 1.8;
+        }}
+        .dir-toplevel {{
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            font-size: 1.1em;
+            color: #fff;
+            background: linear-gradient(to bottom, rgb(154, 103, 175) 0%, rgb(100, 67, 130) 100%);
+            padding: 4px 10px;
+            margin: 1.5em 0 0.9em;
+            border-radius: 2px;
+        }}
         .dir-chips {{
             display: flex;
             flex-wrap: wrap;

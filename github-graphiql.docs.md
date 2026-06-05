@@ -1,5 +1,5 @@
 Explore GitHub's GraphQL API using an interactive query interface that requires authentication via a personal access token. Enter your GitHub token to connect and start writing, executing, and testing GraphQL queries against GitHub's data in real-time. The explorer provides syntax highlighting, query validation, and response inspection capabilities within an embedded GraphiQL environment.
 
-<!-- topics: developer-tools -->
+<!-- topics: apis-services -->
 <!-- features: fetch-network, local-storage -->
 <!-- Generated from commit: a877d8ffb396e42868a1a429b302b674fe100970 -->

@@ -1,5 +1,5 @@
 Monitor real-time Bluesky feed data by connecting to the Bluesky Jetstream WebSocket service and viewing incoming posts and events. Send custom JSON messages to filter the feed by collection type, specific user DIDs, or other parameters, with all activity logged in the output panel for debugging and inspection. Use the provided keyboard shortcut (Ctrl/Cmd + Enter) to quickly send configuration updates to the WebSocket connection.
 
-<!-- topics: social-feeds, developer-tools -->
+<!-- topics: social-feeds -->
 <!-- features: websockets -->
 <!-- Generated from commit: 7c6af8eeabc7682b5f9ec2621e34bc771c5471d8 -->

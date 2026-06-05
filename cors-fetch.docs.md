@@ -1,5 +1,5 @@
 Test HTTP requests directly from your browser and observe which response headers and body content are accessible under CORS (Cross-Origin Resource Sharing) restrictions. This tool lets you construct requests with custom methods, headers, and body content, import requests from curl commands, and format JSON responses for easier inspection. The application preserves your request configuration in the URL fragment, allowing you to share and bookmark specific test cases.
 
-<!-- topics: developer-tools -->
+<!-- topics: apis-services -->
 <!-- features: fetch-network, url-state, clipboard -->
 <!-- Generated from commit: c32bcd73b70db5db6ef2fba5deba2b2d6e9807cb -->
