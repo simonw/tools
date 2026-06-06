@@ -1,3 +1,5 @@
 Explore the mathematical and sonic relationship between frequencies through interactive demonstrations and a playable piano keyboard. This educational tool visualizes how an octave represents a 2:1 frequency ratio, allowing you to hear the harmonic connection between notes that sound identical yet exist at different pitches. Experiment with various base frequencies using the slider to understand how this fundamental musical principle scales across the entire spectrum.
 
+<!-- topics: reference-education, audio-video -->
+<!-- features: web-audio, canvas -->
 <!-- Generated from commit: 10ea8c02f4b3f53324c7599ff3a56aa15f1e1806 -->

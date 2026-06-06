@@ -1,3 +1,4 @@
 Submit contact information through this responsive form that provides real-time validation using native HTML5 attributes and CSS-only feedback. The form validates required fields including name, email, and message content, displaying checkmarks for valid inputs and error messages for invalid entries without requiring any JavaScript. The clean, modern design features a card layout with smooth transitions and a collapsible source code viewer for examining the underlying HTML and CSS implementation.
 
+<!-- topics: reference-education, css-layout -->
 <!-- Generated from commit: 42812c4ffde78c6385f7f96d664450fbf702bcf1 -->

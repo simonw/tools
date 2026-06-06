@@ -1,3 +1,5 @@
 Track word and character counts across multiple writing sections with automatic saving to browser storage. Each section displays real-time statistics as you type, and content persists between sessions. Add or remove writing sections as needed to organize different pieces of text.
 
+<!-- topics: text-writing, productivity -->
+<!-- features: local-storage -->
 <!-- Generated from commit: cb33238bc7a9029e6453052184287dc8b1679f92 -->

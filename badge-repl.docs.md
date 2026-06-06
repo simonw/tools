@@ -1,3 +1,5 @@
 Interact with a MicroPython device via the Web Serial API to execute Python commands in real-time through a browser-based REPL interface. This tool enables direct communication with compatible microcontroller boards, allowing users to run Python code, query system information, and manage files without requiring terminal software or drivers. The interface provides quick-access buttons for common operations like listing files, checking CPU frequency, and monitoring available memory.
 
+<!-- topics: code-sandboxes -->
+<!-- features: web-serial -->
 <!-- Generated from commit: 5cdacf6eb6ce834dd3814386e6860ec22af5fd5d -->

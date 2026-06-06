@@ -7,6 +7,8 @@ from pathlib import Path
 from datetime import datetime
 import html
 
+import tags_lib
+
 
 def get_file_commit_details(file_path):
     """
@@ -92,6 +94,17 @@ def extract_description(docs_path: Path) -> str:
     return " ".join(lines)
 
 
+def extract_tags(docs_path: Path):
+    """Return ``(topics, features)`` parsed from the generated docs file."""
+    if not docs_path.exists():
+        return [], []
+    try:
+        content = docs_path.read_text("utf-8")
+    except OSError:
+        return [], []
+    return tags_lib.parse_tags(content)
+
+
 def extract_title(html_path: Path) -> str:
     """Extract the <title> from an HTML file."""
     try:
@@ -149,6 +162,7 @@ def main():
 
         docs_path = html_file.with_suffix(".docs.md")
         description = extract_description(docs_path)
+        topics, features = extract_tags(docs_path)
 
         created_date = commits[-1]["date"] if commits else None
         updated_date = commits[0]["date"] if commits else None
@@ -159,6 +173,8 @@ def main():
             "slug": slug,
             "title": extract_title(html_file),
             "description": description,
+            "topics": topics,
+            "features": features,
             "created": created_date,
             "updated": updated_date,
             "url": f"/{slug}" if slug != "index" else "/",

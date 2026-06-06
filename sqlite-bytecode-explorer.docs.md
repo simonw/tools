@@ -1,3 +1,5 @@
 Explore SQLite's Virtual Database Engine (VDBE) by analyzing the bytecode that SQLite generates when compiling SQL queries. This tool runs the `EXPLAIN` command on your SQL statements and annotates each instruction with detailed explanations of what it does, from cursor management and table scans to index lookups and aggregate functions. Use it to understand query execution strategies, identify optimization opportunities, and learn how SQLite's register-based virtual machine transforms SQL into low-level operations.
 
+<!-- topics: sqlite-databases, reference-education -->
+<!-- features: webassembly -->
 <!-- Generated from commit: f1c84e9a1090b22667a95d19b5ac774ac903b1b1 -->

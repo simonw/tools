@@ -1,3 +1,5 @@
 Retrieve the raw wikitext source code from Wikipedia articles by searching for a page title or pasting a direct article URL. The tool features autocomplete suggestions while typing search queries and allows you to easily copy the fetched wikitext to your clipboard for further editing or analysis. URL parameters are preserved, enabling you to share links that automatically load specific Wikipedia articles.
 
+<!-- topics: reference-education -->
+<!-- features: fetch-network, clipboard, url-state -->
 <!-- Generated from commit: 675d8d5ef2bc69c06d552d06ef3a63c8238b2244 -->

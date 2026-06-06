@@ -1,3 +1,4 @@
 Display your browser's user agent string, which contains information about your web browser, operating system, and device. This identifier is sent with every HTTP request your browser makes and helps websites understand how to optimize their content for your specific platform and browser version.
 
+<!-- topics: developer-tools -->
 <!-- Generated from commit: d053b9472344ce4c6b2b3c101cb305bd15781ba2 -->

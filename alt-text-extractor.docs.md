@@ -1,3 +1,5 @@
 Extract images and their associated metadata from pasted web content with this tool. When you paste rich text containing images, the application automatically retrieves each image's alt text, URL, and generates ready-to-use Markdown and HTML code snippets. Each extracted element can be individually copied to your clipboard for use in documentation, accessibility audits, or content management.
 
+<!-- topics: accessibility, text-writing -->
+<!-- features: clipboard -->
 <!-- Generated from commit: 4f97126825cbfa22d001b5b81b6a4c4dd0e43094 -->

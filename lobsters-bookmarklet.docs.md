@@ -1,3 +1,5 @@
 Browse Lobste.rs comment threads with an enhanced "Latest" tab that displays all comments in chronological order with newest first, making it easier to catch up on recent discussion activity. The bookmarklet adds reply-to links showing parent comment relationships and includes a "Copy Thread" feature to export the entire discussion as numbered plain text. Installation is straightforward across desktop browsers and mobile Safari by dragging the bookmarklet to your bookmarks bar or copying the code manually on mobile devices.
 
+<!-- topics: social-feeds -->
+<!-- features: clipboard -->
 <!-- Generated from commit: 8c4c61be7944ae66ac149e8c32d7f26458e5b39c -->

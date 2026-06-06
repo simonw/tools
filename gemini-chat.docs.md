@@ -1,3 +1,5 @@
 Chat with Google's Gemini AI models directly in your browser using this interactive chat application. Simply enter your Gemini API key (stored locally for convenience) and select from multiple available models including Gemini 2.5 Flash, Pro, and various other versions to power your conversations. The app displays real-time streaming responses, tracks API usage metrics, and measures response duration to help you monitor your interactions.
 
+<!-- topics: ai-llm -->
+<!-- features: fetch-network, local-storage -->
 <!-- Generated from commit: 6432b3799baafcfbc4d8d9762d8b9b0bfe28c6f5 -->

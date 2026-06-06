@@ -1,3 +1,5 @@
 Format SQLite query results in 20 different styles including box-drawing tables, CSV, JSON, HTML, Markdown, and more using this interactive WebAssembly-based demonstration. Adjust formatting options like column headers, screen width, NULL display values, and border styles in real-time to see how your SQL queries render across all available output modes. The demo database includes sample tables for employees, products, and orders with pre-built example queries showcasing each formatting style.
 
+<!-- topics: sqlite-databases -->
+<!-- features: webassembly, clipboard, url-state -->
 <!-- Generated from commit: 94e4ddcc9b5fba8e6f714904dfb6ce4816e9d439 -->

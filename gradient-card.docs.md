@@ -1,3 +1,5 @@
 Generate customizable gradient images with multiple pattern overlays and effects. This tool provides controls for linear, radial, and conic gradients with adjustable colors, along with options for layering various patterns including noise, geometric shapes, and textures. Additional features include film grain, vignetting, and blend mode controls to fine-tune the visual appearance, with the ability to export the final result as a PNG image or save and restore settings as JSON.
 
+<!-- topics: images-graphics -->
+<!-- features: canvas, clipboard -->
 <!-- Generated from commit: a82c351827696e32ca9a9230b309b325fe11d1f4 -->

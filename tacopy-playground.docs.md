@@ -1,3 +1,5 @@
 Explore how tail-recursive Python functions are transformed into optimized iterative code using the Tacopy library. Enter your recursive function in the input panel to see the automatically generated transformed version, which eliminates stack overflow risks and improves performance by converting tail calls into loops. Try the built-in examples to understand how different recursive patterns are optimized.
 
+<!-- topics: reference-education -->
+<!-- features: webassembly -->
 <!-- Generated from commit: 3af1ed845e36cfa53a161b3ce33406872057b9ea -->

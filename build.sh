@@ -26,6 +26,9 @@ python build_dates.py
 echo "Building index page..."
 python build_index.py
 
+echo "Building category pages..."
+python build_categories.py
+
 echo "Building by-month page..."
 python build_by_month.py
 

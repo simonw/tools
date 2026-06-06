@@ -1,3 +1,5 @@
 Create custom photo print layouts for A4 pages with adjustable grid configurations, image fitting options, and portrait or landscape orientations. Users can add photos by uploading files or dragging and dropping them directly onto the page, then remove individual photos or clear the entire layout before printing. The preview displays actual print dimensions, allowing precise control over how photos will appear on the final printed output.
 
+<!-- topics: images-graphics -->
+<!-- features: file-upload, drag-and-drop -->
 <!-- Generated from commit: f389301cb51c22552db22cac5e8d46b9f8e99cde -->

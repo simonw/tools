@@ -1,3 +1,5 @@
 Convert text to match The New Yorker's distinctive typographic style, featuring proper diaereses (such as "coöperate" and "naïve"), curly quotation marks, em dashes, and ellipses. Paste your text into the input field and watch the refined version appear instantly in the output area, which can be copied to your clipboard with a single click.
 
+<!-- topics: text-writing -->
+<!-- features: clipboard -->
 <!-- Generated from commit: 27c0255038c88a8607b4bcd9f5ef0e66c614de4e -->

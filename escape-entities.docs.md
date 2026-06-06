@@ -1,3 +1,5 @@
 Convert between special characters and their HTML entity representations with this bidirectional encoding tool. Select between Escape mode to convert characters like `<`, `>`, `&`, and quotes into their corresponding HTML entities, or Unescape mode to decode HTML entities back into readable characters. The tool supports named entities, decimal numeric references, and hexadecimal numeric references, with real-time conversion displayed in the output field.
 
+<!-- topics: encoding-security -->
+<!-- features: clipboard -->
 <!-- Generated from commit: d8fd1ad5e6048ea6e1f8df91fe531f13cbc6dd3f -->

@@ -1,3 +1,5 @@
 Render Markdown text with integrated LaTeX mathematical equations in real-time as you type. This tool converts your input into formatted HTML output while simultaneously displaying a live preview with properly rendered math expressions using KaTeX. You can view the generated HTML code and copy it to your clipboard for use in other projects.
 
+<!-- topics: text-writing -->
+<!-- features: clipboard -->
 <!-- Generated from commit: b04b09214e110d93423059573d0198c46f981c65 -->

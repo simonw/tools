@@ -1,3 +1,5 @@
 Search Bluesky posts using advanced filters and options to organize results by latest or top engagement. This tool requires authentication with your Bluesky account credentials and supports filtering by date range, author, mentions, language, domain, URL, and hashtags. Results can be exported as formatted markdown for easy sharing and documentation.
 
+<!-- topics: social-feeds -->
+<!-- features: fetch-network, clipboard, local-storage, url-state -->
 <!-- Generated from commit: 86aaf4865dc096a40771889e2b6a8abf3fe97c0d -->

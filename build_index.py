@@ -8,6 +8,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
+import directory
+import page_template
+import tags_lib
+
 try:
     import markdown
 except ModuleNotFoundError as exc:  # pragma: no cover - dependency should be installed
@@ -158,7 +162,11 @@ def build_index() -> None:
 
     recent_section_html = _render_recent_section(recently_added, recently_updated)
 
-    # Inject the recent section between the comment markers
+    vocab = tags_lib.load_vocabulary()
+    directory_html = directory.render_directory(tools, vocab)
+
+    # Inject the recent section between the comment markers, then the directory
+    # immediately after the closing marker.
     start_marker = '<!-- recently starts -->'
     end_marker = '<!-- recently stops -->'
     if start_marker in body_html and end_marker in body_html:
@@ -171,6 +179,9 @@ def build_index() -> None:
                 '\n' + recent_section_html +
                 body_html[end_idx:]
             )
+        body_html = body_html.replace(
+            end_marker, end_marker + '\n' + directory_html, 1
+        )
     else:
         # Fallback: inject before Image and media heading if markers not found
         injection_marker = '<h2 id="image-and-media">Image and media</h2>'
@@ -180,125 +191,64 @@ def build_index() -> None:
             )
         else:
             body_html = recent_section_html + body_html
+        body_html = body_html + '\n' + directory_html
 
-    full_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tools.simonwillison.net</title>
-    <style>
-        body {{
-            font-family: "Helvetica Neue", helvetica, sans-serif;
-            line-height: 1.4;
-            margin: 0;
-            padding: 0;
-        }}
-        h1 {{
-            font-family: Georgia, 'Times New Roman', Times, serif;
-            font-size: 1.4em;
-        }}
-        h2 {{
-            margin-top: 1.5em;
-        }}
-        a {{
-            color: #0066cc;
-            text-decoration: none;
-        }}
-        a:hover {{
-            text-decoration: underline;
-        }}
-        code {{
-            background-color: rgba(27,31,35,0.05);
-            border-radius: 3px;
-            padding: 0.2em 0.4em;
-        }}
-        nav {{
-            text-align: left;
-            background: linear-gradient(to bottom, rgb(154, 103, 175) 0%, rgb(96, 72, 129) 49%, rgb(100, 67, 130) 100%);
-            color: white;
-        }}
-        nav p {{
-            display: flex;
-            justify-content: space-between;
-            margin: 0;
-            padding: 4px 2em;
-        }}
-        nav a:link,
-        nav a:visited,
-        nav a:hover,
-        nav a:focus,
-        nav a:active {{
-            color: white;
-            text-decoration: none;
-        }}
-        section.body {{
-            padding: 0.5em 2em;
-            max-width: 800px;
-        }}
-        @media (max-width: 600px) {{
-            section.body {{
-                padding: 0em 1em;
-            }}
-            nav p {{
-                padding: 4px 1em;
-            }}
-        }}
-        .recent-container {{
+    settings_css = """
+        .recent-container {
             display: flex;
             gap: 24px;
             flex-wrap: wrap;
             margin-bottom: 24px;
-        }}
-        .recent-column {{
+        }
+        .recent-column {
             flex: 1 1 300px;
-        }}
-        .recent-column h2 {{
+        }
+        .recent-column h2 {
             margin-top: 0;
-        }}
-        .recent-list {{
+        }
+        .recent-list {
             list-style: none;
             margin: 0;
             padding: 0;
-        }}
-        .recent-list li {{
+        }
+        .recent-list li {
             margin-bottom: 0.5em;
-        }}
-        .recent-date {{
+        }
+        .recent-date {
             color: #666;
-        }}
-        .browse-all {{
+        }
+        .browse-all {
             margin-top: 1em;
             padding-top: 0.5em;
             border-top: 1px solid #ccc;
             font-size: 0.9em;
-        }}
-        .settings-section {{
+        }
+        .settings-section {
             margin-top: 2em;
             padding-top: 1em;
             border-top: 1px solid #ccc;
-        }}
-        .settings-section h2 {{
+        }
+        .settings-section h2 {
             margin-top: 0;
-        }}
-        .toggle-container {{
+        }
+        .toggle-container {
             display: flex;
             align-items: center;
             gap: 12px;
             margin: 1em 0;
-        }}
-        .toggle-switch {{
+        }
+        .toggle-switch {
             position: relative;
             width: 50px;
             height: 26px;
             flex-shrink: 0;
-        }}
-        .toggle-switch input {{
+        }
+        .toggle-switch input {
             opacity: 0;
             width: 0;
             height: 0;
-        }}
-        .toggle-slider {{
+        }
+        .toggle-slider {
             position: absolute;
             cursor: pointer;
             top: 0;
@@ -308,8 +258,8 @@ def build_index() -> None:
             background-color: #ccc;
             transition: 0.3s;
             border-radius: 26px;
-        }}
-        .toggle-slider:before {{
+        }
+        .toggle-slider:before {
             position: absolute;
             content: "";
             height: 20px;
@@ -319,30 +269,24 @@ def build_index() -> None:
             background-color: white;
             transition: 0.3s;
             border-radius: 50%;
-        }}
-        .toggle-switch input:checked + .toggle-slider {{
+        }
+        .toggle-switch input:checked + .toggle-slider {
             background-color: #0066cc;
-        }}
-        .toggle-switch input:checked + .toggle-slider:before {{
+        }
+        .toggle-switch input:checked + .toggle-slider:before {
             transform: translateX(24px);
-        }}
-        .toggle-label {{
+        }
+        .toggle-label {
             font-weight: 500;
-        }}
-        .toggle-description {{
+        }
+        .toggle-description {
             color: #666;
             font-size: 0.9em;
             margin-top: 0.5em;
-        }}
-    </style>
-</head>
-<body>
-<nav>
-    <p><a href="/">Simon Willison's Tools</a> <a href="https://simonwillison.net/">My blog</a></p>
-</nav>
-<section class="body">
-{body_html}
-<div class="settings-section">
+        }
+"""
+
+    settings_html = '''<div class="settings-section">
     <h2>Settings</h2>
     <div class="toggle-container">
         <label class="toggle-switch">
@@ -356,28 +300,29 @@ def build_index() -> None:
         in the bottom-right corner of every page on this site. Click the badge to see
         detailed information about resource sizes and load times.
     </p>
-</div>
-</section>
-<script>
-(function() {{
+</div>'''
+
+    toggle_script = """<script>
+(function() {
     const toggle = document.getElementById('page-weight-toggle');
     const STORAGE_KEY = 'PAGE_WEIGHT';
-
-    // Initialize toggle state from localStorage
     toggle.checked = localStorage.getItem(STORAGE_KEY) !== null;
-
-    toggle.addEventListener('change', function() {{
-        if (this.checked) {{
+    toggle.addEventListener('change', function() {
+        if (this.checked) {
             localStorage.setItem(STORAGE_KEY, '1');
-        }} else {{
+        } else {
             localStorage.removeItem(STORAGE_KEY);
-        }}
-    }});
-}})();
-</script>
-</body>
-</html>
-"""
+        }
+    });
+})();
+</script>"""
+
+    full_html = page_template.render_page(
+        title="tools.simonwillison.net",
+        body_html=body_html + "\n" + settings_html,
+        extra_css=settings_css,
+        body_extra=toggle_script,
+    )
 
     OUTPUT_PATH.write_text(full_html, "utf-8")
     print("index.html created successfully")
