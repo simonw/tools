@@ -545,6 +545,7 @@ pip install --quiet markdown
 python gather_links.py      # Collect tool metadata
 python build_colophon.py    # Generate colophon page
 python build_index.py       # Convert README.md to index.html
+python build_sitemap.py     # Generate sitemap.xml
 ```
 
 ---
