@@ -174,9 +174,9 @@ pre {
 </head>
 <body>
 <h1>Package File Browser</h1>
-<input type="text" id="urlInput" placeholder="Package name (e.g. requests) or URL to .whl/.zip file" onkeydown="if(event.key==='Enter')fetchAndUnpackFile()">
+<input type="text" id="urlInput" placeholder="Package name (e.g. requests) or URL to .whl/.zip/.tar.gz file" onkeydown="if(event.key==='Enter')fetchAndUnpackFile()">
 <button onclick="fetchAndUnpackFile()">Unpack File</button>
-<p>Enter a PyPI package name like <code>requests</code> or <code>llm-mistral</code> (<a href="?package=llm-mistral">try it</a>), or paste a direct URL to a .whl or .zip file.</p>
+<p>Enter a PyPI package name like <code>requests</code> or <code>llm-mistral</code> (<a href="?package=llm-mistral">try it</a>), or paste a direct URL to a .whl, .zip or .tar.gz file. Packages with no wheel fall back to the source distribution (<a href="?package=apple-fm-sdk">try apple-fm-sdk</a>).</p>
 <div id="fileList" style="display: none"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -336,12 +336,14 @@ async function fetchAndUnpackFile() {
                 return;
             }
             const pypiData = await pypiResponse.json();
-            const wheelUrl = pypiData.urls?.find(u => u.url?.endsWith('.whl'));
-            if (!wheelUrl) {
-                fileListEl.innerHTML = `<div class="status">No wheel (.whl) found for "${escapeHtml(input)}"</div>`;
+            // Prefer a wheel, but fall back to a source distribution (.tar.gz)
+            const fileUrl = pypiData.urls?.find(u => u.url?.endsWith('.whl'))
+                || pypiData.urls?.find(u => u.url?.endsWith('.tar.gz'));
+            if (!fileUrl) {
+                fileListEl.innerHTML = `<div class="status">No wheel (.whl) or source distribution (.tar.gz) found for "${escapeHtml(input)}"</div>`;
                 return;
             }
-            url = wheelUrl.url;
+            url = fileUrl.url;
         } catch (error) {
             fileListEl.innerHTML = `<div class="status">Error looking up package: ${escapeHtml(error.message)}</div>`;
             return;
@@ -396,6 +398,12 @@ function formatFileSize(bytes) {
 }
 
 async function extractFiles(arrayBuffer, url) {
+    const bytes = new Uint8Array(arrayBuffer);
+    // Gzip magic bytes (0x1f 0x8b) indicate a .tar.gz source distribution
+    if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+        return extractTarGz(arrayBuffer);
+    }
+    // Otherwise treat as a zip archive (.whl / .zip)
     const files = [];
     const zip = await JSZip.loadAsync(arrayBuffer);
     for (const [name, file] of Object.entries(zip.files)) {
@@ -404,6 +412,85 @@ async function extractFiles(arrayBuffer, url) {
         files.push({ name, content, size: rawBytes.byteLength });
     }
     return files;
+}
+
+// Decompress gzip data using the browser's native DecompressionStream
+async function gunzip(arrayBuffer) {
+    if (typeof DecompressionStream === 'undefined') {
+        throw new Error('Your browser does not support gzip decompression (DecompressionStream)');
+    }
+    const stream = new Response(arrayBuffer).body.pipeThrough(new DecompressionStream('gzip'));
+    return new Response(stream).arrayBuffer();
+}
+
+// Parse a tar archive (Uint8Array) into [{name, data}], handling ustar
+// prefixes, GNU long names and PAX extended headers.
+function parseTar(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const decoder = new TextDecoder('utf-8');
+    const entries = [];
+    let offset = 0;
+    let longName = null; // GNU 'L' long name
+    let paxName = null;  // PAX 'x' path override
+
+    const readStr = (start, len) => {
+        let end = start;
+        const max = start + len;
+        while (end < max && bytes[end] !== 0) end++;
+        return decoder.decode(bytes.subarray(start, end));
+    };
+
+    while (offset + 512 <= bytes.length) {
+        // End of archive is marked by a zero-filled block
+        let allZero = true;
+        for (let i = 0; i < 512; i++) {
+            if (bytes[offset + i] !== 0) { allZero = false; break; }
+        }
+        if (allZero) break;
+
+        let name = readStr(offset, 100);
+        const size = parseInt(readStr(offset + 124, 12).trim(), 8) || 0;
+        const typeflag = bytes[offset + 156];
+        const magic = readStr(offset + 257, 6);
+        const prefix = readStr(offset + 345, 155);
+        if (prefix && magic.startsWith('ustar')) {
+            name = prefix + '/' + name;
+        }
+
+        const dataStart = offset + 512;
+        offset = dataStart + Math.ceil(size / 512) * 512;
+
+        if (typeflag === 0x4c) { // 'L' GNU long name
+            longName = decoder.decode(bytes.subarray(dataStart, dataStart + size)).replace(/\0+$/, '');
+            continue;
+        }
+        if (typeflag === 0x78 || typeflag === 0x67) { // 'x' or 'g' PAX header
+            const records = decoder.decode(bytes.subarray(dataStart, dataStart + size));
+            const m = records.match(/^\d+ path=(.*)$/m);
+            if (m) paxName = m[1];
+            continue;
+        }
+
+        const effectiveName = paxName || longName || name;
+        paxName = null;
+        longName = null;
+
+        // Only keep regular files ('0' or legacy '\0'); skip directories etc.
+        if (typeflag === 0x30 || typeflag === 0) {
+            entries.push({ name: effectiveName, data: bytes.subarray(dataStart, dataStart + size) });
+        }
+    }
+    return entries;
+}
+
+async function extractTarGz(arrayBuffer) {
+    const tarBuffer = await gunzip(arrayBuffer);
+    const decoder = new TextDecoder('utf-8');
+    return parseTar(tarBuffer).map(entry => ({
+        name: entry.name,
+        content: decoder.decode(entry.data),
+        size: entry.data.byteLength
+    }));
 }
 
 // Check for query params on page load
