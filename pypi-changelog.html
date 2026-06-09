@@ -193,7 +193,7 @@ p code {
 <h1>PyPI Package Changelog</h1>
 <input type="text" id="packageInput" placeholder="Package name (e.g. requests, flask, llm)" onkeydown="if(event.key==='Enter')lookupPackage()">
 <button onclick="lookupPackage()">Look Up Package</button>
-<p>Enter a PyPI package name to see all versions and compare changes between them.</p>
+<p>Enter a PyPI package name to see all versions and compare changes between them. Wheels are used when available, with a fallback to the source distribution (<a href="?package=apple-fm-sdk">try apple-fm-sdk</a>).</p>
 <div id="versionList" style="display: none"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -238,29 +238,30 @@ async function lookupPackage() {
         packageData = await response.json();
         versionWheels = {};
 
-        // Get all versions with wheel URLs
+        // Get all versions that ship a wheel or a source distribution (.tar.gz)
         const releases = packageData.releases;
+        const hasDist = files => files.some(f => f.filename.endsWith('.whl') || f.filename.endsWith('.tar.gz'));
         const versions = Object.keys(releases)
-            .filter(v => {
-                const files = releases[v];
-                return files.some(f => f.filename.endsWith('.whl'));
-            })
+            .filter(v => hasDist(releases[v]))
             .sort(compareVersions)
             .reverse();
 
         if (versions.length === 0) {
-            versionListEl.innerHTML = `<div class="status error">No wheel files found for "${escapeHtml(packageName)}"</div>`;
+            versionListEl.innerHTML = `<div class="status error">No wheel or source distribution files found for "${escapeHtml(packageName)}"</div>`;
             return;
         }
 
-        // Store wheel URLs for each version
+        // Store a dist URL for each version, preferring a wheel but falling
+        // back to a source distribution (.tar.gz) when no wheel is available
         versions.forEach(v => {
             const wheel = releases[v].find(f => f.filename.endsWith('.whl'));
-            if (wheel) {
+            const dist = wheel || releases[v].find(f => f.filename.endsWith('.tar.gz'));
+            if (dist) {
                 versionWheels[v] = {
-                    url: wheel.url,
-                    filename: wheel.filename,
-                    uploadTime: wheel.upload_time_iso_8601
+                    url: dist.url,
+                    filename: dist.filename,
+                    uploadTime: dist.upload_time_iso_8601,
+                    isSdist: !wheel
                 };
             }
         });
@@ -297,7 +298,7 @@ function compareVersions(a, b) {
 
 function renderVersionList(versions) {
     const versionListEl = document.getElementById('versionList');
-    versionListEl.innerHTML = `<h3>${escapeHtml(packageData.info.name)} - ${versions.length} versions with wheels</h3>`;
+    versionListEl.innerHTML = `<h3>${escapeHtml(packageData.info.name)} - ${versions.length} versions</h3>`;
 
     versions.forEach((version, index) => {
         const info = versionWheels[version];
@@ -364,14 +365,28 @@ function looksLikeBinary(content) {
     return sample.indexOf('\0') !== -1;
 }
 
+function classifyContent(name, content) {
+    if (looksLikeBinary(content)) return '[Binary file]';
+    if (content.length > MAX_FILE_SIZE_FOR_DIFF) {
+        return '[Large file: ' + (content.length / 1024).toFixed(0) + 'KB]';
+    }
+    return content;
+}
+
 async function fetchWheelContents(version) {
     const info = versionWheels[version];
-    if (!info) throw new Error(`No wheel found for version ${version}`);
+    if (!info) throw new Error(`No dist found for version ${version}`);
 
     const response = await fetch(info.url);
     const arrayBuffer = await response.arrayBuffer();
-    const zip = await JSZip.loadAsync(arrayBuffer);
+    const bytes = new Uint8Array(arrayBuffer);
 
+    // Source distributions are gzipped tarballs (gzip magic: 0x1f 0x8b)
+    if (info.isSdist || (bytes[0] === 0x1f && bytes[1] === 0x8b)) {
+        return fetchSdistContents(arrayBuffer);
+    }
+
+    const zip = await JSZip.loadAsync(arrayBuffer);
     const files = {};
     for (const [name, file] of Object.entries(zip.files)) {
         if (!file.dir) {
@@ -380,20 +395,104 @@ async function fetchWheelContents(version) {
                 continue;
             }
             try {
-                const content = await file.async('text');
-                if (looksLikeBinary(content)) {
-                    files[name] = '[Binary file]';
-                } else if (content.length > MAX_FILE_SIZE_FOR_DIFF) {
-                    files[name] = '[Large file: ' + (content.length / 1024).toFixed(0) + 'KB]';
-                } else {
-                    files[name] = content;
-                }
+                files[name] = classifyContent(name, await file.async('text'));
             } catch (e) {
                 files[name] = '[Binary file]';
             }
         }
     }
     return files;
+}
+
+async function fetchSdistContents(arrayBuffer) {
+    const tarBuffer = await gunzip(arrayBuffer);
+    const decoder = new TextDecoder('utf-8');
+    const files = {};
+    for (const entry of parseTar(tarBuffer)) {
+        // Strip the leading "<name>-<version>/" component so paths line up
+        // across versions when diffing source distributions
+        const name = entry.name.replace(/^[^/]+\//, '');
+        if (!name) continue;
+        if (isBinaryFilename(name)) {
+            files[name] = '[Binary file]';
+            continue;
+        }
+        try {
+            files[name] = classifyContent(name, decoder.decode(entry.data));
+        } catch (e) {
+            files[name] = '[Binary file]';
+        }
+    }
+    return files;
+}
+
+// Decompress gzip data using the browser's native DecompressionStream
+async function gunzip(arrayBuffer) {
+    if (typeof DecompressionStream === 'undefined') {
+        throw new Error('Your browser does not support gzip decompression (DecompressionStream)');
+    }
+    const stream = new Response(arrayBuffer).body.pipeThrough(new DecompressionStream('gzip'));
+    return new Response(stream).arrayBuffer();
+}
+
+// Parse a tar archive (ArrayBuffer) into [{name, data}], handling ustar
+// prefixes, GNU long names and PAX extended headers.
+function parseTar(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const decoder = new TextDecoder('utf-8');
+    const entries = [];
+    let offset = 0;
+    let longName = null; // GNU 'L' long name
+    let paxName = null;  // PAX 'x' path override
+
+    const readStr = (start, len) => {
+        let end = start;
+        const max = start + len;
+        while (end < max && bytes[end] !== 0) end++;
+        return decoder.decode(bytes.subarray(start, end));
+    };
+
+    while (offset + 512 <= bytes.length) {
+        // End of archive is marked by a zero-filled block
+        let allZero = true;
+        for (let i = 0; i < 512; i++) {
+            if (bytes[offset + i] !== 0) { allZero = false; break; }
+        }
+        if (allZero) break;
+
+        let name = readStr(offset, 100);
+        const size = parseInt(readStr(offset + 124, 12).trim(), 8) || 0;
+        const typeflag = bytes[offset + 156];
+        const magic = readStr(offset + 257, 6);
+        const prefix = readStr(offset + 345, 155);
+        if (prefix && magic.startsWith('ustar')) {
+            name = prefix + '/' + name;
+        }
+
+        const dataStart = offset + 512;
+        offset = dataStart + Math.ceil(size / 512) * 512;
+
+        if (typeflag === 0x4c) { // 'L' GNU long name
+            longName = decoder.decode(bytes.subarray(dataStart, dataStart + size)).replace(/\0+$/, '');
+            continue;
+        }
+        if (typeflag === 0x78 || typeflag === 0x67) { // 'x' or 'g' PAX header
+            const records = decoder.decode(bytes.subarray(dataStart, dataStart + size));
+            const m = records.match(/^\d+ path=(.*)$/m);
+            if (m) paxName = m[1];
+            continue;
+        }
+
+        const effectiveName = paxName || longName || name;
+        paxName = null;
+        longName = null;
+
+        // Only keep regular files ('0' or legacy '\0'); skip directories etc.
+        if (typeflag === 0x30 || typeflag === 0) {
+            entries.push({ name: effectiveName, data: bytes.subarray(dataStart, dataStart + size) });
+        }
+    }
+    return entries;
 }
 
 function matchFiles(oldFiles, newFiles) {
