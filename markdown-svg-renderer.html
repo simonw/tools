@@ -433,7 +433,7 @@ customElements.define("svg-block", SvgBlock);
 // ---- Markdown rendering ----
 const markdownSanitizeConfig = {
   USE_PROFILES: { html: true },
-  ADD_ATTR: ["data-svg"],
+  ADD_ATTR: ["data-svg-id"],
   FORBID_ATTR: ["style"],
   FORBID_TAGS: ["style"]
 };
@@ -469,13 +469,11 @@ const md = window.markdownit({
   typographer: false
 });
 
-function escapeAttr(s) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+// Sanitized SVG sources are stashed here and referenced by id, rather than
+// embedded in a data- attribute: DOMPurify's SAFE_FOR_XML protection strips
+// any attribute whose value contains strings like "</title>" or "</style>",
+// which silently dropped legitimate SVGs during the second sanitize pass.
+const svgStore = new Map();
 
 const defaultFenceRenderer = md.renderer.rules.fence;
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
@@ -485,7 +483,9 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   if (lang === "svg") {
     const svg = window.DOMPurify.sanitize(token.content, svgSanitizeConfig).trim();
     if (svg) {
-      return `<div class="svg-block-placeholder" data-svg="${escapeAttr(svg)}"></div>\n`;
+      const id = String(svgStore.size);
+      svgStore.set(id, svg);
+      return `<div class="svg-block-placeholder" data-svg-id="${id}"></div>\n`;
     }
   }
 
@@ -493,14 +493,20 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
 };
 
 function hydrateSvgBlocks(root) {
-  root.querySelectorAll(".svg-block-placeholder[data-svg]").forEach((placeholder) => {
+  root.querySelectorAll(".svg-block-placeholder[data-svg-id]").forEach((placeholder) => {
+    const svg = svgStore.get(placeholder.getAttribute("data-svg-id"));
+    if (!svg) {
+      placeholder.remove();
+      return;
+    }
     const block = document.createElement("svg-block");
-    block.setAttribute("data-svg", placeholder.getAttribute("data-svg") || "");
+    block.setAttribute("data-svg", svg);
     placeholder.replaceWith(block);
   });
 }
 
 function renderMarkdown(src) {
+  svgStore.clear();
   const html = md.render(src);
   return window.DOMPurify.sanitize(html, markdownSanitizeConfig);
 }
