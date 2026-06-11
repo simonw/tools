@@ -1,3 +1,3 @@
-Explore Datasette JSON endpoints and discover available extras by entering a URL and selecting which extras to request. The interface displays the returned JSON response with syntax highlighting and allows you to examine which extras are supported by your Datasette instance, with support for sharing configurations via URL hash parameters.
+Query Datasette JSON endpoints and discover available extras by entering a URL and selecting which extras to request. The interface displays the returned JSON response with syntax highlighting and allows you to examine which extras are supported by your Datasette instance, with support for sharing configurations via URL hash parameters.
 
-<!-- Generated from commit: a4e39af2afa592210f54ffaa2f4c258eb39e0d94 -->
+<!-- Generated from commit: a6c2434aab5dac1b374f77754859fd15a8525a8e -->
