@@ -1,0 +1,1165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Datasette extras explorer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f4ee;
+      --surface: #fffdf8;
+      --surface-strong: #ffffff;
+      --text: #202020;
+      --muted: #65615a;
+      --line: #d8d2c6;
+      --line-strong: #bdb5a7;
+      --accent: #0f766e;
+      --accent-strong: #0b5f59;
+      --accent-soft: #d8f2ed;
+      --mark: #fff0b8;
+      --danger: #b42318;
+      --danger-soft: #ffe4df;
+      --warn: #946200;
+      --warn-soft: #fff3cf;
+      --code-bg: #1e1f1c;
+      --code-text: #f6f3eb;
+      --code-muted: #a9aaa3;
+      --code-key: #8bd3ff;
+      --code-string: #a8e6a1;
+      --code-number: #f2c078;
+      --code-bool: #e6b6ff;
+      --shadow: 0 16px 40px rgba(61, 48, 26, 0.12);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: var(--surface-strong);
+      color: var(--text);
+      cursor: pointer;
+      min-height: 2.5rem;
+      padding: 0 0.8rem;
+      white-space: nowrap;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent-strong);
+    }
+
+    button:disabled {
+      color: var(--muted);
+      cursor: not-allowed;
+      opacity: 0.62;
+    }
+
+    #endpoint-input {
+      min-width: 0;
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: var(--surface-strong);
+      color: var(--text);
+      min-height: 2.75rem;
+      padding: 0 0.85rem;
+    }
+
+    #endpoint-input:focus,
+    button:focus-visible,
+    input[type="checkbox"]:focus-visible {
+      outline: 3px solid rgba(15, 118, 110, 0.28);
+      outline-offset: 2px;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 253, 248, 0.92);
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar-inner {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 1rem clamp(1rem, 3vw, 2rem);
+    }
+
+    h1 {
+      margin: 0 0 0.9rem;
+      font-size: clamp(1.35rem, 2vw, 1.85rem);
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .url-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.65rem;
+      align-items: center;
+    }
+
+    .primary-button {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      padding-inline: 1rem;
+    }
+
+    .primary-button:hover:not(:disabled) {
+      background: var(--accent-strong);
+      border-color: var(--accent-strong);
+      color: #fff;
+    }
+
+    .workspace {
+      max-width: 1440px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1rem clamp(1rem, 3vw, 2rem) 1.5rem;
+      display: grid;
+      grid-template-columns: minmax(18rem, 26rem) minmax(0, 1fr);
+      gap: 1rem;
+      min-height: 0;
+    }
+
+    .panel {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: min(43rem, calc(100vh - 8.5rem));
+    }
+
+    .panel-header {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 0;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.2;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .count-pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0.18rem 0.55rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      background: var(--surface-strong);
+    }
+
+    .extras-list {
+      overflow: auto;
+      padding: 0.45rem;
+    }
+
+    .empty-state {
+      color: var(--muted);
+      padding: 1rem;
+      line-height: 1.45;
+    }
+
+    .extra-item {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1.15rem minmax(0, 1fr);
+      gap: 0.65rem;
+      align-items: start;
+      padding: 0.7rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid transparent;
+    }
+
+    .extra-item:hover {
+      background: rgba(15, 118, 110, 0.055);
+    }
+
+    .extra-item.missing {
+      background: var(--warn-soft);
+      border-color: #f2cf75;
+    }
+
+    .extra-item input {
+      margin: 0.22rem 0 0;
+      width: 1rem;
+      height: 1rem;
+      accent-color: var(--accent);
+    }
+
+    .extra-copy {
+      min-width: 0;
+    }
+
+    .extra-name-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      min-width: 0;
+    }
+
+    .extra-name {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92rem;
+      overflow-wrap: anywhere;
+      color: #161616;
+    }
+
+    .warning-dot {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 1.15rem;
+      height: 1.15rem;
+      border-radius: 999px;
+      background: #e0a008;
+      color: #211500;
+      font-size: 0.8rem;
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    .extra-item.missing .warning-dot {
+      display: inline-flex;
+    }
+
+    .extra-description {
+      margin-top: 0.25rem;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+
+    .manual-extra .extra-description {
+      color: var(--warn);
+    }
+
+    .response-panel {
+      min-width: 0;
+    }
+
+    .response-toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 0.55rem;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .request-line {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      background: #f0ebe1;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0.55rem 0.65rem;
+      overflow: hidden;
+    }
+
+    .method {
+      font-weight: 900;
+      color: var(--accent-strong);
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      flex: 0 0 auto;
+    }
+
+    .request-url {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.84rem;
+      color: #34322d;
+    }
+
+    .raw-toggle {
+      min-height: 2.5rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: var(--surface-strong);
+      padding: 0 0.7rem;
+      color: var(--text);
+      white-space: nowrap;
+      font-size: 0.9rem;
+    }
+
+    .raw-toggle input {
+      width: 1rem;
+      height: 1rem;
+      accent-color: var(--accent);
+    }
+
+    .response-body {
+      min-height: 0;
+      overflow: auto;
+      background: var(--code-bg);
+      border-radius: 0 0 8px 8px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .meta-strip {
+      display: flex;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 0.72rem 0.9rem;
+      color: var(--code-muted);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 0.85rem;
+    }
+
+    .meta-strip.error {
+      color: #ffd3cc;
+      background: rgba(180, 35, 24, 0.22);
+    }
+
+    .notice {
+      margin: 0.6rem 0.9rem 0;
+      border-radius: 6px;
+      padding: 0.62rem 0.72rem;
+      font-size: 0.86rem;
+      line-height: 1.42;
+      background: rgba(255, 243, 207, 0.16);
+      border: 1px solid rgba(242, 207, 117, 0.55);
+      color: #ffe2a1;
+    }
+
+    pre {
+      margin: 0;
+      padding: 0.9rem;
+      color: var(--code-text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.86rem;
+      line-height: 1.55;
+      overflow: visible;
+      tab-size: 2;
+    }
+
+    .json-line {
+      display: block;
+      min-height: 1.55em;
+      padding: 0 0.25rem;
+      margin: 0 -0.25rem;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .json-line.extra-key {
+      background: rgba(255, 240, 184, 0.18);
+      box-shadow: inset 3px 0 0 var(--mark);
+    }
+
+    .json-line.fragment-hit {
+      background: rgba(255, 240, 184, 0.28);
+      box-shadow:
+        inset 3px 0 0 var(--mark),
+        0 0 0 1px rgba(255, 240, 184, 0.32);
+    }
+
+    .json-error .json-line {
+      color: #ffe0dc;
+    }
+
+    .token-key {
+      color: var(--code-key);
+    }
+
+    .token-string {
+      color: var(--code-string);
+    }
+
+    .token-number {
+      color: var(--code-number);
+    }
+
+    .token-boolean,
+    .token-null {
+      color: var(--code-bool);
+    }
+
+    @media (max-width: 860px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        min-height: 24rem;
+      }
+
+      .url-form,
+      .response-toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .response-toolbar button,
+      .raw-toggle,
+      .primary-button {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <h1>Datasette extras explorer</h1>
+        <form id="url-form" class="url-form">
+          <input
+            id="endpoint-input"
+            type="text"
+            inputmode="url"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="https://latest.datasette.io/fixtures/facetable.json"
+            aria-label="Datasette JSON endpoint URL"
+          >
+          <button class="primary-button" type="submit">Explore</button>
+        </form>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel" aria-labelledby="extras-heading">
+        <div class="panel-header">
+          <h2 id="extras-heading" class="panel-title">Extras</h2>
+          <span id="extras-count" class="count-pill">0</span>
+        </div>
+        <div id="extras-list" class="extras-list">
+          <div class="empty-state">Press Explore to use the default endpoint.</div>
+        </div>
+      </section>
+
+      <section class="panel response-panel" aria-labelledby="response-heading">
+        <div class="panel-header">
+          <h2 id="response-heading" class="panel-title">Response</h2>
+          <div class="response-toolbar">
+            <div class="request-line" title="">
+              <span class="method">GET</span>
+              <span id="request-url" class="request-url">No request yet</span>
+            </div>
+            <label class="raw-toggle">
+              <input id="raw-toggle" type="checkbox">
+              Raw
+            </label>
+            <button id="copy-url-button" type="button" disabled>Copy URL</button>
+          </div>
+        </div>
+        <div class="response-body">
+          <div id="meta-strip" class="meta-strip">Idle</div>
+          <div id="notice-region" aria-live="polite"></div>
+          <pre id="json-output" aria-live="polite"></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const form = document.querySelector("#url-form");
+    const endpointInput = document.querySelector("#endpoint-input");
+    const extrasList = document.querySelector("#extras-list");
+    const extrasCount = document.querySelector("#extras-count");
+    const requestUrlNode = document.querySelector("#request-url");
+    const requestLineNode = document.querySelector(".request-line");
+    const copyButton = document.querySelector("#copy-url-button");
+    const metaStrip = document.querySelector("#meta-strip");
+    const noticeRegion = document.querySelector("#notice-region");
+    const output = document.querySelector("#json-output");
+    const rawToggle = document.querySelector("#raw-toggle");
+    const DEFAULT_ENDPOINT = "https://latest.datasette.io/fixtures/facetable.json";
+
+    let abortController = null;
+    let debounceTimer = null;
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      exploreFromInput();
+    });
+
+    extrasList.addEventListener("change", (event) => {
+      if (!event.target.matches('input[type="checkbox"][data-extra-name]')) {
+        return;
+      }
+
+      if (event.target.checked) {
+        extrasList.dataset.focusExtra = event.target.dataset.extraName;
+      } else if (extrasList.dataset.focusExtra === event.target.dataset.extraName) {
+        delete extrasList.dataset.focusExtra;
+      }
+
+      clearMissingMarkers();
+      scheduleFetch();
+      updateHashFromDom();
+    });
+
+    rawToggle.addEventListener("change", () => {
+      scheduleFetch(0);
+    });
+
+    copyButton.addEventListener("click", async () => {
+      const url = copyButton.dataset.copyUrl;
+      if (!url) {
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(url);
+        flashCopyLabel("Copied");
+      } catch {
+        fallbackCopy(url);
+      }
+    });
+
+    window.addEventListener("hashchange", () => {
+      const hashState = readHashState();
+      if (!hashState) {
+        return;
+      }
+
+      endpointInput.value = hashState.endpoint;
+      setFocusExtra(hashState.focus);
+      renderManualSelection(hashState.selected);
+      scheduleFetch(0);
+    });
+
+    restoreFromHash();
+
+    function restoreFromHash() {
+      const hashState = readHashState();
+      if (endpointInput.value.trim()) {
+        return;
+      }
+
+      if (!hashState) {
+        endpointInput.value = DEFAULT_ENDPOINT;
+        renderManualSelection([]);
+        scheduleFetch(0);
+        return;
+      }
+
+      endpointInput.value = hashState.endpoint;
+      setFocusExtra(hashState.focus);
+      renderManualSelection(hashState.selected);
+      scheduleFetch(0);
+    }
+
+    function exploreFromInput() {
+      let normalized;
+      try {
+        normalized = normalizeEndpoint(endpointInput.value);
+      } catch (error) {
+        showInputError(error.message);
+        return;
+      }
+
+      endpointInput.value = normalized.endpoint;
+      delete extrasList.dataset.focusExtra;
+      renderManualSelection(normalized.selected);
+      setNotice(normalized.notices);
+      scheduleFetch(0, normalized.notices);
+      updateHashFromDom();
+    }
+
+    function scheduleFetch(delay = 200, existingNotices = []) {
+      clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        fetchCurrent(existingNotices);
+      }, delay);
+    }
+
+    async function fetchCurrent(existingNotices = []) {
+      let normalized;
+      try {
+        normalized = normalizeEndpoint(endpointInput.value);
+      } catch (error) {
+        showInputError(error.message);
+        return;
+      }
+
+      endpointInput.value = normalized.endpoint;
+      const selected = getSelectedExtras();
+      const notices = mergeNotices(existingNotices, normalized.notices);
+      const requestUrl = buildRequestUrl(normalized.endpoint, selected);
+
+      abortActiveRequest();
+      abortController = new AbortController();
+
+      setLoadingState(requestUrl);
+      updateHashFromDom();
+
+      const started = performance.now();
+      let response;
+      let bodyText = "";
+
+      try {
+        response = await fetch(requestUrl, {
+          credentials: "same-origin",
+          signal: abortController.signal
+        });
+        bodyText = await response.text();
+      } catch (error) {
+        if (error.name === "AbortError") {
+          return;
+        }
+
+        const elapsed = performance.now() - started;
+        showNetworkFailure(error, elapsed, requestUrl, notices);
+        return;
+      }
+
+      const elapsed = performance.now() - started;
+      const parsed = parseBody(bodyText);
+      const payload = parsed.ok ? parsed.value : bodyText;
+      const isJsonObject = payload && typeof payload === "object" && !Array.isArray(payload);
+
+      if (isJsonObject && Array.isArray(payload.extras)) {
+        renderExtras(payload.extras, selected);
+      } else if (response.ok) {
+        notices.push("This endpoint does not support ?_extra= - is it a Datasette 1.0a33+ JSON endpoint?");
+      }
+
+      const displayPayload = rawToggle.checked ? payload : stripExtras(payload);
+      const isError = !response.ok || (isJsonObject && payload.ok === false);
+      const focusExtra = getFocusExtra(selected);
+      updateResponseMeta(response.status, bodyText.length, elapsed, isError);
+      setNotice(notices);
+      renderJson(displayPayload, selected, isError || !parsed.ok);
+      markMissingSelectedExtras(payload, selected);
+      jumpToExtra(focusExtra);
+      setRequestUrl(requestUrl);
+    }
+
+    function normalizeEndpoint(value) {
+      const rawValue = value.trim();
+      const endpointValue = rawValue || DEFAULT_ENDPOINT;
+
+      const base = window.location.protocol === "file:"
+        ? "http://127.0.0.1:7777/"
+        : window.location.href;
+
+      let url;
+      try {
+        url = new URL(endpointValue, base);
+      } catch {
+        throw new Error("Enter a valid URL.");
+      }
+
+      url.hash = "";
+      const selected = extractExtraNames(url.searchParams);
+      const notices = [];
+
+      if (url.searchParams.has("_shape")) {
+        const removedShapes = url.searchParams.getAll("_shape").filter(Boolean);
+        url.searchParams.delete("_shape");
+        notices.push(removedShapes.length
+          ? `Removed _shape=${removedShapes.join(",")} from the request.`
+          : "Removed _shape from the request.");
+      }
+
+      url.searchParams.delete("_extra");
+
+      if (!url.pathname.endsWith(".json")) {
+        url.pathname = `${url.pathname.replace(/\/$/, "")}.json`;
+      }
+
+      return {
+        endpoint: url.toString(),
+        selected,
+        notices
+      };
+    }
+
+    function extractExtraNames(searchParams) {
+      const names = [];
+      for (const value of searchParams.getAll("_extra")) {
+        for (const name of value.split(",")) {
+          const trimmed = name.trim();
+          if (trimmed && trimmed !== "extras" && !names.includes(trimmed)) {
+            names.push(trimmed);
+          }
+        }
+      }
+      return names;
+    }
+
+    function buildRequestUrl(endpoint, selected) {
+      const url = new URL(endpoint);
+      url.searchParams.delete("_extra");
+      const extras = uniqueNames(["extras", ...selected]);
+      url.searchParams.set("_extra", extras.join(","));
+      return url.toString();
+    }
+
+    function uniqueNames(names) {
+      const seen = new Set();
+      return names.filter((name) => {
+        if (!name || seen.has(name)) {
+          return false;
+        }
+        seen.add(name);
+        return true;
+      });
+    }
+
+    function renderManualSelection(selected) {
+      const filtered = selected.filter((name) => name !== "extras");
+      if (!filtered.length) {
+        extrasList.innerHTML = '<div class="empty-state">Discovering extras...</div>';
+        extrasCount.textContent = "0";
+        return;
+      }
+
+      renderExtras([], filtered);
+    }
+
+    function renderExtras(discoveredExtras, selectedNames) {
+      const selectedSet = new Set(selectedNames);
+      const extrasByName = new Map();
+
+      for (const extra of discoveredExtras) {
+        if (!extra || !extra.name || extra.name === "extras") {
+          continue;
+        }
+
+        extrasByName.set(extra.name, {
+          name: extra.name,
+          description: extra.description || "",
+          selected: Boolean(extra.selected) || selectedSet.has(extra.name),
+          manual: false
+        });
+      }
+
+      for (const name of selectedSet) {
+        if (name !== "extras" && !extrasByName.has(name)) {
+          extrasByName.set(name, {
+            name,
+            description: "Requested from the pasted URL.",
+            selected: true,
+            manual: true
+          });
+        }
+      }
+
+      const items = [...extrasByName.values()].sort((a, b) => a.name.localeCompare(b.name));
+      extrasCount.textContent = String(items.length);
+
+      if (!items.length) {
+        extrasList.innerHTML = '<div class="empty-state">No extras returned.</div>';
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      for (const item of items) {
+        const id = `extra-${cssSafeId(item.name)}`;
+        const wrapper = document.createElement("label");
+        wrapper.className = `extra-item${item.manual ? " manual-extra" : ""}`;
+        wrapper.dataset.extraName = item.name;
+
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.id = id;
+        input.dataset.extraName = item.name;
+        input.checked = item.selected;
+
+        const copy = document.createElement("span");
+        copy.className = "extra-copy";
+
+        const nameRow = document.createElement("span");
+        nameRow.className = "extra-name-row";
+
+        const nameNode = document.createElement("span");
+        nameNode.className = "extra-name";
+        nameNode.textContent = item.name;
+
+        const warning = document.createElement("span");
+        warning.className = "warning-dot";
+        warning.textContent = "!";
+        warning.title = "requested but not returned";
+
+        const description = document.createElement("span");
+        description.className = "extra-description";
+        description.textContent = item.description || "No description returned.";
+
+        nameRow.append(nameNode, warning);
+        copy.append(nameRow, description);
+        wrapper.append(input, copy);
+        fragment.append(wrapper);
+      }
+
+      extrasList.replaceChildren(fragment);
+    }
+
+    function cssSafeId(value) {
+      return value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+    }
+
+    function getSelectedExtras() {
+      return [...extrasList.querySelectorAll('input[type="checkbox"][data-extra-name]:checked')]
+        .map((input) => input.dataset.extraName)
+        .filter((name) => name && name !== "extras")
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    function clearMissingMarkers() {
+      for (const item of extrasList.querySelectorAll(".extra-item.missing")) {
+        item.classList.remove("missing");
+        item.removeAttribute("title");
+      }
+    }
+
+    function markMissingSelectedExtras(payload, selected) {
+      clearMissingMarkers();
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        return;
+      }
+
+      const keys = new Set(Object.keys(payload));
+      for (const name of selected) {
+        if (keys.has(name)) {
+          continue;
+        }
+
+        const input = extrasList.querySelector(`input[data-extra-name="${cssEscape(name)}"]`);
+        const item = input && input.closest(".extra-item");
+        if (item) {
+          item.classList.add("missing");
+          item.title = "requested but not returned";
+        }
+      }
+    }
+
+    function cssEscape(value) {
+      if (window.CSS && typeof window.CSS.escape === "function") {
+        return window.CSS.escape(value);
+      }
+
+      return value.replace(/["\\]/g, "\\$&");
+    }
+
+    function stripExtras(payload) {
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        return payload;
+      }
+
+      const copy = { ...payload };
+      delete copy.extras;
+      return copy;
+    }
+
+    function parseBody(text) {
+      if (!text) {
+        return { ok: true, value: null };
+      }
+
+      try {
+        return { ok: true, value: JSON.parse(text) };
+      } catch {
+        return { ok: false, value: text };
+      }
+    }
+
+    function renderJson(value, selected, isError = false) {
+      const jsonText = typeof value === "string"
+        ? value
+        : JSON.stringify(value, null, 2);
+      const selectedSet = new Set(selected);
+      const lines = String(jsonText ?? "").split("\n");
+
+      output.classList.toggle("json-error", isError);
+      output.innerHTML = lines.map((line) => {
+        const topLevelKey = getTopLevelKey(line);
+        const classes = ["json-line"];
+        const id = topLevelKey && selectedSet.has(topLevelKey)
+          ? ` id="${fragmentIdForExtra(topLevelKey)}" tabindex="-1"`
+          : "";
+        if (topLevelKey && selectedSet.has(topLevelKey)) {
+          classes.push("extra-key");
+        }
+        return `<span${id} class="${classes.join(" ")}">${highlightJsonLine(line)}</span>`;
+      }).join("");
+    }
+
+    function getTopLevelKey(line) {
+      const match = line.match(/^  "([^"\\]*(?:\\.[^"\\]*)*)":/);
+      if (!match) {
+        return null;
+      }
+
+      try {
+        return JSON.parse(`"${match[1]}"`);
+      } catch {
+        return match[1];
+      }
+    }
+
+    function highlightJsonLine(line) {
+      const escaped = escapeHtml(line);
+      return escaped.replace(
+        /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?\b|\btrue\b|\bfalse\b|\bnull\b)/g,
+        (match) => {
+          if (match.startsWith('"')) {
+            return match.endsWith(":")
+              ? `<span class="token-key">${match}</span>`
+              : `<span class="token-string">${match}</span>`;
+          }
+          if (match === "true" || match === "false") {
+            return `<span class="token-boolean">${match}</span>`;
+          }
+          if (match === "null") {
+            return `<span class="token-null">${match}</span>`;
+          }
+          return `<span class="token-number">${match}</span>`;
+        }
+      );
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function setLoadingState(requestUrl) {
+      metaStrip.classList.remove("error");
+      metaStrip.textContent = "Loading...";
+      output.classList.remove("json-error");
+      output.textContent = "";
+      setNotice([]);
+      setRequestUrl(requestUrl);
+    }
+
+    function updateResponseMeta(status, byteLength, elapsed, isError) {
+      metaStrip.classList.toggle("error", isError);
+      metaStrip.textContent = `${status} - ${formatBytes(byteLength)} - ${Math.round(elapsed)}ms`;
+    }
+
+    function showNetworkFailure(error, elapsed, requestUrl, notices) {
+      metaStrip.classList.add("error");
+      metaStrip.textContent = `Network failure - ${Math.round(elapsed)}ms`;
+      setRequestUrl(requestUrl);
+      setNotice([
+        ...notices,
+        "Network or CORS failure. The target Datasette must be same-origin or started with --cors."
+      ]);
+      renderJson({
+        ok: false,
+        error: error.message || "Fetch failed"
+      }, getSelectedExtras(), true);
+    }
+
+    function showInputError(message) {
+      abortActiveRequest();
+      metaStrip.classList.add("error");
+      metaStrip.textContent = "Invalid URL";
+      setNotice([message]);
+      requestUrlNode.textContent = "No request";
+      requestLineNode.title = "";
+      copyButton.disabled = true;
+      delete copyButton.dataset.copyUrl;
+      renderJson({ ok: false, error: message }, [], true);
+    }
+
+    function setRequestUrl(url) {
+      const parsed = new URL(url);
+      requestUrlNode.textContent = `${parsed.pathname}${parsed.search}`;
+      requestLineNode.title = url;
+      copyButton.disabled = false;
+      copyButton.dataset.copyUrl = url;
+    }
+
+    function abortActiveRequest() {
+      if (abortController) {
+        abortController.abort();
+        abortController = null;
+      }
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) {
+        return `${bytes} B`;
+      }
+
+      const kb = bytes / 1024;
+      if (kb < 1024) {
+        return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+      }
+
+      const mb = kb / 1024;
+      return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
+    }
+
+    function setNotice(messages) {
+      const cleanMessages = uniqueNames(messages.filter(Boolean));
+      noticeRegion.replaceChildren();
+
+      for (const message of cleanMessages) {
+        const div = document.createElement("div");
+        div.className = "notice";
+        div.textContent = message;
+        noticeRegion.append(div);
+      }
+    }
+
+    function mergeNotices(first, second) {
+      return uniqueNames([...(first || []), ...(second || [])]);
+    }
+
+    function readHashState() {
+      if (!window.location.hash || window.location.hash.length < 2) {
+        return null;
+      }
+
+      const params = new URLSearchParams(window.location.hash.slice(1));
+      const endpoint = params.get("url");
+      if (!endpoint) {
+        return null;
+      }
+
+      return {
+        endpoint,
+        focus: params.get("focus") || "",
+        selected: (params.get("extras") || "")
+          .split(",")
+          .map((name) => name.trim())
+          .filter(Boolean)
+      };
+    }
+
+    function updateHashFromDom() {
+      const endpoint = endpointInput.value.trim();
+      if (!endpoint) {
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set("url", endpoint);
+      const selected = getSelectedExtras();
+      if (selected.length) {
+        params.set("extras", selected.join(","));
+      }
+      const focusExtra = getFocusExtra(selected);
+      if (focusExtra) {
+        params.set("focus", focusExtra);
+      }
+
+      const nextHash = `#${params.toString()}`;
+      if (window.location.hash !== nextHash) {
+        history.replaceState(null, "", nextHash);
+      }
+    }
+
+    function setFocusExtra(name) {
+      if (name) {
+        extrasList.dataset.focusExtra = name;
+      } else {
+        delete extrasList.dataset.focusExtra;
+      }
+    }
+
+    function getFocusExtra(selected) {
+      const focusExtra = extrasList.dataset.focusExtra;
+      return focusExtra && selected.includes(focusExtra) ? focusExtra : "";
+    }
+
+    function fragmentIdForExtra(name) {
+      return `json-extra-${cssSafeId(name)}`;
+    }
+
+    function jumpToExtra(name) {
+      if (!name) {
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        const target = document.getElementById(fragmentIdForExtra(name));
+        if (!target) {
+          return;
+        }
+
+        for (const line of output.querySelectorAll(".fragment-hit")) {
+          line.classList.remove("fragment-hit");
+        }
+        target.classList.add("fragment-hit");
+        target.scrollIntoView({ block: "center", behavior: "smooth" });
+        target.focus({ preventScroll: true });
+      });
+    }
+
+    function flashCopyLabel(label) {
+      const original = copyButton.textContent;
+      copyButton.textContent = label;
+      window.setTimeout(() => {
+        copyButton.textContent = original;
+      }, 900);
+    }
+
+    function fallbackCopy(url) {
+      const textarea = document.createElement("textarea");
+      textarea.value = url;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.append(textarea);
+      textarea.select();
+
+      try {
+        document.execCommand("copy");
+        flashCopyLabel("Copied");
+      } catch {
+        flashCopyLabel("Copy failed");
+      } finally {
+        textarea.remove();
+      }
+    }
+  </script>
+</body>
+</html>
