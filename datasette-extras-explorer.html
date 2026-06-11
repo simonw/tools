@@ -314,26 +314,6 @@
       color: #34322d;
     }
 
-    .raw-toggle {
-      min-height: 2.5rem;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45rem;
-      border: 1px solid var(--line-strong);
-      border-radius: 6px;
-      background: var(--surface-strong);
-      padding: 0 0.7rem;
-      color: var(--text);
-      white-space: nowrap;
-      font-size: 0.9rem;
-    }
-
-    .raw-toggle input {
-      width: 1rem;
-      height: 1rem;
-      accent-color: var(--accent);
-    }
-
     .response-body {
       min-height: 0;
       overflow: auto;
@@ -404,6 +384,14 @@
         0 0 0 1px rgba(255, 240, 184, 0.32);
     }
 
+    .json-line.json-url-line {
+      cursor: pointer;
+    }
+
+    .json-line.json-url-line:hover {
+      background: rgba(168, 230, 161, 0.08);
+    }
+
     .json-error .json-line {
       color: #ffe0dc;
     }
@@ -414,6 +402,18 @@
 
     .token-string {
       color: var(--code-string);
+    }
+
+    .json-link {
+      color: inherit;
+      cursor: pointer;
+      text-decoration-color: rgba(168, 230, 161, 0.7);
+      text-underline-offset: 0.18em;
+    }
+
+    .json-link:hover,
+    .json-link:focus-visible {
+      text-decoration-thickness: 0.14em;
     }
 
     .token-number {
@@ -440,7 +440,6 @@
       }
 
       .response-toolbar button,
-      .raw-toggle,
       .primary-button {
         width: 100%;
         justify-content: center;
@@ -487,10 +486,7 @@
               <span class="method">GET</span>
               <span id="request-url" class="request-url">No request yet</span>
             </div>
-            <label class="raw-toggle">
-              <input id="raw-toggle" type="checkbox">
-              Raw
-            </label>
+            <button id="copy-json-button" type="button" disabled>Copy JSON</button>
             <button id="copy-url-button" type="button" disabled>Copy URL</button>
           </div>
         </div>
@@ -510,15 +506,16 @@
     const extrasCount = document.querySelector("#extras-count");
     const requestUrlNode = document.querySelector("#request-url");
     const requestLineNode = document.querySelector(".request-line");
-    const copyButton = document.querySelector("#copy-url-button");
+    const copyUrlButton = document.querySelector("#copy-url-button");
+    const copyJsonButton = document.querySelector("#copy-json-button");
     const metaStrip = document.querySelector("#meta-strip");
     const noticeRegion = document.querySelector("#notice-region");
     const output = document.querySelector("#json-output");
-    const rawToggle = document.querySelector("#raw-toggle");
     const DEFAULT_ENDPOINT = "https://latest.datasette.io/fixtures/facetable.json";
 
     let abortController = null;
     let debounceTimer = null;
+    let currentJsonText = "";
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -541,22 +538,43 @@
       updateHashFromDom();
     });
 
-    rawToggle.addEventListener("change", () => {
-      scheduleFetch(0);
+    output.addEventListener("click", (event) => {
+      const target = event.target instanceof Element
+        ? event.target
+        : event.target.parentElement;
+      if (!target) {
+        return;
+      }
+
+      const link = target.closest("[data-json-url]");
+      if (!link) {
+        return;
+      }
+
+      const jsonUrl = link.dataset.jsonUrl;
+      if (!jsonUrl) {
+        return;
+      }
+
+      event.preventDefault();
+      navigateToJsonUrl(jsonUrl);
     });
 
-    copyButton.addEventListener("click", async () => {
-      const url = copyButton.dataset.copyUrl;
+    copyUrlButton.addEventListener("click", async () => {
+      const url = copyUrlButton.dataset.copyUrl;
       if (!url) {
         return;
       }
 
-      try {
-        await navigator.clipboard.writeText(url);
-        flashCopyLabel("Copied");
-      } catch {
-        fallbackCopy(url);
+      copyTextToClipboard(url, copyUrlButton);
+    });
+
+    copyJsonButton.addEventListener("click", async () => {
+      if (!currentJsonText) {
+        return;
       }
+
+      copyTextToClipboard(currentJsonText, copyJsonButton);
     });
 
     window.addEventListener("hashchange", () => {
@@ -667,12 +685,12 @@
         notices.push("This endpoint does not support ?_extra= - is it a Datasette 1.0a33+ JSON endpoint?");
       }
 
-      const displayPayload = rawToggle.checked ? payload : stripExtras(payload);
+      const displayPayload = stripExtras(payload);
       const isError = !response.ok || (isJsonObject && payload.ok === false);
       const focusExtra = getFocusExtra(selected);
       updateResponseMeta(response.status, bodyText.length, elapsed, isError);
       setNotice(notices);
-      renderJson(displayPayload, selected, isError || !parsed.ok);
+      renderJson(displayPayload, selected, isError || !parsed.ok, requestUrl);
       markMissingSelectedExtras(payload, selected);
       jumpToExtra(focusExtra);
       setRequestUrl(requestUrl);
@@ -868,7 +886,7 @@
           continue;
         }
 
-        const input = extrasList.querySelector(`input[data-extra-name="${cssEscape(name)}"]`);
+        const input = findExtraInputByName(name);
         const item = input && input.closest(".extra-item");
         if (item) {
           item.classList.add("missing");
@@ -877,12 +895,9 @@
       }
     }
 
-    function cssEscape(value) {
-      if (window.CSS && typeof window.CSS.escape === "function") {
-        return window.CSS.escape(value);
-      }
-
-      return value.replace(/["\\]/g, "\\$&");
+    function findExtraInputByName(name) {
+      return [...extrasList.querySelectorAll('input[type="checkbox"][data-extra-name]')]
+        .find((input) => input.dataset.extraName === name) || null;
     }
 
     function stripExtras(payload) {
@@ -907,25 +922,100 @@
       }
     }
 
-    function renderJson(value, selected, isError = false) {
+    function renderJson(value, selected, isError = false, responseUrl = "") {
       const jsonText = typeof value === "string"
         ? value
         : JSON.stringify(value, null, 2);
       const selectedSet = new Set(selected);
       const lines = String(jsonText ?? "").split("\n");
 
+      currentJsonText = String(jsonText ?? "");
+      copyJsonButton.disabled = !currentJsonText;
       output.classList.toggle("json-error", isError);
-      output.innerHTML = lines.map((line) => {
+      const fragment = document.createDocumentFragment();
+
+      for (const line of lines) {
         const topLevelKey = getTopLevelKey(line);
-        const classes = ["json-line"];
-        const id = topLevelKey && selectedSet.has(topLevelKey)
-          ? ` id="${fragmentIdForExtra(topLevelKey)}" tabindex="-1"`
-          : "";
+        const urlLink = getNavigableUrlFieldLink(line, responseUrl);
+        const lineNode = document.createElement("span");
+        lineNode.className = "json-line";
+
         if (topLevelKey && selectedSet.has(topLevelKey)) {
-          classes.push("extra-key");
+          lineNode.id = fragmentIdForExtra(topLevelKey);
+          lineNode.tabIndex = -1;
+          lineNode.classList.add("extra-key");
         }
-        return `<span${id} class="${classes.join(" ")}">${highlightJsonLine(line)}</span>`;
-      }).join("");
+
+        if (urlLink) {
+          lineNode.classList.add("json-url-line");
+          lineNode.dataset.jsonUrl = urlLink.href;
+        }
+
+        appendHighlightedJsonLine(lineNode, line, urlLink);
+        fragment.append(lineNode);
+      }
+
+      output.replaceChildren(fragment);
+    }
+
+    function appendHighlightedJsonLine(parent, line, urlLink) {
+      const tokenPattern = /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?\b|\btrue\b|\bfalse\b|\bnull\b)/g;
+      let cursor = 0;
+      let match;
+
+      while ((match = tokenPattern.exec(line)) !== null) {
+        if (match.index > cursor) {
+          parent.append(document.createTextNode(line.slice(cursor, match.index)));
+        }
+
+        appendJsonToken(parent, match[0], urlLink);
+        cursor = match.index + match[0].length;
+      }
+
+      if (cursor < line.length) {
+        parent.append(document.createTextNode(line.slice(cursor)));
+      }
+    }
+
+    function appendJsonToken(parent, token, urlLink) {
+      if (token.startsWith('"')) {
+        if (token.endsWith(":")) {
+          appendTokenSpan(parent, "token-key", token);
+          return;
+        }
+
+        if (urlLink && token === urlLink.valueToken) {
+          const link = document.createElement("a");
+          link.className = "json-link";
+          link.href = urlLink.href;
+          link.dataset.jsonUrl = urlLink.href;
+          appendTokenSpan(link, "token-string", token);
+          parent.append(link);
+          return;
+        }
+
+        appendTokenSpan(parent, "token-string", token);
+        return;
+      }
+
+      if (token === "true" || token === "false") {
+        appendTokenSpan(parent, "token-boolean", token);
+        return;
+      }
+
+      if (token === "null") {
+        appendTokenSpan(parent, "token-null", token);
+        return;
+      }
+
+      appendTokenSpan(parent, "token-number", token);
+    }
+
+    function appendTokenSpan(parent, className, text) {
+      const span = document.createElement("span");
+      span.className = className;
+      span.textContent = text;
+      parent.append(span);
     }
 
     function getTopLevelKey(line) {
@@ -941,32 +1031,44 @@
       }
     }
 
-    function highlightJsonLine(line) {
-      const escaped = escapeHtml(line);
-      return escaped.replace(
-        /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?\b|\btrue\b|\bfalse\b|\bnull\b)/g,
-        (match) => {
-          if (match.startsWith('"')) {
-            return match.endsWith(":")
-              ? `<span class="token-key">${match}</span>`
-              : `<span class="token-string">${match}</span>`;
-          }
-          if (match === "true" || match === "false") {
-            return `<span class="token-boolean">${match}</span>`;
-          }
-          if (match === "null") {
-            return `<span class="token-null">${match}</span>`;
-          }
-          return `<span class="token-number">${match}</span>`;
+    function getNavigableUrlFieldLink(line, responseUrl) {
+      const match = line.match(/^(\s*)"([^"\\]*(?:\\.[^"\\]*)*)":\s*("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*")(,?)\s*$/);
+      if (!match) {
+        return null;
+      }
+
+      let key;
+      let value;
+      try {
+        key = JSON.parse(`"${match[2]}"`);
+        value = JSON.parse(match[3]);
+      } catch {
+        return null;
+      }
+
+      if (!key.endsWith("_url") || typeof value !== "string" || !isNavigableJsonUrl(value)) {
+        return null;
+      }
+
+      try {
+        const href = new URL(value, responseUrl || endpointInput.value);
+        if (href.protocol !== "http:" && href.protocol !== "https:") {
+          return null;
         }
-      );
+
+        return {
+          valueToken: match[3],
+          href: href.toString()
+        };
+      } catch {
+        return null;
+      }
     }
 
-    function escapeHtml(value) {
-      return String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+    function isNavigableJsonUrl(value) {
+      return (value.startsWith("/") && !value.startsWith("//"))
+        || value.startsWith("https://")
+        || value.startsWith("http://");
     }
 
     function setLoadingState(requestUrl) {
@@ -974,6 +1076,8 @@
       metaStrip.textContent = "Loading...";
       output.classList.remove("json-error");
       output.textContent = "";
+      currentJsonText = "";
+      copyJsonButton.disabled = true;
       setNotice([]);
       setRequestUrl(requestUrl);
     }
@@ -1004,8 +1108,8 @@
       setNotice([message]);
       requestUrlNode.textContent = "No request";
       requestLineNode.title = "";
-      copyButton.disabled = true;
-      delete copyButton.dataset.copyUrl;
+      copyUrlButton.disabled = true;
+      delete copyUrlButton.dataset.copyUrl;
       renderJson({ ok: false, error: message }, [], true);
     }
 
@@ -1013,8 +1117,25 @@
       const parsed = new URL(url);
       requestUrlNode.textContent = `${parsed.pathname}${parsed.search}`;
       requestLineNode.title = url;
-      copyButton.disabled = false;
-      copyButton.dataset.copyUrl = url;
+      copyUrlButton.disabled = false;
+      copyUrlButton.dataset.copyUrl = url;
+    }
+
+    function navigateToJsonUrl(url) {
+      let normalized;
+      try {
+        normalized = normalizeEndpoint(url);
+      } catch (error) {
+        showInputError(error.message);
+        return;
+      }
+
+      endpointInput.value = normalized.endpoint;
+      delete extrasList.dataset.focusExtra;
+      renderManualSelection(normalized.selected);
+      setNotice(normalized.notices);
+      scheduleFetch(0, normalized.notices);
+      updateHashFromDom();
     }
 
     function abortActiveRequest() {
@@ -1135,17 +1256,26 @@
       });
     }
 
-    function flashCopyLabel(label) {
-      const original = copyButton.textContent;
-      copyButton.textContent = label;
+    async function copyTextToClipboard(text, button) {
+      try {
+        await navigator.clipboard.writeText(text);
+        flashCopyLabel(button, "Copied");
+      } catch {
+        fallbackCopy(text, button);
+      }
+    }
+
+    function flashCopyLabel(button, label) {
+      const original = button.textContent;
+      button.textContent = label;
       window.setTimeout(() => {
-        copyButton.textContent = original;
+        button.textContent = original;
       }, 900);
     }
 
-    function fallbackCopy(url) {
+    function fallbackCopy(text, button) {
       const textarea = document.createElement("textarea");
-      textarea.value = url;
+      textarea.value = text;
       textarea.setAttribute("readonly", "");
       textarea.style.position = "fixed";
       textarea.style.left = "-9999px";
@@ -1154,9 +1284,9 @@
 
       try {
         document.execCommand("copy");
-        flashCopyLabel("Copied");
+        flashCopyLabel(button, "Copied");
       } catch {
-        flashCopyLabel("Copy failed");
+        flashCopyLabel(button, "Copy failed");
       } finally {
         textarea.remove();
       }
