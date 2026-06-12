@@ -56,12 +56,42 @@
     font-weight: bold;
   }
 
-  input, select {
+  input, select, textarea {
     width: 100%;
     padding: 8px;
     font-size: 16px;
     border: 1px solid #ddd;
     border-radius: 4px;
+  }
+
+  textarea {
+    font-family: inherit;
+    min-height: 200px;
+    resize: vertical;
+  }
+
+  details.document-details {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 15px;
+  }
+
+  details.document-details summary {
+    cursor: pointer;
+    font-weight: bold;
+  }
+
+  details.document-details .form-group {
+    margin-top: 10px;
+    margin-bottom: 0;
+  }
+
+  .document-hint {
+    font-weight: normal;
+    color: #666;
+    font-size: 0.9em;
   }
 
   button {
@@ -232,6 +262,13 @@
           <option value="gpt-realtime">gpt-realtime</option>
         </select>
       </div>
+      <details class="document-details">
+        <summary>Document context <span class="document-hint">(optional &mdash; paste text to talk about)</span></summary>
+        <div class="form-group">
+          <label for="documentInput">Paste a document here before starting the session and the model will be able to discuss it with you</label>
+          <textarea id="documentInput" placeholder="Paste your document text here..."></textarea>
+        </div>
+      </details>
       <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
         <button id="startButton">Start Session</button>
         <button id="muteButton" disabled>Mute Mic</button>
@@ -313,18 +350,34 @@ let sessionTotals = {
   totalCost: 0
 }
 
-async function createRealtimeSession(inStream, token, voice, model) {
+async function createRealtimeSession(inStream, token, voice, model, documentText) {
   const pc = new RTCPeerConnection()
-  
+
   pc.ontrack = e => {
     const audio = new Audio()
     audio.srcObject = e.streams[0]
     audio.play()
   }
-  
+
   pc.addTrack(inStream.getTracks()[0])
-  
+
   const dc = pc.createDataChannel("oai-events")
+
+  if (documentText) {
+    dc.addEventListener("open", () => {
+      dc.send(JSON.stringify({
+        type: 'conversation.item.create',
+        item: {
+          type: 'message',
+          role: 'user',
+          content: [{
+            type: 'input_text',
+            text: `The user has provided the following document. They want to have a conversation about it. Refer to it when answering their questions.\n\n<document>\n${documentText}\n</document>`
+          }]
+        }
+      }))
+    })
+  }
   dc.addEventListener("message", (e) => {
     try {
       const eventData = JSON.parse(e.data)
@@ -553,6 +606,7 @@ function addEventToLog(eventData) {
     const tokenInput = document.getElementById('tokenInput')
     const voiceSelect = document.getElementById('voiceSelect')
     const modelSelect = document.getElementById('modelSelect')
+    const documentInput = document.getElementById('documentInput')
     const status = document.getElementById('status')
     const audioIndicator = document.getElementById('audioIndicator')
     const lastTranscript = document.getElementById('lastTranscript')
@@ -622,7 +676,8 @@ function addEventToLog(eventData) {
           audioStream,
           tokenInput.value,
           voiceSelect.value,
-          modelSelect.value
+          modelSelect.value,
+          documentInput.value.trim()
         )
 
         status.className = 'status success'
