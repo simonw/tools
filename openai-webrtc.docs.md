@@ -1,3 +1,3 @@
 Establish real-time audio conversations with OpenAI's GPT realtime models using WebRTC technology. This interface lets you select from multiple voice options and model versions, with the ability to provide document context for the conversation. Token usage and costs are tracked for each interaction and across your entire session, with all API tokens stored locally in your browser.
 
-<!-- Generated from commit: c4ef72842440c080da367fba282f6735f541611b -->
+<!-- Generated from commit: 89d444286f3f9fea8d40b0926e5db1f7d86dc8c5 -->
