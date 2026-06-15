@@ -110,6 +110,11 @@ textarea {
   color: #842029;
 }
 
+.mark.nbsp {
+  background: #d8e4ff;
+  color: #1c3d7a;
+}
+
 .summary {
   display: flex;
   flex-wrap: wrap;
@@ -145,6 +150,10 @@ textarea {
 
 .swatch.dash {
   background: #ffd6d6;
+}
+
+.swatch.nbsp {
+  background: #d8e4ff;
 }
 
 .actions {
@@ -197,12 +206,13 @@ button:active {
 <body>
 <main>
   <h1>Curly Quote and Em Dash Highlighter</h1>
-  <p class="description">Paste text to spot curly quotes, curly apostrophes, and em dash characters.</p>
+  <p class="description">Paste text to spot curly quotes, curly apostrophes, em dash characters, and non-breaking spaces.</p>
 
   <div class="summary" aria-live="polite">
     <span class="badge"><span class="swatch quote"></span> Curly quotes: <strong id="quoteCount">0</strong></span>
     <span class="badge"><span class="swatch apostrophe"></span> Curly apostrophes: <strong id="apostropheCount">0</strong></span>
     <span class="badge"><span class="swatch dash"></span> Em dashes: <strong id="dashCount">0</strong></span>
+    <span class="badge"><span class="swatch nbsp"></span> Non-breaking spaces: <strong id="nbspCount">0</strong></span>
     <span class="badge">Total matches: <strong id="totalCount">0</strong></span>
   </div>
 
@@ -235,6 +245,7 @@ const charCount = document.getElementById('charCount');
 const quoteCount = document.getElementById('quoteCount');
 const apostropheCount = document.getElementById('apostropheCount');
 const dashCount = document.getElementById('dashCount');
+const nbspCount = document.getElementById('nbspCount');
 const totalCount = document.getElementById('totalCount');
 const status = document.getElementById('status');
 const clearButton = document.getElementById('clearButton');
@@ -248,7 +259,8 @@ const characterTypes = new Map([
   ['\u2019', 'apostrophe'],
   ['\u201a', 'apostrophe'],
   ['\u201b', 'apostrophe'],
-  ['\u2014', 'dash']
+  ['\u2014', 'dash'],
+  ['\u00a0', 'nbsp']
 ]);
 
 function labelForCount(count, singular, plural) {
@@ -260,7 +272,8 @@ function updatePreview() {
   const counts = {
     quote: 0,
     apostrophe: 0,
-    dash: 0
+    dash: 0,
+    nbsp: 0
   };
 
   charCount.textContent = text.length.toLocaleString();
@@ -272,6 +285,7 @@ function updatePreview() {
     quoteCount.textContent = '0';
     apostropheCount.textContent = '0';
     dashCount.textContent = '0';
+    nbspCount.textContent = '0';
     totalCount.textContent = '0';
     status.textContent = 'No matches';
     return;
@@ -292,16 +306,23 @@ function updatePreview() {
 
     const mark = document.createElement('span');
     mark.className = `mark ${type}`;
-    mark.textContent = char;
+    if (type === 'nbsp') {
+      // Non-breaking spaces are invisible, so show a visible marker.
+      mark.textContent = '·';
+      mark.title = 'Non-breaking space (U+00A0)';
+    } else {
+      mark.textContent = char;
+    }
     fragment.append(mark);
   }
 
   preview.append(fragment);
 
-  const total = counts.quote + counts.apostrophe + counts.dash;
+  const total = counts.quote + counts.apostrophe + counts.dash + counts.nbsp;
   quoteCount.textContent = counts.quote.toLocaleString();
   apostropheCount.textContent = counts.apostrophe.toLocaleString();
   dashCount.textContent = counts.dash.toLocaleString();
+  nbspCount.textContent = counts.nbsp.toLocaleString();
   totalCount.textContent = total.toLocaleString();
   status.textContent = total
     ? `${total.toLocaleString()} ${labelForCount(total, 'match', 'matches')}`
