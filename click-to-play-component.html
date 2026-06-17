@@ -216,7 +216,11 @@
       "click-to-play .ctp-i-pause{display:none}",                                   // play by default
       "click-to-play[data-ctp-state='playing'] .ctp-i-play{display:none}",          // while playing, swap…
       "click-to-play[data-ctp-state='playing'] .ctp-i-pause{display:block}",        // …the triangle for the pause bars
-      "click-to-play:hover .ctp-btn{opacity:1;transform:scale(1.06);background:rgba(12,14,22,.5)}",
+      // hover emphasis only on devices that truly hover — avoids sticky :hover keeping
+      // the control pinned on after a tap on touchscreens
+      "@media (hover:hover){click-to-play:hover .ctp-btn{opacity:1;transform:scale(1.06);background:rgba(12,14,22,.5)}}",
+      // touch: reveal the control briefly while/just after the finger is down
+      "click-to-play.ctp-touched .ctp-btn{opacity:1;transform:scale(1.06);background:rgba(12,14,22,.5)}",
       // loading spinner
       "click-to-play .ctp-spin{display:none;width:16%;min-width:38px;max-width:62px;aspect-ratio:1;border-radius:50%;",
         "border:3px solid rgba(255,255,255,.35);border-top-color:#fff;",
@@ -226,7 +230,8 @@
       "click-to-play[data-ctp-state='loading'] .ctp-btn{opacity:0}",
       "click-to-play[data-ctp-state='loading'] .ctp-spin{display:block}",
       "click-to-play[data-ctp-state='playing'] .ctp-btn{opacity:0}",
-      "click-to-play[data-ctp-state='playing']:hover .ctp-btn{opacity:.72}", // faint pause control on hover
+      "@media (hover:hover){click-to-play[data-ctp-state='playing']:hover .ctp-btn{opacity:.72}}", // faint pause control on hover
+      "click-to-play[data-ctp-state='playing'].ctp-touched .ctp-btn{opacity:.72}",                 // …or on touch
       "click-to-play[data-ctp-state='error'] .ctp-btn{opacity:.7;background:rgba(150,30,30,.62)}",
       "@media (prefers-reduced-motion:reduce){click-to-play .ctp-btn{transition:none}click-to-play .ctp-spin{animation-duration:1.3s}}"
     ].join("");
@@ -265,9 +270,18 @@
       if (!link.getAttribute("aria-label")) link.setAttribute("aria-label", "Play animation");
 
       link.addEventListener("click", this._onClick.bind(this));
+      // touchscreens have no hover, so reveal the control on touch and fade it back out
+      this.addEventListener("touchstart", this._onTouch.bind(this), { passive: true });
     }
 
     _setState(s) { this.dataset.ctpState = s; }
+
+    _onTouch() {
+      var self = this;
+      this.classList.add("ctp-touched");
+      clearTimeout(this._touchTimer);
+      this._touchTimer = setTimeout(function () { self.classList.remove("ctp-touched"); }, 1400);
+    }
 
     _onClick(e) {
       e.preventDefault();                 // hold the navigation; enhance instead
