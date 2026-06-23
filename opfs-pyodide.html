@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OPFS + Pyodide test harness</title>
+<!--
+  OPFS + Pyodide test harness
+  ===========================
+  A single, self-contained page for manually exercising the Origin Private
+  File System (OPFS) across desktop and mobile browsers.
+
+  Why a Web Worker?
+  -----------------
+  The high-performance OPFS write API, FileSystemFileHandle.createSyncAccessHandle(),
+  is ONLY available inside a dedicated Web Worker. iOS Safari supports
+  createSyncAccessHandle() but does NOT support the main-thread createWritable()
+  stream, so the worker path is the only one that works on every device.
+  This mirrors how a real app (e.g. Datasette Lite) would use OPFS.
+
+  The worker here is created from an inline Blob URL so the whole project stays
+  a single HTML file with no build step. The worker source lives in the
+  <script id="worker-src" type="text/worker"> tag below; we read its textContent
+  and wrap it in a Blob.
+
+  Pyodide is loaded from the jsDelivr CDN, pinned to a specific version. To
+  vendor it later: download the matching pyodide release, host it alongside this
+  file, and change PYODIDE_INDEX_URL below to point at your local copy.
+-->
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 0 0 3rem;
+    line-height: 1.4;
+    background: #f4f5f7;
+    color: #1a1a1a;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #15171c; color: #e6e6e6; }
+  }
+  header {
+    background: #2b3a55;
+    color: #fff;
+    padding: 1rem 1rem 0.75rem;
+  }
+  header h1 { margin: 0 0 0.25rem; font-size: 1.25rem; }
+  header p { margin: 0; font-size: 0.85rem; opacity: 0.85; }
+  main { max-width: 60rem; margin: 0 auto; padding: 1rem; }
+  section {
+    background: #fff;
+    border: 1px solid #d9dde3;
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 0 0 1rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    section { background: #1e2128; border-color: #333842; }
+  }
+  section h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
+  label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.5rem 0 0.25rem; }
+  input[type=text], textarea {
+    width: 100%;
+    padding: 0.6rem;
+    font-size: 1rem;
+    border: 1px solid #b9c0cc;
+    border-radius: 8px;
+    background: #fff;
+    color: inherit;
+    font-family: inherit;
+  }
+  @media (prefers-color-scheme: dark) {
+    input[type=text], textarea { background: #14161b; border-color: #3a4150; }
+  }
+  textarea { resize: vertical; min-height: 5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; }
+  button {
+    /* big tap targets for mobile: at least 44px tall */
+    min-height: 2.75rem;
+    padding: 0.6rem 1.1rem;
+    margin: 0.75rem 0.5rem 0 0;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    background: #2b6cb0;
+    color: #fff;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+  }
+  button:active { filter: brightness(0.9); }
+  button.danger { background: #c53030; }
+  /* Smaller, secondary-styled buttons for the SQL quick-query presets */
+  button.preset { background: #4a5568; min-height: 2.25rem; padding: 0.4rem 0.8rem; margin: 0.25rem 0 0; font-size: 0.85rem; font-weight: 600; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .banner {
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    margin: 1rem;
+    font-weight: 600;
+  }
+  .banner.warn { background: #fff3cd; color: #664d03; border: 1px solid #ffe69c; }
+  .banner.ok { background: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+  /* Capability table */
+  table.caps { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  table.caps td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #e2e5ea; vertical-align: top; }
+  @media (prefers-color-scheme: dark) { table.caps td { border-color: #2c313b; } }
+  table.caps td:first-child { font-weight: 600; width: 14rem; }
+  table.caps td.val { word-break: break-word; font-family: ui-monospace, monospace; }
+  .yes { color: #198754; font-weight: 700; }
+  .no { color: #dc3545; font-weight: 700; }
+  /* Results table for SQL output */
+  .result-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; overflow-x: auto; display: block; }
+  .result-table th, .result-table td { border: 1px solid #ccc; padding: 0.3rem 0.5rem; text-align: left; white-space: nowrap; }
+  .result-table th { background: #eef1f5; }
+  @media (prefers-color-scheme: dark) { .result-table th { background: #262b34; } .result-table th, .result-table td { border-color: #3a4150; } }
+  pre.out {
+    background: #0d1117;
+    color: #d6deeb;
+    padding: 0.75rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    margin: 0.5rem 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  /* Activity log */
+  #log { display: flex; flex-direction: column; gap: 0.5rem; max-height: 30rem; overflow-y: auto; }
+  .entry {
+    border-left: 4px solid #888;
+    padding: 0.5rem 0.75rem;
+    background: #f0f2f5;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.82rem;
+  }
+  @media (prefers-color-scheme: dark) { .entry { background: #14161b; } }
+  .entry.success { border-color: #198754; }
+  .entry.error { border-color: #dc3545; }
+  .entry.info { border-color: #2b6cb0; }
+  .entry .meta { font-size: 0.72rem; opacity: 0.75; margin-bottom: 0.25rem; }
+  .entry .title { font-weight: 700; }
+  .entry pre {
+    margin: 0.35rem 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, monospace;
+    font-size: 0.78rem;
+  }
+  .status-pill { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: #6c757d; color: #fff; margin-left: 0.5rem; }
+  .status-pill.ready { background: #198754; }
+  /* Transient inline confirmation shown next to a button after an action */
+  .flash {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.15s ease-in;
+  }
+  .flash.show { opacity: 1; }
+  .flash.ok { color: #198754; }
+  .flash.err { color: #dc3545; }
+  .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>OPFS + Pyodide test harness</h1>
+  <p>Manual cross-device testing for the Origin Private File System. Run it over HTTPS or http://localhost.</p>
+</header>
+
+<!-- Shown only when the page is NOT a secure context -->
+<div id="insecure-banner" class="banner warn" hidden>
+  ⚠️ This page is <strong>not</strong> a secure context, so OPFS will not work.
+  Serve it over <code>https://</code> or <code>http://localhost</code>
+  (e.g. <code>python3 -m http.server</code>) and reopen.
+</div>
+
+<main>
+  <!-- ============ CAPABILITY PANEL ============ -->
+  <section>
+    <h2>Capabilities <span id="py-status" class="status-pill">Pyodide: loading…</span></h2>
+    <table class="caps"><tbody id="caps-body">
+      <tr><td>Detecting…</td><td class="val"></td></tr>
+    </tbody></table>
+    <button id="btn-refresh-caps">Re-detect capabilities</button>
+  </section>
+
+  <!-- ============ SAVE FILE ============ -->
+  <section>
+    <h2>1. Save a test file</h2>
+    <p style="margin:0;font-size:0.85rem;opacity:0.8">Writes via the raw OPFS sync access handle in the worker.</p>
+    <label for="save-name">Filename</label>
+    <input type="text" id="save-name" value="hello.txt" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label for="save-content">Text content</label>
+    <textarea id="save-content">Hello from OPFS! Edit me and save.</textarea>
+    <button id="btn-save">Save file</button>
+    <span id="save-flash" class="flash" role="status" aria-live="polite"></span>
+  </section>
+
+  <!-- ============ LIST FILES ============ -->
+  <section>
+    <h2>2. List files</h2>
+    <p style="margin:0;font-size:0.85rem;opacity:0.8">Recursively lists the OPFS root, re-read live on every click.</p>
+    <button id="btn-list">List files</button>
+    <div id="list-out"></div>
+  </section>
+
+  <!-- ============ LOAD FILE ============ -->
+  <section>
+    <h2>3. Load a file</h2>
+    <label for="load-name">Filename</label>
+    <input type="text" id="load-name" value="hello.txt" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <button id="btn-load">Load file</button>
+    <span id="load-flash" class="flash" role="status" aria-live="polite"></span>
+    <pre class="out" id="load-out" hidden></pre>
+  </section>
+
+  <!-- ============ RUN SQL ============ -->
+  <section>
+    <h2>4. Run SQL</h2>
+    <p style="margin:0;font-size:0.85rem;opacity:0.8">
+      Runs against <code>test.db</code> in OPFS via Pyodide's stdlib <code>sqlite3</code>.
+      The database is loaded into memory, queried, then written back to OPFS via a
+      <code>createSyncAccessHandle()</code> read-modify-write (not <code>mountNativeFS</code>/<code>syncfs</code>,
+      which doesn't reliably persist on Safari), so writes survive a reload everywhere.
+    </p>
+    <label>Quick queries (fills the box below — then click Run SQL)</label>
+    <div id="sql-presets" class="row"></div>
+    <label for="sql-input">SQL (one statement, or multiple separated by <code>;</code>)</label>
+    <textarea id="sql-input">CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, body TEXT);
+INSERT INTO notes (body) VALUES ('written at ' || datetime('now'));
+SELECT * FROM notes;</textarea>
+    <button id="btn-sql">Run SQL</button>
+    <div id="sql-out"></div>
+  </section>
+
+  <!-- ============ CLEAR OPFS ============ -->
+  <section>
+    <h2>5. Clear OPFS</h2>
+    <p style="margin:0;font-size:0.85rem;opacity:0.8">Deletes every entry in the OPFS root for a clean slate.</p>
+    <button id="btn-clear" class="danger">Clear OPFS (delete everything)</button>
+  </section>
+
+  <!-- ============ ACTIVITY LOG ============ -->
+  <section>
+    <h2>Activity log</h2>
+    <div class="row">
+      <button id="btn-clear-log">Clear log</button>
+      <span style="font-size:0.8rem;opacity:0.75">Every operation, its duration, and the full result or error.</span>
+    </div>
+    <div id="log"></div>
+  </section>
+</main>
+
+<!--
+  ============================================================================
+  WEB WORKER SOURCE
+  ============================================================================
+  This <script> has a non-executable type so the browser does not run it on the
+  main thread. We read its textContent and turn it into a Blob URL worker.
+  Keeping it in a script tag (rather than a JS template literal) means we can use
+  backticks and triple-quoted Python freely without escaping headaches.
+-->
+<script id="worker-src" type="text/worker">
+"use strict";
+
+// --- Pyodide config -------------------------------------------------------
+// Pinned version. To vendor later, point this at a locally hosted copy.
+const PYODIDE_INDEX_URL = "https://cdn.jsdelivr.net/pyodide/v0.27.2/full/";
+
+let pyodide = null;
+
+// Load Pyodide exactly once and hold it for the worker's lifetime. File
+// operations below use the raw OPFS API and do NOT need Pyodide, so we kick
+// the load off in the background and only the SQL handler awaits it.
+const pyodideReady = (async () => {
+  importScripts(PYODIDE_INDEX_URL + "pyodide.js");
+  pyodide = await loadPyodide({ indexURL: PYODIDE_INDEX_URL });
+  // sqlite3 is UNVENDORED in Pyodide: the stdlib module is shipped as a
+  // separate package that must be loaded explicitly before `import sqlite3`,
+  // otherwise it raises ModuleNotFoundError.
+  await pyodide.loadPackage("sqlite3");
+  // Define the SQL helper once. It returns a JSON string so the result crosses
+  // the worker boundary cleanly (default=str copes with bytes / odd types).
+  // db_path points at an in-memory (MEMFS) copy of the database; persistence to
+  // OPFS is handled in JS via sync access handles (see runSQL below).
+  pyodide.runPython(`
+import sqlite3, json
+
+def run_sql_json(sql, db_path):
+    con = sqlite3.connect(db_path)
+    try:
+        cur = con.cursor()
+        try:
+            cur.execute(sql)
+        except sqlite3.ProgrammingError as e:
+            # sqlite3.execute() refuses multiple statements; fall back to
+            # executescript() which runs them all but returns no rows.
+            if "one statement" in str(e).lower():
+                cur.executescript(sql)
+                con.commit()
+                return json.dumps({"mode": "script",
+                                   "message": "Executed multiple statements (no result set returned)."})
+            raise
+        if cur.description is not None:
+            cols = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+            con.commit()
+            return json.dumps({"mode": "select", "columns": cols, "rows": rows}, default=str)
+        con.commit()
+        return json.dumps({"mode": "write", "rowcount": cur.rowcount})
+    finally:
+        con.close()
+`);
+  self.postMessage({ id: "status", status: "pyodide-ready" });
+})();
+// Surface a load failure as a status message too (the SQL handler will also
+// reject, but this lets the UI flip the pill to an error state immediately).
+pyodideReady.catch((err) => {
+  self.postMessage({ id: "status", status: "pyodide-error",
+                     error: { name: err.name, message: err.message, stack: err.stack } });
+});
+
+// --- Raw OPFS helpers -----------------------------------------------------
+
+async function opfsRoot() {
+  if (!navigator.storage || !navigator.storage.getDirectory) {
+    throw new Error("navigator.storage.getDirectory is unavailable (OPFS not supported here).");
+  }
+  return navigator.storage.getDirectory();
+}
+
+// Resolve a possibly-nested path like "foo/bar/hello.txt" to a directory
+// handle plus the final filename. OPFS getFileHandle() rejects names that
+// contain "/", so we walk (and optionally create) each directory segment.
+async function resolvePath(path, { create }) {
+  const parts = String(path).split("/").filter((p) => p.length && p !== ".");
+  if (!parts.length) throw new Error("Empty path.");
+  const filename = parts.pop();
+  let dir = await opfsRoot();
+  for (const segment of parts) {
+    dir = await dir.getDirectoryHandle(segment, { create });
+  }
+  return { dir, filename };
+}
+
+// Read an entire OPFS file into a Uint8Array using a sync access handle, or
+// return null if it doesn't exist. createSyncAccessHandle() is the read/write
+// path that works in every browser including Safari/iOS (unlike the File
+// System Access createWritable() stream that Pyodide's syncfs relies on).
+async function readOPFSBytes(path) {
+  let dir, filename;
+  try {
+    ({ dir, filename } = await resolvePath(path, { create: false }));
+  } catch (e) { return null; }
+  let fh;
+  try {
+    fh = await dir.getFileHandle(filename, { create: false });
+  } catch (e) {
+    if (e.name === "NotFoundError") return null;
+    throw e;
+  }
+  const handle = await fh.createSyncAccessHandle();
+  try {
+    const size = handle.getSize();
+    const buf = new Uint8Array(size);
+    handle.read(buf, { at: 0 });
+    return buf;
+  } finally {
+    handle.close(); // release the exclusive lock
+  }
+}
+
+// Write a Uint8Array to an OPFS file via a sync access handle (overwriting),
+// returning the number of bytes written.
+async function writeOPFSBytes(path, bytes) {
+  const { dir, filename } = await resolvePath(path, { create: true });
+  const fh = await dir.getFileHandle(filename, { create: true });
+  const handle = await fh.createSyncAccessHandle();
+  try {
+    handle.truncate(0);
+    const written = handle.write(bytes, { at: 0 });
+    handle.flush();
+    return written;
+  } finally {
+    handle.close();
+  }
+}
+
+// Recursively walk a directory handle, returning {path, kind, size}.
+async function listDir(dirHandle, prefix) {
+  const out = [];
+  for await (const [name, handle] of dirHandle.entries()) {
+    const path = prefix + name;
+    if (handle.kind === "file") {
+      const file = await handle.getFile();
+      out.push({ path, kind: "file", size: file.size });
+    } else {
+      out.push({ path: path + "/", kind: "dir", size: 0 });
+      const nested = await listDir(handle, path + "/");
+      out.push(...nested);
+    }
+  }
+  return out;
+}
+
+// --- Command handlers -----------------------------------------------------
+// Each handler is self-contained and re-reads OPFS state per call so the raw
+// file tools and the mounted SQLite view stay consistent within a session.
+
+const handlers = {
+
+  // Feature-detect inside the worker and report back to the UI.
+  caps: async () => {
+    const hasOPFS = !!(navigator.storage && navigator.storage.getDirectory);
+    let syncAccess = false;
+    try {
+      syncAccess = (typeof FileSystemFileHandle !== "undefined") &&
+        ("createSyncAccessHandle" in FileSystemFileHandle.prototype);
+    } catch (e) { syncAccess = false; }
+    return { hasOPFS, syncAccessHandle: syncAccess };
+  },
+
+  // getFileHandle(create) -> createSyncAccessHandle() -> write -> flush -> close
+  saveFile: async ({ name, content }) => {
+    if (!name) throw new Error("Filename is required.");
+    // Supports nested paths (e.g. "foo/hello.txt"); intermediate dirs created.
+    const { dir, filename } = await resolvePath(name, { create: true });
+    const fh = await dir.getFileHandle(filename, { create: true });
+    const handle = await fh.createSyncAccessHandle();
+    try {
+      handle.truncate(0); // overwrite, don't append to stale bytes
+      const bytes = new TextEncoder().encode(content || "");
+      const written = handle.write(bytes, { at: 0 });
+      handle.flush(); // ensure bytes hit storage before we report success
+      return { name, bytesWritten: written };
+    } finally {
+      // ALWAYS close: an open sync access handle holds an exclusive lock and
+      // would block the next operation on this file.
+      handle.close();
+    }
+  },
+
+  listFiles: async () => {
+    const root = await opfsRoot();
+    const entries = await listDir(root, "");
+    return { entries };
+  },
+
+  loadFile: async ({ name }) => {
+    if (!name) throw new Error("Filename is required.");
+    // Supports nested paths (e.g. "foo/hello.txt").
+    const { dir, filename } = await resolvePath(name, { create: false });
+    const fh = await dir.getFileHandle(filename, { create: false });
+    const file = await fh.getFile();
+    const text = await file.text();
+    return { name, size: file.size, text };
+  },
+
+  // Persistence here deliberately AVOIDS pyodide.mountNativeFS()/syncfs().
+  // That path writes back to OPFS via FileSystemFileHandle.createWritable(),
+  // which is unreliable on Safari/iOS: syncfs() can resolve "successfully"
+  // while the data never actually lands on disk (the database file stays at its
+  // initial size). See pyodide#4057 and pyodide#3456.
+  //
+  // Instead we do an explicit read-modify-write of the whole database file
+  // through createSyncAccessHandle() — the one OPFS write API that works in
+  // every browser including Safari:
+  //   1. read test.db from OPFS into an in-memory (MEMFS) copy
+  //   2. run the SQL against that MEMFS database
+  //   3. write the MEMFS database back to OPFS via a sync access handle
+  // The test databases here are small, so copying the whole file each call is
+  // cheap and keeps every command self-contained.
+  runSQL: async ({ sql }) => {
+    if (!sql || !sql.trim()) throw new Error("No SQL provided.");
+    await pyodideReady;
+    const DB_OPFS = "test.db";   // path within the OPFS root
+    const DB_MEM = "/test.db";   // path within Pyodide's in-memory FS
+
+    // 1. Load the current database from OPFS into MEMFS (if it exists).
+    const existing = await readOPFSBytes(DB_OPFS);
+    if (existing) {
+      pyodide.FS.writeFile(DB_MEM, existing);
+    } else {
+      try { pyodide.FS.unlink(DB_MEM); } catch (e) { /* not there: fine */ }
+    }
+
+    // 2. Run the SQL against the MEMFS copy.
+    const fn = pyodide.globals.get("run_sql_json");
+    let jsonStr;
+    try {
+      jsonStr = fn(sql, DB_MEM); // Python str args/return cross as JS strings
+    } finally {
+      fn.destroy();
+    }
+    const parsed = JSON.parse(jsonStr);
+
+    // 3. Persist the (possibly modified) database back to OPFS.
+    let synced = false, syncError = null, dbBytesOnDisk = null;
+    try {
+      const bytes = pyodide.FS.readFile(DB_MEM); // Uint8Array of the whole db
+      await writeOPFSBytes(DB_OPFS, bytes);
+      synced = true;
+      dbBytesOnDisk = bytes.length; // ground-truth on-disk size after the write
+    } catch (e) {
+      syncError = { name: e.name, message: e.message, stack: e.stack };
+    }
+    return { ...parsed, synced, syncError, dbBytesOnDisk };
+  },
+
+  clearOPFS: async () => {
+    const root = await opfsRoot();
+    const removed = [];
+    // Collect names first; removing while iterating the async iterator is risky.
+    const names = [];
+    for await (const [name] of root.entries()) names.push(name);
+    for (const name of names) {
+      await root.removeEntry(name, { recursive: true });
+      removed.push(name);
+    }
+    return { removed };
+  },
+};
+
+// --- Message loop ---------------------------------------------------------
+self.onmessage = async (e) => {
+  const { id, cmd, args } = e.data;
+  const start = performance.now();
+  const handler = handlers[cmd];
+  if (!handler) {
+    self.postMessage({ id, ok: false,
+      error: { name: "Error", message: "Unknown command: " + cmd, stack: "" },
+      durationMs: 0 });
+    return;
+  }
+  try {
+    const result = await handler(args || {});
+    self.postMessage({ id, ok: true, result, durationMs: performance.now() - start });
+  } catch (err) {
+    // Do not swallow anything: send name, message and full stack back.
+    self.postMessage({ id, ok: false,
+      error: { name: err.name || "Error", message: err.message || String(err), stack: err.stack || "" },
+      durationMs: performance.now() - start });
+  }
+};
+</script>
+
+<!--
+  ============================================================================
+  MAIN THREAD (UI ONLY)
+  ============================================================================
+  The main thread never touches OPFS directly. It posts commands to the worker
+  and renders the replies. A per-message id matches each reply to its request.
+-->
+<script>
+"use strict";
+
+// ---- Build the worker from an inline Blob URL (keeps us single-file) ------
+const workerSource = document.getElementById("worker-src").textContent;
+const workerBlob = new Blob([workerSource], { type: "text/javascript" });
+const worker = new Worker(URL.createObjectURL(workerBlob));
+
+// ---- Request/response protocol -------------------------------------------
+let nextId = 1;
+const pending = new Map(); // id -> {resolve, reject}
+
+worker.onmessage = (e) => {
+  const data = e.data;
+  // Out-of-band status messages (Pyodide load progress) carry id === "status".
+  if (data.id === "status") {
+    handleStatus(data);
+    return;
+  }
+  const p = pending.get(data.id);
+  if (!p) return;
+  pending.delete(data.id);
+  if (data.ok) {
+    p.resolve({ result: data.result, durationMs: data.durationMs });
+  } else {
+    // Reconstruct an Error so callers see .name / .message / .stack, and stash
+    // the duration so the logger can report it.
+    const err = new Error(data.error.message);
+    err.name = data.error.name;
+    err.stack = data.error.stack;
+    err.durationMs = data.durationMs;
+    p.reject(err);
+  }
+};
+worker.onerror = (e) => {
+  logEntry("error", "Worker error", e.message || String(e),
+           e.filename ? `${e.filename}:${e.lineno}` : "");
+};
+
+// Send a command, return a Promise resolving to {result, durationMs}.
+function callWorker(cmd, args) {
+  return new Promise((resolve, reject) => {
+    const id = nextId++;
+    pending.set(id, { resolve, reject });
+    worker.postMessage({ id, cmd, args });
+  });
+}
+
+// ---- Activity log --------------------------------------------------------
+const logEl = document.getElementById("log");
+
+function logEntry(kind, title, detail, meta) {
+  const entry = document.createElement("div");
+  entry.className = "entry " + kind;
+  const time = new Date().toLocaleTimeString();
+  const metaLine = document.createElement("div");
+  metaLine.className = "meta";
+  metaLine.textContent = time + (meta ? " · " + meta : "");
+  const titleLine = document.createElement("div");
+  titleLine.className = "title";
+  titleLine.textContent = title;
+  entry.appendChild(metaLine);
+  entry.appendChild(titleLine);
+  if (detail !== undefined && detail !== null && detail !== "") {
+    const pre = document.createElement("pre");
+    pre.textContent = typeof detail === "string" ? detail : JSON.stringify(detail, null, 2);
+    entry.appendChild(pre);
+  }
+  logEl.prepend(entry); // newest on top
+}
+
+// Run a worker command with consistent logging. onSuccess(result) renders UI
+// on success; optional onError(err) renders UI on failure (the failure is
+// always logged regardless).
+async function runOp(title, cmd, args, onSuccess, onError) {
+  logEntry("info", title + " — started", null, "");
+  try {
+    const { result, durationMs } = await callWorker(cmd, args);
+    logEntry("success", title + " — OK", result, durationMs.toFixed(1) + " ms");
+    if (onSuccess) onSuccess(result);
+    return result;
+  } catch (err) {
+    // Surface failures loudly: name, message, full stack.
+    const detail = `${err.name}: ${err.message}\n\n${err.stack || "(no stack)"}`;
+    const ms = (err.durationMs != null) ? err.durationMs.toFixed(1) + " ms" : "";
+    logEntry("error", title + " — FAILED", detail, ms);
+    if (onError) onError(err);
+    return null;
+  }
+}
+
+document.getElementById("btn-clear-log").addEventListener("click", () => {
+  logEl.textContent = "";
+});
+
+// Briefly show an inline message next to a control (immediate, visible feedback
+// — the activity log is the full record, this is the at-a-glance confirmation).
+function flash(el, message, ok) {
+  el.textContent = message;
+  el.className = "flash show " + (ok ? "ok" : "err");
+  clearTimeout(el._flashTimer);
+  el._flashTimer = setTimeout(() => { el.classList.remove("show"); }, 2500);
+}
+
+// ---- Pyodide status pill -------------------------------------------------
+const pyStatus = document.getElementById("py-status");
+function handleStatus(data) {
+  if (data.status === "pyodide-ready") {
+    pyStatus.textContent = "Pyodide: ready";
+    pyStatus.classList.add("ready");
+    logEntry("success", "Pyodide loaded", null, "");
+  } else if (data.status === "pyodide-error") {
+    pyStatus.textContent = "Pyodide: failed";
+    pyStatus.style.background = "#dc3545";
+    const e = data.error || {};
+    logEntry("error", "Pyodide failed to load",
+             `${e.name}: ${e.message}\n\n${e.stack || ""}`, "");
+  }
+}
+
+// ---- Capability panel ----------------------------------------------------
+const capsBody = document.getElementById("caps-body");
+
+function yesNo(v) {
+  return v ? '<span class="yes">yes</span>' : '<span class="no">no</span>';
+}
+function capRow(label, valueHTML) {
+  const tr = document.createElement("tr");
+  const td1 = document.createElement("td");
+  td1.textContent = label;
+  const td2 = document.createElement("td");
+  td2.className = "val";
+  td2.innerHTML = valueHTML;
+  tr.appendChild(td1);
+  tr.appendChild(td2);
+  return tr;
+}
+
+async function detectCapabilities() {
+  capsBody.textContent = "";
+
+  capsBody.appendChild(capRow("navigator.userAgent", escapeHTML(navigator.userAgent)));
+  capsBody.appendChild(capRow("window.isSecureContext", yesNo(window.isSecureContext)));
+  capsBody.appendChild(capRow("crossOriginIsolated", yesNo(window.crossOriginIsolated)));
+  capsBody.appendChild(capRow("SharedArrayBuffer available",
+    yesNo(typeof SharedArrayBuffer !== "undefined")));
+  capsBody.appendChild(capRow('"getDirectory" in navigator.storage',
+    yesNo(!!(navigator.storage && "getDirectory" in navigator.storage))));
+
+  // createSyncAccessHandle detection must happen inside the worker.
+  const syncRow = capRow("createSyncAccessHandle (in worker)", "checking…");
+  capsBody.appendChild(syncRow);
+  try {
+    const { result } = await callWorker("caps", {});
+    syncRow.querySelector(".val").innerHTML = yesNo(result.syncAccessHandle);
+  } catch (err) {
+    syncRow.querySelector(".val").innerHTML =
+      '<span class="no">error: ' + escapeHTML(err.message) + "</span>";
+  }
+
+  // Storage estimate (usage / quota in MB).
+  const estRow = capRow("navigator.storage.estimate()", "checking…");
+  capsBody.appendChild(estRow);
+  try {
+    if (navigator.storage && navigator.storage.estimate) {
+      const est = await navigator.storage.estimate();
+      const mb = (n) => (n == null ? "?" : (n / 1048576).toFixed(1) + " MB");
+      estRow.querySelector(".val").textContent =
+        `usage ${mb(est.usage)} / quota ${mb(est.quota)}`;
+    } else {
+      estRow.querySelector(".val").innerHTML = '<span class="no">unavailable</span>';
+    }
+  } catch (err) {
+    estRow.querySelector(".val").innerHTML =
+      '<span class="no">error: ' + escapeHTML(err.message) + "</span>";
+  }
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// ---- Secure context banner -----------------------------------------------
+if (!window.isSecureContext) {
+  document.getElementById("insecure-banner").hidden = false;
+}
+
+// ---- Wire up the tools ---------------------------------------------------
+
+document.getElementById("btn-refresh-caps").addEventListener("click", detectCapabilities);
+
+document.getElementById("btn-save").addEventListener("click", async () => {
+  const name = document.getElementById("save-name").value.trim();
+  const content = document.getElementById("save-content").value;
+  const flashEl = document.getElementById("save-flash");
+  const result = await runOp("Save file: " + name, "saveFile", { name, content });
+  if (result) {
+    flash(flashEl, `✓ Saved ${result.bytesWritten} bytes`, true);
+  } else {
+    flash(flashEl, "✗ Save failed — see log", false);
+  }
+});
+
+// Re-read the OPFS root and render the file list. Shared by the List files
+// button and by the SQL tool (which calls it after a sync so the displayed
+// sizes don't go stale when SQL grows test.db).
+function refreshFileList() {
+  const out = document.getElementById("list-out");
+  return runOp("List files", "listFiles", {}, (result) => {
+    out.textContent = "";
+    if (!result.entries.length) {
+      const p = document.createElement("p");
+      p.style.fontSize = "0.85rem";
+      p.style.opacity = "0.8";
+      p.textContent = "(OPFS root is empty)";
+      out.appendChild(p);
+      return;
+    }
+    const table = document.createElement("table");
+    table.className = "result-table";
+    table.innerHTML = "<tr><th>Path</th><th>Kind</th><th>Size (bytes)</th></tr>";
+    for (const e of result.entries) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${escapeHTML(e.path)}</td><td>${e.kind}</td>` +
+                     `<td>${e.kind === "file" ? e.size : ""}</td>`;
+      table.appendChild(tr);
+    }
+    out.appendChild(table);
+  });
+}
+
+document.getElementById("btn-list").addEventListener("click", refreshFileList);
+
+document.getElementById("btn-load").addEventListener("click", async () => {
+  const name = document.getElementById("load-name").value.trim();
+  const out = document.getElementById("load-out");
+  const flashEl = document.getElementById("load-flash");
+  const result = await runOp("Load file: " + name, "loadFile", { name }, (result) => {
+    out.hidden = false;
+    out.textContent = result.text;
+  });
+  if (result) {
+    flash(flashEl, `✓ Loaded ${result.size} bytes`, true);
+  } else {
+    // Most common failure: file doesn't exist (NotFoundError). Hide any stale
+    // contents and show the error inline as well as in the log.
+    out.hidden = true;
+    out.textContent = "";
+    flash(flashEl, `✗ Not found / load failed — see log`, false);
+  }
+});
+
+function runSqlFromTextarea() {
+  const sql = document.getElementById("sql-input").value;
+  const out = document.getElementById("sql-out");
+  runOp("Run SQL", "runSQL", { sql }, (result) => {
+    out.textContent = "";
+
+    // Make the sync state obvious — the whole point is verifying persistence.
+    // A write/script that synced is the meaningful "persisted" case; a SELECT
+    // also syncs (harmless) but changed nothing, so don't over-claim there.
+    const wroteData = result.mode === "write" || result.mode === "script";
+    const banner = document.createElement("div");
+    banner.style.margin = "0.75rem 0 0";
+    const dbSize = (result.dbBytesOnDisk != null)
+      ? ` test.db on disk is now ${result.dbBytesOnDisk.toLocaleString()} bytes.`
+      : "";
+    if (result.syncError) {
+      banner.className = "banner warn";
+      banner.textContent = "⚠️ syncfs() FAILED: " + result.syncError.name + ": " + result.syncError.message;
+    } else if (wroteData && result.synced) {
+      banner.className = "banner ok";
+      banner.textContent = "✅ Write synced to OPFS (safe to reload)." + dbSize;
+    } else if (result.synced) {
+      // read-only query
+      banner.className = "banner ok";
+      banner.textContent = "ℹ️ Read-only query — no changes to persist." + dbSize;
+    } else {
+      banner.className = "banner warn";
+      banner.textContent = "⚠️ syncfs() did not run.";
+    }
+    out.appendChild(banner);
+
+    // Keep the "List files" panel in sync: SQL may have created/grown test.db,
+    // and a stale list (e.g. showing 8192 bytes) is confusing. Only refresh if
+    // it has already been populated, so we don't surprise the user otherwise.
+    if (result.synced && document.getElementById("list-out").hasChildNodes()) {
+      refreshFileList();
+    }
+
+    if (result.mode === "select") {
+      const table = document.createElement("table");
+      table.className = "result-table";
+      const head = document.createElement("tr");
+      for (const c of result.columns) {
+        const th = document.createElement("th");
+        th.textContent = c;
+        head.appendChild(th);
+      }
+      table.appendChild(head);
+      for (const row of result.rows) {
+        const tr = document.createElement("tr");
+        for (const cell of row) {
+          const td = document.createElement("td");
+          td.textContent = cell === null ? "NULL" : String(cell);
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
+      }
+      out.appendChild(table);
+      const n = document.createElement("p");
+      n.style.fontSize = "0.8rem";
+      n.style.opacity = "0.8";
+      n.textContent = `${result.rows.length} row(s).`;
+      out.appendChild(n);
+    } else if (result.mode === "write") {
+      const p = document.createElement("p");
+      p.style.fontSize = "0.85rem";
+      p.textContent = `Write OK — ${result.rowcount} row(s) affected.`;
+      out.appendChild(p);
+    } else if (result.mode === "script") {
+      const p = document.createElement("p");
+      p.style.fontSize = "0.85rem";
+      p.textContent = result.message;
+      out.appendChild(p);
+    }
+  }, (err) => {
+    // SQL failed (syntax error, missing table, etc.) — show it right here in
+    // the SQL output, not only in the activity log.
+    out.textContent = "";
+    const banner = document.createElement("div");
+    banner.className = "banner warn";
+    banner.style.margin = "0.75rem 0 0";
+    banner.textContent = "❌ SQL error: " + err.name;
+    out.appendChild(banner);
+    const pre = document.createElement("pre");
+    pre.className = "out";
+    pre.textContent = err.message;
+    out.appendChild(pre);
+  });
+}
+
+document.getElementById("btn-sql").addEventListener("click", runSqlFromTextarea);
+
+// Quick-query presets: each button drops its SQL into the textarea (it does
+// NOT run automatically — review it, then click Run SQL). Edit this list to
+// add your own.
+const SQL_PRESETS = [
+  { label: "Create table", sql: "CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, body TEXT);" },
+  { label: "Insert row", sql: "INSERT INTO notes (body) VALUES ('written at ' || datetime('now'));" },
+  // Inserts a ~10 KB body, handy for watching test.db grow on disk.
+  { label: "Insert large row", sql: "INSERT INTO notes (body)\nVALUES (\n  replace(\n    substr(quote(zeroblob((10000 + 1) / 2)), 3, 10000),\n    '0',\n    'x'\n  )\n);" },
+  { label: "Select all", sql: "SELECT * FROM notes ORDER BY id;" },
+  { label: "Count rows", sql: "SELECT count(*) AS rows FROM notes;" },
+  { label: "List tables", sql: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;" },
+  { label: "Drop table", sql: "DROP TABLE IF EXISTS notes;" },
+];
+const presetBox = document.getElementById("sql-presets");
+for (const preset of SQL_PRESETS) {
+  const btn = document.createElement("button");
+  btn.className = "preset";
+  btn.type = "button";
+  btn.textContent = preset.label;
+  btn.title = preset.sql;
+  btn.addEventListener("click", () => {
+    document.getElementById("sql-input").value = preset.sql;
+    document.getElementById("sql-input").focus();
+  });
+  presetBox.appendChild(btn);
+}
+
+document.getElementById("btn-clear").addEventListener("click", () => {
+  if (!confirm("Delete EVERY entry in the OPFS root? This cannot be undone.")) return;
+  runOp("Clear OPFS", "clearOPFS", {});
+});
+
+// ---- Startup -------------------------------------------------------------
+detectCapabilities();
+logEntry("info", "Page loaded", null, navigator.userAgent);
+</script>
+</body>
+</html>
