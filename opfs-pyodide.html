@@ -222,9 +222,10 @@
   <section>
     <h2>4. Run SQL</h2>
     <p style="margin:0;font-size:0.85rem;opacity:0.8">
-      Runs against <code>/mnt/test.db</code> via Pyodide's stdlib <code>sqlite3</code>,
-      with the OPFS root mounted through <code>mountNativeFS</code>. Writes are persisted with
-      <code>syncfs()</code> so they survive a reload.
+      Runs against <code>test.db</code> in OPFS via Pyodide's stdlib <code>sqlite3</code>.
+      The database is loaded into memory, queried, then written back to OPFS via a
+      <code>createSyncAccessHandle()</code> read-modify-write (not <code>mountNativeFS</code>/<code>syncfs</code>,
+      which doesn't reliably persist on Safari), so writes survive a reload everywhere.
     </p>
     <label>Quick queries (fills the box below — then click Run SQL)</label>
     <div id="sql-presets" class="row"></div>
@@ -284,11 +285,13 @@ const pyodideReady = (async () => {
   await pyodide.loadPackage("sqlite3");
   // Define the SQL helper once. It returns a JSON string so the result crosses
   // the worker boundary cleanly (default=str copes with bytes / odd types).
+  // db_path points at an in-memory (MEMFS) copy of the database; persistence to
+  // OPFS is handled in JS via sync access handles (see runSQL below).
   pyodide.runPython(`
 import sqlite3, json
 
-def run_sql_json(sql):
-    con = sqlite3.connect("/mnt/test.db")
+def run_sql_json(sql, db_path):
+    con = sqlite3.connect(db_path)
     try:
         cur = con.cursor()
         try:
@@ -321,20 +324,6 @@ pyodideReady.catch((err) => {
                      error: { name: err.name, message: err.message, stack: err.stack } });
 });
 
-// nativefs handle from mountNativeFS, created lazily on first SQL run and kept.
-let nativefs = null;
-async function ensureMount() {
-  await pyodideReady;
-  if (!nativefs) {
-    const dir = await navigator.storage.getDirectory();
-    // Mounts the OPFS root into the Pyodide FS at /mnt, populating it with the
-    // current on-disk state. Changes made under /mnt are NOT persisted back to
-    // OPFS until syncfs() is called.
-    nativefs = await pyodide.mountNativeFS("/mnt", dir);
-  }
-  return nativefs;
-}
-
 // --- Raw OPFS helpers -----------------------------------------------------
 
 async function opfsRoot() {
@@ -356,6 +345,49 @@ async function resolvePath(path, { create }) {
     dir = await dir.getDirectoryHandle(segment, { create });
   }
   return { dir, filename };
+}
+
+// Read an entire OPFS file into a Uint8Array using a sync access handle, or
+// return null if it doesn't exist. createSyncAccessHandle() is the read/write
+// path that works in every browser including Safari/iOS (unlike the File
+// System Access createWritable() stream that Pyodide's syncfs relies on).
+async function readOPFSBytes(path) {
+  let dir, filename;
+  try {
+    ({ dir, filename } = await resolvePath(path, { create: false }));
+  } catch (e) { return null; }
+  let fh;
+  try {
+    fh = await dir.getFileHandle(filename, { create: false });
+  } catch (e) {
+    if (e.name === "NotFoundError") return null;
+    throw e;
+  }
+  const handle = await fh.createSyncAccessHandle();
+  try {
+    const size = handle.getSize();
+    const buf = new Uint8Array(size);
+    handle.read(buf, { at: 0 });
+    return buf;
+  } finally {
+    handle.close(); // release the exclusive lock
+  }
+}
+
+// Write a Uint8Array to an OPFS file via a sync access handle (overwriting),
+// returning the number of bytes written.
+async function writeOPFSBytes(path, bytes) {
+  const { dir, filename } = await resolvePath(path, { create: true });
+  const fh = await dir.getFileHandle(filename, { create: true });
+  const handle = await fh.createSyncAccessHandle();
+  try {
+    handle.truncate(0);
+    const written = handle.write(bytes, { at: 0 });
+    handle.flush();
+    return written;
+  } finally {
+    handle.close();
+  }
 }
 
 // Recursively walk a directory handle, returning {path, kind, size}.
@@ -428,39 +460,54 @@ const handlers = {
     return { name, size: file.size, text };
   },
 
+  // Persistence here deliberately AVOIDS pyodide.mountNativeFS()/syncfs().
+  // That path writes back to OPFS via FileSystemFileHandle.createWritable(),
+  // which is unreliable on Safari/iOS: syncfs() can resolve "successfully"
+  // while the data never actually lands on disk (the database file stays at its
+  // initial size). See pyodide#4057 and pyodide#3456.
+  //
+  // Instead we do an explicit read-modify-write of the whole database file
+  // through createSyncAccessHandle() — the one OPFS write API that works in
+  // every browser including Safari:
+  //   1. read test.db from OPFS into an in-memory (MEMFS) copy
+  //   2. run the SQL against that MEMFS database
+  //   3. write the MEMFS database back to OPFS via a sync access handle
+  // The test databases here are small, so copying the whole file each call is
+  // cheap and keeps every command self-contained.
   runSQL: async ({ sql }) => {
     if (!sql || !sql.trim()) throw new Error("No SQL provided.");
-    const fs = await ensureMount();
+    await pyodideReady;
+    const DB_OPFS = "test.db";   // path within the OPFS root
+    const DB_MEM = "/test.db";   // path within Pyodide's in-memory FS
+
+    // 1. Load the current database from OPFS into MEMFS (if it exists).
+    const existing = await readOPFSBytes(DB_OPFS);
+    if (existing) {
+      pyodide.FS.writeFile(DB_MEM, existing);
+    } else {
+      try { pyodide.FS.unlink(DB_MEM); } catch (e) { /* not there: fine */ }
+    }
+
+    // 2. Run the SQL against the MEMFS copy.
     const fn = pyodide.globals.get("run_sql_json");
     let jsonStr;
     try {
-      jsonStr = fn(sql); // PyProxy call; Python str comes back as a JS string
+      jsonStr = fn(sql, DB_MEM); // Python str args/return cross as JS strings
     } finally {
       fn.destroy();
     }
     const parsed = JSON.parse(jsonStr);
-    // Persist back to OPFS. syncfs() with no arg flushes Pyodide FS -> OPFS.
-    // We sync after EVERY successful statement (not just writes): simply
-    // connecting creates /mnt/test.db in the in-memory FS, and syncing makes
-    // that file actually appear in OPFS so it shows up in "List files". We
-    // wrap it so a known iOS syncfs bug surfaces in the log rather than
-    // silently losing data.
-    let synced = false, syncError = null;
+
+    // 3. Persist the (possibly modified) database back to OPFS.
+    let synced = false, syncError = null, dbBytesOnDisk = null;
     try {
-      await fs.syncfs();
+      const bytes = pyodide.FS.readFile(DB_MEM); // Uint8Array of the whole db
+      await writeOPFSBytes(DB_OPFS, bytes);
       synced = true;
+      dbBytesOnDisk = bytes.length; // ground-truth on-disk size after the write
     } catch (e) {
       syncError = { name: e.name, message: e.message, stack: e.stack };
     }
-    // Read the ACTUAL on-disk size of the db straight from raw OPFS (not the
-    // mounted view). This is the ground truth for "did the write really land?":
-    // if the row data is large but this stays tiny, syncfs lied on this device.
-    let dbBytesOnDisk = null;
-    try {
-      const root = await opfsRoot();
-      const fh = await root.getFileHandle("test.db", { create: false });
-      dbBytesOnDisk = (await fh.getFile()).size;
-    } catch (e) { dbBytesOnDisk = null; }
     return { ...parsed, synced, syncError, dbBytesOnDisk };
   },
 
@@ -474,8 +521,6 @@ const handlers = {
       await root.removeEntry(name, { recursive: true });
       removed.push(name);
     }
-    // Drop the cached mount so the next SQL run re-mounts fresh OPFS state.
-    nativefs = null;
     return { removed };
   },
 };
