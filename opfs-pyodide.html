@@ -343,6 +343,20 @@ async function opfsRoot() {
   return navigator.storage.getDirectory();
 }
 
+// Resolve a possibly-nested path like "foo/bar/hello.txt" to a directory
+// handle plus the final filename. OPFS getFileHandle() rejects names that
+// contain "/", so we walk (and optionally create) each directory segment.
+async function resolvePath(path, { create }) {
+  const parts = String(path).split("/").filter((p) => p.length && p !== ".");
+  if (!parts.length) throw new Error("Empty path.");
+  const filename = parts.pop();
+  let dir = await opfsRoot();
+  for (const segment of parts) {
+    dir = await dir.getDirectoryHandle(segment, { create });
+  }
+  return { dir, filename };
+}
+
 // Recursively walk a directory handle, returning {path, kind, size}.
 async function listDir(dirHandle, prefix) {
   const out = [];
@@ -380,8 +394,9 @@ const handlers = {
   // getFileHandle(create) -> createSyncAccessHandle() -> write -> flush -> close
   saveFile: async ({ name, content }) => {
     if (!name) throw new Error("Filename is required.");
-    const root = await opfsRoot();
-    const fh = await root.getFileHandle(name, { create: true });
+    // Supports nested paths (e.g. "foo/hello.txt"); intermediate dirs created.
+    const { dir, filename } = await resolvePath(name, { create: true });
+    const fh = await dir.getFileHandle(filename, { create: true });
     const handle = await fh.createSyncAccessHandle();
     try {
       handle.truncate(0); // overwrite, don't append to stale bytes
@@ -404,8 +419,9 @@ const handlers = {
 
   loadFile: async ({ name }) => {
     if (!name) throw new Error("Filename is required.");
-    const root = await opfsRoot();
-    const fh = await root.getFileHandle(name, { create: false });
+    // Supports nested paths (e.g. "foo/hello.txt").
+    const { dir, filename } = await resolvePath(name, { create: false });
+    const fh = await dir.getFileHandle(filename, { create: false });
     const file = await fh.getFile();
     const text = await file.text();
     return { name, size: file.size, text };
