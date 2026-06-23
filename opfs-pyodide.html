@@ -148,6 +148,18 @@
   }
   .status-pill { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: #6c757d; color: #fff; margin-left: 0.5rem; }
   .status-pill.ready { background: #198754; }
+  /* Transient inline confirmation shown next to a button after an action */
+  .flash {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.15s ease-in;
+  }
+  .flash.show { opacity: 1; }
+  .flash.ok { color: #198754; }
+  .flash.err { color: #dc3545; }
   .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 </style>
 </head>
@@ -183,6 +195,7 @@
     <label for="save-content">Text content</label>
     <textarea id="save-content">Hello from OPFS! Edit me and save.</textarea>
     <button id="btn-save">Save file</button>
+    <span id="save-flash" class="flash" role="status" aria-live="polite"></span>
   </section>
 
   <!-- ============ LIST FILES ============ -->
@@ -558,6 +571,15 @@ document.getElementById("btn-clear-log").addEventListener("click", () => {
   logEl.textContent = "";
 });
 
+// Briefly show an inline message next to a control (immediate, visible feedback
+// — the activity log is the full record, this is the at-a-glance confirmation).
+function flash(el, message, ok) {
+  el.textContent = message;
+  el.className = "flash show " + (ok ? "ok" : "err");
+  clearTimeout(el._flashTimer);
+  el._flashTimer = setTimeout(() => { el.classList.remove("show"); }, 2500);
+}
+
 // ---- Pyodide status pill -------------------------------------------------
 const pyStatus = document.getElementById("py-status");
 function handleStatus(data) {
@@ -646,10 +668,16 @@ if (!window.isSecureContext) {
 
 document.getElementById("btn-refresh-caps").addEventListener("click", detectCapabilities);
 
-document.getElementById("btn-save").addEventListener("click", () => {
+document.getElementById("btn-save").addEventListener("click", async () => {
   const name = document.getElementById("save-name").value.trim();
   const content = document.getElementById("save-content").value;
-  runOp("Save file: " + name, "saveFile", { name, content });
+  const flashEl = document.getElementById("save-flash");
+  const result = await runOp("Save file: " + name, "saveFile", { name, content });
+  if (result) {
+    flash(flashEl, `✓ Saved ${result.bytesWritten} bytes`, true);
+  } else {
+    flash(flashEl, "✗ Save failed — see log", false);
+  }
 });
 
 document.getElementById("btn-list").addEventListener("click", () => {
