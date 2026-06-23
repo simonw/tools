@@ -260,6 +260,10 @@ let pyodide = null;
 const pyodideReady = (async () => {
   importScripts(PYODIDE_INDEX_URL + "pyodide.js");
   pyodide = await loadPyodide({ indexURL: PYODIDE_INDEX_URL });
+  // sqlite3 is UNVENDORED in Pyodide: the stdlib module is shipped as a
+  // separate package that must be loaded explicitly before `import sqlite3`,
+  // otherwise it raises ModuleNotFoundError.
+  await pyodide.loadPackage("sqlite3");
   // Define the SQL helper once. It returns a JSON string so the result crosses
   // the worker boundary cleanly (default=str copes with bytes / odd types).
   pyodide.runPython(`
