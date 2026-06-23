@@ -91,6 +91,8 @@
   }
   button:active { filter: brightness(0.9); }
   button.danger { background: #c53030; }
+  /* Smaller, secondary-styled buttons for the SQL quick-query presets */
+  button.preset { background: #4a5568; min-height: 2.25rem; padding: 0.4rem 0.8rem; margin: 0.25rem 0 0; font-size: 0.85rem; font-weight: 600; }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
   .banner {
     padding: 0.85rem 1rem;
@@ -223,6 +225,8 @@
       with the OPFS root mounted through <code>mountNativeFS</code>. Writes are persisted with
       <code>syncfs()</code> so they survive a reload.
     </p>
+    <label>Quick queries (fills the box below and runs it)</label>
+    <div id="sql-presets" class="row"></div>
     <label for="sql-input">SQL (one statement, or multiple separated by <code>;</code>)</label>
     <textarea id="sql-input">CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, body TEXT);
 INSERT INTO notes (body) VALUES ('written at ' || datetime('now'));
@@ -714,7 +718,7 @@ document.getElementById("btn-load").addEventListener("click", () => {
   });
 });
 
-document.getElementById("btn-sql").addEventListener("click", () => {
+function runSqlFromTextarea() {
   const sql = document.getElementById("sql-input").value;
   const out = document.getElementById("sql-out");
   runOp("Run SQL", "runSQL", { sql }, (result) => {
@@ -771,7 +775,33 @@ document.getElementById("btn-sql").addEventListener("click", () => {
       out.appendChild(p);
     }
   });
-});
+}
+
+document.getElementById("btn-sql").addEventListener("click", runSqlFromTextarea);
+
+// Quick-query presets: each button drops its SQL into the textarea and runs it,
+// so common operations are one tap. Edit this list to add your own.
+const SQL_PRESETS = [
+  { label: "Create table", sql: "CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, body TEXT);" },
+  { label: "Insert row", sql: "INSERT INTO notes (body) VALUES ('written at ' || datetime('now'));" },
+  { label: "Select all", sql: "SELECT * FROM notes ORDER BY id;" },
+  { label: "Count rows", sql: "SELECT count(*) AS rows FROM notes;" },
+  { label: "List tables", sql: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;" },
+  { label: "Drop table", sql: "DROP TABLE IF EXISTS notes;" },
+];
+const presetBox = document.getElementById("sql-presets");
+for (const preset of SQL_PRESETS) {
+  const btn = document.createElement("button");
+  btn.className = "preset";
+  btn.type = "button";
+  btn.textContent = preset.label;
+  btn.title = preset.sql;
+  btn.addEventListener("click", () => {
+    document.getElementById("sql-input").value = preset.sql;
+    runSqlFromTextarea();
+  });
+  presetBox.appendChild(btn);
+}
 
 document.getElementById("btn-clear").addEventListener("click", () => {
   if (!confirm("Delete EVERY entry in the OPFS root? This cannot be undone.")) return;
