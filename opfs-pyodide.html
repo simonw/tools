@@ -572,8 +572,10 @@ function logEntry(kind, title, detail, meta) {
   logEl.prepend(entry); // newest on top
 }
 
-// Run a worker command with consistent logging. onSuccess can render UI.
-async function runOp(title, cmd, args, onSuccess) {
+// Run a worker command with consistent logging. onSuccess(result) renders UI
+// on success; optional onError(err) renders UI on failure (the failure is
+// always logged regardless).
+async function runOp(title, cmd, args, onSuccess, onError) {
   logEntry("info", title + " — started", null, "");
   try {
     const { result, durationMs } = await callWorker(cmd, args);
@@ -585,6 +587,7 @@ async function runOp(title, cmd, args, onSuccess) {
     const detail = `${err.name}: ${err.message}\n\n${err.stack || "(no stack)"}`;
     const ms = (err.durationMs != null) ? err.durationMs.toFixed(1) + " ms" : "";
     logEntry("error", title + " — FAILED", detail, ms);
+    if (onError) onError(err);
     return null;
   }
 }
@@ -802,6 +805,19 @@ function runSqlFromTextarea() {
       p.textContent = result.message;
       out.appendChild(p);
     }
+  }, (err) => {
+    // SQL failed (syntax error, missing table, etc.) — show it right here in
+    // the SQL output, not only in the activity log.
+    out.textContent = "";
+    const banner = document.createElement("div");
+    banner.className = "banner warn";
+    banner.style.margin = "0.75rem 0 0";
+    banner.textContent = "❌ SQL error: " + err.name;
+    out.appendChild(banner);
+    const pre = document.createElement("pre");
+    pre.className = "out";
+    pre.textContent = err.message;
+    out.appendChild(pre);
   });
 }
 
