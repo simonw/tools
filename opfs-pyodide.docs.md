@@ -1,0 +1,3 @@
+Test and manage the Origin Private File System (OPFS) across desktop and mobile browsers with an interactive interface powered by Pyodide. Create, read, and delete files in OPFS, run SQL queries against SQLite databases stored in the file system, and verify persistence across page reloads through a comprehensive activity log and capability detection panel.
+
+<!-- Generated from commit: 18c365095be26266618c455700ef622f0070bc65 -->
