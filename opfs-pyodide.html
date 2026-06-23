@@ -452,7 +452,16 @@ const handlers = {
     } catch (e) {
       syncError = { name: e.name, message: e.message, stack: e.stack };
     }
-    return { ...parsed, synced, syncError };
+    // Read the ACTUAL on-disk size of the db straight from raw OPFS (not the
+    // mounted view). This is the ground truth for "did the write really land?":
+    // if the row data is large but this stays tiny, syncfs lied on this device.
+    let dbBytesOnDisk = null;
+    try {
+      const root = await opfsRoot();
+      const fh = await root.getFileHandle("test.db", { create: false });
+      dbBytesOnDisk = (await fh.getFile()).size;
+    } catch (e) { dbBytesOnDisk = null; }
+    return { ...parsed, synced, syncError, dbBytesOnDisk };
   },
 
   clearOPFS: async () => {
@@ -761,16 +770,27 @@ function runSqlFromTextarea() {
     out.textContent = "";
 
     // Make the sync state obvious — the whole point is verifying persistence.
+    // A write/script that synced is the meaningful "persisted" case; a SELECT
+    // also syncs (harmless) but changed nothing, so don't over-claim there.
+    const wroteData = result.mode === "write" || result.mode === "script";
     const banner = document.createElement("div");
-    banner.className = "banner " + (result.synced ? "ok" : "warn");
     banner.style.margin = "0.75rem 0 0";
-    if (result.synced) {
-      banner.textContent = "✅ syncfs() succeeded — changes persisted to OPFS (safe to reload).";
-    } else if (result.syncError) {
+    const dbSize = (result.dbBytesOnDisk != null)
+      ? ` test.db on disk is now ${result.dbBytesOnDisk.toLocaleString()} bytes.`
+      : "";
+    if (result.syncError) {
       banner.className = "banner warn";
       banner.textContent = "⚠️ syncfs() FAILED: " + result.syncError.name + ": " + result.syncError.message;
+    } else if (wroteData && result.synced) {
+      banner.className = "banner ok";
+      banner.textContent = "✅ Write synced to OPFS (safe to reload)." + dbSize;
+    } else if (result.synced) {
+      // read-only query
+      banner.className = "banner ok";
+      banner.textContent = "ℹ️ Read-only query — no changes to persist." + dbSize;
     } else {
-      banner.textContent = "ℹ️ Read-only query — nothing to sync.";
+      banner.className = "banner warn";
+      banner.textContent = "⚠️ syncfs() did not run.";
     }
     out.appendChild(banner);
 
