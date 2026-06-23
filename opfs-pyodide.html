@@ -705,9 +705,12 @@ document.getElementById("btn-save").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("btn-list").addEventListener("click", () => {
+// Re-read the OPFS root and render the file list. Shared by the List files
+// button and by the SQL tool (which calls it after a sync so the displayed
+// sizes don't go stale when SQL grows test.db).
+function refreshFileList() {
   const out = document.getElementById("list-out");
-  runOp("List files", "listFiles", {}, (result) => {
+  return runOp("List files", "listFiles", {}, (result) => {
     out.textContent = "";
     if (!result.entries.length) {
       const p = document.createElement("p");
@@ -728,7 +731,9 @@ document.getElementById("btn-list").addEventListener("click", () => {
     }
     out.appendChild(table);
   });
-});
+}
+
+document.getElementById("btn-list").addEventListener("click", refreshFileList);
 
 document.getElementById("btn-load").addEventListener("click", async () => {
   const name = document.getElementById("load-name").value.trim();
@@ -768,6 +773,13 @@ function runSqlFromTextarea() {
       banner.textContent = "ℹ️ Read-only query — nothing to sync.";
     }
     out.appendChild(banner);
+
+    // Keep the "List files" panel in sync: SQL may have created/grown test.db,
+    // and a stale list (e.g. showing 8192 bytes) is confusing. Only refresh if
+    // it has already been populated, so we don't surprise the user otherwise.
+    if (result.synced && document.getElementById("list-out").hasChildNodes()) {
+      refreshFileList();
+    }
 
     if (result.mode === "select") {
       const table = document.createElement("table");
