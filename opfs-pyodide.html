@@ -214,6 +214,7 @@
     <label for="load-name">Filename</label>
     <input type="text" id="load-name" value="hello.txt" autocapitalize="off" autocorrect="off" spellcheck="false">
     <button id="btn-load">Load file</button>
+    <span id="load-flash" class="flash" role="status" aria-live="polite"></span>
     <pre class="out" id="load-out" hidden></pre>
   </section>
 
@@ -438,17 +439,18 @@ const handlers = {
       fn.destroy();
     }
     const parsed = JSON.parse(jsonStr);
-    // Persist writes back to OPFS. syncfs() with no arg flushes Pyodide FS ->
-    // OPFS. We wrap it so a known iOS syncfs bug surfaces in the log rather
-    // than silently losing data.
+    // Persist back to OPFS. syncfs() with no arg flushes Pyodide FS -> OPFS.
+    // We sync after EVERY successful statement (not just writes): simply
+    // connecting creates /mnt/test.db in the in-memory FS, and syncing makes
+    // that file actually appear in OPFS so it shows up in "List files". We
+    // wrap it so a known iOS syncfs bug surfaces in the log rather than
+    // silently losing data.
     let synced = false, syncError = null;
-    if (parsed.mode === "write" || parsed.mode === "script") {
-      try {
-        await fs.syncfs();
-        synced = true;
-      } catch (e) {
-        syncError = { name: e.name, message: e.message, stack: e.stack };
-      }
+    try {
+      await fs.syncfs();
+      synced = true;
+    } catch (e) {
+      syncError = { name: e.name, message: e.message, stack: e.stack };
     }
     return { ...parsed, synced, syncError };
   },
@@ -725,13 +727,23 @@ document.getElementById("btn-list").addEventListener("click", () => {
   });
 });
 
-document.getElementById("btn-load").addEventListener("click", () => {
+document.getElementById("btn-load").addEventListener("click", async () => {
   const name = document.getElementById("load-name").value.trim();
   const out = document.getElementById("load-out");
-  runOp("Load file: " + name, "loadFile", { name }, (result) => {
+  const flashEl = document.getElementById("load-flash");
+  const result = await runOp("Load file: " + name, "loadFile", { name }, (result) => {
     out.hidden = false;
     out.textContent = result.text;
   });
+  if (result) {
+    flash(flashEl, `✓ Loaded ${result.size} bytes`, true);
+  } else {
+    // Most common failure: file doesn't exist (NotFoundError). Hide any stale
+    // contents and show the error inline as well as in the log.
+    out.hidden = true;
+    out.textContent = "";
+    flash(flashEl, `✗ Not found / load failed — see log`, false);
+  }
 });
 
 function runSqlFromTextarea() {
