@@ -106,6 +106,82 @@
             font-size: 0.85rem;
             line-height: 1.45;
         }
+        #canon-data:not(:empty) {
+            margin-top: 14px;
+        }
+        .canon-section {
+            margin-top: 14px;
+            padding: 12px 14px;
+            background-color: var(--accent-bg);
+            border: 1px solid #dbe4ff;
+            border-radius: 6px;
+        }
+        .canon-section h2 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .canon-badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #fff;
+            background: var(--accent);
+            padding: 2px 7px;
+            border-radius: 10px;
+        }
+        .canon-group {
+            margin-top: 12px;
+        }
+        .canon-group > h3 {
+            margin: 0 0 4px;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: var(--muted);
+        }
+        table.canon-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            background: var(--card);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        table.canon-table th,
+        table.canon-table td {
+            text-align: left;
+            padding: 5px 10px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        table.canon-table tr:last-child th,
+        table.canon-table tr:last-child td {
+            border-bottom: none;
+        }
+        table.canon-table th {
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+            width: 42%;
+        }
+        table.canon-table td {
+            color: #222;
+            word-break: break-word;
+        }
+        table.canon-table td .raw {
+            color: var(--muted);
+            font-size: 0.78rem;
+        }
+        details.canon-raw {
+            margin-top: 12px;
+        }
+        details.canon-raw summary {
+            cursor: pointer;
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
     </style>
 </head>
 <body>
@@ -118,6 +194,7 @@
         </label>
         <input type="file" id="file-input" accept="image/*">
         <div id="coordinates"></div>
+        <div id="canon-data"></div>
         <div id="exif-data"></div>
     </div>
 
@@ -128,6 +205,7 @@
             const dropzone = document.getElementById('dropzone');
             const filenameEl = document.getElementById('filename');
             const coordinatesDiv = document.getElementById('coordinates');
+            const canonDataDiv = document.getElementById('canon-data');
             const exifDataDiv = document.getElementById('exif-data');
 
             fileInput.addEventListener('change', function(event) {
@@ -165,6 +243,7 @@
 
             function handleFile(file) {
                 filenameEl.textContent = file.name;
+                canonDataDiv.innerHTML = '';
                 const reader = new FileReader();
 
                 reader.onload = function(e) {
@@ -179,6 +258,19 @@
                 };
 
                 reader.readAsDataURL(file);
+
+                // Separately parse the raw bytes to decode the Canon MakerNote,
+                // which exif-js only exposes as an undecoded array of bytes.
+                if (file.arrayBuffer) {
+                    file.arrayBuffer().then(function(buf) {
+                        try {
+                            const canon = parseCanonMakerNote(buf);
+                            renderCanonData(canon);
+                        } catch (err) {
+                            console.error('Canon MakerNote parsing failed:', err);
+                        }
+                    });
+                }
             }
 
             function displayExifData(tags) {
@@ -235,6 +327,360 @@
                     dd = dd * -1;
                 }
                 return dd;
+            }
+
+            // ---- Canon MakerNote decoding ---------------------------------
+
+            // Canon stores some values using a fractional APEX encoding. This
+            // mirrors ExifTool's CanonEv() helper.
+            function canonEv(val) {
+                let sign = 1;
+                if (val < 0) { val = -val; sign = -1; }
+                let frac = val & 0x1f;
+                val -= frac;
+                if (frac === 0x0c) frac = 32 / 3;
+                else if (frac === 0x14) frac = 64 / 3;
+                return sign * (val + frac) / 32;
+            }
+
+            function toSigned16(v) {
+                return v >= 0x8000 ? v - 0x10000 : v;
+            }
+
+            function fmtAperture(v) { return 'f/' + (Math.round(v * 10) / 10); }
+
+            function fmtShutter(t) {
+                if (!isFinite(t) || t <= 0) return String(t);
+                if (t >= 0.3) return (Math.round(t * 10) / 10) + ' s';
+                return '1/' + Math.round(1 / t) + ' s';
+            }
+
+            function fmtEv(v) {
+                const r = Math.round(v * 100) / 100;
+                return (r > 0 ? '+' : '') + r + ' EV';
+            }
+
+            // ISO conversion used by Canon's ShotInfo (ExifTool formula).
+            function canonIso(v) {
+                return Math.round(Math.exp(v / 32 * Math.LN2) * 100 / 32);
+            }
+
+            const CANON_WB = {
+                0: 'Auto', 1: 'Daylight', 2: 'Cloudy', 3: 'Tungsten',
+                4: 'Fluorescent', 5: 'Flash', 6: 'Custom', 7: 'Black & White',
+                8: 'Shade', 9: 'Manual Temperature (Kelvin)', 10: 'PC Set1',
+                11: 'PC Set2', 12: 'PC Set3', 14: 'Daylight Fluorescent',
+                15: 'Custom 1', 16: 'Custom 2', 17: 'Underwater', 18: 'Custom 3',
+                19: 'Custom 4', 20: 'PC Set4', 21: 'PC Set5',
+                23: 'Auto (ambience priority)'
+            };
+
+            function lookup(map, raw) {
+                return Object.prototype.hasOwnProperty.call(map, raw) ? map[raw] : null;
+            }
+
+            // CameraSettings array (tag 0x0001). Index is the position within
+            // the array (index 0 is the byte count).
+            const CAMERA_SETTINGS = {
+                1: { name: 'Macro Mode', map: { 1: 'Macro', 2: 'Normal' } },
+                2: { name: 'Self Timer', fn: v => v === 0 ? 'Off' : (v / 10) + ' s' },
+                3: { name: 'Quality', map: { '-1': 'n/a', 1: 'Economy', 2: 'Normal', 3: 'Fine', 4: 'RAW', 5: 'Superfine', 7: 'CRAW', 130: 'Normal Movie', 131: 'Movie' } },
+                4: { name: 'Flash Mode', map: { 0: 'Off', 1: 'Auto', 2: 'On', 3: 'Red-eye reduction', 4: 'Slow-sync', 5: 'Red-eye reduction (Auto)', 6: 'Red-eye reduction (On)', 16: 'External flash' } },
+                5: { name: 'Continuous Drive', map: { 0: 'Single', 1: 'Continuous', 2: 'Movie', 3: 'Continuous, Speed Priority', 4: 'Continuous, Low', 5: 'Continuous, High', 6: 'Silent Single', 8: 'Continuous, High+', 9: 'Single, Silent', 10: 'Continuous, Silent' } },
+                7: { name: 'Focus Mode', map: { 0: 'One-shot AF', 1: 'AI Servo AF', 2: 'AI Focus AF', 3: 'Manual Focus', 4: 'Single', 5: 'Continuous', 6: 'Manual Focus', 16: 'Pan Focus', 256: 'AF + MF', 512: 'Movie Snap Focus', 519: 'Movie Servo AF' } },
+                9: { name: 'Record Mode', map: { 1: 'JPEG', 2: 'CRW+THM', 3: 'AVI+THM', 4: 'TIF', 5: 'TIF+JPEG', 6: 'CR2', 7: 'CR2+JPEG', 9: 'MOV', 10: 'MP4', 11: 'CRM', 12: 'CR3', 13: 'CR3+JPEG' } },
+                10: { name: 'Image Size', map: { 0: 'Large', 1: 'Medium', 2: 'Small', 5: 'Medium 1', 6: 'Medium 2', 7: 'Medium 3', 8: 'Postcard', 9: 'Widescreen', 10: 'Medium Widescreen', 14: 'Small 1', 15: 'Small 2', 16: 'Small 3', 128: '640x480 Movie', 129: 'Medium Movie', 130: 'Small Movie', 137: '1280x720 Movie', 142: '1920x1080 Movie', 143: '4096x2160 Movie' } },
+                12: { name: 'Digital Zoom', map: { 0: 'None', 1: '2x', 2: '4x', 3: 'Other' } },
+                13: { name: 'Contrast', fn: v => signedSetting(v) },
+                14: { name: 'Saturation', fn: v => signedSetting(v) },
+                15: { name: 'Sharpness', fn: v => signedSetting(v) },
+                16: { name: 'Camera ISO', map: { 0: 'n/a', 14: 'Auto High', 15: 'Auto', 16: '50', 17: '100', 18: '200', 19: '400', 20: '800' } },
+                17: { name: 'Metering Mode', map: { 0: 'Default', 1: 'Spot', 2: 'Average', 3: 'Evaluative', 4: 'Partial', 5: 'Center-weighted average' } },
+                18: { name: 'Focus Range', map: { 0: 'Manual', 1: 'Auto', 2: 'Not Known', 3: 'Macro', 4: 'Very Close', 5: 'Close', 6: 'Middle Range', 7: 'Far Range', 8: 'Pan Focus', 9: 'Super Macro', 10: 'Infinity' } },
+                19: { name: 'AF Point', map: { 0x2005: 'Manual AF point selection', 0x3000: 'None (MF)', 0x3001: 'Auto AF point selection', 0x3002: 'Right', 0x3003: 'Center', 0x3004: 'Left', 0x4001: 'Auto AF point selection', 0x4006: 'Face Detect' } },
+                20: { name: 'Exposure Mode', map: { 0: 'Easy', 1: 'Program AE', 2: 'Shutter speed priority AE', 3: 'Aperture-priority AE', 4: 'Manual', 5: 'Depth-of-field AE', 6: 'M-Dep', 7: 'Bulb', 8: 'Flexible-priority AE' } },
+                22: { name: 'Lens Type', fn: v => v === -1 ? 'n/a' : String(v) },
+                26: { name: 'Max Aperture', fn: v => fmtAperture(Math.pow(2, canonEv(v) / 2)) },
+                27: { name: 'Min Aperture', fn: v => fmtAperture(Math.pow(2, canonEv(v) / 2)) },
+                28: { name: 'Flash Activity', map: { 0: 'Did not fire', 1: 'Fired' } },
+                32: { name: 'Focus Continuous', map: { 0: 'Single', 1: 'Continuous', 8: 'Manual' } },
+                33: { name: 'AE Setting', map: { 0: 'Normal AE', 1: 'Exposure Compensation', 2: 'AE Lock', 3: 'AE Lock + Exposure Comp.', 4: 'No AE' } },
+                34: { name: 'Image Stabilization', map: { 0: 'Off', 1: 'On', 2: 'Shoot Only', 3: 'Panning', 4: 'Dynamic', 256: 'Off (2)', 257: 'On (2)', 258: 'Shoot Only (2)', 259: 'Panning (2)', 260: 'Dynamic (2)' } },
+                39: { name: 'Spot Metering Mode', map: { 0: 'Center', 1: 'AF Point' } },
+                40: { name: 'Photo Effect', map: { 0: 'Off', 1: 'Vivid', 2: 'Neutral', 3: 'Smooth', 4: 'Sepia', 5: 'B&W', 6: 'Custom', 100: 'My Color Data' } },
+                42: { name: 'Color Tone', fn: v => signedSetting(v) }
+            };
+
+            function signedSetting(v) {
+                return (v > 0 ? '+' : '') + v;
+            }
+
+            // ShotInfo array (tag 0x0004).
+            const SHOT_INFO = {
+                2: { name: 'Base ISO', fn: v => v > 0 ? canonIso(v) : null },
+                4: { name: 'Target Aperture', fn: v => fmtAperture(Math.pow(2, canonEv(v) / 2)) },
+                5: { name: 'Target Shutter Speed', fn: v => fmtShutter(Math.pow(2, -canonEv(v))) },
+                6: { name: 'Exposure Compensation', fn: v => fmtEv(canonEv(v)) },
+                7: { name: 'White Balance', map: CANON_WB },
+                8: { name: 'Slow Shutter', map: { '-1': 'n/a', 0: 'Off', 1: 'Night Scene', 2: 'On', 3: 'None' } },
+                9: { name: 'Sequence Number', fn: v => String(v) },
+                15: { name: 'Flash Exposure Comp', fn: v => fmtEv(canonEv(v)) },
+                16: { name: 'Auto Exposure Bracketing', map: { '-1': 'On', 0: 'Off', 1: 'On (shot 1)', 2: 'On (shot 2)', 3: 'On (shot 3)' } },
+                17: { name: 'AEB Bracket Value', fn: v => fmtEv(canonEv(v)) },
+                21: { name: 'F-Number', fn: v => v > 0 ? fmtAperture(Math.pow(2, canonEv(v) / 2)) : null },
+                22: { name: 'Exposure Time', fn: v => v > 0 ? fmtShutter(Math.pow(2, -canonEv(v))) : null },
+                24: { name: 'Bulb Duration', fn: v => v > 0 ? (v / 1000) + ' s' : null },
+                26: { name: 'Camera Type', map: { 248: 'EOS High-end', 250: 'Compact', 252: 'EOS Mid-range', 255: 'DV Camera' } },
+                27: { name: 'Auto Rotate', map: { '-1': 'n/a', 0: 'None', 1: 'Rotate 90 CW', 2: 'Rotate 180', 3: 'Rotate 270 CW' } },
+                28: { name: 'ND Filter', map: { '-1': 'n/a', 0: 'Off', 1: 'On' } }
+            };
+
+            // Names for the simple top-level Canon MakerNote tags we decode.
+            const CANON_MAIN_TAGS = {
+                0x0006: 'ImageType',
+                0x0007: 'FirmwareVersion',
+                0x0008: 'FileNumber',
+                0x0009: 'OwnerName',
+                0x000c: 'SerialNumber',
+                0x0010: 'ModelID',
+                0x0095: 'LensModel',
+                0x0096: 'InternalSerialNumber',
+                0x00b4: 'ColorSpace'
+            };
+
+            // Parse the raw image bytes, locate the Canon MakerNote and decode it.
+            // Returns null for non-Canon images or when no MakerNote is present.
+            function parseCanonMakerNote(buffer) {
+                const view = new DataView(buffer);
+                if (view.byteLength < 12 || view.getUint16(0) !== 0xFFD8) {
+                    return null; // not a JPEG
+                }
+
+                // Locate the APP1 "Exif" segment.
+                let offset = 2;
+                let tiffStart = -1;
+                while (offset + 4 <= view.byteLength) {
+                    if (view.getUint8(offset) !== 0xFF) break;
+                    const marker = view.getUint8(offset + 1);
+                    if (marker === 0xDA || marker === 0xD9) break; // start of scan / end
+                    const segLen = view.getUint16(offset + 2);
+                    if (marker === 0xE1 && offset + 10 <= view.byteLength &&
+                        view.getUint32(offset + 4) === 0x45786966 &&
+                        view.getUint16(offset + 8) === 0x0000) {
+                        tiffStart = offset + 10;
+                        break;
+                    }
+                    offset += 2 + segLen;
+                }
+                if (tiffStart < 0) return null;
+
+                const little = view.getUint16(tiffStart) === 0x4949;
+                const u16 = o => view.getUint16(o, little);
+                const u32 = o => view.getUint32(o, little);
+
+                const TYPE_SIZE = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 8: 2, 9: 4, 10: 8 };
+
+                function readAscii(valueOffset, count) {
+                    let s = '';
+                    for (let i = 0; i < count; i++) {
+                        const c = view.getUint8(valueOffset + i);
+                        if (c === 0) break;
+                        s += String.fromCharCode(c);
+                    }
+                    return s.trim();
+                }
+
+                function entryValueOffset(entryOffset, type, count) {
+                    const byteLen = (TYPE_SIZE[type] || 1) * count;
+                    return byteLen > 4 ? tiffStart + u32(entryOffset + 8) : entryOffset + 8;
+                }
+
+                function readNumbers(entryOffset, type, count) {
+                    const valueOffset = entryValueOffset(entryOffset, type, count);
+                    const size = TYPE_SIZE[type] || 1;
+                    const out = [];
+                    for (let i = 0; i < count; i++) {
+                        const o = valueOffset + i * size;
+                        if (o + size > view.byteLength) break;
+                        switch (type) {
+                            case 1: case 7: out.push(view.getUint8(o)); break;
+                            case 3: out.push(view.getUint16(o, little)); break;
+                            case 8: out.push(toSigned16(view.getUint16(o, little))); break;
+                            case 4: out.push(view.getUint32(o, little)); break;
+                            case 9: out.push(view.getInt32(o, little)); break;
+                            case 5: { const n = u32(o), d = u32(o + 4); out.push(d ? n / d : 0); break; }
+                            case 10: { const n = view.getInt32(o, little), d = view.getInt32(o + 4, little); out.push(d ? n / d : 0); break; }
+                            default: out.push(view.getUint8(o));
+                        }
+                    }
+                    return out;
+                }
+
+                // Walk an IFD, returning a map of tag -> entry metadata.
+                function readIfd(ifdOffset) {
+                    const entries = {};
+                    if (ifdOffset + 2 > view.byteLength) return entries;
+                    const count = u16(ifdOffset);
+                    for (let i = 0; i < count; i++) {
+                        const e = ifdOffset + 2 + i * 12;
+                        if (e + 12 > view.byteLength) break;
+                        const tag = u16(e);
+                        entries[tag] = { offset: e, type: u16(e + 2), count: u32(e + 4) };
+                    }
+                    return entries;
+                }
+
+                const ifd0 = readIfd(tiffStart + u32(tiffStart + 4));
+
+                // Confirm the camera make is Canon.
+                let make = '';
+                if (ifd0[0x010F]) {
+                    make = readAscii(entryValueOffset(ifd0[0x010F].offset, ifd0[0x010F].type, ifd0[0x010F].count), ifd0[0x010F].count);
+                }
+                let model = '';
+                if (ifd0[0x0110]) {
+                    model = readAscii(entryValueOffset(ifd0[0x0110].offset, ifd0[0x0110].type, ifd0[0x0110].count), ifd0[0x0110].count);
+                }
+                if (!/canon/i.test(make)) return null;
+
+                if (!ifd0[0x8769]) return null;
+                const exifIfd = readIfd(tiffStart + u32(ifd0[0x8769].offset + 8));
+                const mnEntry = exifIfd[0x927C];
+                if (!mnEntry) return null;
+
+                // The MakerNote value points at a Canon IFD (offset relative to
+                // the TIFF header). Sanity-check that it looks like an IFD.
+                const canonOffset = tiffStart + u32(mnEntry.offset + 8);
+                if (canonOffset + 2 > view.byteLength) return null;
+                const canonCount = u16(canonOffset);
+                if (canonCount === 0 || canonCount > 256) return null;
+                const canonIfd = readIfd(canonOffset);
+
+                const result = { make: make, model: model, main: [], cameraSettings: [], shotInfo: [], other: [] };
+
+                Object.keys(canonIfd).forEach(function(tagStr) {
+                    const tag = Number(tagStr);
+                    const entry = canonIfd[tag];
+
+                    if (tag === 0x0001) {
+                        result.cameraSettings = decodeArray(entry, CAMERA_SETTINGS);
+                        return;
+                    }
+                    if (tag === 0x0004) {
+                        result.shotInfo = decodeArray(entry, SHOT_INFO);
+                        return;
+                    }
+
+                    if (CANON_MAIN_TAGS[tag]) {
+                        const label = CANON_MAIN_TAGS[tag];
+                        if (entry.type === 2) {
+                            const s = readAscii(entryValueOffset(entry.offset, entry.type, entry.count), entry.count);
+                            if (s) result.main.push({ label: label, value: s });
+                        } else {
+                            const nums = readNumbers(entry.offset, entry.type, entry.count);
+                            result.main.push({ label: label, value: formatMainNumber(tag, nums) });
+                        }
+                        return;
+                    }
+
+                    // Keep undecoded tags around so nothing is hidden.
+                    result.other.push({ tag: tag, type: entry.type, count: entry.count });
+                });
+
+                return result;
+
+                function decodeArray(entry, table) {
+                    if (entry.type !== 3 && entry.type !== 8) return [];
+                    const raw = readNumbers(entry.offset, entry.type, entry.count).map(toSigned16);
+                    const rows = [];
+                    Object.keys(table).forEach(function(idxStr) {
+                        const idx = Number(idxStr);
+                        if (idx >= raw.length) return;
+                        const v = raw[idx];
+                        if (v === -1 && !table[idx].map) return;
+                        let display = null;
+                        if (table[idx].map) {
+                            display = lookup(table[idx].map, v);
+                        } else if (table[idx].fn) {
+                            display = table[idx].fn(v);
+                        }
+                        if (display === null || display === undefined) {
+                            display = String(v);
+                        }
+                        rows.push({ label: table[idx].name, value: display, raw: v });
+                    });
+                    return rows;
+                }
+
+                function formatMainNumber(tag, nums) {
+                    if (tag === 0x0008 && nums.length) {
+                        const n = nums[0];
+                        const dir = Math.floor(n / 10000);
+                        const file = n % 10000;
+                        return dir + '-' + String(file).padStart(4, '0');
+                    }
+                    if (tag === 0x000c && nums.length) {
+                        return String(nums[0]).padStart(10, '0');
+                    }
+                    if (tag === 0x0010 && nums.length) {
+                        return '0x' + (nums[0] >>> 0).toString(16).toUpperCase();
+                    }
+                    if (tag === 0x00b4 && nums.length) {
+                        const cs = { 1: 'sRGB', 2: 'Adobe RGB', 0xffff: 'Uncalibrated', 0xfffe: 'n/a' };
+                        return lookup(cs, nums[0] & 0xffff) || String(nums[0]);
+                    }
+                    return nums.join(', ');
+                }
+            }
+
+            function renderCanonData(canon) {
+                if (!canon) {
+                    canonDataDiv.innerHTML = '';
+                    return;
+                }
+
+                const groups = [];
+                if (canon.main.length) {
+                    groups.push(buildGroup('Camera & Lens', canon.main.map(r => [r.label, escapeHtml(r.value), null])));
+                }
+                if (canon.cameraSettings.length) {
+                    groups.push(buildGroup('Camera Settings', canon.cameraSettings.map(r => [r.label, escapeHtml(String(r.value)), r.raw])));
+                }
+                if (canon.shotInfo.length) {
+                    groups.push(buildGroup('Shot Info', canon.shotInfo.map(r => [r.label, escapeHtml(String(r.value)), r.raw])));
+                }
+
+                let otherHtml = '';
+                if (canon.other.length) {
+                    const rows = canon.other.map(function(o) {
+                        return '<tr><th>0x' + o.tag.toString(16).padStart(4, '0') +
+                            '</th><td><span class="raw">type ' + o.type + ', count ' + o.count + '</span></td></tr>';
+                    }).join('');
+                    otherHtml = '<details class="canon-raw"><summary>Other undecoded Canon tags (' +
+                        canon.other.length + ')</summary><table class="canon-table">' + rows + '</table></details>';
+                }
+
+                if (!groups.length && !otherHtml) {
+                    canonDataDiv.innerHTML = '';
+                    return;
+                }
+
+                canonDataDiv.innerHTML =
+                    '<div class="canon-section">' +
+                    '<h2>Canon MakerNote <span class="canon-badge">Canon</span></h2>' +
+                    groups.join('') +
+                    otherHtml +
+                    '</div>';
+            }
+
+            function buildGroup(title, rows) {
+                const body = rows.map(function(r) {
+                    const rawHtml = (r[2] !== null && r[2] !== undefined && String(r[2]) !== r[1])
+                        ? ' <span class="raw">(' + r[2] + ')</span>' : '';
+                    return '<tr><th>' + escapeHtml(r[0]) + '</th><td>' + r[1] + rawHtml + '</td></tr>';
+                }).join('');
+                return '<div class="canon-group"><h3>' + escapeHtml(title) +
+                    '</h3><table class="canon-table">' + body + '</table></div>';
             }
         });
     </script>
