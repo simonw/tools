@@ -1,3 +1,3 @@
-Convert rich text formats into properly formatted Markdown by pasting content into the text area. The tool automatically detects and converts formatting such as bold, italic, links, code blocks, headings, and lists while removing unnecessary leading spaces from each line. Supports rich text from multiple sources including RTF, HTML, and plain text formats.
+Convert rich text formats into properly formatted Markdown by pasting content into the text area. The tool automatically detects and converts formatting such as bold, italic, links, code blocks, headings, tables, and lists while sanitizing content to remove potentially unsafe elements. Supports rich text from multiple sources including RTF, HTML, and plain text formats.
 
-<!-- Generated from commit: bf0b1ef22effa52bfdd620c1f82c7e1dd1aedd10 -->
+<!-- Generated from commit: f278e977751dbc1948baedfc2f26b6de870f60e6 -->
