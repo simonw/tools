@@ -371,10 +371,49 @@ function tableToGrid(table) {
 }
 
 function detectHeader(table) {
-  if (table.tHead && table.tHead.rows.length) return true
-  const first = table.rows[0]
-  if (!first || !first.cells.length) return false
-  return Array.from(first.cells).every(c => c.tagName === 'TH')
+  return headerRowCount(table) > 0
+}
+
+function headerRowCount(table) {
+  if (table.tHead && table.tHead.rows.length) return table.tHead.rows.length
+  let count = 0
+  for (const row of Array.from(table.rows)) {
+    const cells = Array.from(row.cells)
+    if (!cells.length || !cells.every(c => c.tagName === 'TH')) break
+    count++
+  }
+  return count
+}
+
+function effectiveHeaderRowCount(grid, hasHeader) {
+  if (!hasHeader || !grid.length) return 0
+  return Math.min(grid.length, Math.max(1, grid.headerRowCount || 0))
+}
+
+function tableHeader(grid, count) {
+  const cols = grid.reduce((m, row) => Math.max(m, row.length), 0)
+  const headers = Array.from({ length: cols }, (_, i) => {
+    const parts = []
+    for (let r = 0; r < count; r++) {
+      const part = String(grid[r]?.[i] ?? '').trim()
+      if (part && !parts.includes(part)) parts.push(part)
+    }
+    return parts.join(' ') || 'Column ' + (i + 1)
+  })
+  const seen = new Map()
+  return headers.map(header => {
+    const seenCount = seen.get(header) || 0
+    seen.set(header, seenCount + 1)
+    return seenCount ? header + ' ' + (seenCount + 1) : header
+  })
+}
+
+function tableRows(grid, hasHeader) {
+  const headerRows = effectiveHeaderRowCount(grid, hasHeader)
+  return {
+    header: headerRows ? tableHeader(grid, headerRows) : [],
+    body: grid.slice(headerRows)
+  }
 }
 
 function escHTML(v) {
@@ -386,17 +425,16 @@ function escHTML(v) {
 
 function toHTML(grid, hasHeader) {
   const lines = ['<table>']
-  let start = 0
-  if (hasHeader && grid.length) {
+  const { header, body } = tableRows(grid, hasHeader)
+  if (header.length) {
     lines.push('  <thead>', '    <tr>')
-    for (const c of grid[0]) lines.push('      <th>' + escHTML(c) + '</th>')
+    for (const c of header) lines.push('      <th>' + escHTML(c) + '</th>')
     lines.push('    </tr>', '  </thead>')
-    start = 1
   }
   lines.push('  <tbody>')
-  for (let r = start; r < grid.length; r++) {
+  for (const row of body) {
     lines.push('    <tr>')
-    for (const c of grid[r]) lines.push('      <td>' + escHTML(c) + '</td>')
+    for (const c of row) lines.push('      <td>' + escHTML(c) + '</td>')
     lines.push('    </tr>')
   }
   lines.push('  </tbody>', '</table>')
@@ -410,8 +448,9 @@ function toMarkdown(grid, hasHeader) {
   let header
   let body
   if (hasHeader) {
-    header = grid[0]
-    body = grid.slice(1)
+    const rows = tableRows(grid, hasHeader)
+    header = rows.header
+    body = rows.body
   } else {
     header = Array.from({ length: cols }, (_, i) => 'Column ' + (i + 1))
     body = grid
@@ -428,20 +467,25 @@ function csvCell(v) {
   return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v
 }
 
-function toCSV(grid) {
-  return grid.map(row => row.map(csvCell).join(',')).join('\n')
+function exportRows(grid, hasHeader) {
+  const { header, body } = tableRows(grid, hasHeader)
+  return header.length ? [header, ...body] : body
 }
 
-function toTSV(grid) {
-  return grid.map(row => row.map(v => String(v).replace(/[\t\n\r]+/g, ' ')).join('\t')).join('\n')
+function toCSV(grid, hasHeader) {
+  return exportRows(grid, hasHeader).map(row => row.map(csvCell).join(',')).join('\n')
+}
+
+function toTSV(grid, hasHeader) {
+  return exportRows(grid, hasHeader).map(row => row.map(v => String(v).replace(/[\t\n\r]+/g, ' ')).join('\t')).join('\n')
 }
 
 function toJSON(grid, hasHeader) {
   if (hasHeader && grid.length) {
-    const keys = grid[0].map((k, i) => k || ('column_' + (i + 1)))
-    const rows = grid.slice(1).map(row => {
+    const { header, body } = tableRows(grid, hasHeader)
+    const rows = body.map(row => {
       const obj = {}
-      keys.forEach((k, i) => { obj[k] = row[i] ?? '' })
+      header.forEach((k, i) => { obj[k] = row[i] ?? '' })
       return obj
     })
     return JSON.stringify(rows, null, 2)
@@ -453,8 +497,8 @@ function render(grid, format, hasHeader) {
   switch (format) {
     case 'HTML': return toHTML(grid, hasHeader)
     case 'Markdown': return toMarkdown(grid, hasHeader)
-    case 'CSV': return toCSV(grid)
-    case 'TSV': return toTSV(grid)
+    case 'CSV': return toCSV(grid, hasHeader)
+    case 'TSV': return toTSV(grid, hasHeader)
     case 'JSON': return toJSON(grid, hasHeader)
     default: return ''
   }
@@ -462,23 +506,22 @@ function render(grid, format, hasHeader) {
 
 function buildPreview(grid, hasHeader) {
   const table = document.createElement('table')
-  let start = 0
-  if (hasHeader && grid.length) {
+  const { header, body } = tableRows(grid, hasHeader)
+  if (header.length) {
     const thead = document.createElement('thead')
     const tr = document.createElement('tr')
-    for (const c of grid[0]) {
+    for (const c of header) {
       const th = document.createElement('th')
       th.textContent = c
       tr.appendChild(th)
     }
     thead.appendChild(tr)
     table.appendChild(thead)
-    start = 1
   }
   const tbody = document.createElement('tbody')
-  for (let r = start; r < grid.length; r++) {
+  for (const row of body) {
     const tr = document.createElement('tr')
-    for (const c of grid[r]) {
+    for (const c of row) {
       const td = document.createElement('td')
       td.textContent = c
       tr.appendChild(td)
@@ -490,7 +533,7 @@ function buildPreview(grid, hasHeader) {
 }
 
 function makeCard(grid, index) {
-  const state = { format: 'HTML', hasHeader: detectHeader.cached ?? grid.detectedHeader }
+  const state = { format: 'HTML', hasHeader: grid.detectedHeader }
 
   const card = document.createElement('div')
   card.className = 'card'
@@ -512,7 +555,7 @@ function makeCard(grid, index) {
   checkbox.type = 'checkbox'
   checkbox.checked = state.hasHeader
   toggle.appendChild(checkbox)
-  toggle.appendChild(document.createTextNode('First row is header'))
+  toggle.appendChild(document.createTextNode('Use table headers'))
 
   head.append(title, dims, toggle)
 
@@ -609,8 +652,8 @@ function process(html) {
 
   tables.forEach((table, i) => {
     const grid = tableToGrid(table)
+    grid.headerRowCount = headerRowCount(table)
     grid.detectedHeader = detectHeader(table)
-    detectHeader.cached = grid.detectedHeader
     resultsEl.appendChild(makeCard(grid, i + 1))
   })
 }
