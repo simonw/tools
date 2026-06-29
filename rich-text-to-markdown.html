@@ -1,518 +1,757 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rich Text to Markdown</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rich text to markdown</title>
+
+  <!-- Libraries (loaded from cdnjs as classic scripts; available as globals below) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+
   <style>
 * {
   box-sizing: border-box;
 }
 
+:root {
+  --ink: #161616;
+  --muted: #6b6b66;
+  --faint: #9a9a93;
+  --line: #e4e4dd;
+  --panel: #fafaf7;
+  --paper: #ffffff;
+  --accent: #2b50e6;
+  --accent-weak: rgba(43, 80, 230, 0.08);
+  --good: #2f7d4f;
+  --warn-bg: #fff4f0;
+  --warn-line: #e6b8a8;
+  --warn-ink: #8a3a1e;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  font-family: system-ui, -apple-system, sans-serif;
-  max-width: 900px;
+  margin: 0;
+  padding: 40px 24px 72px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+.wrap {
+  max-width: 940px;
   margin: 0 auto;
-  padding: 20px;
-  background: #f5f5f5;
-  color: #333;
-  line-height: 1.6;
+}
+
+/* Header */
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 0 10px;
 }
 
 h1 {
-  margin-bottom: 10px;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
 }
 
-.instructions {
-  background: #e8f4fd;
-  border-left: 4px solid #2196f3;
-  padding: 15px;
-  margin-bottom: 20px;
-  border-radius: 4px;
-}
-
-.paste-area {
-  width: 100%;
-  min-height: 120px;
-  padding: 15px;
-  border: 2px dashed #ccc;
-  border-radius: 8px;
-  background: #fff;
+.lede {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--muted);
   font-size: 16px;
-  margin-bottom: 20px;
-  outline: none;
-  transition: border-color 0.3s;
 }
 
-.paste-area:focus {
-  border-color: #2196f3;
-  border-style: solid;
+.rule {
+  height: 2px;
+  background: var(--ink);
+  margin: 22px 0 28px;
 }
 
-.section {
-  background: #fff;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  padding: 20px;
-  margin-bottom: 20px;
+/* Panels */
+.panel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
 }
 
-.section h2 {
-  margin-top: 0;
-  font-size: 18px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-  margin-bottom: 15px;
+.panel + .panel {
+  margin-top: 20px;
 }
 
-.code-output {
+.label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  margin: 0 0 10px;
+}
+
+.help {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--faint);
+}
+
+/* Paste input */
+textarea {
+  display: block;
   width: 100%;
-  min-height: 200px;
-  padding: 15px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #fafafa;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 14px;
+  min-height: 150px;
   resize: vertical;
-  white-space: pre-wrap;
+  padding: 14px;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 
-.button-group {
+textarea::placeholder {
+  color: var(--faint);
+}
+
+textarea:focus-visible,
+.btn:focus-visible,
+.seg button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Buttons */
+.row {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
-  margin-bottom: 15px;
 }
 
-button {
-  padding: 10px 20px;
-  background: #2196f3;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+.row.between {
+  justify-content: space-between;
+}
+
+.btn {
+  appearance: none;
+  font-family: Helvetica, Arial, sans-serif;
   font-size: 14px;
-  transition: background 0.3s;
+  font-weight: 600;
+  line-height: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-button:hover {
-  background: #1976d2;
+.btn:hover {
+  border-color: #cfcfc7;
+  background: var(--panel);
 }
 
-button.copied {
-  background: #4caf50;
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
-.empty-state {
-  text-align: center;
-  color: #999;
-  padding: 40px;
-  font-size: 18px;
+.btn-primary:hover {
+  background: #2241c4;
+  border-color: #2241c4;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.copied {
+  background: var(--good);
+  border-color: var(--good);
+  color: #fff;
+}
+
+.toolbar {
+  margin-top: 16px;
+  gap: 14px;
+}
+
+/* Segmented toggle */
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.seg button {
+  appearance: none;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.seg button[aria-pressed="true"] {
+  background: var(--paper);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.status {
+  font-size: 12px;
+  color: var(--faint);
+  margin: 14px 0 0;
+}
+
+/* Output area */
+.view {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  min-height: 140px;
+  overflow: hidden;
+}
+
+.view[hidden] {
+  display: none;
+}
+
+.empty {
+  color: var(--faint);
+  font-style: italic;
+  padding: 22px 16px;
+  margin: 0;
+}
+
+/* Raw markdown */
+pre.raw {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+  tab-size: 2;
+  color: var(--ink);
+}
+
+/* Rendered markdown (prose) */
+.prose {
+  padding: 6px 18px 18px;
+  background: var(--paper);
+}
+
+.prose > *:first-child {
+  margin-top: 14px;
+}
+
+.prose h1,
+.prose h2,
+.prose h3 {
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 1.4em 0 0.5em;
+}
+
+.prose h1 {
+  font-size: 26px;
+}
+
+.prose h2 {
+  font-size: 21px;
+}
+
+.prose h3 {
+  font-size: 17px;
+}
+
+.prose p {
+  margin: 0.7em 0;
+}
+
+.prose a {
+  color: var(--accent);
+  text-underline-offset: 2px;
+}
+
+.prose ul,
+.prose ol {
+  margin: 0.6em 0;
+  padding-left: 1.5em;
+}
+
+.prose li {
+  margin: 0.2em 0;
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin: 0.2em 0;
+}
+
+.prose code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+.prose pre {
+  background: #1d1d1f;
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+}
+
+.prose pre code {
+  font-size: 13px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #f2f2f0;
+}
+
+.prose blockquote {
+  margin: 0.9em 0;
+  padding: 2px 16px;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+}
+
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.9em 0;
+  font-size: 14px;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.prose th {
+  background: var(--panel);
+  font-weight: 700;
+}
+
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.4em 0;
+}
+
+.prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Library load failure */
+.banner {
+  display: none;
+  margin-bottom: 24px;
+  padding: 12px 14px;
+  font-size: 14px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  border-radius: 8px;
+  color: var(--warn-ink);
+}
+
+@media (max-width: 600px) {
+  body {
+    padding: 28px 16px 56px;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar .seg {
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
 }
   </style>
 </head>
 <body>
-  <h1>Rich Text to Markdown</h1>
+  <div class="wrap">
+    <header>
+      <p class="eyebrow">Clipboard utility</p>
+      <h1>Rich text to markdown</h1>
+      <p class="lede">Paste formatted text from a doc, web page, or email and get clean, safe markdown. Formatting is sanitized first, so pasted scripts and unsafe links never make it through.</p>
+    </header>
 
-  <div class="instructions">
-    <strong>Instructions:</strong> Paste rich text below. Formatting (bold, italic, links, code, headings, lists) will be converted to Markdown and leading spaces will be removed.
+    <div class="rule"></div>
+
+    <div id="banner" class="banner"></div>
+
+    <section class="panel">
+      <p class="label">Paste rich text here</p>
+      <textarea id="input" placeholder="Click here and paste (Cmd/Ctrl + V). Rich formatting is converted automatically; plain text passes through as-is."></textarea>
+      <div class="row help" style="margin-top: 12px; gap: 10px;">
+        <button id="example" class="btn" type="button">Try an example</button>
+        <button id="clear" class="btn" type="button">Clear</button>
+        <span id="help-text" class="help" style="margin: 0;">Headers, lists, links, code blocks, and tables are all supported.</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="row between toolbar">
+        <div class="seg" role="group" aria-label="Output view">
+          <button id="tab-rendered" type="button" aria-pressed="true">Rendered</button>
+          <button id="tab-raw" type="button" aria-pressed="false">Raw markdown</button>
+        </div>
+        <button id="copy" class="btn btn-primary" type="button" disabled>Copy markdown</button>
+      </div>
+
+      <div id="view-rendered" class="view">
+        <div id="rendered" class="prose"></div>
+      </div>
+
+      <div id="view-raw" class="view" hidden>
+        <pre id="raw" class="raw"></pre>
+      </div>
+
+      <p id="status" class="status">Nothing converted yet.</p>
+    </section>
   </div>
 
-  <textarea class="paste-area" placeholder="Click here and paste your rich text (Cmd+V or Ctrl+V)..."></textarea>
+  <script type="module">
+// code in here should not be indented at the first level
 
-  <div id="results">
-    <div class="empty-state">Paste rich text to see the Markdown conversion</div>
-  </div>
+const els = {
+  banner: document.getElementById("banner"),
+  input: document.getElementById("input"),
+  example: document.getElementById("example"),
+  clear: document.getElementById("clear"),
+  tabRendered: document.getElementById("tab-rendered"),
+  tabRaw: document.getElementById("tab-raw"),
+  copy: document.getElementById("copy"),
+  viewRendered: document.getElementById("view-rendered"),
+  viewRaw: document.getElementById("view-raw"),
+  rendered: document.getElementById("rendered"),
+  raw: document.getElementById("raw"),
+  status: document.getElementById("status")
+};
 
-<script>
-const pasteArea = document.querySelector('.paste-area');
-const resultsDiv = document.getElementById('results');
+// Confirm the libraries actually loaded before wiring anything up.
+const missing = [];
+if (typeof DOMPurify === "undefined") missing.push("DOMPurify");
+if (typeof TurndownService === "undefined") missing.push("Turndown");
+if (typeof marked === "undefined") missing.push("marked");
 
-function parseRTFColor(colorDef) {
-  const redMatch = colorDef.match(/\\red(\d+)/);
-  const greenMatch = colorDef.match(/\\green(\d+)/);
-  const blueMatch = colorDef.match(/\\blue(\d+)/);
-
-  if (redMatch && greenMatch && blueMatch) {
-    const r = parseInt(redMatch[1]);
-    const g = parseInt(greenMatch[1]);
-    const b = parseInt(blueMatch[1]);
-    return { r, g, b, brightness: (r + g + b) / 3 };
-  }
-  return null;
+if (missing.length) {
+  els.banner.style.display = "block";
+  els.banner.textContent =
+    "Could not load required libraries (" + missing.join(", ") +
+    "). Check your network connection or content blockers, then reload.";
 }
 
-function parseRTFColorTable(rtf) {
-  const colorTableMatch = rtf.match(/\{\\colortbl;([^}]+)\}/);
-  if (!colorTableMatch) return [];
+// Build the HTML to markdown converter once.
+const turndown = new TurndownService({
+  headingStyle: "atx",
+  hr: "---",
+  bulletListMarker: "-",
+  codeBlockStyle: "fenced",
+  fence: "```",
+  emDelimiter: "*",
+  strongDelimiter: "**",
+  linkStyle: "inlined"
+});
 
-  const colorTable = [null];
-  const colorDefs = colorTableMatch[1].split(';');
+// Tables and strikethrough are handled with built-in rules below, so there is
+// no dependency on an external GFM plugin that might fail to load.
 
-  for (const colorDef of colorDefs) {
-    if (colorDef.trim()) {
-      const color = parseRTFColor(colorDef.trim());
-      colorTable.push(color);
-    }
-  }
+// A second converter handles inline cell content without re-entering the main
+// converter mid-conversion.
+const cellConverter = new TurndownService({ emDelimiter: "*", strongDelimiter: "**" });
 
-  return colorTable;
+function cellToMarkdown(cell) {
+  return cellConverter
+    .turndown(cell.innerHTML)
+    .replace(/\n+/g, " ")
+    .replace(/\|/g, "\\|")
+    .trim();
 }
 
-function rtfToMarkdown(rtf) {
-  const colorTable = parseRTFColorTable(rtf);
+// Convert an HTML table into a GitHub-flavoured pipe table.
+turndown.addRule("gfmTable", {
+  filter: "table",
+  replacement: function (content, node) {
+    const rows = Array.prototype.slice.call(node.querySelectorAll("tr"));
+    if (!rows.length) return "";
+    const matrix = rows.map((tr) =>
+      Array.prototype.slice
+        .call(tr.children)
+        .filter((c) => c.nodeName === "TD" || c.nodeName === "TH")
+        .map(cellToMarkdown)
+    );
+    const firstRowAllTh =
+      rows[0].children.length > 0 &&
+      Array.prototype.slice.call(rows[0].children).every((c) => c.nodeName === "TH");
 
-  // Find the brightest color (likely the "bold"/highlighted text)
-  let brightestIndex = -1;
-  let brightestValue = -1;
-  for (let i = 1; i < colorTable.length; i++) {
-    if (colorTable[i] && colorTable[i].brightness > brightestValue) {
-      brightestValue = colorTable[i].brightness;
-      brightestIndex = i;
-    }
-  }
-
-  const pardIndex = rtf.indexOf('\\pard');
-  if (pardIndex === -1) {
-    throw new Error('Could not find paragraph content');
-  }
-
-  // Find content start after formatting codes
-  const contentPattern = /\\f0\\fs\d+\s+\\cf\d+\s+\\cb\d+\s+\\CocoaLigature\d+\s+/;
-  const match = rtf.substring(pardIndex).match(contentPattern);
-
-  let contentStartOffset;
-  if (match) {
-    contentStartOffset = pardIndex + match.index + match[0].length;
-  } else {
-    // Fallback: find first text after \pard
-    contentStartOffset = pardIndex + 5;
-  }
-
-  const lastBrace = rtf.lastIndexOf('}');
-  let content = rtf.substring(contentStartOffset, lastBrace);
-
-  let markdown = '';
-  let i = 0;
-  let currentColorIndex = -1;
-  let isBright = false;
-
-  while (i < content.length) {
-    const char = content[i];
-
-    if (char === '\\') {
-      let controlWord = '';
-      let j = i + 1;
-
-      // Handle hex escape \'xx
-      if (j < content.length && content[j] === "'") {
-        j++;
-        let hexCode = '';
-        while (j < content.length && /[0-9a-fA-F]/.test(content[j]) && hexCode.length < 2) {
-          hexCode += content[j];
-          j++;
-        }
-        if (hexCode.length === 2) {
-          const charCode = parseInt(hexCode, 16);
-          markdown += String.fromCharCode(charCode);
-          i = j;
-          continue;
-        }
-      }
-
-      while (j < content.length && /[a-z]/i.test(content[j])) {
-        controlWord += content[j];
-        j++;
-      }
-
-      let numParam = '';
-      while (j < content.length && /[0-9-]/.test(content[j])) {
-        numParam += content[j];
-        j++;
-      }
-
-      if (j < content.length && content[j] === ' ') {
-        j++;
-      }
-
-      if (controlWord === 'cf') {
-        const newColorIndex = parseInt(numParam);
-        const wasBright = isBright;
-        isBright = (newColorIndex === brightestIndex);
-
-        // Close bold if we were bright and now we're not
-        if (wasBright && !isBright) {
-          markdown += '**';
-        }
-        // Open bold if we weren't bright and now we are
-        if (!wasBright && isBright) {
-          markdown += '**';
-        }
-
-        currentColorIndex = newColorIndex;
-        i = j;
-      } else if (controlWord === 'u') {
-        const codePoint = parseInt(numParam);
-        if (codePoint < 0) {
-          markdown += String.fromCharCode(65536 + codePoint);
-        } else {
-          markdown += String.fromCharCode(codePoint);
-        }
-        if (j < content.length && content[j] === '?') {
-          j++;
-        }
-        i = j;
-      } else if (controlWord === '') {
-        if (i + 1 < content.length) {
-          const nextChar = content[i + 1];
-          if (nextChar === '\\') {
-            markdown += '\\';
-            i += 2;
-          } else if (nextChar === '\n') {
-            markdown += '\n';
-            i += 2;
-          } else {
-            i++;
-          }
-        } else {
-          i++;
-        }
-      } else {
-        i = j;
-      }
-    } else if (char === '\n') {
-      markdown += '\n';
-      i++;
+    let header;
+    let body;
+    if (firstRowAllTh) {
+      header = matrix[0];
+      body = matrix.slice(1);
     } else {
-      let text = '';
-      while (i < content.length && content[i] !== '\\' && content[i] !== '\n') {
-        text += content[i];
-        i++;
-      }
-      markdown += text;
+      const cols = Math.max.apply(null, matrix.map((r) => r.length));
+      header = new Array(cols).fill("");
+      body = matrix;
     }
+
+    const colCount = Math.max.apply(
+      null,
+      [header.length].concat(body.map((r) => r.length)).concat([1])
+    );
+    const pad = (r) => {
+      const c = r.slice();
+      while (c.length < colCount) c.push("");
+      return c;
+    };
+
+    const lines = ["| " + pad(header).join(" | ") + " |", "| " + new Array(colCount).fill("---").join(" | ") + " |"];
+    body.forEach((r) => lines.push("| " + pad(r).join(" | ") + " |"));
+    return "\n\n" + lines.join("\n") + "\n\n";
   }
+});
 
-  // Close any open bold
-  if (isBright) {
-    markdown += '**';
+// Strikethrough: <del>, <s>, <strike> -> ~~text~~
+turndown.addRule("strikethrough", {
+  filter: ["del", "s", "strike"],
+  replacement: function (content) {
+    return content ? "~~" + content + "~~" : "";
   }
+});
 
-  // Remove leading spaces from each line
-  markdown = markdown.split('\n').map(line => line.trimStart()).join('\n');
+// Drop elements that carry no markdown meaning but litter real-world pastes.
+turndown.remove(["style", "script", "head", "meta", "link", "title", "noscript"]);
 
-  // Clean up multiple consecutive newlines
-  markdown = markdown.replace(/\n{3,}/g, '\n\n');
-
-  // Trim
-  markdown = markdown.trim();
-
-  return markdown;
+if (typeof marked !== "undefined") {
+  marked.setOptions({ gfm: true, breaks: false, headerIds: true, mangle: false });
 }
+
+let currentMarkdown = "";
+let suppressNextInput = false;
 
 function htmlToMarkdown(html) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-
-  function processNode(node, listDepth = 0) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      return node.textContent;
-    }
-
-    if (node.nodeType !== Node.ELEMENT_NODE) {
-      return '';
-    }
-
-    const tag = node.tagName.toLowerCase();
-
-    // For <pre>, grab raw text content and wrap in a fenced code block
-    if (tag === 'pre') {
-      const code = node.querySelector('code');
-      const text = (code || node).textContent;
-      return '\n```\n' + text.replace(/\n$/, '') + '\n```\n';
-    }
-
-    let childContent = '';
-    for (const child of node.childNodes) {
-      childContent += processNode(child, listDepth);
-    }
-
-    // Check for bold - either tag or style
-    const isBold = tag === 'b' || tag === 'strong' ||
-      (node.style && (
-        node.style.fontWeight === 'bold' ||
-        node.style.fontWeight === '700' ||
-        parseInt(node.style.fontWeight) >= 700
-      ));
-
-    if (isBold && childContent.trim()) {
-      const leadingSpace = childContent.match(/^\s*/)[0];
-      const trailingSpace = childContent.match(/\s*$/)[0];
-      const trimmed = childContent.trim();
-      return `${leadingSpace}**${trimmed}**${trailingSpace}`;
-    }
-
-    // Check for italic - either tag or style
-    const isItalic = tag === 'em' || tag === 'i' ||
-      (node.style && node.style.fontStyle === 'italic');
-
-    if (isItalic && childContent.trim()) {
-      const leadingSpace = childContent.match(/^\s*/)[0];
-      const trailingSpace = childContent.match(/\s*$/)[0];
-      const trimmed = childContent.trim();
-      return `${leadingSpace}*${trimmed}*${trailingSpace}`;
-    }
-
-    // Handle inline code
-    if (tag === 'code') {
-      if (childContent.trim()) {
-        return '`' + childContent.trim() + '`';
-      }
-      return childContent;
-    }
-
-    // Handle links
-    if (tag === 'a') {
-      const href = node.getAttribute('href');
-      if (href && childContent.trim()) {
-        return `[${childContent.trim()}](${href})`;
-      }
-      return childContent;
-    }
-
-    // Handle headings
-    const headingMatch = tag.match(/^h([1-6])$/);
-    if (headingMatch && childContent.trim()) {
-      const level = parseInt(headingMatch[1]);
-      const prefix = '#'.repeat(level);
-      return `\n${prefix} ${childContent.trim()}\n`;
-    }
-
-    // Handle lists
-    if (tag === 'ul' || tag === 'ol') {
-      let result = '';
-      let index = 1;
-      for (const child of node.children) {
-        if (child.tagName.toLowerCase() === 'li') {
-          const indent = '  '.repeat(listDepth);
-          const bullet = tag === 'ul' ? '-' : `${index}.`;
-          let liContent = '';
-          for (const liChild of child.childNodes) {
-            liContent += processNode(liChild, listDepth + 1);
-          }
-          // Trim trailing newlines from the li content but keep one newline at the end
-          result += `${indent}${bullet} ${liContent.trim()}\n`;
-          index++;
-        }
-      }
-      return (listDepth === 0 ? '\n' : '') + result + (listDepth === 0 ? '\n' : '');
-    }
-
-    // Skip <li> processed by parent list handler
-    if (tag === 'li') {
-      return childContent;
-    }
-
-    // Handle line breaks
-    if (tag === 'br') {
-      return '\n';
-    }
-
-    // Handle block elements
-    if (['p', 'div'].includes(tag)) {
-      return childContent + '\n';
-    }
-
-    return childContent;
-  }
-
-  let markdown = processNode(doc.body);
-
-  // Remove leading spaces from each line
-  markdown = markdown.split('\n').map(line => line.trimStart()).join('\n');
-
-  // Clean up multiple consecutive newlines
-  markdown = markdown.replace(/\n{3,}/g, '\n\n');
-
-  // Trim trailing whitespace
-  markdown = markdown.trim();
-
-  return markdown;
+  const clean = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  return turndown.turndown(clean).trim();
 }
 
-pasteArea.addEventListener('paste', async (e) => {
-  e.preventDefault();
+function renderMarkdown(md) {
+  const rawHtml = marked.parse(md);
+  return DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } });
+}
 
-  const clipboardData = e.clipboardData;
-  if (!clipboardData) {
-    resultsDiv.innerHTML = '<div class="empty-state">No clipboard data detected</div>';
+function setMarkdown(md) {
+  currentMarkdown = md;
+  const hasContent = md.trim().length > 0;
+
+  if (hasContent) {
+    els.raw.textContent = md;
+    els.rendered.innerHTML = renderMarkdown(md);
+    els.copy.disabled = false;
+    const lines = md.split("\n").length;
+    els.status.textContent =
+      md.length + (md.length === 1 ? " character" : " characters") +
+      " · " + lines + (lines === 1 ? " line" : " lines");
+  } else {
+    showEmpty();
+  }
+}
+
+function showEmpty() {
+  currentMarkdown = "";
+  els.rendered.innerHTML =
+    '<p class="empty">Paste something above to see it render here.</p>';
+  els.raw.textContent = "";
+  els.raw.insertAdjacentHTML(
+    "afterbegin",
+    '<span style="color: var(--faint); font-style: italic; font-family: Helvetica, Arial, sans-serif;">Markdown will appear here.</span>'
+  );
+  els.copy.disabled = true;
+  els.copy.classList.remove("copied");
+  els.copy.textContent = "Copy markdown";
+  els.status.textContent = "Nothing converted yet.";
+}
+
+// View toggle.
+function showView(mode) {
+  const rendered = mode === "rendered";
+  els.tabRendered.setAttribute("aria-pressed", String(rendered));
+  els.tabRaw.setAttribute("aria-pressed", String(!rendered));
+  els.viewRendered.hidden = !rendered;
+  els.viewRaw.hidden = rendered;
+}
+
+els.tabRendered.addEventListener("click", () => showView("rendered"));
+els.tabRaw.addEventListener("click", () => showView("raw"));
+
+// Paste: prefer the rich (text/html) flavour, fall back to plain text.
+els.input.addEventListener("paste", (event) => {
+  const data = event.clipboardData;
+  if (!data) return;
+  const html = data.getData("text/html");
+  if (html && html.trim()) {
+    // We handle the rich conversion ourselves; let the textarea keep the
+    // plain-text version as a visible record of what was pasted.
+    suppressNextInput = true;
+    setMarkdown(htmlToMarkdown(html));
+  }
+  // If there's no HTML flavour, do nothing special: the default paste lands
+  // in the textarea and the input handler treats it as plain markdown source.
+});
+
+// Typing / plain pastes: treat the textarea content as markdown source.
+els.input.addEventListener("input", () => {
+  if (suppressNextInput) {
+    suppressNextInput = false;
     return;
   }
-
-  let markdown = '';
-
-  // Try RTF first (terminal output with colors)
-  const rtfData = clipboardData.getData('text/rtf');
-  if (rtfData) {
-    try {
-      markdown = rtfToMarkdown(rtfData);
-    } catch (err) {
-      console.error('RTF parsing failed:', err);
-    }
-  }
-
-  // Try HTML if RTF didn't work
-  if (!markdown) {
-    const htmlData = clipboardData.getData('text/html');
-    if (htmlData) {
-      markdown = htmlToMarkdown(htmlData);
-    }
-  }
-
-  // Fall back to plain text
-  if (!markdown) {
-    const plainText = clipboardData.getData('text/plain');
-    if (plainText) {
-      // Just remove leading spaces from each line
-      markdown = plainText.split('\n').map(line => line.trimStart()).join('\n').trim();
-    } else {
-      resultsDiv.innerHTML = '<div class="empty-state">No supported format detected in clipboard.</div>';
-      return;
-    }
-  }
-
-  // Clear paste area
-  pasteArea.value = '';
-
-  // Show results
-  resultsDiv.innerHTML = `
-    <div class="section">
-      <h2>Markdown Output</h2>
-      <div class="button-group">
-        <button id="copyBtn">Copy Markdown</button>
-      </div>
-      <textarea class="code-output" id="markdownOutput" readonly></textarea>
-    </div>
-  `;
-
-  const markdownOutput = document.getElementById('markdownOutput');
-  markdownOutput.value = markdown;
-
-  const copyBtn = document.getElementById('copyBtn');
-  copyBtn.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(markdown);
-      copyBtn.textContent = 'Copied!';
-      copyBtn.classList.add('copied');
-      setTimeout(() => {
-        copyBtn.textContent = 'Copy Markdown';
-        copyBtn.classList.remove('copied');
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  });
+  setMarkdown(els.input.value.trim());
 });
-</script>
+
+// Copy markdown, with a graceful fallback for older clipboard support.
+async function copyMarkdown() {
+  if (!currentMarkdown) return;
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(currentMarkdown);
+    ok = true;
+  } catch (err) {
+    ok = legacyCopy(currentMarkdown);
+  }
+  flashCopy(ok);
+}
+
+function legacyCopy(text) {
+  const tmp = document.createElement("textarea");
+  tmp.value = text;
+  tmp.style.position = "fixed";
+  tmp.style.opacity = "0";
+  document.body.appendChild(tmp);
+  tmp.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch (err) {
+    ok = false;
+  }
+  document.body.removeChild(tmp);
+  return ok;
+}
+
+function flashCopy(ok) {
+  els.copy.classList.toggle("copied", ok);
+  els.copy.textContent = ok ? "Copied" : "Copy failed";
+  setTimeout(() => {
+    els.copy.classList.remove("copied");
+    els.copy.textContent = "Copy markdown";
+  }, 1500);
+}
+
+els.copy.addEventListener("click", copyMarkdown);
+
+// Clear everything.
+els.clear.addEventListener("click", () => {
+  els.input.value = "";
+  showEmpty();
+  showView("rendered");
+  els.input.focus();
+});
+
+// A sample rich snippet so the tool can be demonstrated without hunting for
+// something to copy. It runs through the exact same paste pipeline.
+const exampleHtml = `
+<h1>Project overview</h1>
+<p>This is a <strong>short</strong> intro with an <em>emphasised</em> word and a
+<a href="https://example.com">link to example</a>.</p>
+<h2>Goals</h2>
+<ul>
+  <li>First goal</li>
+  <li>Second goal
+    <ul>
+      <li>Nested detail A</li>
+      <li>Nested detail B
+        <ol>
+          <li>Deep item one</li>
+          <li>Deep item two</li>
+        </ol>
+      </li>
+    </ul>
+  </li>
+  <li>Third goal</li>
+</ul>
+<h3>A code snippet</h3>
+<p>Inline <code>const x = 1</code> and a fenced block:</p>
+<pre><code class="language-js">function add(a, b) {
+  return a + b;
+}</code></pre>
+<blockquote><p>Worth keeping in mind.</p></blockquote>
+<h3>A table</h3>
+<table>
+  <thead><tr><th>Name</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td>Ada</td><td>Engineer</td></tr>
+    <tr><td>Grace</td><td>Admiral</td></tr>
+  </tbody>
+</table>`;
+
+els.example.addEventListener("click", () => {
+  // Mirror a real paste: plain text in the box, converted markdown in the output.
+  const probe = document.createElement("div");
+  probe.innerHTML = DOMPurify.sanitize(exampleHtml, { USE_PROFILES: { html: true } });
+  suppressNextInput = true;
+  els.input.value = probe.textContent.replace(/\n{3,}/g, "\n\n").trim();
+  setMarkdown(htmlToMarkdown(exampleHtml));
+  showView("rendered");
+});
+
+// Start in a clean empty state.
+showEmpty();
+  </script>
 </body>
 </html>
