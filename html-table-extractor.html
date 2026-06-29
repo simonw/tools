@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML table extractor</title>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #f4f4f1;
+  --surface: #ffffff;
+  --ink: #1b1b1a;
+  --muted: #76746e;
+  --line: #e4e3dd;
+  --line-strong: #d4d3cb;
+  --accent: #11705f;
+  --accent-soft: #e7f1ee;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+header {
+  margin-bottom: 28px;
+}
+
+h1 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 15px;
+  margin: 0;
+}
+
+.paste {
+  background: var(--surface);
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 12px;
+  padding: 28px 22px;
+  min-height: 120px;
+  font-size: 16px;
+  color: var(--ink);
+  transition: border-color 0.15s ease, background 0.15s ease;
+  outline: none;
+  overflow-x: auto;
+}
+
+.paste:focus {
+  border-color: var(--accent);
+  border-style: solid;
+  background: #fdfdfc;
+}
+
+.paste:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+}
+
+.paste.has-content {
+  border-style: solid;
+  border-color: var(--line);
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+.clear-btn {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.clear-btn:hover {
+  color: var(--ink);
+}
+
+.status {
+  margin: 28px 0 18px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.status.error {
+  color: #a3371f;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.dims {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.header-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.header-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.preview {
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  background: #fbfbfa;
+}
+
+.preview table {
+  border-collapse: collapse;
+  font-size: 13px;
+  width: 100%;
+  min-width: max-content;
+}
+
+.preview th,
+.preview td {
+  border: 1px solid var(--line);
+  padding: 7px 11px;
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.preview thead th {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.preview tbody tr:nth-child(even) td {
+  background: #f6f6f3;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 18px 0;
+  flex-wrap: wrap;
+}
+
+.tab {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.tab:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.tab.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.output-wrap {
+  position: relative;
+  padding: 12px 18px 18px;
+}
+
+textarea.output {
+  width: 100%;
+  min-height: 64px;
+  max-height: 340px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  white-space: pre;
+  overflow: auto;
+  outline: none;
+}
+
+textarea.output:focus {
+  border-color: var(--accent);
+}
+
+.copy-btn {
+  position: absolute;
+  top: 22px;
+  right: 28px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 5px 11px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.copy-btn:hover {
+  background: var(--bg);
+}
+
+.copy-btn.copied {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 40px 0 8px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>HTML table extractor</h1>
+    <p class="sub">Paste rich text below. Any tables inside it are pulled out and offered as HTML, Markdown, CSV, TSV, and JSON.</p>
+  </header>
+
+  <div id="paste" class="paste" contenteditable="true" data-placeholder="Paste here…"></div>
+  <div class="hint">
+    <span>Copy from a page, doc, or sheet, then press <kbd>⌘V</kbd> / <kbd>Ctrl+V</kbd>.</span>
+    <button id="clear" class="clear-btn" type="button" hidden>Clear</button>
+  </div>
+
+  <div id="status" class="status"></div>
+  <div id="results" class="results"></div>
+</div>
+
+<script type="module">
+// code in here should not be indented at the first level
+const pasteEl = document.getElementById('paste')
+const statusEl = document.getElementById('status')
+const resultsEl = document.getElementById('results')
+const clearBtn = document.getElementById('clear')
+
+const FORMATS = ['HTML', 'Markdown', 'CSV', 'TSV', 'JSON']
+
+function cellText(cell) {
+  return (cell.textContent || '').replace(/\s+/g, ' ').trim()
+}
+
+function tableToGrid(table) {
+  const grid = []
+  const rows = Array.from(table.rows)
+  for (let r = 0; r < rows.length; r++) {
+    if (!grid[r]) grid[r] = []
+    let c = 0
+    for (const cell of Array.from(rows[r].cells)) {
+      while (grid[r][c] !== undefined) c++
+      const text = cellText(cell)
+      const colspan = parseInt(cell.getAttribute('colspan'), 10) || 1
+      const rowspan = parseInt(cell.getAttribute('rowspan'), 10) || 1
+      for (let dr = 0; dr < rowspan; dr++) {
+        for (let dc = 0; dc < colspan; dc++) {
+          if (!grid[r + dr]) grid[r + dr] = []
+          grid[r + dr][c + dc] = text
+        }
+      }
+      c += colspan
+    }
+  }
+  const maxCols = grid.reduce((m, row) => Math.max(m, row.length), 0)
+  for (const row of grid) {
+    for (let i = 0; i < maxCols; i++) {
+      if (row[i] === undefined) row[i] = ''
+    }
+  }
+  return grid
+}
+
+function detectHeader(table) {
+  if (table.tHead && table.tHead.rows.length) return true
+  const first = table.rows[0]
+  if (!first || !first.cells.length) return false
+  return Array.from(first.cells).every(c => c.tagName === 'TH')
+}
+
+function escHTML(v) {
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function toHTML(grid, hasHeader) {
+  const lines = ['<table>']
+  let start = 0
+  if (hasHeader && grid.length) {
+    lines.push('  <thead>', '    <tr>')
+    for (const c of grid[0]) lines.push('      <th>' + escHTML(c) + '</th>')
+    lines.push('    </tr>', '  </thead>')
+    start = 1
+  }
+  lines.push('  <tbody>')
+  for (let r = start; r < grid.length; r++) {
+    lines.push('    <tr>')
+    for (const c of grid[r]) lines.push('      <td>' + escHTML(c) + '</td>')
+    lines.push('    </tr>')
+  }
+  lines.push('  </tbody>', '</table>')
+  return lines.join('\n')
+}
+
+function toMarkdown(grid, hasHeader) {
+  if (!grid.length) return ''
+  const cols = grid[0].length
+  const esc = v => String(v).replace(/\|/g, '\\|').replace(/\n/g, ' ')
+  let header
+  let body
+  if (hasHeader) {
+    header = grid[0]
+    body = grid.slice(1)
+  } else {
+    header = Array.from({ length: cols }, (_, i) => 'Column ' + (i + 1))
+    body = grid
+  }
+  const lines = []
+  lines.push('| ' + header.map(esc).join(' | ') + ' |')
+  lines.push('| ' + header.map(() => '---').join(' | ') + ' |')
+  for (const row of body) lines.push('| ' + row.map(esc).join(' | ') + ' |')
+  return lines.join('\n')
+}
+
+function csvCell(v) {
+  v = String(v)
+  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v
+}
+
+function toCSV(grid) {
+  return grid.map(row => row.map(csvCell).join(',')).join('\n')
+}
+
+function toTSV(grid) {
+  return grid.map(row => row.map(v => String(v).replace(/[\t\n\r]+/g, ' ')).join('\t')).join('\n')
+}
+
+function toJSON(grid, hasHeader) {
+  if (hasHeader && grid.length) {
+    const keys = grid[0].map((k, i) => k || ('column_' + (i + 1)))
+    const rows = grid.slice(1).map(row => {
+      const obj = {}
+      keys.forEach((k, i) => { obj[k] = row[i] ?? '' })
+      return obj
+    })
+    return JSON.stringify(rows, null, 2)
+  }
+  return JSON.stringify(grid, null, 2)
+}
+
+function render(grid, format, hasHeader) {
+  switch (format) {
+    case 'HTML': return toHTML(grid, hasHeader)
+    case 'Markdown': return toMarkdown(grid, hasHeader)
+    case 'CSV': return toCSV(grid)
+    case 'TSV': return toTSV(grid)
+    case 'JSON': return toJSON(grid, hasHeader)
+    default: return ''
+  }
+}
+
+function buildPreview(grid, hasHeader) {
+  const table = document.createElement('table')
+  let start = 0
+  if (hasHeader && grid.length) {
+    const thead = document.createElement('thead')
+    const tr = document.createElement('tr')
+    for (const c of grid[0]) {
+      const th = document.createElement('th')
+      th.textContent = c
+      tr.appendChild(th)
+    }
+    thead.appendChild(tr)
+    table.appendChild(thead)
+    start = 1
+  }
+  const tbody = document.createElement('tbody')
+  for (let r = start; r < grid.length; r++) {
+    const tr = document.createElement('tr')
+    for (const c of grid[r]) {
+      const td = document.createElement('td')
+      td.textContent = c
+      tr.appendChild(td)
+    }
+    tbody.appendChild(tr)
+  }
+  table.appendChild(tbody)
+  return table
+}
+
+function makeCard(grid, index) {
+  const state = { format: 'HTML', hasHeader: detectHeader.cached ?? grid.detectedHeader }
+
+  const card = document.createElement('div')
+  card.className = 'card'
+
+  const head = document.createElement('div')
+  head.className = 'card-head'
+
+  const title = document.createElement('h2')
+  title.className = 'card-title'
+  title.textContent = 'Table ' + index
+
+  const dims = document.createElement('span')
+  dims.className = 'dims'
+  dims.textContent = grid.length + ' × ' + (grid[0] ? grid[0].length : 0)
+
+  const toggle = document.createElement('label')
+  toggle.className = 'header-toggle'
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  checkbox.checked = state.hasHeader
+  toggle.appendChild(checkbox)
+  toggle.appendChild(document.createTextNode('First row is header'))
+
+  head.append(title, dims, toggle)
+
+  const previewWrap = document.createElement('div')
+  previewWrap.className = 'preview'
+  previewWrap.appendChild(buildPreview(grid, state.hasHeader))
+
+  const tabs = document.createElement('div')
+  tabs.className = 'tabs'
+  const tabButtons = {}
+  for (const fmt of FORMATS) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'tab' + (fmt === state.format ? ' active' : '')
+    btn.textContent = fmt
+    btn.addEventListener('click', () => {
+      state.format = fmt
+      for (const f in tabButtons) tabButtons[f].classList.toggle('active', f === fmt)
+      update()
+    })
+    tabButtons[fmt] = btn
+    tabs.appendChild(btn)
+  }
+
+  const outputWrap = document.createElement('div')
+  outputWrap.className = 'output-wrap'
+
+  const textarea = document.createElement('textarea')
+  textarea.className = 'output'
+  textarea.readOnly = true
+  textarea.spellcheck = false
+
+  const copyBtn = document.createElement('button')
+  copyBtn.type = 'button'
+  copyBtn.className = 'copy-btn'
+  copyBtn.textContent = 'Copy'
+
+  let copyTimer = null
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(textarea.value)
+    } catch (err) {
+      textarea.select()
+      document.execCommand('copy')
+    }
+    copyBtn.textContent = 'Copied'
+    copyBtn.classList.add('copied')
+    clearTimeout(copyTimer)
+    copyTimer = setTimeout(() => {
+      copyBtn.textContent = 'Copy'
+      copyBtn.classList.remove('copied')
+    }, 1400)
+  })
+
+  outputWrap.append(textarea, copyBtn)
+
+  function update() {
+    textarea.value = render(grid, state.format, state.hasHeader)
+    const rows = textarea.value.split('\n').length
+    textarea.style.height = 'auto'
+    textarea.style.height = Math.min(340, Math.max(64, rows * 24 + 30)) + 'px'
+  }
+
+  checkbox.addEventListener('change', () => {
+    state.hasHeader = checkbox.checked
+    previewWrap.innerHTML = ''
+    previewWrap.appendChild(buildPreview(grid, state.hasHeader))
+    update()
+  })
+
+  card.append(head, previewWrap, tabs, outputWrap)
+  update()
+  return card
+}
+
+function extractTables(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const all = Array.from(doc.querySelectorAll('table'))
+  return all.filter(t => !(t.parentElement && t.parentElement.closest('table')))
+}
+
+function process(html) {
+  resultsEl.innerHTML = ''
+  const tables = extractTables(html)
+
+  if (!tables.length) {
+    statusEl.textContent = 'No tables found in the pasted content.'
+    statusEl.className = 'status error'
+    return
+  }
+
+  statusEl.textContent = 'Found ' + tables.length + (tables.length === 1 ? ' table.' : ' tables.')
+  statusEl.className = 'status'
+
+  tables.forEach((table, i) => {
+    const grid = tableToGrid(table)
+    grid.detectedHeader = detectHeader(table)
+    detectHeader.cached = grid.detectedHeader
+    resultsEl.appendChild(makeCard(grid, i + 1))
+  })
+}
+
+function handlePaste(e) {
+  const data = e.clipboardData
+  if (!data) return
+  const html = data.getData('text/html')
+  const plain = data.getData('text/plain')
+
+  e.preventDefault()
+
+  let source = html
+  if (!source && /<table[\s>]/i.test(plain)) source = plain
+
+  pasteEl.classList.toggle('has-content', !!source)
+  clearBtn.hidden = !source
+
+  if (!source) {
+    statusEl.textContent = 'That clipboard content had no HTML tables.'
+    statusEl.className = 'status error'
+    resultsEl.innerHTML = ''
+    return
+  }
+
+  process(source)
+}
+
+pasteEl.addEventListener('paste', handlePaste)
+
+document.addEventListener('paste', e => {
+  const t = e.target
+  if (t === pasteEl) return
+  if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) return
+  pasteEl.focus()
+  handlePaste(e)
+})
+
+clearBtn.addEventListener('click', () => {
+  pasteEl.textContent = ''
+  pasteEl.classList.remove('has-content')
+  clearBtn.hidden = true
+  statusEl.textContent = ''
+  statusEl.className = 'status'
+  resultsEl.innerHTML = ''
+  pasteEl.focus()
+})
+
+pasteEl.focus()
+</script>
+</body>
+</html>
