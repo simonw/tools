@@ -86,6 +86,16 @@ h1 {
   border-color: var(--line);
 }
 
+.paste.source-content {
+  max-height: 260px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .hint {
   display: flex;
   align-items: center;
@@ -94,6 +104,90 @@ h1 {
   margin-top: 10px;
   font-size: 13px;
   color: var(--muted);
+}
+
+.wiki-import {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.wiki-import label {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.wiki-autocomplete {
+  position: relative;
+  flex: 1 1 280px;
+  max-width: 440px;
+}
+
+.wiki-search {
+  width: 100%;
+  height: 38px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  outline: none;
+  padding: 0 12px;
+}
+
+.wiki-search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(17, 112, 95, 0.12);
+}
+
+.wiki-search:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.wiki-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  box-shadow: 0 16px 32px rgba(27, 27, 26, 0.12);
+  padding: 4px;
+}
+
+.wiki-option {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 8px 10px;
+}
+
+.wiki-option:hover,
+.wiki-option.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.wiki-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 8px 10px;
 }
 
 kbd {
@@ -309,6 +403,17 @@ textarea.output:focus {
   font-size: 14px;
   padding: 40px 0 8px;
 }
+
+@media (max-width: 620px) {
+  .wiki-import {
+    align-items: stretch;
+  }
+
+  .wiki-autocomplete {
+    flex-basis: 100%;
+    max-width: none;
+  }
+}
 </style>
 </head>
 <body>
@@ -319,6 +424,13 @@ textarea.output:focus {
   </header>
 
   <div id="paste" class="paste" contenteditable="true" data-placeholder="Paste here…"></div>
+  <div class="wiki-import">
+    <label for="wiki-search">Or import from Wikipedia:</label>
+    <div class="wiki-autocomplete">
+      <input id="wiki-search" class="wiki-search" type="search" autocomplete="off" placeholder="Search page titles" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="wiki-suggestions">
+      <div id="wiki-suggestions" class="wiki-suggestions" role="listbox" hidden></div>
+    </div>
+  </div>
   <div class="hint">
     <span>Copy from a page, doc, or sheet, then press <kbd>⌘V</kbd> / <kbd>Ctrl+V</kbd>.</span>
     <button id="clear" class="clear-btn" type="button" hidden>Clear</button>
@@ -334,8 +446,18 @@ const pasteEl = document.getElementById('paste')
 const statusEl = document.getElementById('status')
 const resultsEl = document.getElementById('results')
 const clearBtn = document.getElementById('clear')
+const wikiSearchEl = document.getElementById('wiki-search')
+const wikiSuggestionsEl = document.getElementById('wiki-suggestions')
 
 const FORMATS = ['HTML', 'Markdown', 'CSV', 'TSV', 'JSON']
+const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php'
+const WIKIPEDIA_SUGGESTION_LIMIT = 8
+
+let wikiSearchTimer = null
+let wikiSearchController = null
+let wikiSearchRequestId = 0
+let wikiSuggestions = []
+let activeWikiSuggestion = -1
 
 function cellText(cell) {
   return (cell.textContent || '').replace(/\s+/g, ' ').trim()
@@ -491,6 +613,165 @@ function toJSON(grid, hasHeader) {
     return JSON.stringify(rows, null, 2)
   }
   return JSON.stringify(grid, null, 2)
+}
+
+function wikipediaApiUrl(params) {
+  const url = new URL(WIKIPEDIA_API)
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value)
+  }
+  url.searchParams.set('format', 'json')
+  url.searchParams.set('origin', '*')
+  return url
+}
+
+function hideWikiSuggestions() {
+  wikiSuggestionsEl.hidden = true
+  wikiSuggestionsEl.innerHTML = ''
+  wikiSearchEl.setAttribute('aria-expanded', 'false')
+  wikiSearchEl.removeAttribute('aria-activedescendant')
+  activeWikiSuggestion = -1
+}
+
+function setActiveWikiSuggestion(index) {
+  const max = wikiSuggestions.length - 1
+  activeWikiSuggestion = Math.max(-1, Math.min(index, max))
+  Array.from(wikiSuggestionsEl.children).forEach((child, i) => {
+    const active = i === activeWikiSuggestion
+    child.classList.toggle('active', active)
+    child.setAttribute('aria-selected', active ? 'true' : 'false')
+  })
+  if (activeWikiSuggestion >= 0) {
+    wikiSearchEl.setAttribute('aria-activedescendant', 'wiki-option-' + activeWikiSuggestion)
+  } else {
+    wikiSearchEl.removeAttribute('aria-activedescendant')
+  }
+}
+
+function renderWikiSuggestions(titles) {
+  wikiSuggestions = titles
+  wikiSuggestionsEl.innerHTML = ''
+
+  if (!titles.length) {
+    const empty = document.createElement('div')
+    empty.className = 'wiki-empty'
+    empty.textContent = 'No matching page titles.'
+    wikiSuggestionsEl.appendChild(empty)
+    wikiSuggestionsEl.hidden = false
+    wikiSearchEl.setAttribute('aria-expanded', 'true')
+    activeWikiSuggestion = -1
+    return
+  }
+
+  titles.forEach((title, index) => {
+    const option = document.createElement('button')
+    option.type = 'button'
+    option.className = 'wiki-option'
+    option.id = 'wiki-option-' + index
+    option.setAttribute('role', 'option')
+    option.setAttribute('aria-selected', 'false')
+    option.textContent = title
+    option.addEventListener('mousedown', event => {
+      event.preventDefault()
+    })
+    option.addEventListener('click', () => {
+      importWikipediaPage(title)
+    })
+    wikiSuggestionsEl.appendChild(option)
+  })
+
+  wikiSuggestionsEl.hidden = false
+  wikiSearchEl.setAttribute('aria-expanded', 'true')
+  setActiveWikiSuggestion(-1)
+}
+
+async function searchWikipediaTitles(query) {
+  const trimmed = query.trim()
+  if (trimmed.length < 2) {
+    if (wikiSearchController) wikiSearchController.abort()
+    wikiSearchRequestId++
+    hideWikiSuggestions()
+    return
+  }
+
+  if (wikiSearchController) wikiSearchController.abort()
+  const controller = new AbortController()
+  const requestId = ++wikiSearchRequestId
+  wikiSearchController = controller
+  wikiSearchEl.setAttribute('aria-busy', 'true')
+
+  try {
+    const response = await fetch(wikipediaApiUrl({
+      action: 'opensearch',
+      search: trimmed,
+      namespace: '0',
+      limit: String(WIKIPEDIA_SUGGESTION_LIMIT)
+    }), { signal: controller.signal })
+
+    if (!response.ok) throw new Error('Wikipedia title search failed.')
+    const data = await response.json()
+    if (requestId !== wikiSearchRequestId) return
+    renderWikiSuggestions(Array.isArray(data?.[1]) ? data[1] : [])
+  } catch (error) {
+    if (error.name === 'AbortError') return
+    wikiSuggestions = []
+    wikiSuggestionsEl.innerHTML = '<div class="wiki-empty">Could not reach Wikipedia.</div>'
+    wikiSuggestionsEl.hidden = false
+    wikiSearchEl.setAttribute('aria-expanded', 'true')
+  } finally {
+    if (requestId === wikiSearchRequestId) {
+      wikiSearchEl.removeAttribute('aria-busy')
+      wikiSearchController = null
+    }
+  }
+}
+
+function scheduleWikipediaSearch() {
+  clearTimeout(wikiSearchTimer)
+  wikiSearchTimer = setTimeout(() => {
+    searchWikipediaTitles(wikiSearchEl.value)
+  }, 220)
+}
+
+async function importWikipediaPage(title) {
+  const pageTitle = title.trim()
+  if (!pageTitle) return
+
+  if (wikiSearchController) wikiSearchController.abort()
+  clearTimeout(wikiSearchTimer)
+  hideWikiSuggestions()
+  wikiSearchEl.value = pageTitle
+  wikiSearchEl.disabled = true
+  statusEl.textContent = 'Importing "' + pageTitle + '" from Wikipedia...'
+  statusEl.className = 'status'
+
+  try {
+    const response = await fetch(wikipediaApiUrl({
+      action: 'parse',
+      page: pageTitle,
+      prop: 'text'
+    }))
+    if (!response.ok) throw new Error('Wikipedia import failed.')
+
+    const data = await response.json()
+    if (data.error) throw new Error(data.error.info || 'Wikipedia could not parse that page.')
+
+    const html = data.parse?.text?.['*']
+    if (!html) throw new Error('Wikipedia did not return HTML for that page.')
+
+    pasteEl.textContent = html
+    pasteEl.scrollTop = 0
+    pasteEl.classList.add('has-content')
+    pasteEl.classList.add('source-content')
+    clearBtn.hidden = false
+    process(html)
+  } catch (error) {
+    statusEl.textContent = error.message || 'Could not import that Wikipedia page.'
+    statusEl.className = 'status error'
+  } finally {
+    wikiSearchEl.disabled = false
+    wikiSearchEl.focus()
+  }
 }
 
 function render(grid, format, hasHeader) {
@@ -669,6 +950,8 @@ function handlePaste(e) {
   let source = html
   if (!source && /<table[\s>]/i.test(plain)) source = plain
 
+  pasteEl.textContent = ''
+  pasteEl.classList.remove('source-content')
   pasteEl.classList.toggle('has-content', !!source)
   clearBtn.hidden = !source
 
@@ -684,6 +967,31 @@ function handlePaste(e) {
 
 pasteEl.addEventListener('paste', handlePaste)
 
+wikiSearchEl.addEventListener('input', scheduleWikipediaSearch)
+
+wikiSearchEl.addEventListener('keydown', event => {
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    if (wikiSuggestionsEl.hidden && wikiSuggestions.length) {
+      renderWikiSuggestions(wikiSuggestions)
+    }
+    setActiveWikiSuggestion(activeWikiSuggestion + 1)
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    setActiveWikiSuggestion(activeWikiSuggestion <= 0 ? wikiSuggestions.length - 1 : activeWikiSuggestion - 1)
+  } else if (event.key === 'Enter') {
+    event.preventDefault()
+    const title = activeWikiSuggestion >= 0 ? wikiSuggestions[activeWikiSuggestion] : wikiSearchEl.value
+    importWikipediaPage(title)
+  } else if (event.key === 'Escape') {
+    hideWikiSuggestions()
+  }
+})
+
+wikiSearchEl.addEventListener('blur', () => {
+  setTimeout(hideWikiSuggestions, 120)
+})
+
 document.addEventListener('paste', e => {
   const t = e.target
   if (t === pasteEl) return
@@ -695,10 +1003,13 @@ document.addEventListener('paste', e => {
 clearBtn.addEventListener('click', () => {
   pasteEl.textContent = ''
   pasteEl.classList.remove('has-content')
+  pasteEl.classList.remove('source-content')
   clearBtn.hidden = true
   statusEl.textContent = ''
   statusEl.className = 'status'
   resultsEl.innerHTML = ''
+  wikiSearchEl.value = ''
+  hideWikiSuggestions()
   pasteEl.focus()
 })
 
