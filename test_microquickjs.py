@@ -1,26 +1,52 @@
 #!/usr/bin/env python3
 """Test script for microquickjs.html using playwright-python"""
 
+import sys
+import socket
 import subprocess
 import time
-import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 
+def find_unused_port():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+    finally:
+        sock.close()
+
+
+def wait_for_server(server, port):
+    for _ in range(50):
+        if server.poll() is not None:
+            stdout, stderr = server.communicate()
+            raise RuntimeError(f"Server failed to start: {stderr}")
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1):
+                return
+        except (urllib.error.URLError, ConnectionRefusedError):
+            time.sleep(0.1)
+    raise RuntimeError("Server did not become ready in time")
+
+
 def test_microquickjs():
+    port = find_unused_port()
     # Start a simple HTTP server in the background
     server = subprocess.Popen(
-        ["python3", "-m", "http.server", "8765"],
-        cwd="/home/user/tools",
+        [sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1"],
+        cwd=Path(__file__).resolve().parent,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        text=True,
     )
-
-    # Give server time to start
-    time.sleep(1)
 
     console_messages = []
     try:
+        wait_for_server(server, port)
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
@@ -30,12 +56,11 @@ def test_microquickjs():
             page.on("pageerror", lambda err: console_messages.append(f"[PAGE ERROR] {err}"))
 
             # Navigate to the page - test with wasm param if provided
-            import sys
             wasm_param = ""
             if len(sys.argv) > 1 and sys.argv[1] == "original":
                 wasm_param = "?wasm=original"
             print(f"Loading microquickjs.html{wasm_param}...")
-            page.goto(f"http://localhost:8765/microquickjs.html{wasm_param}")
+            page.goto(f"http://127.0.0.1:{port}/microquickjs.html{wasm_param}")
 
             # Wait for the page to initialize (wait for "Run Code" button to be enabled)
             print("Waiting for MicroQuickJS to initialize...")
@@ -127,7 +152,6 @@ factorial(5)"""
             print("\n" + "="*50)
             print("All tests passed! ✓")
             print("="*50)
-            return True
 
     except Exception as e:
         print(f"\n✗ Test failed with error: {e}")
@@ -135,12 +159,11 @@ factorial(5)"""
             print("\nConsole output:")
             for msg in console_messages:
                 print(f"  {msg}")
-        return False
+        raise
     finally:
         server.terminate()
         server.wait()
 
 
 if __name__ == "__main__":
-    success = test_microquickjs()
-    sys.exit(0 if success else 1)
+    test_microquickjs()
