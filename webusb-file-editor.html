@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MicroPython File Editor — Device File Manager</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171922;
+      --ink: #f6f7fb;
+      --muted: #8e95a5;
+      --accent: #7c7cff;
+      --danger: #ff7272;
+      --ok: #65d488;
+      --border: #262938;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #151824, #10131c);
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    }
+    header h1 { font-size: 16px; margin: 0 10px 0 0; font-weight: 600; letter-spacing: .2px; }
+    .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    button {
+      background: #1b1e2b; color: var(--ink); border: 1px solid var(--border);
+      padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600;
+      letter-spacing: .2px; font-size: 13px;
+    }
+    button:hover { background: #202437; }
+    button.primary { background: var(--accent); border-color: #5858ff; color: #fff; }
+    button.danger { background: #2b1b1b; border-color: #3a2525; color: #ffc5c5; }
+    button.success { background: #1b2b1f; border-color: #2a3d2e; color: #b3ffcc; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .pill {
+      padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border);
+      background: var(--panel); font-size: 12px; color: var(--muted);
+    }
+    .status-pill {
+      padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    }
+    .status-connected { background: var(--ok); color: #000; }
+    .status-disconnected { background: var(--muted); color: #000; }
+
+    main {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 0;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .file-browser {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .browser-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .browser-header h2 {
+      font-size: 13px;
+      margin: 0;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .file-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .file-item {
+      padding: 8px 12px;
+      margin-bottom: 2px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      transition: background 0.1s;
+    }
+    .file-item:hover {
+      background: rgba(124, 124, 255, 0.1);
+    }
+    .file-item.selected {
+      background: var(--accent);
+      color: #fff;
+    }
+    .file-item.directory {
+      font-weight: 600;
+    }
+    .file-icon {
+      width: 16px;
+      height: 16px;
+      display: inline-block;
+    }
+
+    .editor-pane {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .editor-header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .editor-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .file-path {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: normal;
+    }
+    .editor-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .editor-content {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    #editor {
+      flex: 1;
+      background: #0e1017;
+      color: var(--ink);
+      border: none;
+      padding: 16px;
+      font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      resize: none;
+      overflow: auto;
+      tab-size: 4;
+    }
+    #editor:focus {
+      outline: none;
+    }
+
+    .placeholder {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .muted { color: var(--muted); font-size: 12px; }
+    .modified-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--danger);
+    }
+    .note {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 768px) {
+      main {
+        grid-template-columns: 1fr;
+        grid-template-rows: 200px 1fr;
+      }
+      .file-browser {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MicroPython File Editor</h1>
+    <div class="controls">
+      <button id="connectBtn" class="primary">Connect Device</button>
+      <span id="statusPill" class="status-pill status-disconnected">Disconnected</span>
+      <button id="refreshBtn" disabled>Refresh Files</button>
+      <button id="newFileBtn" disabled>New File</button>
+    </div>
+    <div class="note">Requires a Chromium browser with Web Serial. Works with MicroPython and CircuitPython devices.</div>
+  </header>
+
+  <main>
+    <div class="file-browser">
+      <div class="browser-header">
+        <h2>Files</h2>
+        <div id="fileCount" class="muted">—</div>
+      </div>
+      <div class="file-list" id="fileList">
+        <div class="placeholder">
+          Connect to a device to view files
+        </div>
+      </div>
+    </div>
+
+    <div class="editor-pane">
+      <div class="editor-header">
+        <div class="editor-title">
+          <span id="fileName">No file selected</span>
+          <span id="modifiedIndicator" style="display: none;" class="modified-indicator"></span>
+        </div>
+        <div class="editor-actions">
+          <button id="saveBtn" disabled>Save</button>
+          <button id="saveAsBtn" disabled>Save As...</button>
+          <button id="downloadBtn" disabled>Download</button>
+          <button id="deleteBtn" class="danger" disabled>Delete</button>
+        </div>
+      </div>
+      <div class="editor-content" id="editorContent">
+        <div class="placeholder">
+          Select a file from the browser to start editing
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ---- State ----
+    const state = {
+      port: null,
+      writer: null,
+      reader: null,
+      writableClosed: null,
+      readableClosed: null,
+      connected: false,
+      currentFile: null,
+      currentContent: '',
+      originalContent: '',
+      modified: false,
+      files: [],
+      currentDir: '/'
+    };
+
+    // ---- DOM Elements ----
+    const connectBtn = document.getElementById('connectBtn');
+    const statusPill = document.getElementById('statusPill');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const newFileBtn = document.getElementById('newFileBtn');
+    const fileList = document.getElementById('fileList');
+    const fileCount = document.getElementById('fileCount');
+    const fileName = document.getElementById('fileName');
+    const modifiedIndicator = document.getElementById('modifiedIndicator');
+    const saveBtn = document.getElementById('saveBtn');
+    const saveAsBtn = document.getElementById('saveAsBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const editorContent = document.getElementById('editorContent');
+
+    // ---- Web Serial Communication ----
+    async function connectDevice() {
+      if (!('serial' in navigator)) {
+        alert('Web Serial API not supported in this browser. Try Chrome / Edge.');
+        return;
+      }
+
+      try {
+        state.port = await navigator.serial.requestPort();
+        await state.port.open({ baudRate: 115200 });
+
+        const encoder = new TextEncoderStream();
+        state.writableClosed = encoder.readable.pipeTo(state.port.writable);
+        state.writer = encoder.writable.getWriter();
+
+        const decoder = new TextDecoderStream();
+        state.readableClosed = state.port.readable.pipeTo(decoder.writable);
+        state.reader = decoder.readable.getReader();
+
+        state.connected = true;
+        updateConnectionStatus();
+
+        // Enter raw REPL mode
+        await enterRawREPL();
+
+        // Load files
+        await loadFileList();
+      } catch (error) {
+        console.error('Connection error:', error);
+        alert('Failed to connect: ' + error.message);
+      }
+    }
+
+    async function disconnectDevice() {
+      if (state.port) {
+        try {
+          if (state.writer) {
+            await state.writer.close();
+            await state.writableClosed;
+          }
+          if (state.reader) {
+            await state.reader.cancel();
+            await state.readableClosed;
+          }
+          await state.port.close();
+        } catch (e) {
+          console.error('Error closing device:', e);
+        }
+        state.port = null;
+        state.writer = null;
+        state.reader = null;
+        state.connected = false;
+        state.files = [];
+        updateConnectionStatus();
+        clearEditor();
+        renderFileList();
+      }
+    }
+
+    async function send(cmd) {
+      await state.writer.write(cmd + '\r\n');
+    }
+
+    async function readUntil(marker, timeout = 5000) {
+      let buffer = '';
+      const startTime = Date.now();
+
+      while (true) {
+        if (Date.now() - startTime > timeout) {
+          throw new Error('Read timeout');
+        }
+
+        const { value, done } = await state.reader.read();
+        if (done) break;
+
+        buffer += value;
+
+        if (buffer.includes(marker)) {
+          return buffer;
+        }
+      }
+
+      return buffer;
+    }
+
+    async function enterRawREPL() {
+      // Send Ctrl-C to interrupt any running program
+      await send('\x03');
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Send Ctrl-A to enter raw REPL
+      await send('\x01');
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Clear any initial output
+      try {
+        await readUntil('raw REPL; CTRL-B to exit\r\n>', 2000);
+      } catch (e) {
+        console.warn('Could not enter raw REPL cleanly:', e);
+      }
+    }
+
+    async function execPython(code) {
+      // Send the code
+      await send(code);
+
+      // Send Ctrl-D to execute
+      await send('\x04');
+
+      // Wait for execution to complete
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Read output until we get OK or error marker
+      let output = '';
+      try {
+        output = await readUntil('\x04', 3000);
+      } catch (e) {
+        console.error('Error reading output:', e);
+      }
+
+      // Parse output (remove control characters and markers)
+      const lines = output.split('\n');
+      const result = [];
+      let inOutput = false;
+
+      for (const line of lines) {
+        if (line.includes('OK')) break;
+        if (inOutput || line.trim()) {
+          inOutput = true;
+          result.push(line);
+        }
+      }
+
+      return result.join('\n').replace(/\x04/g, '').trim();
+    }
+
+    // ---- File Operations ----
+    async function loadFileList() {
+      try {
+        const code = `
+import os
+def list_files(path):
+    try:
+        items = os.listdir(path)
+        for item in sorted(items):
+            full_path = path + ('/' if path != '/' else '') + item
+            try:
+                stat = os.stat(full_path)
+                is_dir = stat[0] & 0x4000
+                size = stat[6] if not is_dir else 0
+                print(f"{item}|{'d' if is_dir else 'f'}|{size}")
+            except:
+                print(f"{item}|f|0")
+    except Exception as e:
+        print(f"ERROR: {e}")
+list_files('${state.currentDir}')
+`;
+
+        const output = await execPython(code);
+
+        if (!output || output.includes('ERROR')) {
+          console.error('Error listing files:', output);
+          state.files = [];
+          renderFileList();
+          return;
+        }
+
+        state.files = [];
+        const lines = output.split('\n');
+
+        for (const line of lines) {
+          if (!line.trim() || line.includes('>>>')) continue;
+
+          const parts = line.split('|');
+          if (parts.length === 3) {
+            const [name, type, size] = parts;
+            state.files.push({
+              name: name.trim(),
+              type: type === 'd' ? 'directory' : 'file',
+              size: parseInt(size) || 0,
+              path: state.currentDir + (state.currentDir === '/' ? '' : '/') + name.trim()
+            });
+          }
+        }
+
+        renderFileList();
+      } catch (error) {
+        console.error('Error loading file list:', error);
+        alert('Failed to load files: ' + error.message);
+      }
+    }
+
+    function renderFileList() {
+      if (state.files.length === 0) {
+        fileList.innerHTML = '<div class="placeholder">No files found</div>';
+        fileCount.textContent = '—';
+        return;
+      }
+
+      fileCount.textContent = `${state.files.length} items`;
+
+      fileList.innerHTML = '';
+      state.files.forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'file-item' + (file.type === 'directory' ? ' directory' : '');
+        if (state.currentFile === file.path) {
+          item.classList.add('selected');
+        }
+
+        const icon = file.type === 'directory' ? '📁' : '📄';
+
+        item.innerHTML = `
+          <span class="file-icon">${icon}</span>
+          <span>${file.name}</span>
+        `;
+
+        if (file.type === 'file') {
+          item.addEventListener('click', () => openFile(file));
+        } else {
+          item.addEventListener('click', () => {
+            state.currentDir = file.path;
+            loadFileList();
+          });
+        }
+
+        fileList.appendChild(item);
+      });
+
+      // Add parent directory option if not at root
+      if (state.currentDir !== '/') {
+        const parentItem = document.createElement('div');
+        parentItem.className = 'file-item directory';
+        parentItem.innerHTML = `
+          <span class="file-icon">📁</span>
+          <span>..</span>
+        `;
+        parentItem.addEventListener('click', () => {
+          const parts = state.currentDir.split('/').filter(p => p);
+          parts.pop();
+          state.currentDir = '/' + parts.join('/');
+          if (state.currentDir !== '/' && !state.currentDir.startsWith('/')) {
+            state.currentDir = '/' + state.currentDir;
+          }
+          loadFileList();
+        });
+        fileList.insertBefore(parentItem, fileList.firstChild);
+      }
+    }
+
+    async function openFile(file) {
+      if (state.modified && !confirm('You have unsaved changes. Discard them?')) {
+        return;
+      }
+
+      state.currentFile = file.path;
+
+      try {
+        const content = await readFileFromDevice(file.path);
+        state.currentContent = content;
+        state.originalContent = content;
+        state.modified = false;
+
+        showEditor(content, file.name);
+        renderFileList();
+      } catch (error) {
+        console.error('Error opening file:', error);
+        alert('Failed to open file: ' + error.message);
+      }
+    }
+
+    async function readFileFromDevice(path) {
+      const code = `
+with open('${path.replace(/'/g, "\\'")}', 'r') as f:
+    content = f.read()
+    # Print in chunks to avoid buffer issues
+    chunk_size = 256
+    for i in range(0, len(content), chunk_size):
+        print(content[i:i+chunk_size], end='')
+`;
+
+      const output = await execPython(code);
+      return output;
+    }
+
+    async function writeFileToDevice(path, content) {
+      try {
+        // Escape content for Python string
+        const escaped = content
+          .replace(/\\/g, '\\\\')
+          .replace(/'/g, "\\'")
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t');
+
+        // Write in chunks to avoid buffer issues
+        const chunkSize = 200;
+        const chunks = [];
+        for (let i = 0; i < escaped.length; i += chunkSize) {
+          chunks.push(escaped.slice(i, i + chunkSize));
+        }
+
+        let code = `
+with open('${path.replace(/'/g, "\\'")}', 'w') as f:
+`;
+
+        for (const chunk of chunks) {
+          code += `    f.write('${chunk}')\n`;
+        }
+
+        code += `print('WRITTEN')`;
+
+        const output = await execPython(code);
+
+        if (!output.includes('WRITTEN')) {
+          throw new Error('File write failed');
+        }
+
+        state.originalContent = content;
+        state.modified = false;
+        updateModifiedIndicator();
+
+        // Refresh file list to update sizes
+        await loadFileList();
+
+        alert('File saved successfully!');
+      } catch (error) {
+        console.error('Error writing file:', error);
+        alert('Failed to save file: ' + error.message);
+      }
+    }
+
+    async function deleteFileFromDevice(path) {
+      if (!confirm(`Are you sure you want to delete ${path}?`)) {
+        return;
+      }
+
+      try {
+        const code = `
+import os
+os.remove('${path.replace(/'/g, "\\'")}')
+print('DELETED')
+`;
+
+        const output = await execPython(code);
+
+        if (!output.includes('DELETED')) {
+          throw new Error('File deletion failed');
+        }
+
+        clearEditor();
+        await loadFileList();
+
+        alert('File deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting file:', error);
+        alert('Failed to delete file: ' + error.message);
+      }
+    }
+
+    // ---- Editor ----
+    function showEditor(content, filename) {
+      editorContent.innerHTML = '<textarea id="editor" spellcheck="false"></textarea>';
+      const editor = document.getElementById('editor');
+      editor.value = content;
+      editor.addEventListener('input', handleEditorChange);
+
+      fileName.textContent = filename;
+
+      // Enable editor buttons
+      saveBtn.disabled = false;
+      saveAsBtn.disabled = false;
+      downloadBtn.disabled = false;
+      deleteBtn.disabled = false;
+
+      updateModifiedIndicator();
+    }
+
+    function clearEditor() {
+      editorContent.innerHTML = '<div class="placeholder">Select a file from the browser to start editing</div>';
+      fileName.textContent = 'No file selected';
+      state.currentFile = null;
+      state.currentContent = '';
+      state.originalContent = '';
+      state.modified = false;
+
+      // Disable editor buttons
+      saveBtn.disabled = true;
+      saveAsBtn.disabled = true;
+      downloadBtn.disabled = true;
+      deleteBtn.disabled = true;
+
+      updateModifiedIndicator();
+    }
+
+    function handleEditorChange(e) {
+      state.currentContent = e.target.value;
+      state.modified = state.currentContent !== state.originalContent;
+      updateModifiedIndicator();
+    }
+
+    function updateModifiedIndicator() {
+      modifiedIndicator.style.display = state.modified ? 'inline-block' : 'none';
+      saveBtn.disabled = !state.modified || !state.connected;
+    }
+
+    // ---- UI Updates ----
+    function updateConnectionStatus() {
+      if (state.connected) {
+        statusPill.textContent = 'Connected';
+        statusPill.className = 'status-pill status-connected';
+        connectBtn.textContent = 'Disconnect';
+        connectBtn.classList.remove('primary');
+        connectBtn.classList.add('danger');
+        refreshBtn.disabled = false;
+        newFileBtn.disabled = false;
+      } else {
+        statusPill.textContent = 'Disconnected';
+        statusPill.className = 'status-pill status-disconnected';
+        connectBtn.textContent = 'Connect Device';
+        connectBtn.classList.remove('danger');
+        connectBtn.classList.add('primary');
+        refreshBtn.disabled = true;
+        newFileBtn.disabled = true;
+
+        fileList.innerHTML = '<div class="placeholder">Connect to a device to view files</div>';
+        fileCount.textContent = '—';
+      }
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // ---- Event Handlers ----
+    connectBtn.addEventListener('click', async () => {
+      if (state.connected) {
+        await disconnectDevice();
+      } else {
+        await connectDevice();
+      }
+    });
+
+    refreshBtn.addEventListener('click', async () => {
+      await loadFileList();
+    });
+
+    newFileBtn.addEventListener('click', () => {
+      const filename = prompt('Enter filename (e.g., mycode.py):');
+      if (!filename) return;
+
+      const path = state.currentDir + (state.currentDir === '/' ? '' : '/') + filename;
+
+      // Open the new file
+      state.currentFile = path;
+      state.currentContent = '';
+      state.originalContent = '';
+      state.modified = true;
+
+      showEditor('', filename);
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      if (!state.currentFile) return;
+      await writeFileToDevice(state.currentFile, state.currentContent);
+    });
+
+    saveAsBtn.addEventListener('click', async () => {
+      const filename = prompt('Save as (filename):', state.currentFile ? state.currentFile.split('/').pop() : 'newfile.py');
+      if (!filename) return;
+
+      const path = state.currentDir + (state.currentDir === '/' ? '' : '/') + filename;
+      await writeFileToDevice(path, state.currentContent);
+
+      state.currentFile = path;
+      fileName.textContent = filename;
+
+      await loadFileList();
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      const blob = new Blob([state.currentContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = state.currentFile ? state.currentFile.split('/').pop() : 'file.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      if (!state.currentFile) return;
+      await deleteFileFromDevice(state.currentFile);
+    });
+
+    // Warn on page unload if there are unsaved changes
+    window.addEventListener('beforeunload', (e) => {
+      if (state.modified) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+
+    // ---- Initialize ----
+    updateConnectionStatus();
+  </script>
+</body>
+</html>
