@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>github-code Web Component</title>
+    <script type="module" src="./github-code.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f6f8fa;
+        color: #24292f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      main {
+        width: min(100% - 2rem, 1040px);
+        margin: 0 auto;
+        padding: 2rem 0;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 0.75rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.5rem, 3vw, 2.25rem);
+        line-height: 1.1;
+        letter-spacing: 0;
+      }
+
+      .intro {
+        max-width: 54rem;
+        margin: 0 0 1.2rem;
+        color: #57606a;
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+
+      .download {
+        flex: 0 0 auto;
+        color: #0969da;
+        font-size: 0.875rem;
+        font-weight: 700;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+
+      .download:hover {
+        text-decoration: underline;
+      }
+
+      .download:focus-visible {
+        border-radius: 4px;
+        outline: 3px solid rgba(9, 105, 218, 0.2);
+        outline-offset: 3px;
+      }
+
+      form {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.65rem;
+        margin-bottom: 1rem;
+      }
+
+      label {
+        display: grid;
+        gap: 0.35rem;
+        color: #57606a;
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+
+      input {
+        min-width: 0;
+        width: 100%;
+        height: 2.6rem;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 0 0.8rem;
+        background: #ffffff;
+        color: #24292f;
+        font: inherit;
+      }
+
+      input:focus {
+        border-color: #0969da;
+        outline: 3px solid rgba(9, 105, 218, 0.18);
+      }
+
+      button {
+        align-self: end;
+        height: 2.6rem;
+        border: 1px solid #1f883d;
+        border-radius: 8px;
+        padding: 0 0.95rem;
+        background: #1f883d;
+        color: #ffffff;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:focus-visible {
+        outline: 3px solid rgba(31, 136, 61, 0.26);
+        outline-offset: 2px;
+      }
+
+      .embed {
+        margin-top: 1rem;
+        overflow: auto;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      .embed pre {
+        margin: 0;
+        padding: 1rem;
+        color: #24292f;
+        font-family: ui-monospace, SFMono-Regular, SFMono, Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.8125rem;
+        line-height: 1.55;
+        white-space: pre-wrap;
+      }
+
+      @media (max-width: 720px) {
+        main {
+          width: min(100% - 1rem, 1040px);
+          padding: 1rem 0;
+        }
+
+        header {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 0.45rem;
+        }
+
+        form {
+          grid-template-columns: 1fr;
+          display: grid;
+        }
+
+        button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>github-code</h1>
+        <a class="download" href="./github-code.js">github-code.js</a>
+      </header>
+
+      <p class="intro">
+        Embed a small, unhighlighted slice of a GitHub file from a regular
+        <code>github.com</code> URL with a line fragment. The demo URL is saved
+        in this page&rsquo;s fragment, so bookmarked examples reopen the same code.
+      </p>
+
+      <form id="demo-form">
+        <label>
+          GitHub URL
+          <input
+            id="href"
+            type="url"
+            value="https://github.com/simonw/tools/blob/c0f6ad090bce269251e21d98457cfe1a32fc0a19/build_index.py#L33-L54"
+            spellcheck="false"
+          >
+        </label>
+        <button type="submit">Load</button>
+      </form>
+
+      <github-code
+        id="preview"
+        href="https://github.com/simonw/tools/blob/c0f6ad090bce269251e21d98457cfe1a32fc0a19/build_index.py#L33-L54"
+      ></github-code>
+
+      <div class="embed" aria-label="Embed code">
+        <pre><code id="embed-code">&lt;script type="module" src="./github-code.js"&gt;&lt;/script&gt;
+&lt;github-code href="https://github.com/simonw/tools/blob/c0f6ad090bce269251e21d98457cfe1a32fc0a19/build_index.py#L33-L54"&gt;&lt;/github-code&gt;</code></pre>
+      </div>
+    </main>
+
+    <script>
+      const form = document.querySelector("#demo-form");
+      const input = document.querySelector("#href");
+      const preview = document.querySelector("#preview");
+      const embedCode = document.querySelector("#embed-code");
+      const defaultHref = input.value;
+      const initialHref = getHrefFromHash();
+
+      loadHref(initialHref || defaultHref, { updateHash: Boolean(initialHref) });
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        loadHref(input.value.trim(), { updateHash: true });
+      });
+
+      window.addEventListener("hashchange", () => {
+        const href = getHrefFromHash();
+        if (href) {
+          loadHref(href, { updateHash: false });
+        }
+      });
+
+      function loadHref(href, { updateHash }) {
+        const scriptTag = '<script type="module" src="./github-code.js"></' + "script>";
+        input.value = href;
+        preview.setAttribute("href", href);
+        embedCode.textContent = `${scriptTag}
+<github-code href="${escapeAttribute(href)}"></github-code>`;
+
+        if (updateHash) {
+          history.replaceState(null, "", `#${encodeURIComponent(href)}`);
+        }
+      }
+
+      function getHrefFromHash() {
+        if (window.location.hash.length <= 1) return "";
+
+        try {
+          const href = decodeURIComponent(window.location.hash.slice(1));
+          return href.startsWith("http://") || href.startsWith("https://") ? href : "";
+        } catch {
+          return "";
+        }
+      }
+
+      function escapeAttribute(value) {
+        return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+      }
+    </script>
+  </body>
+</html>
