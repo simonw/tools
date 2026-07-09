@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVG Animation Editor</title>
+<style>
+* { box-sizing: border-box; }
+:root {
+  --bg: #17181d;
+  --panel: #1f2027;
+  --panel2: #24252d;
+  --border: #33343e;
+  --text: #d7dae2;
+  --dim: #8b8f9c;
+  --accent: #4f8ef7;
+  --accent2: #ffd34d;
+  --danger: #ff5470;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 13px;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+button:hover { background: #2d2e38; }
+button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+input[type=text], input[type=number], select, textarea {
+  background: #15161b;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+input[type=number] { width: 62px; }
+input[type=color] {
+  width: 28px; height: 22px; padding: 0; border: 1px solid var(--border);
+  border-radius: 4px; background: none; cursor: pointer;
+}
+input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); }
+label { user-select: none; }
+
+/* ---------- toolbar ---------- */
+#toolbar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 7px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+#toolbar h1 { font-size: 14px; margin: 0 10px 0 0; font-weight: 600; white-space: nowrap; }
+#toolbar h1 span { color: var(--accent); }
+.tgroup { display: flex; gap: 4px; align-items: center; padding: 0 8px; border-right: 1px solid var(--border); }
+.tgroup:last-child { border-right: none; }
+.tbtn { min-width: 32px; text-align: center; }
+.tbtn small { display: block; font-size: 9px; color: var(--dim); }
+.tbtn.active small { color: #dce9ff; }
+.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--dim); cursor: pointer; }
+.chk input { accent-color: var(--accent); }
+
+/* ---------- main area ---------- */
+#main { flex: 1; display: flex; min-height: 0; }
+#stageWrap {
+  flex: 1; overflow: auto; position: relative;
+  display: grid; place-items: center; padding: 28px;
+  background:
+    conic-gradient(#202127 90deg, #191a20 90deg 180deg, #202127 180deg 270deg, #191a20 270deg) 0 0 / 22px 22px;
+}
+#stageScale { transform-origin: center center; }
+svg#stage { display: block; box-shadow: 0 4px 30px rgba(0,0,0,.55); touch-action: none; }
+svg#stage text { user-select: none; }
+
+/* selection / node handles */
+.selbox { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; }
+.h { fill: #fff; stroke: var(--accent); stroke-width: 1; cursor: pointer; }
+.h-rot { fill: var(--accent2); stroke: #b7920a; cursor: grab; }
+.node { fill: #fff; stroke: var(--accent); stroke-width: 1.2; cursor: move; }
+.node.first { fill: var(--accent2); }
+.hdot { fill: var(--accent); stroke: #fff; stroke-width: 1; cursor: move; }
+.hline { stroke: var(--accent); stroke-width: 1; opacity: .6; }
+.preview { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; }
+
+/* ---------- side panel ---------- */
+#side {
+  width: 300px; min-width: 300px; background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.sect { border-bottom: 1px solid var(--border); }
+.sect h2 {
+  margin: 0; padding: 7px 10px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--dim); background: var(--panel2);
+}
+#propsBody { padding: 8px 10px; overflow-y: auto; flex: 1; }
+#layersBody { overflow-y: auto; flex: 1; }
+.prow { display: grid; grid-template-columns: 86px 1fr 24px; gap: 6px; align-items: center; margin: 5px 0; }
+.prow > label { color: var(--dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.prow .vals { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.kbtn {
+  background: none; border: none; padding: 0 2px; font-size: 14px; line-height: 1;
+  color: var(--dim); cursor: pointer;
+}
+.kbtn.has { color: var(--accent); }
+.kbtn.at { color: var(--accent2); }
+.hint { color: var(--dim); font-size: 12px; line-height: 1.5; }
+.hint kbd {
+  background: var(--panel2); border: 1px solid var(--border); border-radius: 3px;
+  padding: 0 4px; font-size: 11px;
+}
+
+/* layers */
+.layer {
+  display: flex; align-items: center; gap: 5px; padding: 4px 8px;
+  border-bottom: 1px solid #26272f; cursor: pointer; user-select: none;
+}
+.layer:hover { background: #262730; }
+.layer.sel { background: #2b3b58; }
+.layer .lname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layer .lname input { width: 100%; }
+.lbtn { background: none; border: none; padding: 1px 3px; font-size: 12px; opacity: .75; }
+.lbtn:hover { opacity: 1; background: none; }
+.lbtn.off { opacity: .25; }
+
+/* ---------- timeline ---------- */
+#timeline {
+  height: 250px; display: flex; flex-direction: column;
+  background: var(--panel); border-top: 1px solid var(--border);
+}
+#transport {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 10px; border-bottom: 1px solid var(--border);
+}
+#timecode { font-variant-numeric: tabular-nums; min-width: 88px; color: var(--accent2); }
+#tlBody { flex: 1; overflow: auto; position: relative; }
+#tlContent { position: relative; user-select: none; }
+.tl-row { display: flex; height: 26px; border-bottom: 1px solid #26272f; }
+.tl-row.shape-row { background: #22232b; }
+.tl-label {
+  width: 200px; min-width: 200px; position: sticky; left: 0; z-index: 3;
+  background: var(--panel); display: flex; align-items: center; gap: 5px;
+  padding: 0 8px; border-right: 1px solid var(--border);
+  font-size: 12px; overflow: hidden; white-space: nowrap; cursor: pointer;
+}
+.shape-row .tl-label { background: #22232b; font-weight: 600; }
+.tl-label .caret { width: 12px; color: var(--dim); font-size: 10px; }
+.tl-label .pname { color: var(--dim); font-weight: 400; padding-left: 16px; }
+.tl-track { position: relative; flex: 1; cursor: text; }
+#rulerRow { height: 24px; position: sticky; top: 0; z-index: 5; background: var(--panel2); }
+#rulerRow .tl-label { background: var(--panel2); cursor: default; }
+#ruler { cursor: ew-resize; }
+.tick { position: absolute; bottom: 0; width: 1px; height: 6px; background: #4a4b57; }
+.tick.major { height: 11px; background: #6b6d7c; }
+.tick-lab { position: absolute; top: 1px; font-size: 10px; color: var(--dim); transform: translateX(3px); }
+.kf {
+  position: absolute; width: 9px; height: 9px; top: 8px; margin-left: -4.5px;
+  transform: rotate(45deg); background: #93a4bd; border: 1px solid #c9d4e4;
+  cursor: ew-resize; z-index: 2;
+}
+.kf.shape-kf { background: #6f7482; border-color: #9aa0af; }
+.kf.sel { background: var(--accent2); border-color: #fff; }
+#playhead {
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: var(--danger); z-index: 4; pointer-events: none;
+}
+#playhead::before {
+  content: ""; position: absolute; top: 0; left: -5px;
+  border: 5.5px solid transparent; border-top: 8px solid var(--danger);
+}
+
+/* ---------- dialogs ---------- */
+dialog {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px; max-width: min(860px, 92vw); width: 860px;
+}
+dialog::backdrop { background: rgba(0,0,0,.6); }
+dialog h2 { margin: 0 0 10px; font-size: 16px; }
+#exportPreviewWrap {
+  background: conic-gradient(#26272e 90deg, #1c1d24 90deg 180deg, #26272e 180deg 270deg, #1c1d24 270deg) 0 0 / 18px 18px;
+  border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+  display: grid; place-items: center; max-height: 46vh; overflow: auto; margin-bottom: 10px;
+}
+#exportPreviewWrap svg { max-width: 100%; height: auto; }
+#exportCode {
+  width: 100%; height: 130px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; white-space: pre; margin-bottom: 10px;
+}
+.dlgrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+
+@media (max-width: 900px) {
+  #side { width: 240px; min-width: 240px; }
+  .tl-label { width: 140px; min-width: 140px; }
+}
+</style>
+</head>
+<body>
+
+<header id="toolbar">
+  <h1><span>&#9679;</span> SVG Animation Editor</h1>
+  <div class="tgroup" id="toolButtons">
+    <button class="tbtn" data-tool="select" title="Select / move / resize (V)">&#10548;<small>select</small></button>
+    <button class="tbtn" data-tool="node" title="Edit anchor points (A)">&#9998;<small>nodes</small></button>
+    <button class="tbtn" data-tool="pen" title="Pen: click to add points, drag for curves (P)">&#9997;<small>pen</small></button>
+    <button class="tbtn" data-tool="rect" title="Rectangle (R)">&#9645;<small>rect</small></button>
+    <button class="tbtn" data-tool="ellipse" title="Ellipse (O)">&#9711;<small>ellipse</small></button>
+    <button class="tbtn" data-tool="line" title="Line (L)">&#9585;<small>line</small></button>
+    <button class="tbtn" data-tool="polygon" title="Polygon: click points, double-click to finish (Y)">&#11039;<small>poly</small></button>
+    <button class="tbtn" data-tool="text" title="Text (T)">T<small>text</small></button>
+  </div>
+  <div class="tgroup">
+    <button id="undoBtn" title="Undo (Ctrl+Z)">&#8630;</button>
+    <button id="redoBtn" title="Redo (Ctrl+Shift+Z)">&#8631;</button>
+  </div>
+  <div class="tgroup">
+    <label class="chk" title="When on, editing a shape away from its current keyframes records a new keyframe at the playhead">
+      <input type="checkbox" id="autoKey" checked> auto-key</label>
+    <label class="chk" title="Ghost the selected shape at its previous and next keyframes">
+      <input type="checkbox" id="onionSkin"> onion skin</label>
+  </div>
+  <div class="tgroup">
+    <label class="chk">canvas
+      <input type="number" id="projW" min="10" max="4000" step="10"> &times;
+      <input type="number" id="projH" min="10" max="4000" step="10"></label>
+    <label class="chk">bg <input type="color" id="projBg"></label>
+    <label class="chk">zoom
+      <select id="zoomSel">
+        <option value="0.5">50%</option><option value="0.75">75%</option>
+        <option value="1" selected>100%</option><option value="1.5">150%</option>
+        <option value="2">200%</option>
+      </select></label>
+  </div>
+  <div class="tgroup">
+    <button id="newBtn" title="Start a blank project">New</button>
+    <button id="openBtn" title="Open a saved project (.json) or import an SVG file">Open&hellip;</button>
+    <button id="saveBtn" title="Download the project as JSON">Save</button>
+    <button id="exportBtn" class="active" title="Export an animated SVG (SMIL)">Export SVG</button>
+  </div>
+</header>
+
+<div id="main">
+  <div id="stageWrap">
+    <div id="stageScale">
+      <svg id="stage" xmlns="http://www.w3.org/2000/svg">
+        <rect id="bgRect" x="0" y="0"></rect>
+        <g id="onionG"></g>
+        <g id="shapesG"></g>
+        <g id="overlayG"></g>
+      </svg>
+    </div>
+  </div>
+  <aside id="side">
+    <div class="sect" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+      <h2>Properties</h2>
+      <div id="propsBody"></div>
+    </div>
+    <div class="sect" style="display:flex;flex-direction:column;flex:0 0 auto;min-height:130px;max-height:42%;">
+      <h2>Layers</h2>
+      <div id="layersBody"></div>
+    </div>
+  </aside>
+</div>
+
+<div id="timeline">
+  <div id="transport">
+    <button id="playBtn" title="Play / pause (Space)">&#9654;</button>
+    <button id="stopBtn" title="Back to start">&#9632;</button>
+    <label class="chk"><input type="checkbox" id="loopChk" checked> loop</label>
+    <span id="timecode">0.00 / 4.00s</span>
+    <label class="chk">duration <input type="number" id="durInput" min="0.2" max="120" step="0.1" style="width:56px"> s</label>
+    <label class="chk">easing
+      <select id="easingSel" disabled title="Easing applied leaving the selected keyframe(s)">
+        <option value="">&mdash;</option>
+        <option value="0,0,1,1">linear</option>
+        <option value="0.25,0.1,0.25,1">ease</option>
+        <option value="0.42,0,1,1">ease-in</option>
+        <option value="0,0,0.58,1">ease-out</option>
+        <option value="0.42,0,0.58,1">ease-in-out</option>
+        <option value="0.5,0,0.1,1">snap</option>
+        <option value="0.7,0,1,0.3">accelerate</option>
+        <option value="0,0.7,0.3,1">decelerate</option>
+      </select></label>
+    <button id="delKfBtn" class="danger" disabled title="Delete selected keyframe(s) (Del)">delete key</button>
+    <span class="spacer"></span>
+    <label class="chk">scale <input type="range" id="tlZoom" min="40" max="400" value="120" style="width:110px"></label>
+  </div>
+  <div id="tlBody"><div id="tlContent"></div></div>
+</div>
+
+<dialog id="exportDlg">
+  <h2>Export animated SVG</h2>
+  <div class="dlgrow" style="margin-bottom:10px">
+    <label class="chk"><input type="checkbox" id="expLoop" checked> loop forever</label>
+    <label class="chk"><input type="checkbox" id="expBg" checked> include background rectangle</label>
+    <span class="hint">Uses native SMIL <code>&lt;animate&gt;</code> elements &mdash; plays in any browser, no JavaScript.</span>
+  </div>
+  <div id="exportPreviewWrap"></div>
+  <textarea id="exportCode" readonly spellcheck="false"></textarea>
+  <div class="dlgrow">
+    <button id="expDownload" class="active">Download .svg</button>
+    <button id="expCopy">Copy to clipboard</button>
+    <span id="expMsg" class="hint"></span>
+    <span class="spacer"></span>
+    <button id="expClose">Close</button>
+  </div>
+</dialog>
+
+<input type="file" id="fileInput" accept=".json,.svg,application/json,image/svg+xml" style="display:none">
+
+<script>
+'use strict';
+/* =====================================================================
+   SVG Animation Editor
+   Data model:
+     project = { width, height, background, duration, shapes: [Shape] }
+     Shape = { id, name, type, hidden, locked, tlOpen, base: {prop: value},
+               tracks: { prop: [ {t, v, e} ] } }   // e = cubic-bezier easing
+   Values are numbers, hex colors, flat point arrays [x,y,...] or anchor
+   arrays [[x,y,inDx,inDy,outDx,outDy], ...]. Tracks are kept sorted by t.
+   ===================================================================== */
+
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const DEF_EASE = [0.25, 0.1, 0.25, 1];
+const LINEAR = [0, 0, 1, 1];
+const KF_EPS = 0.0015;
+const AUTOSAVE_KEY = 'svg-animation-editor';
+
+const GEOM_PROPS = {
+  rect: ['x', 'y', 'w', 'h', 'rx'],
+  ellipse: ['cx', 'cy', 'rx', 'ry'],
+  line: ['x1', 'y1', 'x2', 'y2'],
+  polygon: ['points'],
+  path: ['anchors'],
+  text: ['x', 'y', 'fontSize'],
+};
+const STYLE_PROPS = { line: ['stroke', 'strokeWidth', 'opacity', 'rotation'] };
+const COMMON_PROPS = ['fill', 'stroke', 'strokeWidth', 'opacity', 'rotation'];
+const PROP_LABELS = {
+  x: 'x', y: 'y', w: 'width', h: 'height', rx: 'radius x', ry: 'radius y',
+  cx: 'center x', cy: 'center y', x1: 'x1', y1: 'y1', x2: 'x2', y2: 'y2',
+  points: 'points', anchors: 'path', fontSize: 'font size', fill: 'fill',
+  stroke: 'stroke', strokeWidth: 'stroke width', opacity: 'opacity', rotation: 'rotation',
+};
+
+function propLabel(sh, prop) {
+  if (prop === 'rx' && sh.type === 'rect') return 'corner radius';
+  return PROP_LABELS[prop] || prop;
+}
+
+function animProps(sh) {
+  return GEOM_PROPS[sh.type].concat(STYLE_PROPS[sh.type] || COMMON_PROPS);
+}
+
+/* ---------- state ---------- */
+let project = null;
+let tool = 'select';
+let time = 0;
+let playing = false;
+let rafId = null;
+let selId = null;          // selected shape id
+let selKfs = [];           // [{sid, prop, t}]  prop '*' never stored here
+let pxPerSec = 120;
+let zoom = 1;
+let undoStack = [], redoStack = [];
+let pending = null;        // in-progress pen/polygon creation
+let drag = null;           // active pointer interaction
+let shapeCounter = 0;
+
+const stage = $('stage'), shapesG = $('shapesG'), overlayG = $('overlayG'),
+      onionG = $('onionG'), bgRect = $('bgRect');
+
+/* ---------- small utils ---------- */
+const uid = () => 's' + (++shapeCounter) + '_' + Math.floor(performance.now() % 1e6).toString(36);
+const f2 = n => Math.round(n * 100) / 100;
+const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+const deep = v => JSON.parse(JSON.stringify(v));
+const snapT = t => Math.round(t * 100) / 100;
+
+function cubicBezierY(e, u) {
+  if (u <= 0) return 0;
+  if (u >= 1) return 1;
+  const [x1, y1, x2, y2] = e;
+  const bx = s => 3 * s * (1 - s) * (1 - s) * x1 + 3 * s * s * (1 - s) * x2 + s * s * s;
+  const by = s => 3 * s * (1 - s) * (1 - s) * y1 + 3 * s * s * (1 - s) * y2 + s * s * s;
+  let lo = 0, hi = 1, s = u;
+  for (let i = 0; i < 26; i++) {
+    if (bx(s) < u) lo = s; else hi = s;
+    s = (lo + hi) / 2;
+  }
+  return by(s);
+}
+
+function parseColor(s) {
+  if (typeof s !== 'string') return null;
+  let m = s.match(/^#([0-9a-f]{3})$/i);
+  if (m) return m[1].split('').map(c => parseInt(c + c, 16));
+  m = s.match(/^#([0-9a-f]{6})$/i);
+  if (m) return [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16));
+  m = s.match(/^rgba?\(([^)]+)\)$/i);
+  if (m) return m[1].split(',').slice(0, 3).map(n => parseFloat(n));
+  return null;
+}
+const rgbToHex = c => '#' + c.map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+
+function normColor(s) {
+  if (!s || s === 'none' || s === 'transparent') return 'none';
+  if (/^#[0-9a-f]{6}$/i.test(s)) return s.toLowerCase();
+  const ctx = normColor._ctx || (normColor._ctx = document.createElement('canvas').getContext('2d'));
+  ctx.fillStyle = '#000'; ctx.fillStyle = s;
+  const v = ctx.fillStyle;
+  const rgb = parseColor(v);
+  return rgb ? rgbToHex(rgb) : '#000000';
+}
+
+function lerpVal(a, b, w) {
+  if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * w;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    const n = Math.min(a.length, b.length);
+    const out = new Array(n);
+    for (let i = 0; i < n; i++) out[i] = lerpVal(a[i], b[i], w);
+    return out;
+  }
+  if (typeof a === 'string' && typeof b === 'string') {
+    const ca = parseColor(a), cb = parseColor(b);
+    if (ca && cb) return rgbToHex([0, 1, 2].map(i => ca[i] + (cb[i] - ca[i]) * w));
+    return w < 1 ? a : b;
+  }
+  return w < 1 ? a : b;
+}
+
+/* ---------- model ---------- */
+function blankProject() {
+  return { version: 1, width: 800, height: 500, background: '#ffffff', duration: 4, shapes: [] };
+}
+
+function getShape(id) { return project.shapes.find(s => s.id === id) || null; }
+function selShape() { return selId ? getShape(selId) : null; }
+
+function makeShape(type, geom, style) {
+  const base = Object.assign(
+    { fill: '#4f8ef7', stroke: 'none', strokeWidth: 2, opacity: 1, rotation: 0 },
+    type === 'line' ? { stroke: '#4f8ef7', fill: 'none' } : {},
+    type === 'text' ? { text: 'Text', fontFamily: 'sans-serif', fontSize: 32, stroke: 'none' } : {},
+    geom, style || {});
+  const n = project.shapes.filter(s => s.type === type).length + 1;
+  return {
+    id: uid(), type, name: type[0].toUpperCase() + type.slice(1) + ' ' + n,
+    hidden: false, locked: false, tlOpen: false, base, tracks: {},
+  };
+}
+
+function valueAt(sh, prop, t) {
+  const tr = sh.tracks[prop];
+  if (!tr || !tr.length) return sh.base[prop];
+  if (t <= tr[0].t) return tr[0].v;
+  const last = tr[tr.length - 1];
+  if (t >= last.t) return last.v;
+  let i = 0;
+  while (i < tr.length - 1 && tr[i + 1].t <= t) i++;
+  const a = tr[i], b = tr[i + 1];
+  const u = (t - a.t) / (b.t - a.t);
+  return lerpVal(a.v, b.v, cubicBezierY(a.e || DEF_EASE, u));
+}
+
+function geomAt(sh, t) {
+  const g = {};
+  for (const p of GEOM_PROPS[sh.type]) g[p] = valueAt(sh, p, t);
+  return g;
+}
+
+function upsertKf(sh, prop, t, v, e) {
+  const tr = sh.tracks[prop] || (sh.tracks[prop] = []);
+  const hit = tr.find(k => Math.abs(k.t - t) < KF_EPS);
+  if (hit) { hit.v = deep(v); if (e) hit.e = e.slice(); return hit; }
+  const kf = { t, v: deep(v), e: (e || DEF_EASE).slice() };
+  tr.push(kf);
+  tr.sort((a, b) => a.t - b.t);
+  return kf;
+}
+
+function removeKf(sh, prop, t) {
+  const tr = sh.tracks[prop];
+  if (!tr) return;
+  const i = tr.findIndex(k => Math.abs(k.t - t) < KF_EPS);
+  if (i >= 0) tr.splice(i, 1);
+  if (!tr.length) delete sh.tracks[prop];
+}
+
+function kfAt(sh, prop, t) {
+  const tr = sh.tracks[prop];
+  return tr ? tr.find(k => Math.abs(k.t - t) < KF_EPS) : null;
+}
+
+/* Core write: respects auto-key. Creating a brand-new track away from t=0
+   first records the current pose at t=0 so the original drawing tweens. */
+function setProp(sh, prop, v) {
+  const tr = sh.tracks[prop];
+  const autoKey = $('autoKey').checked;
+  if ((tr && tr.length) || (autoKey && time > KF_EPS)) {
+    if ((!tr || !tr.length) && time > KF_EPS) {
+      upsertKf(sh, prop, 0, valueAt(sh, prop, 0));
+    }
+    upsertKf(sh, prop, snapT(time), v);
+  } else {
+    sh.base[prop] = deep(v);
+  }
+}
+
+function shapeKfTimes(sh) {
+  const set = new Set();
+  for (const p in sh.tracks) for (const k of sh.tracks[p]) set.add(snapT(k.t));
+  return [...set].sort((a, b) => a - b);
+}
+
+/* ---------- geometry helpers ---------- */
+function anchorsToD(anchors, closed) {
+  if (!anchors || !anchors.length) return '';
+  const F = f2;
+  let d = 'M ' + F(anchors[0][0]) + ' ' + F(anchors[0][1]);
+  const n = anchors.length, segs = closed ? n : n - 1;
+  for (let i = 0; i < segs; i++) {
+    const a = anchors[i], b = anchors[(i + 1) % n];
+    d += ' C ' + F(a[0] + a[4]) + ' ' + F(a[1] + a[5]) +
+         ' ' + F(b[0] + b[2]) + ' ' + F(b[1] + b[3]) +
+         ' ' + F(b[0]) + ' ' + F(b[1]);
+  }
+  if (closed) d += ' Z';
+  return d;
+}
+const pointsToStr = pts => {
+  let s = '';
+  for (let i = 0; i < pts.length; i += 2) s += (i ? ' ' : '') + f2(pts[i]) + ',' + f2(pts[i + 1]);
+  return s;
+};
+
+function bboxOf(sh, g) {
+  switch (sh.type) {
+    case 'rect': return { x: g.x, y: g.y, w: g.w, h: g.h };
+    case 'ellipse': return { x: g.cx - g.rx, y: g.cy - g.ry, w: g.rx * 2, h: g.ry * 2 };
+    case 'line': {
+      const x = Math.min(g.x1, g.x2), y = Math.min(g.y1, g.y2);
+      return { x, y, w: Math.abs(g.x2 - g.x1), h: Math.abs(g.y2 - g.y1) };
+    }
+    case 'polygon': {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (let i = 0; i < g.points.length; i += 2) {
+        x0 = Math.min(x0, g.points[i]); x1 = Math.max(x1, g.points[i]);
+        y0 = Math.min(y0, g.points[i + 1]); y1 = Math.max(y1, g.points[i + 1]);
+      }
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    }
+    case 'path': {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const a of g.anchors) {
+        for (const [px, py] of [[a[0], a[1]], [a[0] + a[2], a[1] + a[3]], [a[0] + a[4], a[1] + a[5]]]) {
+          x0 = Math.min(x0, px); x1 = Math.max(x1, px);
+          y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+        }
+      }
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    }
+    case 'text': {
+      const fs = g.fontSize, w = (sh.base.text || '').length * fs * 0.55;
+      return { x: g.x, y: g.y - fs, w: Math.max(w, fs), h: fs * 1.25 };
+    }
+  }
+}
+const centerOf = (sh, g) => { const b = bboxOf(sh, g); return { x: b.x + b.w / 2, y: b.y + b.h / 2 }; };
+
+function translateGeom(sh, g, dx, dy) {
+  const out = deep(g);
+  switch (sh.type) {
+    case 'rect': out.x += dx; out.y += dy; break;
+    case 'ellipse': out.cx += dx; out.cy += dy; break;
+    case 'line': out.x1 += dx; out.y1 += dy; out.x2 += dx; out.y2 += dy; break;
+    case 'polygon':
+      for (let i = 0; i < out.points.length; i += 2) { out.points[i] += dx; out.points[i + 1] += dy; }
+      break;
+    case 'path': for (const a of out.anchors) { a[0] += dx; a[1] += dy; } break;
+    case 'text': out.x += dx; out.y += dy; break;
+  }
+  return out;
+}
+
+function scaleGeom(sh, g, ox, oy, sx, sy) {
+  const out = deep(g);
+  const mx = x => ox + (x - ox) * sx, my = y => oy + (y - oy) * sy;
+  switch (sh.type) {
+    case 'rect':
+      out.x = mx(g.x); out.y = my(g.y); out.w = g.w * sx; out.h = g.h * sy;
+      if (out.w < 0) { out.x += out.w; out.w = -out.w; }
+      if (out.h < 0) { out.y += out.h; out.h = -out.h; }
+      out.rx = g.rx * Math.abs(sx);
+      break;
+    case 'ellipse':
+      out.cx = mx(g.cx); out.cy = my(g.cy);
+      out.rx = Math.abs(g.rx * sx); out.ry = Math.abs(g.ry * sy);
+      break;
+    case 'line':
+      out.x1 = mx(g.x1); out.y1 = my(g.y1); out.x2 = mx(g.x2); out.y2 = my(g.y2);
+      break;
+    case 'polygon':
+      for (let i = 0; i < out.points.length; i += 2) {
+        out.points[i] = mx(g.points[i]); out.points[i + 1] = my(g.points[i + 1]);
+      }
+      break;
+    case 'path':
+      out.anchors = g.anchors.map(a => [mx(a[0]), my(a[1]), a[2] * sx, a[3] * sy, a[4] * sx, a[5] * sy]);
+      break;
+    case 'text':
+      out.x = mx(g.x); out.y = my(g.y);
+      out.fontSize = Math.max(2, Math.abs(g.fontSize * sy));
+      break;
+  }
+  return out;
+}
+
+/* ---------- undo / autosave ---------- */
+function pushUndo() {
+  undoStack.push(JSON.stringify(project));
+  if (undoStack.length > 120) undoStack.shift();
+  redoStack.length = 0;
+  updateUndoButtons();
+}
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(JSON.stringify(project));
+  project = JSON.parse(undoStack.pop());
+  afterProjectSwap();
+}
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(JSON.stringify(project));
+  project = JSON.parse(redoStack.pop());
+  afterProjectSwap();
+}
+function updateUndoButtons() {
+  $('undoBtn').disabled = !undoStack.length;
+  $('redoBtn').disabled = !redoStack.length;
+}
+function afterProjectSwap() {
+  if (selId && !getShape(selId)) selId = null;
+  selKfs = [];
+  time = clamp(time, 0, project.duration);
+  updateUndoButtons();
+  renderAll();
+  scheduleSave();
+}
+
+let saveTimer = null;
+function saveNow() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(project)); } catch (e) { /* full */ }
+}
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, 400);
+}
+window.addEventListener('beforeunload', () => { if (saveTimer) saveNow(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && saveTimer) saveNow();
+});
+
+/* =====================================================================
+   STAGE RENDERING
+   ===================================================================== */
+function shapeNode(sh, t, ghost) {
+  const v = p => valueAt(sh, p, t);
+  let el;
+  const g = geomAt(sh, t);
+  switch (sh.type) {
+    case 'rect':
+      el = document.createElementNS(NS, 'rect');
+      el.setAttribute('x', g.x); el.setAttribute('y', g.y);
+      el.setAttribute('width', Math.max(0, g.w)); el.setAttribute('height', Math.max(0, g.h));
+      if (g.rx > 0) el.setAttribute('rx', g.rx);
+      break;
+    case 'ellipse':
+      el = document.createElementNS(NS, 'ellipse');
+      el.setAttribute('cx', g.cx); el.setAttribute('cy', g.cy);
+      el.setAttribute('rx', Math.max(0, g.rx)); el.setAttribute('ry', Math.max(0, g.ry));
+      break;
+    case 'line':
+      el = document.createElementNS(NS, 'line');
+      for (const p of ['x1', 'y1', 'x2', 'y2']) el.setAttribute(p, g[p]);
+      break;
+    case 'polygon':
+      el = document.createElementNS(NS, 'polygon');
+      el.setAttribute('points', pointsToStr(g.points));
+      break;
+    case 'path':
+      el = document.createElementNS(NS, 'path');
+      el.setAttribute('d', anchorsToD(g.anchors, sh.base.closed));
+      break;
+    case 'text':
+      el = document.createElementNS(NS, 'text');
+      el.setAttribute('x', g.x); el.setAttribute('y', g.y);
+      el.setAttribute('font-size', g.fontSize);
+      el.setAttribute('font-family', sh.base.fontFamily || 'sans-serif');
+      el.textContent = sh.base.text || '';
+      break;
+  }
+  const fill = sh.type === 'line' ? 'none' : v('fill');
+  el.setAttribute('fill', fill);
+  const stroke = v('stroke');
+  if (stroke && stroke !== 'none') {
+    el.setAttribute('stroke', stroke);
+    el.setAttribute('stroke-width', v('strokeWidth'));
+    el.setAttribute('stroke-linecap', 'round');
+    el.setAttribute('stroke-linejoin', 'round');
+  } else if (sh.type === 'line' || (fill === 'none')) {
+    el.setAttribute('stroke', '#888');
+    el.setAttribute('stroke-width', 1);
+  }
+  const rot = v('rotation') || 0;
+  if (rot) {
+    const c = centerOf(sh, g);
+    el.setAttribute('transform', `rotate(${f2(rot)} ${f2(c.x)} ${f2(c.y)})`);
+  }
+  if (ghost) {
+    el.setAttribute('opacity', (v('opacity') ?? 1) * 0.28);
+    el.setAttribute('pointer-events', 'none');
+  } else {
+    el.setAttribute('opacity', v('opacity') ?? 1);
+    el.setAttribute('data-id', sh.id);
+    if (sh.locked) el.setAttribute('pointer-events', 'none');
+  }
+  return el;
+}
+
+function renderStage() {
+  stage.setAttribute('width', project.width);
+  stage.setAttribute('height', project.height);
+  stage.setAttribute('viewBox', `0 0 ${project.width} ${project.height}`);
+  bgRect.setAttribute('width', project.width);
+  bgRect.setAttribute('height', project.height);
+  bgRect.setAttribute('fill', project.background);
+  $('stageScale').style.transform = zoom === 1 ? '' : `scale(${zoom})`;
+
+  const nodes = [];
+  for (const sh of project.shapes) if (!sh.hidden) nodes.push(shapeNode(sh, time));
+  shapesG.replaceChildren(...nodes);
+  renderOnion();
+  renderOverlay();
+}
+
+function renderOnion() {
+  const ghosts = [];
+  const sh = selShape();
+  if ($('onionSkin').checked && sh && !sh.hidden) {
+    const times = shapeKfTimes(sh);
+    const prev = [...times].reverse().find(t => t < time - KF_EPS);
+    const next = times.find(t => t > time + KF_EPS);
+    for (const t of [prev, next]) if (t !== undefined) ghosts.push(shapeNode(sh, t, true));
+  }
+  onionG.replaceChildren(...ghosts);
+}
+
+/* selection handles + node editing overlay + creation previews */
+const HANDLE_DEFS = [
+  ['nw', 0, 0], ['n', .5, 0], ['ne', 1, 0], ['e', 1, .5],
+  ['se', 1, 1], ['s', .5, 1], ['sw', 0, 1], ['w', 0, .5],
+];
+
+function renderOverlay() {
+  const parts = [];
+  const sh = selShape();
+  const mk = (tag, attrs) => {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  };
+
+  if (sh && !sh.hidden && tool === 'select') {
+    const g = geomAt(sh, time);
+    const b = bboxOf(sh, g);
+    const rot = valueAt(sh, 'rotation', time) || 0;
+    const grp = mk('g', rot ? { transform: `rotate(${rot} ${b.x + b.w / 2} ${b.y + b.h / 2})` } : {});
+    grp.appendChild(mk('rect', { class: 'selbox', x: b.x, y: b.y, width: Math.max(0, b.w), height: Math.max(0, b.h) }));
+    const hs = 7 / zoom;
+    for (const [name, fx, fy] of HANDLE_DEFS) {
+      grp.appendChild(mk('rect', {
+        class: 'h', 'data-h': name,
+        x: b.x + b.w * fx - hs / 2, y: b.y + b.h * fy - hs / 2, width: hs, height: hs,
+      }));
+    }
+    const rx = b.x + b.w / 2, ry = b.y - 22 / zoom;
+    grp.appendChild(mk('line', { class: 'hline', x1: rx, y1: b.y, x2: rx, y2: ry }));
+    grp.appendChild(mk('circle', { class: 'h h-rot', 'data-h': 'rot', cx: rx, cy: ry, r: 5.5 / zoom }));
+    parts.push(grp);
+  }
+
+  if (sh && !sh.hidden && tool === 'node') {
+    const g = geomAt(sh, time);
+    const r = 4.5 / zoom;
+    if (sh.type === 'path') {
+      for (let i = 0; i < g.anchors.length; i++) {
+        const a = g.anchors[i];
+        for (const [part, dx, dy] of [['in', a[2], a[3]], ['out', a[4], a[5]]]) {
+          if (dx || dy) {
+            parts.push(mk('line', { class: 'hline', x1: a[0], y1: a[1], x2: a[0] + dx, y2: a[1] + dy }));
+            parts.push(mk('circle', { class: 'hdot', 'data-n': i, 'data-part': part, cx: a[0] + dx, cy: a[1] + dy, r: r * 0.75 }));
+          }
+        }
+      }
+      for (let i = 0; i < g.anchors.length; i++) {
+        const a = g.anchors[i];
+        parts.push(mk('rect', {
+          class: 'node' + (i === 0 ? ' first' : ''), 'data-n': i, 'data-part': 'pt',
+          x: a[0] - r, y: a[1] - r, width: r * 2, height: r * 2,
+        }));
+      }
+    } else if (sh.type === 'polygon') {
+      for (let i = 0; i < g.points.length; i += 2) {
+        parts.push(mk('rect', {
+          class: 'node', 'data-n': i / 2, 'data-part': 'pt',
+          x: g.points[i] - r, y: g.points[i + 1] - r, width: r * 2, height: r * 2,
+        }));
+      }
+    } else if (sh.type === 'line') {
+      [[g.x1, g.y1], [g.x2, g.y2]].forEach(([px, py], i) => {
+        parts.push(mk('rect', { class: 'node', 'data-n': i, 'data-part': 'pt', x: px - r, y: py - r, width: r * 2, height: r * 2 }));
+      });
+    }
+  }
+
+  if (pending) {
+    const r = 4.5 / zoom;
+    if (pending.kind === 'pen') {
+      const preview = pending.anchors.length > 1
+        ? anchorsToD(pending.anchors, false) : '';
+      if (preview) parts.push(mk('path', { class: 'preview', d: preview }));
+      if (pending.mouse && pending.anchors.length) {
+        const a = pending.anchors[pending.anchors.length - 1];
+        parts.push(mk('path', {
+          class: 'preview',
+          d: `M ${a[0]} ${a[1]} C ${a[0] + a[4]} ${a[1] + a[5]} ${pending.mouse.x} ${pending.mouse.y} ${pending.mouse.x} ${pending.mouse.y}`,
+        }));
+      }
+      pending.anchors.forEach((a, i) => {
+        parts.push(mk('rect', {
+          class: 'node' + (i === 0 ? ' first' : ''),
+          x: a[0] - r, y: a[1] - r, width: r * 2, height: r * 2,
+        }));
+      });
+    } else if (pending.kind === 'polygon') {
+      const pts = pending.pts.concat(pending.mouse ? [pending.mouse.x, pending.mouse.y] : []);
+      if (pts.length >= 4) parts.push(mk('polyline', { class: 'preview', points: pointsToStr(pts) }));
+      for (let i = 0; i < pending.pts.length; i += 2) {
+        parts.push(mk('rect', {
+          class: 'node' + (i === 0 ? ' first' : ''),
+          x: pending.pts[i] - r, y: pending.pts[i + 1] - r, width: r * 2, height: r * 2,
+        }));
+      }
+    }
+  }
+  overlayG.replaceChildren(...parts);
+}
+
+/* =====================================================================
+   STAGE INTERACTION
+   ===================================================================== */
+function svgPoint(e) {
+  const pt = stage.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  return pt.matrixTransform(stage.getScreenCTM().inverse());
+}
+const rotatePt = (p, c, deg) => {
+  const rad = deg * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+  const dx = p.x - c.x, dy = p.y - c.y;
+  return { x: c.x + dx * cos - dy * sin, y: c.y + dx * sin + dy * cos };
+};
+
+function select(id) {
+  if (selId === id) return;
+  selId = id;
+  selKfs = [];
+  renderStage(); renderTimeline(); renderPanel(); renderLayers();
+}
+
+function applyGeom(sh, g) {
+  for (const p of GEOM_PROPS[sh.type]) setProp(sh, p, g[p]);
+}
+
+function finishPending(cancel) {
+  if (!pending) return;
+  const p = pending;
+  pending = null;
+  if (!cancel) {
+    if (p.kind === 'pen' && p.anchors.length >= 2) {
+      pushUndo();
+      const style = { stroke: '#4f8ef7' };
+      if (!p.closed) style.fill = 'none';
+      const sh = makeShape('path', { anchors: p.anchors }, style);
+      sh.base.closed = p.closed;
+      project.shapes.push(sh);
+      selId = sh.id;
+    } else if (p.kind === 'polygon' && p.pts.length >= 6) {
+      pushUndo();
+      const sh = makeShape('polygon', { points: p.pts });
+      project.shapes.push(sh);
+      selId = sh.id;
+    }
+  }
+  commitStructural();
+}
+
+stage.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const pt = svgPoint(e);
+  stage.setPointerCapture(e.pointerId);
+  const target = e.target;
+
+  if (tool === 'pen') {
+    if (!pending) pending = { kind: 'pen', anchors: [], closed: false, mouse: null };
+    const first = pending.anchors[0];
+    if (first && pending.anchors.length > 2 &&
+        Math.hypot(pt.x - first[0], pt.y - first[1]) < 8 / zoom) {
+      pending.closed = true;
+      finishPending(false);
+      return;
+    }
+    pending.anchors.push([pt.x, pt.y, 0, 0, 0, 0]);
+    drag = { kind: 'penHandle', idx: pending.anchors.length - 1, start: pt };
+    renderOverlay();
+    return;
+  }
+
+  if (tool === 'polygon') {
+    if (!pending) pending = { kind: 'polygon', pts: [], mouse: null };
+    pending.pts.push(pt.x, pt.y);
+    renderOverlay();
+    return;
+  }
+
+  if (tool === 'rect' || tool === 'ellipse' || tool === 'line') {
+    pushUndo();
+    let sh;
+    if (tool === 'rect') sh = makeShape('rect', { x: pt.x, y: pt.y, w: 0, h: 0, rx: 0 });
+    if (tool === 'ellipse') sh = makeShape('ellipse', { cx: pt.x, cy: pt.y, rx: 0, ry: 0 });
+    if (tool === 'line') sh = makeShape('line', { x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y });
+    project.shapes.push(sh);
+    selId = sh.id;
+    drag = { kind: 'create', sh, start: pt };
+    renderStage(); renderLayers();
+    return;
+  }
+
+  if (tool === 'text') {
+    pushUndo();
+    const sh = makeShape('text', { x: pt.x, y: pt.y, fontSize: 32 });
+    sh.base.fill = '#d7dae2';
+    project.shapes.push(sh);
+    selId = sh.id;
+    setTool('select');
+    commitStructural();
+    const inp = document.querySelector('#propsBody textarea');
+    if (inp) { inp.focus(); inp.select(); }
+    return;
+  }
+
+  if (tool === 'node') {
+    const sh = selShape();
+    if (sh && target.dataset.n !== undefined) {
+      pushUndo();
+      drag = { kind: 'nodeDrag', idx: +target.dataset.n, part: target.dataset.part, start: pt };
+      return;
+    }
+    const id = target.closest && target.closest('[data-id]')?.dataset.id;
+    select(id || null);
+    return;
+  }
+
+  /* select tool */
+  const h = target.dataset && target.dataset.h;
+  const sh = selShape();
+  if (h && sh) {
+    pushUndo();
+    const g = geomAt(sh, time);
+    const b = bboxOf(sh, g);
+    const rot = valueAt(sh, 'rotation', time) || 0;
+    const c = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+    if (h === 'rot') {
+      const lp = pt;
+      drag = { kind: 'rotate', c, startRot: rot, startAng: Math.atan2(lp.y - c.y, lp.x - c.x) };
+    } else {
+      drag = { kind: 'resize', h, g0: deep(g), b0: b, c, rot };
+    }
+    return;
+  }
+  const id = target.closest && target.closest('[data-id]')?.dataset.id;
+  if (id) {
+    if (selId !== id) select(id);
+    const s2 = selShape();
+    drag = { kind: 'move', g0: deep(geomAt(s2, time)), start: pt, undoPushed: false };
+  } else {
+    select(null);
+  }
+});
+
+stage.addEventListener('pointermove', e => {
+  const pt = svgPoint(e);
+  if (pending && !drag) {
+    pending.mouse = pt;
+    renderOverlay();
+    return;
+  }
+  if (!drag) return;
+  const sh = selShape();
+
+  if (drag.kind === 'penHandle') {
+    const a = pending.anchors[drag.idx];
+    const dx = pt.x - a[0], dy = pt.y - a[1];
+    if (Math.hypot(dx, dy) > 2 / zoom) {
+      a[4] = dx; a[5] = dy; a[2] = -dx; a[3] = -dy;
+    }
+    renderOverlay();
+    return;
+  }
+
+  if (drag.kind === 'create') {
+    const s = drag.start, g = {};
+    if (drag.sh.type === 'rect') {
+      g.x = Math.min(s.x, pt.x); g.y = Math.min(s.y, pt.y);
+      g.w = Math.abs(pt.x - s.x); g.h = Math.abs(pt.y - s.y); g.rx = 0;
+      if (e.shiftKey) { g.w = g.h = Math.max(g.w, g.h); }
+    } else if (drag.sh.type === 'ellipse') {
+      g.cx = (s.x + pt.x) / 2; g.cy = (s.y + pt.y) / 2;
+      g.rx = Math.abs(pt.x - s.x) / 2; g.ry = Math.abs(pt.y - s.y) / 2;
+      if (e.shiftKey) { g.rx = g.ry = Math.max(g.rx, g.ry); }
+    } else {
+      g.x1 = s.x; g.y1 = s.y; g.x2 = pt.x; g.y2 = pt.y;
+      if (e.shiftKey) {
+        const adx = Math.abs(g.x2 - g.x1), ady = Math.abs(g.y2 - g.y1);
+        if (adx > ady) g.y2 = g.y1; else g.x2 = g.x1;
+      }
+    }
+    Object.assign(drag.sh.base, g);
+    renderStage();
+    return;
+  }
+
+  if (drag.kind === 'move' && sh) {
+    if (!drag.undoPushed) { pushUndo(); drag.undoPushed = true; }
+    let dx = pt.x - drag.start.x, dy = pt.y - drag.start.y;
+    if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+    applyGeom(sh, translateGeom(sh, drag.g0, dx, dy));
+    renderStage(); renderTimeline();
+    return;
+  }
+
+  if (drag.kind === 'resize' && sh) {
+    const local = drag.rot ? rotatePt(pt, drag.c, -drag.rot) : pt;
+    const b = drag.b0;
+    const hx = { nw: b.x, w: b.x, sw: b.x, n: b.x + b.w / 2, s: b.x + b.w / 2, ne: b.x + b.w, e: b.x + b.w, se: b.x + b.w }[drag.h];
+    const hy = { nw: b.y, n: b.y, ne: b.y, w: b.y + b.h / 2, e: b.y + b.h / 2, sw: b.y + b.h, s: b.y + b.h, se: b.y + b.h }[drag.h];
+    const ox = hx === b.x ? b.x + b.w : (hx === b.x + b.w ? b.x : hx);
+    const oy = hy === b.y ? b.y + b.h : (hy === b.y + b.h ? b.y : hy);
+    let sx = 1, sy = 1;
+    if ('nw ne se sw e w'.includes(drag.h) && hx !== ox) sx = (local.x - ox) / (hx - ox);
+    if ('nw ne se sw n s'.includes(drag.h) && hy !== oy) sy = (local.y - oy) / (hy - oy);
+    if (drag.h === 'n' || drag.h === 's') sx = 1;
+    if (drag.h === 'e' || drag.h === 'w') sy = 1;
+    if (e.shiftKey) { const u = Math.max(Math.abs(sx), Math.abs(sy)); sx = Math.sign(sx || 1) * u; sy = Math.sign(sy || 1) * u; }
+    applyGeom(sh, scaleGeom(sh, drag.g0, ox, oy, sx, sy));
+    renderStage(); renderTimeline();
+    return;
+  }
+
+  if (drag.kind === 'rotate' && sh) {
+    const ang = Math.atan2(pt.y - drag.c.y, pt.x - drag.c.x);
+    let deg = drag.startRot + (ang - drag.startAng) * 180 / Math.PI;
+    if (e.shiftKey) deg = Math.round(deg / 15) * 15;
+    setProp(sh, 'rotation', f2(deg));
+    renderStage(); renderTimeline(); renderPanel();
+    return;
+  }
+
+  if (drag.kind === 'nodeDrag' && sh) {
+    if (sh.type === 'path') {
+      const anchors = deep(valueAt(sh, 'anchors', time));
+      const a = anchors[drag.idx];
+      if (drag.part === 'pt' && e.altKey) {
+        // alt-drag an anchor to pull curve handles out of a corner point
+        a[4] = pt.x - a[0]; a[5] = pt.y - a[1]; a[2] = -a[4]; a[3] = -a[5];
+      } else if (drag.part === 'pt') { a[0] = pt.x; a[1] = pt.y; }
+      else {
+        const dx = pt.x - a[0], dy = pt.y - a[1];
+        if (drag.part === 'out') { a[4] = dx; a[5] = dy; if (!e.altKey) { a[2] = -dx; a[3] = -dy; } }
+        else { a[2] = dx; a[3] = dy; if (!e.altKey) { a[4] = -dx; a[5] = -dy; } }
+      }
+      setProp(sh, 'anchors', anchors);
+    } else if (sh.type === 'polygon') {
+      const pts = deep(valueAt(sh, 'points', time));
+      pts[drag.idx * 2] = pt.x; pts[drag.idx * 2 + 1] = pt.y;
+      setProp(sh, 'points', pts);
+    } else if (sh.type === 'line') {
+      setProp(sh, drag.idx === 0 ? 'x1' : 'x2', pt.x);
+      setProp(sh, drag.idx === 0 ? 'y1' : 'y2', pt.y);
+    }
+    renderStage(); renderTimeline();
+  }
+});
+
+stage.addEventListener('pointerup', e => {
+  if (drag) {
+    if (drag.kind === 'create') {
+      const sh = drag.sh, g = sh.base;
+      const tiny = (sh.type === 'rect' && (g.w < 3 && g.h < 3)) ||
+                   (sh.type === 'ellipse' && (g.rx < 2 && g.ry < 2)) ||
+                   (sh.type === 'line' && Math.hypot(g.x2 - g.x1, g.y2 - g.y1) < 3);
+      if (tiny) { project.shapes.pop(); selId = null; undoStack.pop(); updateUndoButtons(); }
+      commitStructural();
+    } else if (drag.kind !== 'penHandle') {
+      commitStructural();
+    }
+    drag = null;
+  }
+});
+
+stage.addEventListener('dblclick', e => {
+  if (tool === 'polygon' && pending) {
+    pending.pts.splice(pending.pts.length - 2, 2);
+    finishPending(false);
+  } else if (tool === 'select') {
+    const id = e.target.closest && e.target.closest('[data-id]')?.dataset.id;
+    const sh = id && getShape(id);
+    if (sh && (sh.type === 'path' || sh.type === 'polygon' || sh.type === 'line')) {
+      select(id); setTool('node');
+    }
+  }
+});
+
+/* =====================================================================
+   TIMELINE
+   ===================================================================== */
+const tlBody = $('tlBody'), tlContent = $('tlContent');
+const LABEL_W = () => document.querySelector('.tl-label') ?
+  document.querySelector('.tl-label').offsetWidth : 200;
+
+function isKfSel(sid, prop, t) {
+  return selKfs.some(k => k.sid === sid && k.prop === prop && Math.abs(k.t - t) < KF_EPS);
+}
+
+function renderTimeline() {
+  const dur = project.duration;
+  const trackW = Math.ceil(dur * pxPerSec) + 40;
+  const rows = [];
+
+  const mkRow = (cls, labelHtml, sid, prop) => {
+    const row = document.createElement('div');
+    row.className = 'tl-row ' + cls;
+    const lab = document.createElement('div');
+    lab.className = 'tl-label';
+    lab.innerHTML = labelHtml;
+    const track = document.createElement('div');
+    track.className = 'tl-track';
+    track.style.width = trackW + 'px';
+    track.style.minWidth = trackW + 'px';
+    if (sid) { track.dataset.sid = sid; track.dataset.prop = prop || ''; }
+    row.append(lab, track);
+    return { row, lab, track };
+  };
+
+  /* ruler */
+  const ruler = mkRow('', '<span style="color:var(--dim)">time</span>');
+  ruler.row.id = 'rulerRow';
+  ruler.track.id = 'ruler';
+  const step = pxPerSec >= 90 ? 0.1 : (pxPerSec >= 45 ? 0.25 : 0.5);
+  for (let t = 0; t <= dur + 1e-9; t = Math.round((t + step) * 1000) / 1000) {
+    const major = Math.abs(t - Math.round(t)) < 1e-6;
+    const tick = document.createElement('div');
+    tick.className = 'tick' + (major ? ' major' : '');
+    tick.style.left = (t * pxPerSec) + 'px';
+    ruler.track.appendChild(tick);
+    if (major) {
+      const lab = document.createElement('div');
+      lab.className = 'tick-lab';
+      lab.style.left = (t * pxPerSec) + 'px';
+      lab.textContent = Math.round(t) + 's';
+      ruler.track.appendChild(lab);
+    }
+  }
+  rows.push(ruler.row);
+
+  /* shape rows, top layer first */
+  const list = [...project.shapes].reverse();
+  for (const sh of list) {
+    const caret = Object.keys(sh.tracks).length
+      ? `<span class="caret">${sh.tlOpen ? '&#9660;' : '&#9654;'}</span>` : '<span class="caret"></span>';
+    const head = mkRow('shape-row' + (sh.id === selId ? ' sel' : ''),
+      caret + `<span>${escHtml(sh.name)}</span>`, sh.id, '*');
+    head.lab.dataset.sid = sh.id;
+    head.lab.classList.add('shape-lab');
+    if (sh.id === selId) head.lab.style.color = 'var(--accent2)';
+    for (const t of shapeKfTimes(sh)) {
+      const kf = document.createElement('div');
+      kf.className = 'kf shape-kf';
+      kf.style.left = (t * pxPerSec) + 'px';
+      kf.dataset.sid = sh.id; kf.dataset.prop = '*'; kf.dataset.t = t;
+      head.track.appendChild(kf);
+    }
+    rows.push(head.row);
+
+    if (sh.tlOpen) {
+      for (const prop in sh.tracks) {
+        if (!sh.tracks[prop].length) continue;
+        const pr = mkRow('', `<span class="pname">${propLabel(sh, prop)}</span>`, sh.id, prop);
+        for (const k of sh.tracks[prop]) {
+          const kf = document.createElement('div');
+          kf.className = 'kf' + (isKfSel(sh.id, prop, k.t) ? ' sel' : '');
+          kf.style.left = (k.t * pxPerSec) + 'px';
+          kf.dataset.sid = sh.id; kf.dataset.prop = prop; kf.dataset.t = k.t;
+          kf.title = propLabel(sh, prop) + ' @ ' + k.t.toFixed(2) + 's';
+          pr.track.appendChild(kf);
+        }
+        rows.push(pr.row);
+      }
+    }
+  }
+
+  const playhead = document.createElement('div');
+  playhead.id = 'playhead';
+  tlContent.replaceChildren(...rows, playhead);
+  tlContent.style.width = (200 + trackW) + 'px';
+  updatePlayhead();
+  updateKfControls();
+}
+
+function updatePlayhead() {
+  const ph = $('playhead');
+  if (ph) ph.style.left = (LABEL_W() + time * pxPerSec) + 'px';
+  $('timecode').textContent = time.toFixed(2) + ' / ' + project.duration.toFixed(2) + 's';
+}
+
+function updateKfControls() {
+  const any = selKfs.length > 0;
+  $('easingSel').disabled = !any;
+  $('delKfBtn').disabled = !any;
+  if (any) {
+    const sh = getShape(selKfs[0].sid);
+    const k = sh && kfAt(sh, selKfs[0].prop, selKfs[0].t);
+    $('easingSel').value = k && k.e ? k.e.join(',') : '';
+  } else {
+    $('easingSel').value = '';
+  }
+}
+
+function setTime(t, opts) {
+  time = clamp(snapT(t), 0, project.duration);
+  updatePlayhead();
+  renderStage();
+  if (!opts || !opts.light) renderPanel();
+}
+
+/* timeline pointer interaction */
+tlBody.addEventListener('pointerdown', e => {
+  const kfEl = e.target.closest('.kf');
+  if (kfEl) {
+    const sid = kfEl.dataset.sid, prop = kfEl.dataset.prop, t = parseFloat(kfEl.dataset.t);
+    const sh = getShape(sid);
+    if (!sh) return;
+    select(sid) ;
+    let items;
+    if (prop === '*') {
+      items = [];
+      for (const p in sh.tracks) if (kfAt(sh, p, t)) items.push({ sid, prop: p, t });
+    } else {
+      items = [{ sid, prop, t }];
+    }
+    if (e.shiftKey) {
+      for (const it of items) if (!isKfSel(it.sid, it.prop, it.t)) selKfs.push(it);
+    } else if (!items.every(it => isKfSel(it.sid, it.prop, it.t))) {
+      selKfs = items;
+    }
+    tlBody.setPointerCapture(e.pointerId);
+    drag = {
+      kind: 'kf', startX: e.clientX, moved: false, undoPushed: false,
+      orig: selKfs.map(k => ({ ...k, t0: k.t })),
+    };
+    renderTimeline();
+    e.preventDefault();
+    return;
+  }
+  const track = e.target.closest('.tl-track');
+  const lab = e.target.closest('.shape-lab');
+  if (lab) {
+    const sh = getShape(lab.dataset.sid);
+    if (sh) {
+      if (sh.id === selId) { sh.tlOpen = !sh.tlOpen; renderTimeline(); }
+      else { sh.tlOpen = true; select(sh.id); }
+    }
+    return;
+  }
+  if (track) {
+    tlBody.setPointerCapture(e.pointerId);
+    drag = { kind: 'scrub' };
+    const rect = track.getBoundingClientRect();
+    setTime((e.clientX - rect.left) / pxPerSec, { light: true });
+  }
+});
+
+tlBody.addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (drag.kind === 'scrub') {
+    const track = tlContent.querySelector('.tl-track');
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    setTime((e.clientX - rect.left) / pxPerSec, { light: true });
+  } else if (drag.kind === 'kf') {
+    const dt = (e.clientX - drag.startX) / pxPerSec;
+    if (Math.abs(dt) * pxPerSec < 3 && !drag.moved) return;
+    if (!drag.undoPushed) { pushUndo(); drag.undoPushed = true; }
+    drag.moved = true;
+    for (const it of drag.orig) {
+      const sh = getShape(it.sid);
+      if (!sh) continue;
+      const k = kfAt(sh, it.prop, it.t);
+      if (!k) continue;
+      const nt = clamp(snapT(it.t0 + dt), 0, project.duration);
+      removeKf(sh, it.prop, it.t);
+      const existing = kfAt(sh, it.prop, nt);
+      upsertKf(sh, it.prop, nt, k.v, k.e);
+      it.t = nt;
+    }
+    selKfs = drag.orig.map(k => ({ sid: k.sid, prop: k.prop, t: k.t }));
+    renderTimeline(); renderStage();
+  }
+});
+
+tlBody.addEventListener('pointerup', e => {
+  if (drag && drag.kind === 'kf') {
+    if (drag.moved) commitStructural();
+  }
+  drag = null;
+});
+
+tlBody.addEventListener('dblclick', e => {
+  const track = e.target.closest('.tl-track');
+  if (!track || !track.dataset.sid || e.target.closest('.kf')) return;
+  const sh = getShape(track.dataset.sid);
+  const prop = track.dataset.prop;
+  if (!sh || !prop || prop === '*') return;
+  pushUndo();
+  const rect = track.getBoundingClientRect();
+  const t = clamp(snapT((e.clientX - rect.left) / pxPerSec), 0, project.duration);
+  upsertKf(sh, prop, t, valueAt(sh, prop, t));
+  commitStructural();
+});
+
+$('easingSel').addEventListener('change', () => {
+  if (!selKfs.length || !$('easingSel').value) return;
+  pushUndo();
+  const e = $('easingSel').value.split(',').map(Number);
+  for (const it of selKfs) {
+    const sh = getShape(it.sid);
+    const k = sh && kfAt(sh, it.prop, it.t);
+    if (k) k.e = e.slice();
+  }
+  renderStage();
+  scheduleSave();
+});
+
+$('delKfBtn').addEventListener('click', deleteSelectedKfs);
+function deleteSelectedKfs() {
+  if (!selKfs.length) return;
+  pushUndo();
+  for (const it of selKfs) {
+    const sh = getShape(it.sid);
+    if (sh) removeKf(sh, it.prop, it.t);
+  }
+  selKfs = [];
+  commitStructural();
+}
+
+/* =====================================================================
+   PROPERTIES PANEL
+   ===================================================================== */
+function escHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+function renderPanel() {
+  const body = $('propsBody');
+  const sh = selShape();
+  if (!sh) {
+    body.innerHTML = `<p class="hint">Draw something! Pick a tool, then drag on the canvas.</p>
+      <p class="hint">
+      <kbd>V</kbd> select &nbsp;<kbd>A</kbd> nodes &nbsp;<kbd>P</kbd> pen &nbsp;<kbd>R</kbd> rect
+      &nbsp;<kbd>O</kbd> ellipse &nbsp;<kbd>L</kbd> line &nbsp;<kbd>Y</kbd> polygon &nbsp;<kbd>T</kbd> text<br>
+      <kbd>Space</kbd> play &nbsp;<kbd>K</kbd> keyframe pose &nbsp;<kbd>,</kbd> <kbd>.</kbd> step time<br>
+      <kbd>Ctrl+Z</kbd> undo &nbsp;<kbd>Ctrl+D</kbd> duplicate &nbsp;<kbd>Del</kbd> delete</p>
+      <p class="hint"><b>How to animate:</b> draw at time 0, move the playhead,
+      then move / reshape / recolor the shape &mdash; a tween is created automatically
+      (auto-key). The pen tool's paths morph smoothly between keyframes.</p>`;
+    return;
+  }
+  const rows = [];
+  rows.push(`<div class="prow"><label>name</label><div class="vals">
+    <input type="text" data-static="name" value="${escHtml(sh.name)}" style="width:100%"></div><span></span></div>`);
+
+  const numRow = (prop, step, min, max) => {
+    const v = valueAt(sh, prop, time);
+    return `<div class="prow"><label>${propLabel(sh, prop)}</label><div class="vals">
+      <input type="number" data-prop="${prop}" value="${typeof v === 'number' ? f2(v) : 0}"
+        step="${step || 1}" ${min !== undefined ? `min="${min}"` : ''} ${max !== undefined ? `max="${max}"` : ''}>
+      </div>${kfBtnHtml(sh, prop)}</div>`;
+  };
+  const colorRow = prop => {
+    const v = valueAt(sh, prop, time);
+    const none = !v || v === 'none';
+    return `<div class="prow"><label>${propLabel(sh, prop)}</label><div class="vals">
+      <input type="color" data-prop="${prop}" value="${none ? '#888888' : normColor(v)}" ${none ? 'disabled' : ''}>
+      <label class="chk"><input type="checkbox" data-none="${prop}" ${none ? 'checked' : ''}> none</label>
+      </div>${kfBtnHtml(sh, prop)}</div>`;
+  };
+
+  if (sh.type === 'text') {
+    rows.push(`<div class="prow"><label>text</label><div class="vals">
+      <textarea data-static="text" rows="2" style="width:100%">${escHtml(sh.base.text)}</textarea></div><span></span></div>`);
+    rows.push(`<div class="prow"><label>font</label><div class="vals">
+      <select data-static="fontFamily">
+        ${['sans-serif', 'serif', 'monospace', 'cursive', 'Georgia', 'Courier New', 'Impact']
+          .map(fnt => `<option ${sh.base.fontFamily === fnt ? 'selected' : ''}>${fnt}</option>`).join('')}
+      </select></div><span></span></div>`);
+  }
+
+  for (const prop of GEOM_PROPS[sh.type]) {
+    if (prop === 'points' || prop === 'anchors') {
+      const n = prop === 'points' ? valueAt(sh, prop, time).length / 2 : valueAt(sh, prop, time).length;
+      rows.push(`<div class="prow"><label>${propLabel(sh, prop)}</label><div class="vals">
+        <span class="hint">${n} points &mdash; edit with the nodes tool (<kbd>A</kbd>)</span>
+        </div>${kfBtnHtml(sh, prop)}</div>`);
+    } else {
+      rows.push(numRow(prop, prop === 'fontSize' ? 1 : 1));
+    }
+  }
+  const styleProps = STYLE_PROPS[sh.type] || COMMON_PROPS;
+  for (const prop of styleProps) {
+    if (prop === 'fill' || prop === 'stroke') rows.push(colorRow(prop));
+    else if (prop === 'opacity') rows.push(numRow(prop, 0.05, 0, 1));
+    else if (prop === 'strokeWidth') rows.push(numRow(prop, 0.5, 0));
+    else rows.push(numRow(prop, 1));
+  }
+  if (sh.type === 'path') {
+    rows.push(`<div class="prow"><label>closed</label><div class="vals">
+      <input type="checkbox" data-static="closed" ${sh.base.closed ? 'checked' : ''}></div><span></span></div>`);
+  }
+  rows.push(`<p class="hint">&#9670; = keyframe at playhead &nbsp;&middot;&nbsp; &#9671; = animated.
+    Click it to add / remove a key at the playhead.</p>`);
+  body.innerHTML = rows.join('');
+}
+
+function kfBtnHtml(sh, prop) {
+  const tr = sh.tracks[prop];
+  const has = tr && tr.length > 0;
+  const at = has && kfAt(sh, prop, time);
+  return `<button class="kbtn ${at ? 'at' : has ? 'has' : ''}" data-kf="${prop}"
+    title="${at ? 'Remove keyframe at playhead' : 'Add keyframe at playhead'}">${at ? '◆' : '◇'}</button>`;
+}
+
+let panelDirty = false;
+$('propsBody').addEventListener('input', e => {
+  const sh = selShape();
+  if (!sh) return;
+  const t = e.target;
+  if (!panelDirty) { pushUndo(); panelDirty = true; }
+  if (t.dataset.prop) {
+    if (t.type === 'color') setProp(sh, t.dataset.prop, t.value);
+    else if (t.value !== '' && !isNaN(+t.value)) setProp(sh, t.dataset.prop, +t.value);
+    renderStage(); renderTimeline();
+  } else if (t.dataset.static) {
+    const k = t.dataset.static;
+    sh.base[k] = t.type === 'checkbox' ? t.checked : t.value;
+    if (k === 'name') renderLayers();
+    renderStage();
+  }
+  scheduleSave();
+});
+$('propsBody').addEventListener('change', e => {
+  panelDirty = false;
+  const sh = selShape();
+  if (!sh) return;
+  if (e.target.dataset.none !== undefined && e.target.dataset.none) {
+    const prop = e.target.dataset.none;
+    pushUndo();
+    if (e.target.checked) setProp(sh, prop, 'none');
+    else setProp(sh, prop, prop === 'fill' ? '#4f8ef7' : '#1d4ed8');
+    commitStructural();
+  }
+});
+$('propsBody').addEventListener('click', e => {
+  const btn = e.target.closest('.kbtn');
+  const sh = selShape();
+  if (!btn || !sh) return;
+  const prop = btn.dataset.kf;
+  pushUndo();
+  if (kfAt(sh, prop, time)) removeKf(sh, prop, snapT(time));
+  else upsertKf(sh, prop, snapT(time), valueAt(sh, prop, time));
+  commitStructural();
+});
+
+/* =====================================================================
+   LAYERS PANEL
+   ===================================================================== */
+function renderLayers() {
+  const body = $('layersBody');
+  const rows = [];
+  const list = [...project.shapes].reverse();
+  for (const sh of list) {
+    rows.push(`<div class="layer ${sh.id === selId ? 'sel' : ''}" data-id="${sh.id}">
+      <button class="lbtn ${sh.hidden ? 'off' : ''}" data-act="hide" title="Show / hide">&#128065;</button>
+      <button class="lbtn ${sh.locked ? '' : 'off'}" data-act="lock" title="Lock / unlock">&#128274;</button>
+      <span class="lname" title="Double-click to rename">${escHtml(sh.name)}</span>
+      <button class="lbtn" data-act="up" title="Raise">&#9650;</button>
+      <button class="lbtn" data-act="down" title="Lower">&#9660;</button>
+      <button class="lbtn" data-act="dup" title="Duplicate (Ctrl+D)">&#10697;</button>
+      <button class="lbtn" data-act="del" title="Delete">&#10005;</button>
+    </div>`);
+  }
+  body.innerHTML = rows.join('') ||
+    '<p class="hint" style="padding:8px 10px;margin:0">No shapes yet.</p>';
+}
+
+$('layersBody').addEventListener('click', e => {
+  const row = e.target.closest('.layer');
+  if (!row) return;
+  const sh = getShape(row.dataset.id);
+  if (!sh) return;
+  const act = e.target.closest('.lbtn')?.dataset.act;
+  if (!act) { select(sh.id); return; }
+  const idx = project.shapes.indexOf(sh);
+  switch (act) {
+    case 'hide': pushUndo(); sh.hidden = !sh.hidden; break;
+    case 'lock': pushUndo(); sh.locked = !sh.locked; break;
+    case 'up':
+      if (idx < project.shapes.length - 1) { pushUndo(); project.shapes.splice(idx, 1); project.shapes.splice(idx + 1, 0, sh); }
+      break;
+    case 'down':
+      if (idx > 0) { pushUndo(); project.shapes.splice(idx, 1); project.shapes.splice(idx - 1, 0, sh); }
+      break;
+    case 'dup': duplicateShape(sh); return;
+    case 'del':
+      pushUndo();
+      project.shapes.splice(idx, 1);
+      if (selId === sh.id) selId = null;
+      break;
+  }
+  commitStructural();
+});
+
+$('layersBody').addEventListener('dblclick', e => {
+  const nameEl = e.target.closest('.lname');
+  const row = e.target.closest('.layer');
+  if (!nameEl || !row) return;
+  const sh = getShape(row.dataset.id);
+  const name = prompt('Rename layer', sh.name);
+  if (name) { pushUndo(); sh.name = name; commitStructural(); }
+});
+
+function duplicateShape(sh) {
+  pushUndo();
+  const copy = deep(sh);
+  copy.id = uid();
+  copy.name = sh.name + ' copy';
+  const g = translateGeom(copy, copy.base, 14, 14);
+  Object.assign(copy.base, g);
+  for (const prop in copy.tracks) {
+    if (GEOM_PROPS[copy.type].includes(prop)) {
+      for (const k of copy.tracks[prop]) {
+        const shifted = translateGeom(copy, { ...copy.base, [prop]: k.v }, 14, 14);
+        k.v = shifted[prop];
+      }
+    }
+  }
+  project.shapes.push(copy);
+  selId = copy.id;
+  commitStructural();
+}
+
+/* =====================================================================
+   TRANSPORT / PLAYBACK
+   ===================================================================== */
+function setPlaying(on) {
+  playing = on;
+  $('playBtn').innerHTML = on ? '&#10074;&#10074;' : '&#9654;';
+  if (on) {
+    let last = performance.now();
+    const step = now => {
+      if (!playing) return;
+      let t = time + (now - last) / 1000;
+      last = now;
+      if (t >= project.duration) {
+        if ($('loopChk').checked) t = t % project.duration;
+        else { t = project.duration; setPlaying(false); }
+      }
+      time = t;
+      updatePlayhead();
+      renderStage();
+      if (playing) rafId = requestAnimationFrame(step);
+    };
+    rafId = requestAnimationFrame(step);
+  } else if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+    renderPanel();
+  }
+}
+$('playBtn').addEventListener('click', () => setPlaying(!playing));
+$('stopBtn').addEventListener('click', () => { setPlaying(false); setTime(0); });
+$('durInput').addEventListener('change', () => {
+  const d = clamp(parseFloat($('durInput').value) || 4, 0.2, 120);
+  pushUndo();
+  project.duration = d;
+  time = Math.min(time, d);
+  commitStructural();
+});
+$('tlZoom').addEventListener('input', () => { pxPerSec = +$('tlZoom').value; renderTimeline(); });
+
+/* toolbar */
+function setTool(t) {
+  if (pending) finishPending(t === tool);
+  tool = t;
+  document.querySelectorAll('#toolButtons .tbtn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tool === t));
+  stage.style.cursor = t === 'select' ? 'default' : 'crosshair';
+  renderStage();
+}
+document.querySelectorAll('#toolButtons .tbtn').forEach(b =>
+  b.addEventListener('click', () => setTool(b.dataset.tool)));
+
+$('undoBtn').addEventListener('click', undo);
+$('redoBtn').addEventListener('click', redo);
+$('onionSkin').addEventListener('change', renderStage);
+$('zoomSel').addEventListener('change', () => { zoom = +$('zoomSel').value; renderStage(); });
+$('projW').addEventListener('change', () => { pushUndo(); project.width = clamp(+$('projW').value || 800, 10, 4000); commitStructural(); });
+$('projH').addEventListener('change', () => { pushUndo(); project.height = clamp(+$('projH').value || 500, 10, 4000); commitStructural(); });
+$('projBg').addEventListener('input', () => { project.background = $('projBg').value; renderStage(); scheduleSave(); });
+
+function commitStructural() {
+  renderStage(); renderTimeline(); renderPanel(); renderLayers();
+  syncToolbarInputs();
+  scheduleSave();
+}
+function renderAll() { commitStructural(); }
+function syncToolbarInputs() {
+  $('projW').value = project.width;
+  $('projH').value = project.height;
+  $('projBg').value = normColor(project.background) === 'none' ? '#ffffff' : normColor(project.background);
+  $('durInput').value = project.duration;
+}
+
+/* keyboard */
+document.addEventListener('keydown', e => {
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+    if (e.key === 'Escape') e.target.blur();
+    return;
+  }
+  const sh = selShape();
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); if (sh) duplicateShape(sh); return; }
+  if (mod) return;
+  switch (e.key) {
+    case ' ': e.preventDefault(); setPlaying(!playing); break;
+    case 'v': case 'V': setTool('select'); break;
+    case 'a': case 'A': setTool('node'); break;
+    case 'p': case 'P': setTool('pen'); break;
+    case 'r': case 'R': setTool('rect'); break;
+    case 'o': case 'O': setTool('ellipse'); break;
+    case 'l': case 'L': setTool('line'); break;
+    case 'y': case 'Y': setTool('polygon'); break;
+    case 't': case 'T': setTool('text'); break;
+    case 'Enter': if (pending) finishPending(false); break;
+    case 'Escape':
+      if (pending) finishPending(true);
+      else if (selKfs.length) { selKfs = []; renderTimeline(); }
+      else select(null);
+      break;
+    case 'Delete': case 'Backspace':
+      e.preventDefault();
+      if (pending && pending.kind === 'pen' && pending.anchors.length) {
+        pending.anchors.pop();
+        if (!pending.anchors.length) pending = null;
+        renderOverlay();
+      } else if (selKfs.length) deleteSelectedKfs();
+      else if (sh) {
+        pushUndo();
+        project.shapes.splice(project.shapes.indexOf(sh), 1);
+        selId = null;
+        commitStructural();
+      }
+      break;
+    case 'k': case 'K':
+      if (sh) {
+        pushUndo();
+        for (const prop of animProps(sh)) upsertKf(sh, prop, snapT(time), valueAt(sh, prop, time));
+        commitStructural();
+      }
+      break;
+    case ',': setTime(time - (e.shiftKey ? 0.5 : 1 / 30)); break;
+    case '.': setTime(time + (e.shiftKey ? 0.5 : 1 / 30)); break;
+    case 'Home': setTime(0); break;
+    case 'End': setTime(project.duration); break;
+    case 'ArrowLeft': case 'ArrowRight': case 'ArrowUp': case 'ArrowDown':
+      if (sh) {
+        e.preventDefault();
+        const d = e.shiftKey ? 10 : 1;
+        const dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0;
+        const dy = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
+        pushUndo();
+        applyGeom(sh, translateGeom(sh, geomAt(sh, time), dx, dy));
+        commitStructural();
+      }
+      break;
+  }
+});
+
+/* =====================================================================
+   EXPORT — animated SVG with SMIL
+   ===================================================================== */
+const EXPORT_ATTR = {
+  x: 'x', y: 'y', w: 'width', h: 'height', rx: 'rx', ry: 'ry', cx: 'cx', cy: 'cy',
+  x1: 'x1', y1: 'y1', x2: 'x2', y2: 'y2', points: 'points', anchors: 'd',
+  fontSize: 'font-size', fill: 'fill', stroke: 'stroke',
+  strokeWidth: 'stroke-width', opacity: 'opacity',
+};
+const TAG_FOR = { rect: 'rect', ellipse: 'ellipse', line: 'line', polygon: 'polygon', path: 'path', text: 'text' };
+
+function fmtVal(sh, prop, v) {
+  if (prop === 'points') return pointsToStr(v);
+  if (prop === 'anchors') return anchorsToD(v, sh.base.closed);
+  if (typeof v === 'number') return String(f2(v));
+  return String(v);
+}
+
+/* pad a track so keyTimes start at 0 and end at 1, return values/times/splines */
+function paddedTrack(tr, dur, valFn) {
+  const times = tr.map(k => k.t), vals = tr.map((k, i) => valFn(k, i)), eases = tr.map(k => k.e || DEF_EASE);
+  if (times[0] > 0.001) {
+    times.unshift(0); vals.unshift(vals[0]); eases.unshift(LINEAR);
+  }
+  if (times[times.length - 1] < dur - 0.001) {
+    eases[eases.length - 1] = LINEAR;
+    times.push(dur); vals.push(vals[vals.length - 1]); eases.push(LINEAR);
+  }
+  const keyTimes = times.map(t => (t / dur).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')).join(';');
+  const splines = [];
+  for (let i = 0; i < times.length - 1; i++) splines.push(eases[i].map(n => f2(n)).join(' '));
+  return { keyTimes, values: vals.join(';'), keySplines: splines.join(';') };
+}
+
+function buildExportSVG(loop, withBg) {
+  const dur = project.duration;
+  const repeat = loop ? 'indefinite' : '1';
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const out = [];
+  out.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${project.width}" height="${project.height}" viewBox="0 0 ${project.width} ${project.height}">`);
+  if (withBg) out.push(`  <rect width="${project.width}" height="${project.height}" fill="${esc(project.background)}"/>`);
+
+  for (const sh of project.shapes) {
+    if (sh.hidden) continue;
+    const attrs = [];
+    const anims = [];
+    const propList = GEOM_PROPS[sh.type].concat(STYLE_PROPS[sh.type] || COMMON_PROPS);
+
+    for (const prop of propList) {
+      if (prop === 'rotation') continue;
+      const attr = EXPORT_ATTR[prop];
+      const tr = sh.tracks[prop];
+      attrs.push(`${attr}="${esc(fmtVal(sh, prop, valueAt(sh, prop, 0)))}"`);
+      if (tr && tr.length > 1) {
+        const p = paddedTrack(tr, dur, k => fmtVal(sh, prop, k.v));
+        anims.push(`    <animate attributeName="${attr}" dur="${dur}s" repeatCount="${repeat}" fill="freeze"` +
+          ` calcMode="spline" keyTimes="${p.keyTimes}" keySplines="${p.keySplines}" values="${esc(p.values)}"/>`);
+      }
+    }
+
+    /* rotation via animateTransform around the (possibly moving) shape centre */
+    const rotTr = sh.tracks.rotation;
+    if (rotTr && rotTr.length > 1) {
+      const p = paddedTrack(rotTr, dur, k => {
+        const c = centerOf(sh, geomAt(sh, k.t));
+        return `${f2(k.v)} ${f2(c.x)} ${f2(c.y)}`;
+      });
+      anims.push(`    <animateTransform attributeName="transform" type="rotate" dur="${dur}s" repeatCount="${repeat}"` +
+        ` fill="freeze" calcMode="spline" keyTimes="${p.keyTimes}" keySplines="${p.keySplines}" values="${p.values}"/>`);
+    } else {
+      const rot = valueAt(sh, 'rotation', 0) || 0;
+      if (rot) {
+        const c = centerOf(sh, geomAt(sh, 0));
+        attrs.push(`transform="rotate(${f2(rot)} ${f2(c.x)} ${f2(c.y)})"`);
+      }
+    }
+
+    if (sh.type === 'text') attrs.push(`font-family="${esc(sh.base.fontFamily || 'sans-serif')}"`);
+    if (sh.type === 'line') attrs.push('stroke-linecap="round"');
+    const tag = TAG_FOR[sh.type];
+    const content = sh.type === 'text' ? esc(sh.base.text || '') : '';
+    if (anims.length || content) {
+      out.push(`  <${tag} ${attrs.join(' ')}>${content ? '\n    ' + content : ''}`);
+      out.push(anims.join('\n'));
+      out.push(`  </${tag}>`);
+    } else {
+      out.push(`  <${tag} ${attrs.join(' ')}/>`);
+    }
+  }
+  out.push('</svg>');
+  return out.filter(Boolean).join('\n');
+}
+
+const exportDlg = $('exportDlg');
+function refreshExport() {
+  const svg = buildExportSVG($('expLoop').checked, $('expBg').checked);
+  $('exportCode').value = svg;
+  $('exportPreviewWrap').innerHTML = svg;
+  $('expMsg').textContent = Math.round(svg.length / 102.4) / 10 + ' KB';
+}
+$('exportBtn').addEventListener('click', () => { refreshExport(); exportDlg.showModal(); });
+$('expLoop').addEventListener('change', refreshExport);
+$('expBg').addEventListener('change', refreshExport);
+$('expClose').addEventListener('click', () => exportDlg.close());
+$('expDownload').addEventListener('click', () => {
+  downloadFile('animation.svg', $('exportCode').value, 'image/svg+xml');
+});
+$('expCopy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('exportCode').value);
+    $('expMsg').textContent = 'copied!';
+  } catch (err) {
+    $('exportCode').select();
+    document.execCommand('copy');
+    $('expMsg').textContent = 'copied';
+  }
+});
+
+function downloadFile(name, text, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+/* =====================================================================
+   FILE OPEN / SAVE / IMPORT
+   ===================================================================== */
+$('saveBtn').addEventListener('click', () =>
+  downloadFile('animation-project.json', JSON.stringify(project, null, 1), 'application/json'));
+
+$('newBtn').addEventListener('click', () => {
+  if (!confirm('Start a new blank project? (Unsaved work is lost.)')) return;
+  pushUndo();
+  project = blankProject();
+  selId = null; selKfs = []; time = 0;
+  commitStructural();
+});
+
+$('openBtn').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const text = await file.text();
+  if (file.name.endsWith('.json') || text.trim().startsWith('{')) {
+    try {
+      const p = JSON.parse(text);
+      if (!Array.isArray(p.shapes)) throw new Error('not a project file');
+      pushUndo();
+      project = Object.assign(blankProject(), p);
+      selId = null; selKfs = []; time = 0;
+      commitStructural();
+    } catch (err) { alert('Could not load project: ' + err.message); }
+  } else {
+    importSVG(text);
+  }
+});
+
+/* --- SVG import: convert basic elements into editable shapes --- */
+function importSVG(text) {
+  const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+  const svg = doc.querySelector('svg');
+  if (!svg || doc.querySelector('parsererror')) { alert('Could not parse that SVG.'); return; }
+  pushUndo();
+  if (!project.shapes.length) {
+    const vb = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+    const w = parseFloat(svg.getAttribute('width')) || (vb.length === 4 ? vb[2] : 0);
+    const h = parseFloat(svg.getAttribute('height')) || (vb.length === 4 ? vb[3] : 0);
+    if (w && h) { project.width = Math.round(w); project.height = Math.round(h); }
+  }
+  let added = 0, skipped = 0;
+  const style = el => {
+    const g = a => el.getAttribute(a) ?? (el.style && el.style[a === 'stroke-width' ? 'strokeWidth' : a]) ?? null;
+    const s = {};
+    const fill = g('fill'), stroke = g('stroke');
+    if (fill !== null && fill !== '') s.fill = normColor(fill);
+    if (stroke !== null && stroke !== '') s.stroke = normColor(stroke);
+    const sw = parseFloat(g('stroke-width')); if (!isNaN(sw)) s.strokeWidth = sw;
+    const op = parseFloat(g('opacity')); if (!isNaN(op)) s.opacity = op;
+    return s;
+  };
+  const num = (el, a, d) => { const v = parseFloat(el.getAttribute(a)); return isNaN(v) ? (d || 0) : v; };
+
+  for (const el of svg.querySelectorAll('rect,circle,ellipse,line,polyline,polygon,path,text')) {
+    let sh = null;
+    const st = style(el);
+    switch (el.tagName.toLowerCase()) {
+      case 'rect':
+        sh = makeShape('rect', { x: num(el, 'x'), y: num(el, 'y'), w: num(el, 'width'), h: num(el, 'height'), rx: num(el, 'rx') }, st);
+        break;
+      case 'circle':
+        sh = makeShape('ellipse', { cx: num(el, 'cx'), cy: num(el, 'cy'), rx: num(el, 'r'), ry: num(el, 'r') }, st);
+        break;
+      case 'ellipse':
+        sh = makeShape('ellipse', { cx: num(el, 'cx'), cy: num(el, 'cy'), rx: num(el, 'rx'), ry: num(el, 'ry') }, st);
+        break;
+      case 'line':
+        sh = makeShape('line', { x1: num(el, 'x1'), y1: num(el, 'y1'), x2: num(el, 'x2'), y2: num(el, 'y2') }, st);
+        break;
+      case 'polygon': case 'polyline': {
+        const pts = (el.getAttribute('points') || '').trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+        if (pts.length >= 6) sh = makeShape('polygon', { points: pts }, st);
+        break;
+      }
+      case 'path': {
+        const subs = parsePathToAnchors(el.getAttribute('d') || '');
+        for (const sub of subs) {
+          if (sub.anchors.length < 2) continue;
+          const psh = makeShape('path', { anchors: sub.anchors }, st);
+          psh.base.closed = sub.closed;
+          project.shapes.push(psh);
+          added++;
+        }
+        break;
+      }
+      case 'text': {
+        sh = makeShape('text', { x: num(el, 'x'), y: num(el, 'y'), fontSize: parseFloat(el.getAttribute('font-size')) || 16 }, st);
+        sh.base.text = el.textContent.trim();
+        sh.base.fontFamily = el.getAttribute('font-family') || 'sans-serif';
+        break;
+      }
+    }
+    if (sh) { project.shapes.push(sh); added++; }
+    else if (el.tagName.toLowerCase() !== 'path') skipped++;
+  }
+  commitStructural();
+  if (!added) alert('No supported shapes found in that SVG (arcs and groups with transforms are not imported).');
+}
+
+/* parse an SVG path "d" into cubic-bezier anchor subpaths */
+function parsePathToAnchors(d) {
+  const tokens = d.match(/[achlmqstvz]|-?\.?\d+(?:\.\d+)?(?:e-?\d+)?/gi) || [];
+  let i = 0, cmd = '', cx = 0, cy = 0, sx = 0, sy = 0, px = null, py = null;
+  const subs = [];
+  let cubics = [];   // [x0,y0, c1x,c1y, c2x,c2y, x1,y1]
+  const readN = () => parseFloat(tokens[i++]);
+  const isNum = () => i < tokens.length && !/[a-z]/i.test(tokens[i]);
+  const flush = closed => {
+    if (cubics.length) subs.push({ closed, cubics });
+    cubics = [];
+  };
+  while (i < tokens.length) {
+    if (/[a-z]/i.test(tokens[i])) cmd = tokens[i++];
+    const rel = cmd === cmd.toLowerCase();
+    const C = cmd.toUpperCase();
+    if (C === 'Z') { if (cubics.length && (cx !== sx || cy !== sy)) cubics.push([cx, cy, cx, cy, sx, sy, sx, sy]); flush(true); cx = sx; cy = sy; px = py = null; if (!isNum()) continue; cmd = 'L'; continue; }
+    if (C === 'M') {
+      flush(false);
+      const x = readN(), y = readN();
+      cx = rel ? cx + x : x; cy = rel ? cy + y : y;
+      sx = cx; sy = cy; px = py = null;
+      cmd = rel ? 'l' : 'L';
+      continue;
+    }
+    let x1, y1, x2, y2, x, y;
+    switch (C) {
+      case 'L': x = readN(); y = readN(); if (rel) { x += cx; y += cy; }
+        cubics.push([cx, cy, cx, cy, x, y, x, y]); cx = x; cy = y; px = py = null; break;
+      case 'H': x = readN(); if (rel) x += cx;
+        cubics.push([cx, cy, cx, cy, x, cy, x, cy]); cx = x; px = py = null; break;
+      case 'V': y = readN(); if (rel) y += cy;
+        cubics.push([cx, cy, cx, cy, cx, y, cx, y]); cy = y; px = py = null; break;
+      case 'C':
+        x1 = readN(); y1 = readN(); x2 = readN(); y2 = readN(); x = readN(); y = readN();
+        if (rel) { x1 += cx; y1 += cy; x2 += cx; y2 += cy; x += cx; y += cy; }
+        cubics.push([cx, cy, x1, y1, x2, y2, x, y]); px = x2; py = y2; cx = x; cy = y; break;
+      case 'S':
+        x2 = readN(); y2 = readN(); x = readN(); y = readN();
+        if (rel) { x2 += cx; y2 += cy; x += cx; y += cy; }
+        x1 = px !== null ? 2 * cx - px : cx; y1 = py !== null ? 2 * cy - py : cy;
+        cubics.push([cx, cy, x1, y1, x2, y2, x, y]); px = x2; py = y2; cx = x; cy = y; break;
+      case 'Q': {
+        x1 = readN(); y1 = readN(); x = readN(); y = readN();
+        if (rel) { x1 += cx; y1 += cy; x += cx; y += cy; }
+        const c1x = cx + 2 / 3 * (x1 - cx), c1y = cy + 2 / 3 * (y1 - cy);
+        const c2x = x + 2 / 3 * (x1 - x), c2y = y + 2 / 3 * (y1 - y);
+        cubics.push([cx, cy, c1x, c1y, c2x, c2y, x, y]); px = x1; py = y1; cx = x; cy = y; break;
+      }
+      case 'T': {
+        x = readN(); y = readN();
+        if (rel) { x += cx; y += cy; }
+        const qx = px !== null ? 2 * cx - px : cx, qy = py !== null ? 2 * cy - py : cy;
+        const c1x = cx + 2 / 3 * (qx - cx), c1y = cy + 2 / 3 * (qy - cy);
+        const c2x = x + 2 / 3 * (qx - x), c2y = y + 2 / 3 * (qy - y);
+        cubics.push([cx, cy, c1x, c1y, c2x, c2y, x, y]); px = qx; py = qy; cx = x; cy = y; break;
+      }
+      case 'A': { // arc: approximate as straight line to endpoint
+        readN(); readN(); readN(); readN(); readN();
+        x = readN(); y = readN();
+        if (rel) { x += cx; y += cy; }
+        cubics.push([cx, cy, cx, cy, x, y, x, y]); cx = x; cy = y; px = py = null; break;
+      }
+      default: i++; continue;
+    }
+  }
+  flush(false);
+  /* cubic segment list -> anchors with relative handles */
+  return subs.map(({ closed, cubics }) => {
+    const anchors = [];
+    for (let k = 0; k < cubics.length; k++) {
+      const c = cubics[k];
+      if (k === 0) anchors.push([c[0], c[1], 0, 0, c[2] - c[0], c[3] - c[1]]);
+      else {
+        const a = anchors[anchors.length - 1];
+        a[4] = cubics[k][2] - a[0]; a[5] = cubics[k][3] - a[1];
+      }
+      anchors.push([c[6], c[7], c[4] - c[6], c[5] - c[7], 0, 0]);
+    }
+    if (closed && anchors.length > 1) {
+      const first = anchors[0], last = anchors[anchors.length - 1];
+      if (Math.hypot(first[0] - last[0], first[1] - last[1]) < 0.5) {
+        first[2] = last[2]; first[3] = last[3];
+        anchors.pop();
+      }
+    }
+    return { closed, anchors };
+  });
+}
+
+/* =====================================================================
+   DEMO PROJECT + INIT
+   ===================================================================== */
+function star(cxx, cyy, R, r, n) {
+  const pts = [];
+  for (let i = 0; i < n * 2; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / n;
+    const rad = i % 2 === 0 ? R : r;
+    pts.push(f2(cxx + rad * Math.cos(a)), f2(cyy + rad * Math.sin(a)));
+  }
+  return pts;
+}
+
+function demoProject() {
+  const p = blankProject();
+  p.background = '#12122b';
+  p.duration = 4;
+
+  const ball = makeShapeIn(p, 'ellipse', { cx: 110, cy: 120, rx: 34, ry: 34 }, { fill: '#f74f6e', stroke: 'none' });
+  ball.name = 'Ball';
+  ball.tracks.cx = [{ t: 0, v: 110, e: LINEAR.slice() }, { t: 4, v: 690, e: LINEAR.slice() }];
+  ball.tracks.cy = [
+    { t: 0, v: 120, e: [0.5, 0, 1, 0.6] }, { t: 1, v: 428, e: [0, 0.4, 0.5, 1] },
+    { t: 2, v: 170, e: [0.5, 0, 1, 0.6] }, { t: 3, v: 428, e: [0, 0.4, 0.5, 1] },
+    { t: 4, v: 230, e: LINEAR.slice() },
+  ];
+  ball.tracks.ry = [
+    { t: 0.9, v: 34, e: DEF_EASE.slice() }, { t: 1, v: 22, e: DEF_EASE.slice() }, { t: 1.15, v: 34, e: DEF_EASE.slice() },
+    { t: 2.9, v: 34, e: DEF_EASE.slice() }, { t: 3, v: 24, e: DEF_EASE.slice() }, { t: 3.15, v: 34, e: DEF_EASE.slice() },
+  ];
+  ball.tracks.fill = [{ t: 0, v: '#f74f6e', e: LINEAR.slice() }, { t: 4, v: '#8b5cf6', e: LINEAR.slice() }];
+
+  const st = makeShapeIn(p, 'polygon', { points: star(400, 240, 92, 38, 5) }, { fill: '#ffd34d', stroke: 'none', opacity: 0.9 });
+  st.name = 'Star';
+  st.tracks.points = [
+    { t: 0, v: star(400, 240, 92, 38, 5), e: [0.42, 0, 0.58, 1] },
+    { t: 2, v: star(400, 240, 80, 74, 5), e: [0.42, 0, 0.58, 1] },
+    { t: 4, v: star(400, 240, 92, 38, 5), e: LINEAR.slice() },
+  ];
+  st.tracks.rotation = [{ t: 0, v: 0, e: LINEAR.slice() }, { t: 4, v: 72, e: LINEAR.slice() }];
+
+  const title = makeShapeIn(p, 'text', { x: 250, y: 460, fontSize: 34 }, { fill: '#ffffff', stroke: 'none' });
+  title.name = 'Title';
+  title.base.text = 'SVG Animation Editor';
+  title.tracks.opacity = [{ t: 0, v: 0, e: [0, 0, 0.58, 1] }, { t: 0.9, v: 1, e: LINEAR.slice() }];
+  title.tracks.y = [{ t: 0, v: 482, e: [0, 0, 0.58, 1] }, { t: 0.9, v: 460, e: LINEAR.slice() }];
+  return p;
+}
+function makeShapeIn(p, type, geom, style) {
+  const saved = project;
+  project = p;
+  const sh = makeShape(type, geom, style);
+  p.shapes.push(sh);
+  project = saved;
+  return sh;
+}
+
+function init() {
+  let restored = null;
+  try { restored = JSON.parse(localStorage.getItem(AUTOSAVE_KEY)); } catch (e) { /* ignore */ }
+  project = restored && Array.isArray(restored.shapes)
+    ? Object.assign(blankProject(), restored)
+    : demoProject();
+  setTool('select');
+  updateUndoButtons();
+  commitStructural();
+  updatePlayhead();
+}
+init();
+</script>
+</body>
+</html>
