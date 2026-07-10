@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>SVG Animation Editor</title>
 <style>
 * { box-sizing: border-box; }
@@ -20,6 +20,8 @@
 html, body { height: 100%; }
 body {
   margin: 0;
+  height: 100vh;
+  height: 100dvh;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
@@ -74,11 +76,17 @@ label { user-select: none; }
 #main { flex: 1; display: flex; min-height: 0; }
 #stageWrap {
   flex: 1; overflow: auto; position: relative;
-  display: grid; place-items: center; padding: 28px;
+  display: flex; padding: 28px;
   background:
     conic-gradient(#202127 90deg, #191a20 90deg 180deg, #202127 180deg 270deg, #191a20 270deg) 0 0 / 22px 22px;
 }
-#stageScale { transform-origin: center center; }
+#stageScale { margin: auto; flex: 0 0 auto; }
+#pendingBar {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 10; display: flex; gap: 8px;
+}
+#pendingBar button { box-shadow: 0 2px 10px rgba(0,0,0,.5); }
+#pendingDone { background: var(--accent); border-color: var(--accent); color: #fff; }
 svg#stage { display: block; box-shadow: 0 4px 30px rgba(0,0,0,.55); touch-action: none; }
 svg#stage text { user-select: none; }
 
@@ -103,7 +111,9 @@ svg#stage text { user-select: none; }
   margin: 0; padding: 7px 10px; font-size: 11px; text-transform: uppercase;
   letter-spacing: .08em; color: var(--dim); background: var(--panel2);
 }
-#propsBody { padding: 8px 10px; overflow-y: auto; flex: 1; }
+#propsSect { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+#layersSect { display: flex; flex-direction: column; flex: 0 0 auto; min-height: 130px; max-height: 42%; }
+#propsBody { padding: 8px 10px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
 #layersBody { overflow-y: auto; flex: 1; }
 .prow { display: grid; grid-template-columns: 86px 1fr 24px; gap: 6px; align-items: center; margin: 5px 0; }
 .prow > label { color: var(--dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
@@ -143,7 +153,7 @@ svg#stage text { user-select: none; }
   padding: 6px 10px; border-bottom: 1px solid var(--border);
 }
 #timecode { font-variant-numeric: tabular-nums; min-width: 88px; color: var(--accent2); }
-#tlBody { flex: 1; overflow: auto; position: relative; }
+#tlBody { flex: 1; overflow: auto; position: relative; touch-action: pan-x pan-y; }
 #tlContent { position: relative; user-select: none; }
 .tl-row { display: flex; height: 26px; border-bottom: 1px solid #26272f; }
 .tl-row.shape-row { background: #22232b; }
@@ -159,14 +169,14 @@ svg#stage text { user-select: none; }
 .tl-track { position: relative; flex: 1; cursor: text; }
 #rulerRow { height: 24px; position: sticky; top: 0; z-index: 5; background: var(--panel2); }
 #rulerRow .tl-label { background: var(--panel2); cursor: default; }
-#ruler { cursor: ew-resize; }
+#ruler { cursor: ew-resize; touch-action: none; }
 .tick { position: absolute; bottom: 0; width: 1px; height: 6px; background: #4a4b57; }
 .tick.major { height: 11px; background: #6b6d7c; }
 .tick-lab { position: absolute; top: 1px; font-size: 10px; color: var(--dim); transform: translateX(3px); }
 .kf {
   position: absolute; width: 9px; height: 9px; top: 8px; margin-left: -4.5px;
   transform: rotate(45deg); background: #93a4bd; border: 1px solid #c9d4e4;
-  cursor: ew-resize; z-index: 2;
+  cursor: ew-resize; z-index: 2; touch-action: none;
 }
 .kf.shape-kf { background: #6f7482; border-color: #9aa0af; }
 .kf.sel { background: var(--accent2); border-color: #fff; }
@@ -203,6 +213,30 @@ dialog h2 { margin: 0 0 10px; font-size: 16px; }
   #side { width: 240px; min-width: 240px; }
   .tl-label { width: 140px; min-width: 140px; }
 }
+
+/* phones: stack everything vertically, swipe the toolbar, shrink the panels */
+@media (max-width: 820px) {
+  #toolbar { flex-wrap: nowrap; overflow-x: auto; padding: 6px 8px; -webkit-overflow-scrolling: touch; }
+  #toolbar h1 { display: none; }
+  .tgroup { flex: 0 0 auto; }
+  #main { flex-direction: column; }
+  #stageWrap { padding: 14px; }
+  #side {
+    width: 100%; min-width: 0; height: 168px; flex: 0 0 auto;
+    flex-direction: row; border-left: none; border-top: 1px solid var(--border);
+  }
+  #propsSect { flex: 1.35; border-right: 1px solid var(--border); }
+  #layersSect { flex: 1; min-height: 0; max-height: none; }
+  #timeline { height: 188px; }
+  #transport { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #transport > * { flex: 0 0 auto; }
+  .tl-label { width: 108px; min-width: 108px; font-size: 11px; }
+}
+
+/* touch devices: larger keyframe targets */
+@media (pointer: coarse) {
+  .kf { width: 14px; height: 14px; top: 6px; margin-left: -7px; }
+}
 </style>
 </head>
 <body>
@@ -236,6 +270,7 @@ dialog h2 { margin: 0 0 10px; font-size: 16px; }
     <label class="chk">bg <input type="color" id="projBg"></label>
     <label class="chk">zoom
       <select id="zoomSel">
+        <option value="fit">fit</option>
         <option value="0.5">50%</option><option value="0.75">75%</option>
         <option value="1" selected>100%</option><option value="1.5">150%</option>
         <option value="2">200%</option>
@@ -251,6 +286,10 @@ dialog h2 { margin: 0 0 10px; font-size: 16px; }
 
 <div id="main">
   <div id="stageWrap">
+    <div id="pendingBar" style="display:none">
+      <button id="pendingDone">&#10003; done</button>
+      <button id="pendingCancel">&#10005; cancel</button>
+    </div>
     <div id="stageScale">
       <svg id="stage" xmlns="http://www.w3.org/2000/svg">
         <rect id="bgRect" x="0" y="0"></rect>
@@ -261,11 +300,11 @@ dialog h2 { margin: 0 0 10px; font-size: 16px; }
     </div>
   </div>
   <aside id="side">
-    <div class="sect" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+    <div class="sect" id="propsSect">
       <h2>Properties</h2>
       <div id="propsBody"></div>
     </div>
-    <div class="sect" style="display:flex;flex-direction:column;flex:0 0 auto;min-height:130px;max-height:42%;">
+    <div class="sect" id="layersSect">
       <h2>Layers</h2>
       <div id="layersBody"></div>
     </div>
@@ -382,6 +421,7 @@ const stage = $('stage'), shapesG = $('shapesG'), overlayG = $('overlayG'),
       onionG = $('onionG'), bgRect = $('bgRect');
 
 /* ---------- small utils ---------- */
+const COARSE = matchMedia('(pointer: coarse)').matches;
 const uid = () => 's' + (++shapeCounter) + '_' + Math.floor(performance.now() % 1e6).toString(36);
 const f2 = n => Math.round(n * 100) / 100;
 const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
@@ -741,6 +781,15 @@ function shapeNode(sh, t, ghost) {
   return el;
 }
 
+function currentZoom() {
+  const v = $('zoomSel').value;
+  if (v !== 'fit') return +v;
+  const wrap = $('stageWrap');
+  const pad = COARSE ? 28 : 56;
+  return clamp(Math.min((wrap.clientWidth - pad) / project.width,
+                        (wrap.clientHeight - pad) / project.height), 0.05, 2);
+}
+
 function renderStage() {
   stage.setAttribute('width', project.width);
   stage.setAttribute('height', project.height);
@@ -748,7 +797,12 @@ function renderStage() {
   bgRect.setAttribute('width', project.width);
   bgRect.setAttribute('height', project.height);
   bgRect.setAttribute('fill', project.background);
-  $('stageScale').style.transform = zoom === 1 ? '' : `scale(${zoom})`;
+  zoom = currentZoom();
+  const sc = $('stageScale');
+  sc.style.width = (project.width * zoom) + 'px';
+  sc.style.height = (project.height * zoom) + 'px';
+  sc.style.transform = `scale(${zoom})`;
+  sc.style.transformOrigin = '0 0';
 
   const nodes = [];
   for (const sh of project.shapes) if (!sh.hidden) nodes.push(shapeNode(sh, time));
@@ -790,22 +844,22 @@ function renderOverlay() {
     const rot = valueAt(sh, 'rotation', time) || 0;
     const grp = mk('g', rot ? { transform: `rotate(${rot} ${b.x + b.w / 2} ${b.y + b.h / 2})` } : {});
     grp.appendChild(mk('rect', { class: 'selbox', x: b.x, y: b.y, width: Math.max(0, b.w), height: Math.max(0, b.h) }));
-    const hs = 7 / zoom;
+    const hs = (COARSE ? 13 : 7) / zoom;
     for (const [name, fx, fy] of HANDLE_DEFS) {
       grp.appendChild(mk('rect', {
         class: 'h', 'data-h': name,
         x: b.x + b.w * fx - hs / 2, y: b.y + b.h * fy - hs / 2, width: hs, height: hs,
       }));
     }
-    const rx = b.x + b.w / 2, ry = b.y - 22 / zoom;
+    const rx = b.x + b.w / 2, ry = b.y - (COARSE ? 32 : 22) / zoom;
     grp.appendChild(mk('line', { class: 'hline', x1: rx, y1: b.y, x2: rx, y2: ry }));
-    grp.appendChild(mk('circle', { class: 'h h-rot', 'data-h': 'rot', cx: rx, cy: ry, r: 5.5 / zoom }));
+    grp.appendChild(mk('circle', { class: 'h h-rot', 'data-h': 'rot', cx: rx, cy: ry, r: (COARSE ? 10 : 5.5) / zoom }));
     parts.push(grp);
   }
 
   if (sh && !sh.hidden && tool === 'node') {
     const g = geomAt(sh, time);
-    const r = 4.5 / zoom;
+    const r = (COARSE ? 8 : 4.5) / zoom;
     if (sh.type === 'path') {
       for (let i = 0; i < g.anchors.length; i++) {
         const a = g.anchors[i];
@@ -838,7 +892,7 @@ function renderOverlay() {
   }
 
   if (pending) {
-    const r = 4.5 / zoom;
+    const r = (COARSE ? 8 : 4.5) / zoom;
     if (pending.kind === 'pen') {
       const preview = pending.anchors.length > 1
         ? anchorsToD(pending.anchors, false) : '';
@@ -868,6 +922,7 @@ function renderOverlay() {
     }
   }
   overlayG.replaceChildren(...parts);
+  $('pendingBar').style.display = pending ? 'flex' : 'none';
 }
 
 /* =====================================================================
@@ -928,7 +983,7 @@ stage.addEventListener('pointerdown', e => {
     if (!pending) pending = { kind: 'pen', anchors: [], closed: false, mouse: null };
     const first = pending.anchors[0];
     if (first && pending.anchors.length > 2 &&
-        Math.hypot(pt.x - first[0], pt.y - first[1]) < 8 / zoom) {
+        Math.hypot(pt.x - first[0], pt.y - first[1]) < (COARSE ? 18 : 8) / zoom) {
       pending.closed = true;
       finishPending(false);
       return;
@@ -1131,6 +1186,14 @@ stage.addEventListener('pointerup', e => {
   }
 });
 
+stage.addEventListener('pointercancel', () => {
+  if (drag && drag.kind === 'create') {
+    project.shapes.pop(); selId = null; undoStack.pop(); updateUndoButtons();
+    commitStructural();
+  }
+  drag = null;
+});
+
 stage.addEventListener('dblclick', e => {
   if (tool === 'polygon' && pending) {
     pending.pts.splice(pending.pts.length - 2, 2);
@@ -1148,6 +1211,7 @@ stage.addEventListener('dblclick', e => {
    TIMELINE
    ===================================================================== */
 const tlBody = $('tlBody'), tlContent = $('tlContent');
+const TRACK_PAD = 8;  // px inset so t=0 keyframes are not under the sticky labels
 const LABEL_W = () => document.querySelector('.tl-label') ?
   document.querySelector('.tl-label').offsetWidth : 200;
 
@@ -1184,12 +1248,12 @@ function renderTimeline() {
     const major = Math.abs(t - Math.round(t)) < 1e-6;
     const tick = document.createElement('div');
     tick.className = 'tick' + (major ? ' major' : '');
-    tick.style.left = (t * pxPerSec) + 'px';
+    tick.style.left = (TRACK_PAD + t * pxPerSec) + 'px';
     ruler.track.appendChild(tick);
     if (major) {
       const lab = document.createElement('div');
       lab.className = 'tick-lab';
-      lab.style.left = (t * pxPerSec) + 'px';
+      lab.style.left = (TRACK_PAD + t * pxPerSec) + 'px';
       lab.textContent = Math.round(t) + 's';
       ruler.track.appendChild(lab);
     }
@@ -1209,7 +1273,7 @@ function renderTimeline() {
     for (const t of shapeKfTimes(sh)) {
       const kf = document.createElement('div');
       kf.className = 'kf shape-kf';
-      kf.style.left = (t * pxPerSec) + 'px';
+      kf.style.left = (TRACK_PAD + t * pxPerSec) + 'px';
       kf.dataset.sid = sh.id; kf.dataset.prop = '*'; kf.dataset.t = t;
       head.track.appendChild(kf);
     }
@@ -1222,7 +1286,7 @@ function renderTimeline() {
         for (const k of sh.tracks[prop]) {
           const kf = document.createElement('div');
           kf.className = 'kf' + (isKfSel(sh.id, prop, k.t) ? ' sel' : '');
-          kf.style.left = (k.t * pxPerSec) + 'px';
+          kf.style.left = (TRACK_PAD + k.t * pxPerSec) + 'px';
           kf.dataset.sid = sh.id; kf.dataset.prop = prop; kf.dataset.t = k.t;
           kf.title = propLabel(sh, prop) + ' @ ' + k.t.toFixed(2) + 's';
           pr.track.appendChild(kf);
@@ -1242,7 +1306,7 @@ function renderTimeline() {
 
 function updatePlayhead() {
   const ph = $('playhead');
-  if (ph) ph.style.left = (LABEL_W() + time * pxPerSec) + 'px';
+  if (ph) ph.style.left = (LABEL_W() + TRACK_PAD + time * pxPerSec) + 'px';
   $('timecode').textContent = time.toFixed(2) + ' / ' + project.duration.toFixed(2) + 's';
 }
 
@@ -1309,7 +1373,7 @@ tlBody.addEventListener('pointerdown', e => {
     tlBody.setPointerCapture(e.pointerId);
     drag = { kind: 'scrub' };
     const rect = track.getBoundingClientRect();
-    setTime((e.clientX - rect.left) / pxPerSec, { light: true });
+    setTime((e.clientX - rect.left - TRACK_PAD) / pxPerSec, { light: true });
   }
 });
 
@@ -1319,7 +1383,7 @@ tlBody.addEventListener('pointermove', e => {
     const track = tlContent.querySelector('.tl-track');
     if (!track) return;
     const rect = track.getBoundingClientRect();
-    setTime((e.clientX - rect.left) / pxPerSec, { light: true });
+    setTime((e.clientX - rect.left - TRACK_PAD) / pxPerSec, { light: true });
   } else if (drag.kind === 'kf') {
     const dt = (e.clientX - drag.startX) / pxPerSec;
     if (Math.abs(dt) * pxPerSec < 3 && !drag.moved) return;
@@ -1348,6 +1412,8 @@ tlBody.addEventListener('pointerup', e => {
   drag = null;
 });
 
+tlBody.addEventListener('pointercancel', () => { drag = null; });
+
 tlBody.addEventListener('dblclick', e => {
   const track = e.target.closest('.tl-track');
   if (!track || !track.dataset.sid || e.target.closest('.kf')) return;
@@ -1356,7 +1422,7 @@ tlBody.addEventListener('dblclick', e => {
   if (!sh || !prop || prop === '*') return;
   pushUndo();
   const rect = track.getBoundingClientRect();
-  const t = clamp(snapT((e.clientX - rect.left) / pxPerSec), 0, project.duration);
+  const t = clamp(snapT((e.clientX - rect.left - TRACK_PAD) / pxPerSec), 0, project.duration);
   upsertKf(sh, prop, t, valueAt(sh, prop, t));
   commitStructural();
 });
@@ -1645,7 +1711,10 @@ document.querySelectorAll('#toolButtons .tbtn').forEach(b =>
 $('undoBtn').addEventListener('click', undo);
 $('redoBtn').addEventListener('click', redo);
 $('onionSkin').addEventListener('change', renderStage);
-$('zoomSel').addEventListener('change', () => { zoom = +$('zoomSel').value; renderStage(); });
+$('zoomSel').addEventListener('change', renderStage);
+window.addEventListener('resize', () => { if ($('zoomSel').value === 'fit') renderStage(); });
+$('pendingDone').addEventListener('click', () => finishPending(false));
+$('pendingCancel').addEventListener('click', () => finishPending(true));
 $('projW').addEventListener('change', () => { pushUndo(); project.width = clamp(+$('projW').value || 800, 10, 4000); commitStructural(); });
 $('projH').addEventListener('change', () => { pushUndo(); project.height = clamp(+$('projH').value || 500, 10, 4000); commitStructural(); });
 $('projBg').addEventListener('input', () => { project.background = $('projBg').value; renderStage(); scheduleSave(); });
@@ -2115,6 +2184,7 @@ function init() {
   project = restored && Array.isArray(restored.shapes)
     ? Object.assign(blankProject(), restored)
     : demoProject();
+  if (matchMedia('(max-width: 820px)').matches) $('zoomSel').value = 'fit';
   setTool('select');
   updateUndoButtons();
   commitStructural();

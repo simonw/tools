@@ -40,7 +40,8 @@ def test_draw_rectangle_and_autokey_tween(page: Page, unused_port_server):
 
     # scrub to 2s, then drag the rectangle: auto-key should create a tween
     ruler = page.locator("#ruler").bounding_box()
-    page.mouse.click(ruler["x"] + 240, ruler["y"] + 12)
+    # tracks are inset by 8px (TRACK_PAD) so t=0 keyframes clear the labels
+    page.mouse.click(ruler["x"] + 8 + 240, ruler["y"] + 12)
     expect(page.locator("#timecode")).to_contain_text("2.00")
     page.click('[data-tool="select"]')
     page.mouse.move(stage["x"] + 130, stage["y"] + 110)
