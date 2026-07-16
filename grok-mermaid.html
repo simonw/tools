@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mermaid to Unicode box art (grok-mermaid)</title>
+<style>
+* { box-sizing: border-box; }
+body {
+    font-family: Helvetica, Arial, sans-serif;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 20px;
+    line-height: 1.5;
+    color: #222;
+}
+h1 { margin: 0 0 8px; font-size: 28px; }
+.blurb { color: #444; margin-top: 0; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.examples button {
+    font-size: 13px;
+    padding: 5px 10px;
+    border: 1px solid #bbb;
+    border-radius: 6px;
+    background: #f6f8fa;
+    cursor: pointer;
+}
+.examples button:hover { background: #eaeef2; }
+.examples button.active { background: #0969da; border-color: #0969da; color: #fff; }
+textarea {
+    width: 100%;
+    height: 180px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    padding: 10px;
+    border: 1px solid #bbb;
+    border-radius: 6px;
+    resize: vertical;
+}
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 10px 0;
+    font-size: 14px;
+}
+.controls button {
+    font-size: 13px;
+    padding: 5px 10px;
+    border: 1px solid #bbb;
+    border-radius: 6px;
+    background: #f6f8fa;
+    cursor: pointer;
+}
+.controls button:hover { background: #eaeef2; }
+#status { color: #666; font-size: 13px; }
+#output-wrap {
+    background: #14161c;
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+}
+#output {
+    margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.2;
+    font-variant-ligatures: none;
+    color: #e6edf3;
+    min-height: 60px;
+}
+/* Style classes emitted by the WASM module, mirroring the TUI theme roles:
+   b = border, n = node text, e = edge, el = edge label, t = title, i = italic */
+#output .b  { color: #7d8590; }
+#output .n  { color: #e6edf3; }
+#output .e  { color: #6e7681; }
+#output .el { color: #e3b341; }
+#output .t  { color: #79c0ff; font-weight: bold; }
+#output .i  { font-style: italic; }
+#output .err { color: #ff7b72; }
+footer {
+    margin-top: 24px;
+    padding-top: 12px;
+    border-top: 1px solid #ddd;
+    font-size: 13px;
+    color: #555;
+}
+@media (max-width: 600px) {
+    body { padding: 10px; }
+    h1 { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+<h1>Mermaid to Unicode box art</h1>
+<p class="blurb">
+Type <a href="https://mermaid.js.org/">Mermaid</a> diagram source below and it
+is rendered as terminal-style Unicode box-drawing art — entirely in your
+browser, by the actual Rust renderer from
+<a href="https://github.com/xai-org/grok-build">xai-org/grok-build</a>
+(the Grok CLI) compiled to WebAssembly. Flowcharts, sequence, state, class and
+ER diagrams are supported; other diagram types fall back to a framed source
+listing. Rust source, license and build script:
+<a href="https://github.com/simonw/tools/tree/main/grok-mermaid">grok-mermaid/</a>.
+</p>
+
+<div class="examples" id="examples"></div>
+
+<textarea id="input" spellcheck="false" aria-label="Mermaid source"></textarea>
+
+<div class="controls">
+    <label>Max width:
+        <select id="maxwidth">
+            <option value="fit" selected>Fit output panel</option>
+            <option value="80">80 columns</option>
+            <option value="100">100 columns</option>
+            <option value="120">120 columns</option>
+            <option value="160">160 columns</option>
+            <option value="0">Unlimited</option>
+        </select>
+    </label>
+    <button id="copy">Copy as text</button>
+    <button id="link">Copy link to this diagram</button>
+    <span id="status"></span>
+</div>
+
+<div id="output-wrap"><pre id="output" aria-live="polite"></pre></div>
+
+<footer>
+The renderer is <code>mermaid.rs</code> from
+<a href="https://github.com/xai-org/grok-build">xai-org/grok-build</a>
+(<code>crates/codegen/xai-grok-markdown/src/mermaid.rs</code>),
+copyright 2023-2026 SpaceXAI, used under the
+<a href="https://github.com/simonw/tools/blob/main/grok-mermaid/LICENSE">Apache License 2.0</a>,
+compiled unmodified (apart from two import lines) to a 190&nbsp;KB WebAssembly
+module with no JavaScript reimplementation of any layout logic.
+</footer>
+
+<script type="module">
+const EXAMPLES = {
+    'Flowchart': `graph TD
+  Start[Request received] --> Auth{Authenticated?}
+  Auth -->|yes| Rate{Rate limit OK?}
+  Auth -->|no| R401[401 Unauthorized]
+  Rate -->|yes| H(Handle request)
+  Rate -->|no| R429[429 Too Many Requests]
+  H -.-> Log[Audit log]
+  H ==> Resp[200 OK]`,
+    'Subgraphs': `flowchart LR
+  subgraph Client
+    UI[Browser UI] --> SW[Service worker]
+  end
+  subgraph Server
+    API[API gateway] --> DB[Postgres]
+  end
+  SW -->|HTTPS| API`,
+    'Sequence': `sequenceDiagram
+  participant U as User
+  participant B as Browser
+  participant W as WASM module
+  U->>B: Edit mermaid source
+  B->>W: wasm_render_html()
+  W-->>B: Unicode box art
+  B-->>U: Rendered diagram`,
+    'State': `stateDiagram-v2
+  [*] --> Idle
+  Idle --> Loading : fetch
+  Loading --> Ready : success
+  Loading --> Error : failure
+  Error --> Loading : retry
+  Ready --> [*]`,
+    'Class': `classDiagram
+  class Animal {
+    +String name
+    +makeSound()
+  }
+  Animal <|-- Dog
+  Animal <|-- Cat
+  Dog : +fetch()`,
+    'Entity relationship': `erDiagram
+  CUSTOMER ||--o{ ORDER : places
+  ORDER ||--|{ LINE_ITEM : contains
+  CUSTOMER {
+    string name
+    string email
+  }`,
+    'Unsupported (fallback)': `pie title Pets
+  "Dogs" : 386
+  "Cats" : 85`,
+};
+
+const input = document.getElementById('input');
+const output = document.getElementById('output');
+const outputWrap = document.getElementById('output-wrap');
+const status = document.getElementById('status');
+const maxwidthSel = document.getElementById('maxwidth');
+const examplesDiv = document.getElementById('examples');
+
+// --- WASM setup. The module exports a tiny wasm-bindgen-free FFI:
+//     wasm_alloc(len) -> ptr          allocate an input buffer
+//     wasm_render_html(ptr, len, mw)  render; frees input; returns output len
+//     wasm_result_ptr() -> ptr        where the UTF-8 HTML result lives
+const wasmBytes = await (await fetch('grok-mermaid.wasm')).arrayBuffer();
+const wasmModule = await WebAssembly.compile(wasmBytes);
+let instance = await WebAssembly.instantiate(wasmModule, {});
+
+function renderHtml(src, maxWidth) {
+    const { memory, wasm_alloc, wasm_render_html, wasm_result_ptr } = instance.exports;
+    const bytes = new TextEncoder().encode(src);
+    const ptr = wasm_alloc(bytes.length);
+    new Uint8Array(memory.buffer, ptr, bytes.length).set(bytes);
+    const len = wasm_render_html(ptr, bytes.length, maxWidth);
+    // memory.buffer may have been detached by growth during the call
+    return new TextDecoder().decode(
+        new Uint8Array(instance.exports.memory.buffer, wasm_result_ptr(), len));
+}
+
+function measureColumns() {
+    const probe = document.createElement('span');
+    probe.textContent = '0'.repeat(100);
+    probe.style.visibility = 'hidden';
+    output.appendChild(probe);
+    const chWidth = probe.getBoundingClientRect().width / 100;
+    probe.remove();
+    const usable = outputWrap.clientWidth - 32; // padding
+    return Math.max(20, Math.floor(usable / chWidth));
+}
+
+function currentMaxWidth() {
+    const v = maxwidthSel.value;
+    if (v === 'fit') return measureColumns();
+    return parseInt(v, 10); // 0 = unlimited
+}
+
+async function render() {
+    const src = input.value;
+    try {
+        const html = renderHtml(src, currentMaxWidth());
+        output.innerHTML = html || '<span class="e">(blank input)</span>';
+        status.textContent = '';
+    } catch (e) {
+        // A trap poisons the instance; make a fresh one so typing recovers.
+        instance = await WebAssembly.instantiate(wasmModule, {});
+        output.innerHTML = '';
+        output.appendChild(Object.assign(document.createElement('span'),
+            { className: 'err', textContent: 'Renderer error: ' + e }));
+        status.textContent = '';
+    }
+}
+
+let timer = null;
+function scheduleRender() {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+        render();
+        history.replaceState(null, '', '#' + encodeURIComponent(input.value));
+    }, 120);
+}
+
+// --- Example buttons
+for (const name of Object.keys(EXAMPLES)) {
+    const btn = document.createElement('button');
+    btn.textContent = name;
+    btn.addEventListener('click', () => {
+        input.value = EXAMPLES[name];
+        setActive(btn);
+        scheduleRender();
+    });
+    examplesDiv.appendChild(btn);
+}
+function setActive(btn) {
+    for (const b of examplesDiv.children) b.classList.toggle('active', b === btn);
+}
+
+input.addEventListener('input', () => { setActive(null); scheduleRender(); });
+maxwidthSel.addEventListener('change', render);
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+    if (maxwidthSel.value !== 'fit') return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(render, 150);
+});
+
+document.getElementById('copy').addEventListener('click', async (ev) => {
+    await navigator.clipboard.writeText(output.textContent);
+    ev.target.textContent = 'Copied!';
+    setTimeout(() => { ev.target.textContent = 'Copy as text'; }, 1200);
+});
+document.getElementById('link').addEventListener('click', async (ev) => {
+    const url = location.origin + location.pathname +
+        '#' + encodeURIComponent(input.value);
+    await navigator.clipboard.writeText(url);
+    ev.target.textContent = 'Copied!';
+    setTimeout(() => { ev.target.textContent = 'Copy link to this diagram'; }, 1200);
+});
+
+// --- Initial content: from the URL fragment if present, else first example.
+const fromHash = location.hash.length > 1
+    ? decodeURIComponent(location.hash.slice(1)) : '';
+if (fromHash.trim()) {
+    input.value = fromHash;
+} else {
+    input.value = EXAMPLES['Flowchart'];
+    setActive(examplesDiv.children[0]);
+}
+render();
+</script>
+</body>
+</html>
