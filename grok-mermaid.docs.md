@@ -1,3 +1,3 @@
 Convert Mermaid diagram syntax into terminal-style Unicode box-drawing art rendered entirely in your browser using WebAssembly. The tool supports flowcharts, sequence, state, class, and ER diagrams, with other diagram types falling back to a framed source listing. You can adjust the output width, copy the rendered diagram as text, or generate a shareable link to your diagram.
 
-<!-- Generated from commit: 6cd0acaaed4e8adc6578be35898d916bfc3f138e -->
+<!-- Generated from commit: a66e0800d6cdad760d4e87ea8093740cc76cd0da -->
