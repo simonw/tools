@@ -1,0 +1,3 @@
+Convert Mermaid diagram syntax into ASCII and Unicode box-drawing art rendered entirely in your browser using a Go library compiled to WebAssembly. The tool supports flowcharts with labeled edges, subgraphs, and color definitions, as well as sequence diagrams with notes and control flow fragments, while offering customizable padding and output options.
+
+<!-- Generated from commit: b9b8da0a3ec73d84fd53971d204a37aad4c33425 -->
