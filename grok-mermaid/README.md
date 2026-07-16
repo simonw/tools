@@ -40,9 +40,15 @@ rustup target add wasm32-unknown-unknown
 ```
 
 This compiles the crate with `cargo build --release --target
-wasm32-unknown-unknown` (shrinking further with `wasm-opt -Oz` if binaryen
-is installed) and copies the result to `../grok-mermaid.wasm` (~190 KB),
-which `../grok-mermaid.html` fetches at load time.
+wasm32-unknown-unknown` and copies the result to `../grok-mermaid.wasm`
+(~163 KB), which `../grok-mermaid.html` fetches at load time.
+
+Install [binaryen](https://github.com/WebAssembly/binaryen)'s `wasm-opt`
+before building: besides shrinking the module, it rewrites the overlong
+`call_indirect` table-index LEB that wasm-ld emits (a reference-types
+encoding) into the canonical MVP form. Without that rewrite the module is
+rejected by WebAssembly engines lacking reference-types support (such as
+Safari before 15) with a "zero byte expected" parse error.
 
 ## FFI protocol
 
