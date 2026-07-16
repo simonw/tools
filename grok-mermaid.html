@@ -89,6 +89,8 @@ footer {
 @media (max-width: 600px) {
     body { padding: 10px; }
     h1 { font-size: 22px; }
+    /* below 16px, iOS Safari zooms the whole page when the textarea is focused */
+    textarea { font-size: 16px; }
 }
 </style>
 </head>
@@ -107,7 +109,8 @@ listing. Rust source, license and build script:
 
 <div class="examples" id="examples"></div>
 
-<textarea id="input" spellcheck="false" aria-label="Mermaid source"></textarea>
+<textarea id="input" spellcheck="false" autocapitalize="off" autocorrect="off"
+    aria-label="Mermaid source"></textarea>
 
 <div class="controls">
     <label>Max width:
@@ -133,7 +136,7 @@ The renderer is <code>mermaid.rs</code> from
 (<code>crates/codegen/xai-grok-markdown/src/mermaid.rs</code>),
 copyright 2023-2026 SpaceXAI, used under the
 <a href="https://github.com/simonw/tools/blob/main/grok-mermaid/LICENSE">Apache License 2.0</a>,
-compiled unmodified (apart from two import lines) to a 190&nbsp;KB WebAssembly
+compiled unmodified (apart from two import lines) to a 163&nbsp;KB WebAssembly
 module with no JavaScript reimplementation of any layout logic.
 </footer>
 
@@ -236,9 +239,22 @@ function currentMaxWidth() {
 async function render() {
     const src = input.value;
     try {
-        const html = renderHtml(src, currentMaxWidth());
+        let html = renderHtml(src, currentMaxWidth());
+        let note = '';
+        // max_width never reshapes a diagram — the renderer swaps in a framed
+        // raw-source listing when the art is wider than the limit. In "fit"
+        // mode on narrow (phone) screens that made every diagram look broken,
+        // so when the cap changes the output, prefer the real diagram and let
+        // the output panel scroll sideways instead.
+        if (maxwidthSel.value === 'fit') {
+            const uncapped = renderHtml(src, 0);
+            if (uncapped !== html) {
+                html = uncapped;
+                note = 'Wider than the panel — scroll the output sideways.';
+            }
+        }
         output.innerHTML = html || '<span class="e">(blank input)</span>';
-        status.textContent = '';
+        status.textContent = note;
     } catch (e) {
         // A trap poisons the instance; make a fresh one so typing recovers.
         instance = await WebAssembly.instantiate(wasmModule, {});
