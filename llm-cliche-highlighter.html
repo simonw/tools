@@ -123,6 +123,42 @@ textarea {
   font-size: 16px;
 }
 
+.url-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.url-form input {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  color: #1d1b17;
+  background: #fff;
+  border: 1px solid #e7e3db;
+  border-radius: 6px;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+.url-form input:focus {
+  outline: 2px solid #f59e0b;
+  outline-offset: -1px;
+}
+
+.url-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.url-status {
+  margin: 0 0 10px;
+}
+
+.url-status.is-error {
+  color: #b91c1c;
+}
+
 textarea {
   width: 100%;
   min-height: 200px;
@@ -364,7 +400,7 @@ mark.hit.pulse {
 <body>
 <main>
   <h1>LLM cliché <mark>highlighter</mark></h1>
-  <p class="subtitle">Paste text below and it highlights sentences that match known LLM clichés. Chain patterns like &ldquo;no&nbsp;X, no&nbsp;Y&rdquo; get a badge counting their items; hover a highlight to see which cliché it hit.</p>
+  <p class="subtitle">Paste text below &mdash; or load it from a URL &mdash; and it highlights sentences that match known LLM clichés. Chain patterns like &ldquo;no&nbsp;X, no&nbsp;Y&rdquo; get a badge counting their items; hover a highlight to see which cliché it hit.</p>
 
   <div id="stats" class="stats" hidden></div>
 
@@ -372,6 +408,12 @@ mark.hit.pulse {
     <summary>Patterns<span id="pattern-summary-meta" class="pattern-summary-meta"></span></summary>
     <div id="pattern-list" class="pattern-list" aria-label="Patterns"></div>
   </details>
+
+  <form id="url-form" class="url-form" aria-label="Load text from a URL">
+    <input type="text" id="url-input" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://example.com/article — fetched via r.jina.ai" aria-label="URL to load text from">
+    <button type="submit" id="load-url">Load URL</button>
+  </form>
+  <p id="url-status" class="hint url-status" hidden></p>
 
   <textarea id="input" placeholder="Paste your text here…" spellcheck="false" aria-label="Text to analyze"></textarea>
 
@@ -631,6 +673,32 @@ Don't call it a rewrite — call it a rescue. The improvement is real, and it's 
 You already know the answer, of course. Consistency is the entire game, and the punchline is that nobody wants to hear it. The entire pitch is one sentence long.
 
 This closing paragraph is deliberately ordinary, with no list patterns at all, so nothing here should light up.`;
+
+// URL loading: the page URL's #fragment holds the article URL, and the text is
+// fetched through the Jina Reader proxy (https://r.jina.ai/) as plain text.
+
+function normalizeUrl(raw) {
+  const url = raw.trim();
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) return url;
+  if (/^[\w.-]+\.[a-z]{2,}(?:[/?#:]|$)/i.test(url)) return 'https://' + url;
+  return '';
+}
+
+function urlFromFragment(fragment) {
+  let raw = fragment.startsWith('#') ? fragment.slice(1) : fragment;
+  if (!raw) return '';
+  try {
+    raw = decodeURIComponent(raw);
+  } catch (err) {
+    // Not valid percent-encoding — treat the fragment as a literal URL
+  }
+  return normalizeUrl(raw);
+}
+
+function fragmentFromUrl(url) {
+  return url ? '#' + encodeURI(url) : '';
+}
 // ==== impl end ====
 
 const input = document.getElementById('input');
@@ -645,6 +713,10 @@ const matchListEl = document.getElementById('matches');
 const highlightsToggle = document.getElementById('highlights-only');
 const testSummary = document.getElementById('test-summary');
 const testList = document.getElementById('test-list');
+const urlForm = document.getElementById('url-form');
+const urlInput = document.getElementById('url-input');
+const loadUrlBtn = document.getElementById('load-url');
+const urlStatus = document.getElementById('url-status');
 const countEls = {};
 
 const STORAGE_KEY = 'llm_cliches_last_text';
@@ -682,6 +754,50 @@ document.getElementById('clear').addEventListener('click', () => {
 });
 
 highlightsToggle.addEventListener('change', run);
+
+function setUrlStatus(message, isError) {
+  urlStatus.hidden = !message;
+  urlStatus.textContent = message || '';
+  urlStatus.classList.toggle('is-error', Boolean(isError));
+}
+
+function prefillFromFragment() {
+  const url = urlFromFragment(window.location.hash);
+  if (!url) return;
+  urlInput.value = url;
+  setUrlStatus('URL found in the #fragment — press “Load URL” to fetch it.');
+}
+
+prefillFromFragment();
+
+window.addEventListener('hashchange', prefillFromFragment);
+
+urlForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const url = normalizeUrl(urlInput.value);
+  if (!url) {
+    setUrlStatus('Enter a full URL, e.g. https://example.com/article', true);
+    return;
+  }
+  urlInput.value = url;
+  history.replaceState(null, '', fragmentFromUrl(url));
+  loadUrlBtn.disabled = true;
+  setUrlStatus('Fetching ' + url + ' via r.jina.ai …');
+  try {
+    const response = await fetch('https://r.jina.ai/' + url, {
+      headers: { 'X-Return-Format': 'text' }
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const text = await response.text();
+    input.value = text;
+    run();
+    setUrlStatus('Loaded ' + text.length.toLocaleString() + ' characters from ' + url);
+  } catch (err) {
+    setUrlStatus('Could not fetch that URL: ' + (err && err.message ? err.message : err), true);
+  } finally {
+    loadUrlBtn.disabled = false;
+  }
+});
 
 let timer = null;
 input.addEventListener('input', () => {
@@ -979,6 +1095,31 @@ test('excerpts: distant matches stay separate with a counted gap', () => {
   const wins = buildWindows(t, regions);
   expectEqual(wins.length, 2, 'windows');
   expectEqual(countWords(t.slice(wins[0].end, wins[1].start)), 36, 'gap words');
+});
+
+test('url: normalizeUrl keeps http(s) URLs and trims whitespace', () => {
+  expectEqual(normalizeUrl('  https://example.com/a '), 'https://example.com/a', 'https');
+  expectEqual(normalizeUrl('http://example.com'), 'http://example.com', 'http');
+});
+
+test('url: normalizeUrl adds https:// to bare domains only', () => {
+  expectEqual(normalizeUrl('example.com/article'), 'https://example.com/article', 'bare domain');
+  expectEqual(normalizeUrl('javascript:alert(1)'), '', 'javascript scheme');
+  expectEqual(normalizeUrl('not a url'), '', 'plain words');
+  expectEqual(normalizeUrl(''), '', 'empty');
+});
+
+test('url: fragment round-trips a URL, including spaces', () => {
+  const url = 'https://example.com/some page?q=a b';
+  expectEqual(urlFromFragment(fragmentFromUrl(url)), url, 'round trip');
+  expectEqual(fragmentFromUrl(''), '', 'empty url');
+});
+
+test('url: urlFromFragment accepts raw unencoded fragments', () => {
+  expectEqual(urlFromFragment('#https://example.com/article'), 'https://example.com/article', 'raw');
+  expectEqual(urlFromFragment('#https://example.com/100%'), 'https://example.com/100%', 'bad percent-encoding');
+  expectEqual(urlFromFragment('#'), '', 'empty');
+  expectEqual(urlFromFragment('#just-some-anchor'), '', 'non-url anchor');
 });
 
 test('example text trips every pattern exactly once', () => {
