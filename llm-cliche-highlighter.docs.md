@@ -1,0 +1,3 @@
+Detect and highlight common clichéd phrases in text that frequently appear in language model outputs. Paste text into the analyzer to identify patterns like "no X, no Y" chains, "sit with that," "you already know," and other LLM-generated expressions, with toggleable pattern detection and context-aware sentence highlighting. The tool includes pattern counts, match listings with quick navigation, and runs entirely in your browser with localStorage support for persistence.
+
+<!-- Generated from commit: d88b8871699563e51ae060cfc62cac271d52c58a -->
