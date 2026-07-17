@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM cliché highlighter</title>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  padding: 28px 16px 72px;
+  background: #faf9f7;
+  color: #1d1b17;
+  font-family: Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+main {
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+h1 {
+  margin: 0 0 6px;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+
+h1 mark {
+  background: #fcd34d;
+  border-radius: 3px;
+  padding: 0 5px;
+}
+
+h2 {
+  margin: 30px 0 10px;
+  font-size: 16px;
+}
+
+.subtitle {
+  margin: 0 0 22px;
+  max-width: 62ch;
+  color: #6e6a62;
+  font-size: 15px;
+}
+
+.pattern-panel {
+  margin: 0 0 14px;
+  background: #fff;
+  border: 1px solid #e7e3db;
+  border-radius: 8px;
+}
+
+.pattern-panel summary {
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pattern-summary-meta {
+  margin-left: 6px;
+  color: #6e6a62;
+  font-weight: normal;
+}
+
+.pattern-list {
+  padding: 4px 14px 14px;
+  border-top: 1px solid #f0ede6;
+}
+
+.pattern-list > div + div {
+  margin-top: 9px;
+}
+
+.pattern-list label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pattern-name {
+  font-weight: bold;
+}
+
+.pattern-count {
+  color: #92400e;
+  font-weight: bold;
+}
+
+.pattern-desc {
+  margin: 2px 0 0 25px;
+  color: #6e6a62;
+  font-size: 13px;
+}
+
+.pattern-note {
+  margin: 10px 0 0;
+  color: #a29b8d;
+  font-size: 12px;
+}
+
+code {
+  padding: 1px 4px;
+  background: #f1eee7;
+  border-radius: 3px;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+input,
+textarea {
+  font-size: 16px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: 12px 14px;
+  color: #1d1b17;
+  background: #fff;
+  border: 1px solid #e7e3db;
+  border-radius: 8px;
+  font-family: Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+textarea:focus {
+  outline: 2px solid #f59e0b;
+  outline-offset: -1px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+button {
+  padding: 6px 12px;
+  color: #1d1b17;
+  background: #fff;
+  border: 1px solid #d9d4c9;
+  border-radius: 6px;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #f3f0e9;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #e7e3db;
+  border-radius: 8px;
+  color: #6e6a62;
+  font-size: 13px;
+}
+
+.stats strong {
+  color: #92400e;
+  font-size: 20px;
+  margin-right: 2px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.skip {
+  display: block;
+  margin: 10px 0;
+  color: #a29b8d;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  user-select: none;
+}
+
+.hint {
+  color: #6e6a62;
+  font-size: 14px;
+}
+
+.output {
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #e7e3db;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.flagged {
+  background: #fef3c7;
+  box-shadow: 0 0 0 2px #fef3c7;
+  border-radius: 2px;
+}
+
+mark.hit {
+  background: #fcd34d;
+  border-radius: 3px;
+  padding: 1px 2px;
+  transition: box-shadow 0.3s;
+}
+
+mark.hit.pulse {
+  box-shadow: 0 0 0 2px #b45309;
+}
+
+.badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 4px;
+  padding: 1px 6px;
+  background: #92400e;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: bold;
+  text-align: center;
+  position: relative;
+  top: -1px;
+  user-select: none;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 10px 2px 0;
+  color: #6e6a62;
+  font-size: 12px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 5px;
+  border-radius: 3px;
+  vertical-align: -1px;
+}
+
+.swatch-flag {
+  background: #fef3c7;
+  border: 1px solid #f0e3ab;
+}
+
+.swatch-hit {
+  background: #fcd34d;
+}
+
+.match-list {
+  margin: 8px 0 0;
+  padding-left: 24px;
+  font-size: 14px;
+}
+
+.match-list li {
+  margin: 5px 0;
+}
+
+.jump {
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.jump:hover {
+  background: none;
+  text-decoration: underline;
+}
+
+.match-meta {
+  color: #6e6a62;
+}
+
+.test-footer {
+  margin-top: 44px;
+  padding-top: 12px;
+  border-top: 1px solid #e7e3db;
+  color: #a29b8d;
+  font-size: 12px;
+}
+
+.test-footer summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.test-footer summary.has-fail {
+  color: #b91c1c;
+  font-weight: bold;
+}
+
+.test-howto {
+  margin: 10px 0 4px;
+}
+
+.test-howto p {
+  margin: 0 0 6px;
+  max-width: 74ch;
+}
+
+.test-cmd {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  background: #f1eee7;
+  border-radius: 6px;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
+
+.test-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.test-list li {
+  margin: 3px 0;
+}
+
+.test-list .fail {
+  color: #b91c1c;
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>LLM cliché <mark>highlighter</mark></h1>
+  <p class="subtitle">Paste text below and it highlights sentences that match known LLM clichés. Chain patterns like &ldquo;no&nbsp;X, no&nbsp;Y&rdquo; get a badge counting their items; hover a highlight to see which cliché it hit.</p>
+
+  <div id="stats" class="stats" hidden></div>
+
+  <details class="pattern-panel">
+    <summary>Patterns<span id="pattern-summary-meta" class="pattern-summary-meta"></span></summary>
+    <div id="pattern-list" class="pattern-list" aria-label="Patterns"></div>
+  </details>
+
+  <textarea id="input" placeholder="Paste your text here…" spellcheck="false" aria-label="Text to analyze"></textarea>
+
+  <div class="controls">
+    <button id="example" type="button">Load example</button>
+    <button id="clear" type="button">Clear</button>
+    <label class="toggle"><input type="checkbox" id="highlights-only" checked> Show just the highlights</label>
+  </div>
+
+  <p id="empty-hint" class="hint">Paste some text above — analysis runs as you type.</p>
+
+  <section id="output-section" hidden>
+    <h2>Highlighted text</h2>
+    <div id="output" class="output"></div>
+    <div class="legend">
+      <span><span class="swatch swatch-flag"></span>flagged sentence</span>
+      <span><span class="swatch swatch-hit"></span>pattern match</span>
+      <span><span class="badge">3</span> chain item count</span>
+    </div>
+  </section>
+
+  <section id="match-section" hidden>
+    <h2>Matches</h2>
+    <ol id="matches" class="match-list"></ol>
+  </section>
+
+  <footer class="test-footer">
+    <details>
+      <summary id="test-summary">Self-tests: running…</summary>
+      <div class="test-howto">
+        <p>Run these headlessly with Node: the one-liner below reads this file on stdin, extracts the code between the “impl” and “tests” start/end marker comments in the script, eval()s it, and prints a pass/fail tally. Exit code is 1 if anything fails.</p>
+        <pre class="test-cmd">node -e 's=require("fs").readFileSync(0,"utf8");cut=n=>s.split(`// ==== ${n} start ====`)[1].split(`// ==== ${n} end ====`)[0];eval(cut("impl")+cut("tests")+`let f=0;for(const t of selfTests){try{t.fn()}catch(e){f++;console.log("FAIL "+t.name+": "+e.message)}}console.log((selfTests.length-f)+" passed, "+f+" failed");process.exitCode=f?1:0`)' &lt; llm-cliche-highlighter.html</pre>
+      </div>
+      <ul id="test-list" class="test-list"></ul>
+    </details>
+  </footer>
+</main>
+<script type="module">
+// ==== impl start ====
+// Each pattern: { id, name, description, find(text) -> [{ start, end, badge?, badgeTitle?, count? }] }
+// Add new patterns to this array and they get a checkbox, per-pattern count, and highlighting for free.
+// makeChainFinder builds a detector for "HEAD X, HEAD Y, ..." lists and counts the items;
+// makeRegexFinder wraps a plain regex (must use the g flag).
+
+const CHAIN_BODY = String.raw`[^,.;:!?\n\u2013\u2014\u2026]*`;
+const CHAIN_SEP = String.raw`(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+|\s*[;&\u2013\u2014]\s*(?:and\s+|or\s+)?|\s+-{1,2}\s+)`;
+const CHAIN_SPLIT = new RegExp(CHAIN_SEP, 'i');
+
+function makeChainFinder(head, headTest, itemLabel) {
+  const item = head + CHAIN_BODY;
+  const chain = new RegExp(String.raw`\b${item}(?:${CHAIN_SEP}${item})+`, 'gi');
+  return function (text) {
+    const found = [];
+    for (const m of text.matchAll(chain)) {
+      let end = m.index + m[0].length;
+      while (end > m.index && /\s/.test(text[end - 1])) end -= 1;
+      const count = m[0].split(CHAIN_SPLIT).filter(p => headTest.test(p.trim())).length;
+      found.push({
+        start: m.index,
+        end,
+        count,
+        badge: String(count),
+        badgeTitle: count + ' ' + itemLabel + (count === 1 ? '' : 's')
+      });
+    }
+    return found;
+  };
+}
+
+function makeRegexFinder(re) {
+  return function (text) {
+    const found = [];
+    for (const m of text.matchAll(re)) {
+      found.push({ start: m.index, end: m.index + m[0].length });
+    }
+    return found;
+  };
+}
+
+const patterns = [
+  {
+    id: 'no-chain',
+    name: '“No X, no Y” chains',
+    description: 'Two or more “no …” items in a row, e.g. “No fluff, no filler, no jargon.” The badge counts the “no” items.',
+    find: makeChainFinder(String.raw`no[-\s]`, /^no[-\s]/i, '\u201cno\u201d item')
+  },
+  {
+    id: 'whole',
+    name: '“That’s the whole …”',
+    description: '“That / this is the whole point, game, thing …”',
+    find: makeRegexFinder(/\b(?:that|this)(?:['\u2019]s|\s+(?:is|was))\s+the\s+whole\b(?:\s+\w+)?/gi)
+  },
+  {
+    id: 'did-not-chain',
+    name: '“Did not X, did not Y” chains',
+    description: 'Two or more “did not …” or “didn’t …” items in a row. The badge counts the items.',
+    find: makeChainFinder(String.raw`(?:did\s+not|didn['\u2019]t)\s`, /^(?:did\s+not|didn['\u2019]t)\s/i, '\u201cdid not\u201d item')
+  },
+  {
+    id: 'dont-verb-it',
+    name: '“Don’t VERB it … VERB it”',
+    description: '“Don’t call it X. Call it Y.” — a negated verb + “it”, then the same verb + “it” again.',
+    find: makeRegexFinder(/\b(?:do\s+not|don['\u2019]t)\s+(?:just\s+|simply\s+|merely\s+)?(\w+)(?:\s+(?:of|about|at|on|for|with|to))?\s+it\b[^.!?\n]*?[.!?;,:\u2013\u2014]['"\u201d\u2019]*\s*(?:just\s+|simply\s+|merely\s+)?\1(?:\s+(?:of|about|at|on|for|with|to))?\s+it\b/gi)
+  },
+  {
+    id: 'sit-with',
+    name: '“Sit with that”',
+    description: 'The reflective “sit with that / this / it (for a moment)”, plus “sit with the discomfort” and friends.',
+    find: makeRegexFinder(/\bsit(?:s|ting)?\s+with\s+(?:that|this|it|(?:the|your)\s+(?:discomfort|feelings?|tension|weight|uncertainty|ambiguity|grief|silence|unease))\b(?:\s+for\s+a\s+\w+)?/gi)
+  },
+  {
+    id: 'already-know',
+    name: '“You already know”',
+    description: '“You already know” — the answer, what to do, or standing alone before a full stop.',
+    find: makeRegexFinder(/\byou\s+already\s+knows?\s+(?:the\s+answer|what|how|why|this|that|it|who|where)\b|\byou\s+already\s+knows?\b(?![ \t]+\w)/gi)
+  },
+  {
+    id: 'is-the-entire',
+    name: '“Is the entire …”',
+    description: '“X is the entire point / game / business model.”',
+    find: makeRegexFinder(/(?:\b(?:is|was|are|were)|['\u2019]s)\s+the\s+entire\b(?:\s+\w+)?/gi)
+  },
+  {
+    id: 'the-entire-is',
+    name: '“The entire … is”',
+    description: '“The entire point / game / business model is …” — the flipped twin of “is the entire”.',
+    find: makeRegexFinder(/\bthe\s+entire\s+[\w'\u2019-]+(?:\s+[\w'\u2019-]+){0,4}?\s+(?:is|was|are|were)\b/gi)
+  },
+  {
+    id: 'is-real',
+    name: '“Is real … and / not”',
+    description: '“The X is real, and / not …”, including “is the real … and it”. Skips “real estate”, “real time”, and similar.',
+    find: makeRegexFinder(/\bis\s+(?:(?:the|a)\s+real\b(?![\s-]+(?:estate|time|life|world|quick)\b)[^.!?\n]*?\b(?:and|not)\s+it\b|real\b(?![\s-]+(?:estate|time|life|world|quick)\b)[^.!?\n]*?\b(?:and|not)\b)/gi)
+  },
+  {
+    id: 'punchline',
+    name: '“The punchline is”',
+    description: '“The punchline is …”, “the punchline:”, or “the punchline?”.',
+    find: makeRegexFinder(/\bthe\s+punchline(?:\s+(?:is|was|being)\b|\s*[:?])/gi)
+  }
+];
+
+const patternsById = Object.fromEntries(patterns.map(p => [p.id, p]));
+
+const CONTEXT_WORDS = 12;
+
+function countWords(s) {
+  const m = s.match(/\S+/g);
+  return m ? m.length : 0;
+}
+
+function expandLeft(text, pos, words) {
+  let i = pos;
+  let count = 0;
+  while (i > 0 && count < words) {
+    while (i > 0 && /\s/.test(text[i - 1])) i -= 1;
+    if (i === 0) break;
+    while (i > 0 && !/\s/.test(text[i - 1])) i -= 1;
+    count += 1;
+  }
+  return i;
+}
+
+function expandRight(text, pos, words) {
+  let i = pos;
+  let count = 0;
+  while (i < text.length && count < words) {
+    while (i < text.length && /\s/.test(text[i])) i += 1;
+    if (i === text.length) break;
+    while (i < text.length && !/\s/.test(text[i])) i += 1;
+    count += 1;
+  }
+  return i;
+}
+
+function buildWindows(text, regions) {
+  const windows = [];
+  for (const r of regions) {
+    const ws = expandLeft(text, r.start, CONTEXT_WORDS);
+    const we = expandRight(text, r.end, CONTEXT_WORDS);
+    const last = windows[windows.length - 1];
+    if (last && (ws <= last.end || countWords(text.slice(last.end, ws)) === 0)) {
+      last.end = Math.max(last.end, we);
+      last.regions.push(r);
+    } else {
+      windows.push({ start: ws, end: we, regions: [r] });
+    }
+  }
+  return windows;
+}
+
+function collectMatches(text, enabled) {
+  const perPattern = {};
+  const raw = [];
+  for (const p of patterns) {
+    perPattern[p.id] = 0;
+    if (!enabled.has(p.id)) continue;
+    for (const m of p.find(text)) {
+      m.patternId = p.id;
+      raw.push(m);
+    }
+  }
+  raw.sort((a, b) => a.start - b.start || b.end - a.end);
+  const matches = [];
+  for (const m of raw) {
+    const last = matches[matches.length - 1];
+    if (last && m.start < last.end) continue;
+    m.id = matches.length;
+    matches.push(m);
+    perPattern[m.patternId] += 1;
+  }
+  return { matches, perPattern };
+}
+
+function buildRegions(text, matches) {
+  const regions = [];
+  for (const m of matches) {
+    const [s, e] = sentenceBounds(text, m.start, m.end);
+    const last = regions[regions.length - 1];
+    if (last && s <= last.end) {
+      last.end = Math.max(last.end, e);
+      last.matches.push(m);
+    } else {
+      regions.push({ start: s, end: e, matches: [m] });
+    }
+  }
+  return regions;
+}
+
+function sentenceBounds(text, start, end) {
+  let s = start;
+  while (s > 0) {
+    const ch = text[s - 1];
+    if (ch === '\n' || ch === '.' || ch === '!' || ch === '?' || ch === '\u2026') break;
+    s -= 1;
+  }
+  while (s < start && /\s/.test(text[s])) s += 1;
+  let e = end;
+  while (e < text.length) {
+    const ch = text[e];
+    if (ch === '\n') break;
+    e += 1;
+    if (ch === '.' || ch === '!' || ch === '?' || ch === '\u2026') {
+      while (e < text.length && /["'\u201d\u2019)\]]/.test(text[e])) e += 1;
+      break;
+    }
+  }
+  return [s, e];
+}
+
+const EXAMPLE = `We rebuilt the editor from the ground up. No sign-ups, no downloads, no hassle — just paste your text and start writing. Everything runs locally in your browser.
+
+The reviewer read the draft twice. Did not flinch, did not blink, did not reach for the red pen. That's the whole review, honestly.
+
+Don't call it a rewrite — call it a rescue. The improvement is real, and it's not subtle. Sit with that for a moment.
+
+You already know the answer, of course. Consistency is the entire game, and the punchline is that nobody wants to hear it. The entire pitch is one sentence long.
+
+This closing paragraph is deliberately ordinary, with no list patterns at all, so nothing here should light up.`;
+// ==== impl end ====
+
+const input = document.getElementById('input');
+const patternListEl = document.getElementById('pattern-list');
+const patternSummaryMeta = document.getElementById('pattern-summary-meta');
+const statsEl = document.getElementById('stats');
+const emptyHint = document.getElementById('empty-hint');
+const outputSection = document.getElementById('output-section');
+const outputEl = document.getElementById('output');
+const matchSection = document.getElementById('match-section');
+const matchListEl = document.getElementById('matches');
+const highlightsToggle = document.getElementById('highlights-only');
+const testSummary = document.getElementById('test-summary');
+const testList = document.getElementById('test-list');
+const countEls = {};
+
+const STORAGE_KEY = 'llm_cliches_last_text';
+let lastStoredText = null;
+
+function loadStoredText() {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function storeText(text) {
+  if (text === lastStoredText) return;
+  lastStoredText = text;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, text);
+  } catch (err) {
+    // localStorage unavailable (e.g. sandboxed preview); persistence is off
+  }
+}
+
+buildPatternList();
+
+document.getElementById('example').addEventListener('click', () => {
+  input.value = EXAMPLE;
+  run();
+});
+
+document.getElementById('clear').addEventListener('click', () => {
+  input.value = '';
+  run();
+  input.focus();
+});
+
+highlightsToggle.addEventListener('change', run);
+
+let timer = null;
+input.addEventListener('input', () => {
+  clearTimeout(timer);
+  timer = setTimeout(run, 150);
+});
+
+input.value = loadStoredText();
+
+run();
+
+function buildPatternList() {
+  for (const p of patterns) {
+    const wrap = document.createElement('div');
+    const label = document.createElement('label');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = true;
+    box.dataset.pattern = p.id;
+    box.addEventListener('change', run);
+    const name = document.createElement('span');
+    name.className = 'pattern-name';
+    name.textContent = p.name;
+    const count = document.createElement('span');
+    count.className = 'pattern-count';
+    countEls[p.id] = count;
+    label.append(box, name, count);
+    const desc = document.createElement('p');
+    desc.className = 'pattern-desc';
+    desc.textContent = p.description;
+    wrap.append(label, desc);
+    patternListEl.append(wrap);
+  }
+  const note = document.createElement('p');
+  note.className = 'pattern-note';
+  note.innerHTML = 'More patterns can be added to the <code>patterns</code> array at the top of the script.';
+  patternListEl.append(note);
+}
+
+function run() {
+  const text = input.value;
+  storeText(text);
+  const hasText = text.trim().length > 0;
+  const enabled = new Set(
+    [...patternListEl.querySelectorAll('input:checked')].map(b => b.dataset.pattern)
+  );
+  patternSummaryMeta.textContent = enabled.size === patterns.length
+    ? '\u00b7 all ' + patterns.length + ' on'
+    : '\u00b7 ' + enabled.size + ' of ' + patterns.length + ' on';
+  emptyHint.hidden = hasText;
+  outputSection.hidden = !hasText;
+  if (!hasText) {
+    matchSection.hidden = true;
+    statsEl.hidden = true;
+    statsEl.innerHTML = '';
+    for (const p of patterns) countEls[p.id].textContent = '';
+    return;
+  }
+
+  const { matches, perPattern } = collectMatches(text, enabled);
+  const regions = buildRegions(text, matches);
+
+  renderOutput(text, regions, highlightsToggle.checked);
+  renderMatches(text, matches);
+  renderStats(matches, regions);
+  for (const p of patterns) {
+    const n = perPattern[p.id];
+    countEls[p.id].textContent = enabled.has(p.id)
+      ? n + (n === 1 ? ' match' : ' matches')
+      : 'off';
+  }
+}
+
+function renderOutput(text, regions, onlyHighlights) {
+  if (!onlyHighlights || regions.length === 0) {
+    outputEl.innerHTML = renderRegions(text, 0, text.length, regions);
+    return;
+  }
+  const windows = buildWindows(text, regions);
+  let html = '';
+  let prev = 0;
+  for (const w of windows) {
+    html += skipMarker(text, prev, w.start);
+    html += renderRegions(text, w.start, w.end, w.regions);
+    prev = w.end;
+  }
+  html += skipMarker(text, prev, text.length);
+  outputEl.innerHTML = html;
+}
+
+function renderRegions(text, from, to, regions) {
+  let html = '';
+  let pos = from;
+  for (const region of regions) {
+    html += esc(text.slice(pos, region.start));
+    html += '<span class="flagged">';
+    let p = region.start;
+    for (const m of region.matches) {
+      html += esc(text.slice(p, m.start));
+      html += '<mark class="hit" id="hit-' + m.id + '" title="' + esc(patternsById[m.patternId].name) + '">' + esc(text.slice(m.start, m.end)) + '</mark>';
+      if (m.badge != null) {
+        html += '<span class="badge" title="' + esc(m.badgeTitle || '') + '">' + esc(m.badge) + '</span>';
+      }
+      p = m.end;
+    }
+    html += esc(text.slice(p, region.end));
+    html += '</span>';
+    pos = region.end;
+  }
+  html += esc(text.slice(pos, to));
+  return html;
+}
+
+function skipMarker(text, from, to) {
+  if (to <= from) return '';
+  const n = countWords(text.slice(from, to));
+  if (n === 0) return '';
+  return '<span class="skip">\u22ef ' + n + ' ' + plural(n, 'word', 'words') + ' hidden \u22ef</span>';
+}
+
+function renderMatches(text, matches) {
+  matchSection.hidden = matches.length === 0;
+  matchListEl.innerHTML = '';
+  for (const m of matches) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.className = 'jump';
+    btn.type = 'button';
+    btn.textContent = '\u201c' + snippet(text.slice(m.start, m.end)) + '\u201d';
+    btn.addEventListener('click', () => jumpTo(m.id));
+    li.append(btn);
+    const meta = document.createElement('span');
+    meta.className = 'match-meta';
+    const parts = [patternsById[m.patternId].name];
+    if (m.badgeTitle) parts.push(m.badgeTitle);
+    meta.textContent = ' \u2014 ' + parts.join(' \u00b7 ');
+    li.append(meta);
+    matchListEl.append(li);
+  }
+}
+
+function renderStats(matches, regions) {
+  statsEl.hidden = false;
+  const items = matches.reduce((n, m) => n + (m.count || 0), 0);
+  statsEl.innerHTML =
+    '<span><strong>' + matches.length + '</strong> ' + plural(matches.length, 'match', 'matches') + '</span>' +
+    '<span><strong>' + regions.length + '</strong> flagged ' + plural(regions.length, 'sentence', 'sentences') + '</span>' +
+    '<span><strong>' + items + '</strong> chain ' + plural(items, 'item', 'items') + '</span>';
+}
+
+function jumpTo(id) {
+  const el = document.getElementById('hit-' + id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('pulse');
+  setTimeout(() => el.classList.remove('pulse'), 1200);
+}
+
+function esc(s) {
+  return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+function snippet(s) {
+  const clean = s.replace(/\s+/g, ' ').trim();
+  return clean.length > 90 ? clean.slice(0, 87) + '\u2026' : clean;
+}
+
+function plural(n, one, many) {
+  return n === 1 ? one : many;
+}
+
+// ---- Self-tests ----
+// These run in the browser shortly after load and report in the footer. They can
+// also be run headless with the Node one-liner shown inside the expanded
+// test-results footer.
+// ==== tests start ====
+
+const selfTests = [];
+
+function test(name, fn) {
+  selfTests.push({ name, fn });
+}
+
+function expectEqual(actual, expected, label) {
+  const a = JSON.stringify(actual);
+  const b = JSON.stringify(expected);
+  if (a !== b) throw new Error(label + ': expected ' + b + ', got ' + a);
+}
+
+function caseName(id, sample) {
+  const clean = sample.replace(/\s+/g, ' ').trim();
+  const short = clean.length > 44 ? clean.slice(0, 41) + '\u2026' : clean;
+  return id + ' \u00b7 \u201c' + short + '\u201d';
+}
+
+const patternCases = [
+  ['no-chain', 'No sign-ups, no downloads, no hassle — just paste and go.', 1, [3]],
+  ['no-chain', 'The plan has no hidden fees and no long-term contracts.', 1, [2]],
+  ['no-chain', 'No fluff, no filler, no jargon, no corporate buzzwords.', 1, [4]],
+  ['no-chain', 'There is no catch here, honestly.', 0, []],
+  ['no-chain', 'It ships with no bells and whistles, no fluff.', 1, [2]],
+  ['no-chain', 'No, no, I insist.', 0, []],
+  ['no-chain', 'no no no', 0, []],
+  ['no-chain', 'with no list patterns at all, so nothing lights up.', 0, []],
+  ['no-chain', 'NO FEES, NO CONTRACTS, NO SURPRISES', 1, [3]],
+  ['no-chain', 'no fluff; no filler', 1, [2]],
+  ['no-chain', 'no time, no money, no way to say no thanks', 1, [3]],
+  ['no-chain', 'no-code, no-fuss setup', 1, [2]],
+  ['no-chain', 'I know nothing, notice nothing.', 0, []],
+  ['no-chain', 'No fluff, no filler.\nNo ads here.', 1, [2]],
+  ['whole', "That's the whole point.", 1],
+  ['whole', 'This is the whole game, really.', 1],
+  ['whole', 'That was the whole pitch.', 1],
+  ['whole', 'The whole team showed up.', 0],
+  ['did-not-chain', 'Did not flinch, did not blink, did not apologize.', 1, [3]],
+  ['did-not-chain', "He didn't call and didn't write.", 1, [2]],
+  ['did-not-chain', 'She did not go.', 0, []],
+  ['did-not-chain', 'Did not know why, did not care.', 1, [2]],
+  ['dont-verb-it', "Don't call it a comeback. Call it a return.", 1],
+  ['dont-verb-it', 'Do not think of it as a burden. Think of it as fuel.', 1],
+  ['dont-verb-it', "Don't fear it. Name it.", 0],
+  ['dont-verb-it', 'Don\u2019t call it "luck." Call it preparation.', 1],
+  ['dont-verb-it', "Don't just read it — read it aloud.", 1],
+  ['dont-verb-it', "Don't overthink it.", 0],
+  ['sit-with', 'Sit with that for a moment.', 1],
+  ['sit-with', 'Just sit with it.', 1],
+  ['sit-with', 'She was sitting with the discomfort.', 1],
+  ['sit-with', 'Come sit with us at lunch.', 0],
+  ['already-know', 'You already know the answer.', 1],
+  ['already-know', 'Deep down, you already know.', 1],
+  ['already-know', 'If you already know Python, skip ahead.', 0],
+  ['already-know', 'You already know what to do.', 1],
+  ['already-know', 'Part of you already knows it.', 1],
+  ['is-the-entire', 'Consistency is the entire game.', 1],
+  ['is-the-entire', "That's the entire business model.", 1],
+  ['is-the-entire', 'He toured the entire factory.', 0],
+  ['the-entire-is', 'The entire point is that nobody reads.', 1],
+  ['the-entire-is', 'The entire business model is built on churn.', 1],
+  ['the-entire-is', 'The entire point of the exercise is repetition.', 1],
+  ['the-entire-is', 'He ate the entire pizza.', 0],
+  ['the-entire-is', 'The entire team was exhausted.', 1],
+  ['the-entire-is', 'The entire history of the modern industrial world economy is complex.', 0],
+  ['is-real', "The improvement is real, and it's not subtle.", 1],
+  ['is-real', 'This is the real work, and it never ends.', 1],
+  ['is-real', 'The demand is real and growing.', 1],
+  ['is-real', 'He is a real estate agent and it shows.', 0],
+  ['is-real', 'Is it real? And does it matter?', 0],
+  ['is-real', 'The painting is real, but stolen.', 0],
+  ['punchline', 'The punchline is that nobody laughed.', 1],
+  ['punchline', 'The punchline: nothing changed.', 1],
+  ['punchline', 'And the punchline? You knew.', 1],
+  ['punchline', 'He forgot the punchline entirely.', 0]
+];
+
+for (const [id, sample, expectMatches, expectItems] of patternCases) {
+  test(caseName(id, sample), () => {
+    const found = patternsById[id].find(sample);
+    expectEqual(found.length, expectMatches, 'matches');
+    if (expectItems) expectEqual(found.map(f => f.count), expectItems, 'item counts');
+  });
+}
+
+test('sentence bounds isolate the flagged sentence', () => {
+  const t = 'First sentence here. No fluff, no filler. Last one.';
+  const m = patternsById['no-chain'].find(t)[0];
+  const [s, e] = sentenceBounds(t, m.start, m.end);
+  expectEqual(t.slice(s, e), 'No fluff, no filler.', 'bounds');
+});
+
+test('excerpts: 12 words of context on each side', () => {
+  const pre = Array.from({ length: 30 }, (_, i) => 'w' + i).join(' ');
+  const post = Array.from({ length: 30 }, (_, i) => 't' + i).join(' ');
+  const t = pre + '. No fluff, no filler, just results. ' + post + '.';
+  const regions = buildRegions(t, collectMatches(t, new Set(['no-chain'])).matches);
+  const wins = buildWindows(t, regions);
+  expectEqual(wins.length, 1, 'windows');
+  expectEqual(countWords(t.slice(0, wins[0].start)), 18, 'hidden before');
+  expectEqual(countWords(t.slice(wins[0].end)), 18, 'hidden after');
+});
+
+test('excerpts: nearby matches merge into one window', () => {
+  const pre = Array.from({ length: 30 }, (_, i) => 'w' + i).join(' ');
+  const post = Array.from({ length: 30 }, (_, i) => 't' + i).join(' ');
+  const t = pre + '. No fluff, no filler. Ok. No ads, no fees. ' + post + '.';
+  const regions = buildRegions(t, collectMatches(t, new Set(['no-chain'])).matches);
+  const wins = buildWindows(t, regions);
+  expectEqual(wins.length, 1, 'windows');
+  expectEqual(wins[0].regions.length, 2, 'regions in window');
+});
+
+test('excerpts: distant matches stay separate with a counted gap', () => {
+  const mid = Array.from({ length: 60 }, (_, i) => 'm' + i).join(' ');
+  const t = 'No fluff, no filler. ' + mid + '. No ads, no fees.';
+  const regions = buildRegions(t, collectMatches(t, new Set(['no-chain'])).matches);
+  const wins = buildWindows(t, regions);
+  expectEqual(wins.length, 2, 'windows');
+  expectEqual(countWords(t.slice(wins[0].end, wins[1].start)), 36, 'gap words');
+});
+
+test('example text trips every pattern exactly once', () => {
+  const all = new Set(patterns.map(p => p.id));
+  const { matches } = collectMatches(EXAMPLE, all);
+  expectEqual(matches.length, patterns.length, 'matches');
+  expectEqual(new Set(matches.map(m => m.patternId)).size, patterns.length, 'distinct patterns');
+  expectEqual(buildRegions(EXAMPLE, matches).length, patterns.length - 1, 'flagged sentences (two cliches share one)');
+});
+// ==== tests end ====
+
+function runTests() {
+  const results = [];
+  for (const t of selfTests) {
+    try {
+      t.fn();
+      results.push({ name: t.name, ok: true });
+    } catch (err) {
+      results.push({ name: t.name, ok: false, message: err && err.message ? err.message : String(err) });
+    }
+  }
+  const failed = results.filter(r => !r.ok);
+  const passedCount = results.length - failed.length;
+  testSummary.textContent = failed.length === 0
+    ? 'Self-tests: all ' + passedCount + ' passed'
+    : 'Self-tests: ' + passedCount + ' passed, ' + failed.length + ' failed';
+  if (failed.length > 0) testSummary.classList.add('has-fail');
+  testList.innerHTML = '';
+  for (const r of [...failed, ...results.filter(r => r.ok)]) {
+    const li = document.createElement('li');
+    li.className = r.ok ? 'pass' : 'fail';
+    li.textContent = (r.ok ? '\u2713 ' : '\u2717 ') + r.name + (r.ok ? '' : ' — ' + r.message);
+    testList.append(li);
+  }
+}
+
+if ('requestIdleCallback' in window) {
+  requestIdleCallback(runTests);
+} else {
+  setTimeout(runTests, 50);
+}
+</script>
+</body>
+</html>
