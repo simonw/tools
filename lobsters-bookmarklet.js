@@ -46,6 +46,11 @@
     return comments;
   }
 
+  // Snapshot comment data now, while the original threaded DOM is still intact.
+  // Switching to the Latest view replaces that markup, so re-extracting later
+  // would find nothing.
+  const extractedComments = extractComments();
+
   // Create tabs
   const tabsContainer = document.createElement('div');
   tabsContainer.id = 'comment-view-tabs';
@@ -113,7 +118,7 @@
 
   // Build flat view
   function buildFlatView() {
-    const comments = extractComments();
+    const comments = [...extractedComments];
     comments.sort((a, b) => b.timestamp - a.timestamp);
 
     const flatContainer = document.createElement('div');
@@ -164,23 +169,18 @@
     const storyAuthor = storyEl ? getAuthor(storyEl) : null;
     result.push(`[1] ${storyAuthor || 'Unknown'}: ${storyTitle}`);
 
-    // Use extractComments() to get all comments and build hierarchy
-    const comments = extractComments();
-    
-    // Build a map of comment ID to comment data for quick lookup
-    const commentMap = new Map();
-    comments.forEach(c => commentMap.set(c.id, c));
-    
+    const comments = extractedComments;
+
     // Build hierarchy by processing top-level comments and their children
     function buildHierarchy(parentId = null, pathPrefix = '1') {
       let counter = 0;
-      
+
       // Find all comments that are direct children of parentId
       const children = comments.filter(c => c.parentId === parentId);
-      
+
       children.forEach(comment => {
         counter++;
-        const path = parentId === null ? `${pathPrefix}.${counter}` : `${pathPrefix}.${counter}`;
+        const path = `${pathPrefix}.${counter}`;
         const author = comment.author || 'Anonymous';
         const textEl = comment.element.querySelector('.comment_text');
         const text = textEl ? textEl.textContent.trim().replace(/\s+/g, ' ') : '';
