@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQLite Query Explainer</title>
+<style>
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #f4f6f9;
+    color: #1a1a2e;
+    line-height: 1.55;
+}
+.container { max-width: 1150px; margin: 0 auto; }
+h1 { margin: 0 0 4px; font-size: 1.7rem; }
+h2 { margin: 0 0 10px; font-size: 1.15rem; }
+.subtitle { color: #555; margin: 0 0 20px; font-size: 0.95rem; max-width: 60em; }
+.card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 18px;
+}
+button {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    padding: 9px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+}
+button:hover { background: #1d4ed8; }
+button:disabled { background: #9ca3af; cursor: not-allowed; }
+button.secondary { background: #fff; color: #2563eb; border: 1px solid #2563eb; }
+button.secondary:hover { background: #eff6ff; }
+.db-buttons { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.or { color: #777; font-size: 0.9rem; }
+.status { margin-top: 10px; font-size: 0.9rem; color: #555; min-height: 1.2em; }
+.status.failed { color: #b91c1c; white-space: pre-wrap; font-family: "SF Mono", Consolas, monospace; font-size: 12.5px; }
+.status.working::before {
+    content: "";
+    display: inline-block;
+    width: 11px; height: 11px;
+    border: 2px solid #2563eb;
+    border-top-color: transparent;
+    border-radius: 50%;
+    margin-right: 7px;
+    vertical-align: -1px;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.note { font-size: 0.83rem; color: #666; margin: 8px 0 0; }
+textarea {
+    width: 100%;
+    min-height: 110px;
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
+    font-size: 13.5px;
+    padding: 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    resize: vertical;
+    margin: 10px 0;
+}
+textarea:focus { outline: none; border-color: #2563eb; }
+select {
+    font-size: 14px;
+    padding: 6px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    max-width: 100%;
+}
+.hint { color: #888; font-size: 0.82rem; margin-left: 8px; }
+#example-desc { font-size: 0.88rem; color: #555; margin: 8px 0 0; max-width: 65em; }
+.error {
+    color: #b91c1c;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-top: 12px;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+}
+.meta { color: #666; font-size: 0.85rem; margin: 0 0 8px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 13px; width: 100%; }
+th, td {
+    border: 1px solid #e5e7eb;
+    padding: 4px 8px;
+    text-align: left;
+    vertical-align: top;
+}
+th { background: #f3f4f6; font-weight: 600; white-space: nowrap; }
+#results-table td { font-family: "SF Mono", Consolas, monospace; font-size: 12.5px; white-space: nowrap; max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
+td.null { color: #999; font-style: italic; }
+
+/* schema */
+#schema { font-size: 0.9rem; }
+#schema summary { cursor: pointer; padding: 3px 0; }
+#schema .obj-name { font-family: "SF Mono", Consolas, monospace; font-weight: 600; }
+#schema .obj-type { color: #6b7280; font-size: 0.8rem; margin-right: 6px; text-transform: uppercase; letter-spacing: 0.03em; }
+#schema .obj-count { color: #6b7280; font-size: 0.85rem; }
+#schema pre {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    overflow-x: auto;
+    margin: 4px 0 8px;
+}
+#schema-details > summary { cursor: pointer; font-weight: 600; color: #374151; }
+
+/* EXPLAIN QUERY PLAN tree */
+.eqp-node {
+    border-left: 3px solid #d1d5db;
+    margin: 10px 0 10px 0;
+    padding: 2px 0 2px 14px;
+}
+.eqp-node .eqp-node { margin-left: 8px; }
+.eqp-detail {
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    font-weight: 600;
+}
+.eqp-explanation { font-size: 0.88rem; color: #374151; max-width: 72em; margin-top: 2px; }
+.eqp-joinnote {
+    font-size: 0.84rem;
+    color: #92400e;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 5px;
+    padding: 3px 8px;
+    margin-top: 5px;
+    display: inline-block;
+}
+.badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 1px 7px;
+    border-radius: 9px;
+    color: #fff;
+    margin-right: 8px;
+    vertical-align: 1px;
+}
+.badge-scan { background: #b45309; }
+.badge-search { background: #047857; }
+.badge-tempbtree { background: #dc2626; }
+.badge-cte { background: #7c3aed; }
+.badge-subquery { background: #2563eb; }
+.badge-compound { background: #0e7490; }
+.badge-bloom { background: #db2777; }
+.badge-info { background: #6b7280; }
+.eqp-node.b-scan { border-left-color: #b45309; }
+.eqp-node.b-search { border-left-color: #047857; }
+.eqp-node.b-tempbtree { border-left-color: #dc2626; }
+.eqp-node.b-cte { border-left-color: #7c3aed; }
+.eqp-node.b-subquery { border-left-color: #2563eb; }
+.eqp-node.b-compound { border-left-color: #0e7490; }
+.eqp-node.b-bloom { border-left-color: #db2777; }
+
+/* bytecode table */
+#bytecode-table td { font-family: "SF Mono", Consolas, monospace; font-size: 12.5px; }
+#bytecode-table td.expl {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 12.5px;
+    color: #374151;
+    min-width: 320px;
+}
+#bytecode-table tr.hl { background: #fef9c3; }
+#bytecode-table tr.jump-target-hl { background: #dbeafe; }
+#bytecode-table tr.flash { animation: flash 1.2s ease-out; }
+@keyframes flash { 0% { background: #fde68a; } 100% { background: transparent; } }
+.addr-cell { color: #6b7280; text-align: right; }
+.loop-bars { color: #b45309; letter-spacing: 1px; white-space: nowrap; }
+.opname {
+    display: inline-block;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    color: #fff;
+    font-size: 12px;
+}
+a.addr-link {
+    color: #2563eb;
+    text-decoration: none;
+    border-bottom: 1px dotted #2563eb;
+    cursor: pointer;
+}
+a.addr-link:hover { background: #dbeafe; }
+.from-badge {
+    display: inline-block;
+    font-size: 10.5px;
+    color: #6b7280;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 0 4px;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+.from-badge a.addr-link { border-bottom: none; }
+.reg, .cur {
+    border-radius: 3px;
+    padding: 0 2px;
+    cursor: default;
+}
+.reg.hl-token { background: #bbf7d0; }
+.cur.hl-token { background: #fbcfe8; }
+.op-cursor { background: #7c3aed; }
+.op-seek { background: #0891b2; }
+.op-column { background: #059669; }
+.op-result { background: #d97706; }
+.op-control { background: #dc2626; }
+.op-compare { background: #9333ea; }
+.op-value { background: #6366f1; }
+.op-math { background: #0d9488; }
+.op-function { background: #2563eb; }
+.op-record { background: #4f46e5; }
+.op-idxcompare { background: #0e7490; }
+.op-sort { background: #b45309; }
+.op-bloom { background: #db2777; }
+.op-txn { background: #be185d; }
+.op-none { background: #6b7280; }
+.section-intro { font-size: 0.88rem; color: #555; margin: 0 0 12px; max-width: 70em; }
+.toggle-label { font-size: 0.85rem; color: #444; user-select: none; }
+.footer { color: #666; font-size: 0.85rem; margin: 24px 0; }
+.footer a { color: #2563eb; }
+@media (max-width: 600px) {
+    body { padding: 10px; }
+    h1 { font-size: 1.35rem; }
+    .card { padding: 14px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>SQLite Query Explainer</h1>
+<p class="subtitle">
+Run SQL against a SQLite database and see what the query planner is really doing:
+the tool executes your query, then runs <code>EXPLAIN QUERY PLAN</code> and
+<code>EXPLAIN</code> against it and annotates every line of their output with a
+plain-English description. Powered by Python's <code>sqlite3</code> module running in
+your browser via <a href="https://pyodide.org/">Pyodide</a> — nothing you load or type
+leaves your machine.
+</p>
+
+<div class="card">
+    <h2>1. Choose a database</h2>
+    <div class="db-buttons">
+        <button id="load-example">Load example database</button>
+        <span class="or">or</span>
+        <button id="open-db-btn" class="secondary">Open your own SQLite database&hellip;</button>
+        <input type="file" id="db-file" hidden>
+    </div>
+    <div id="status" class="status"></div>
+    <p class="note" id="db-note" hidden></p>
+    <details id="schema-details" hidden>
+        <summary>Database schema</summary>
+        <div id="schema"></div>
+    </details>
+</div>
+
+<div class="card" id="query-card" hidden>
+    <h2>2. Run a query</h2>
+    <div id="example-picker" hidden>
+        <label for="examples">Example queries:</label>
+        <select id="examples"></select>
+        <p id="example-desc"></p>
+    </div>
+    <textarea id="sql" spellcheck="false" placeholder="SELECT ..."></textarea>
+    <div>
+        <button id="run">Run &amp; explain</button>
+        <span class="hint">Ctrl/Cmd + Enter</span>
+    </div>
+    <div id="error" class="error" hidden></div>
+</div>
+
+<div id="output" hidden>
+    <div class="card">
+        <h2>Results</h2>
+        <p class="meta" id="results-meta"></p>
+        <div class="table-wrap"><table id="results-table"></table></div>
+    </div>
+    <div class="card">
+        <h2>Query plan &mdash; <code>EXPLAIN QUERY PLAN</code></h2>
+        <p class="section-intro">
+            The high-level strategy SQLite chose for this query. Indented items run
+            <em>inside</em> their parent; sibling loops form nested joins, with each
+            row from an outer loop driving a full pass of the loops below it.
+        </p>
+        <div id="eqp"></div>
+    </div>
+    <div class="card">
+        <h2>Bytecode &mdash; <code>EXPLAIN</code></h2>
+        <p class="section-intro">
+            SQLite compiles every statement into a program for its virtual machine
+            (the VDBE); this is that program, one instruction per row. The
+            <strong>&#124;</strong> bars mark loop bodies. Instruction numbers are
+            links — click one to jump to it, and the <span class="from-badge">&#8598; from&nbsp;n</span>
+            badge on an instruction shows which other instructions jump to it. Hover a
+            register like <code>r[3]</code> or a cursor to highlight everywhere else
+            it is used.
+        </p>
+        <label class="toggle-label"><input type="checkbox" id="show-expl" checked> Show explanations</label>
+        <div class="table-wrap" style="margin-top:10px">
+            <table id="bytecode-table"></table>
+        </div>
+    </div>
+</div>
+
+<p class="footer">
+    All processing happens in your browser.
+    Reference: SQLite docs for
+    <a href="https://sqlite.org/eqp.html">EXPLAIN QUERY PLAN</a> and
+    <a href="https://sqlite.org/opcode.html">VDBE opcodes</a>.
+    More tools at <a href="https://tools.simonwillison.net/">tools.simonwillison.net</a>.
+</p>
+</div>
+
+<script type="text/x-python" id="py-src">
+import json
+import re
+import sqlite3
+import time
+
+conn = None
+
+EXAMPLE_SCHEMA = """
+CREATE TABLE customers (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    country TEXT,
+    signup_date TEXT
+);
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT,
+    price REAL
+);
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(id),
+    order_date TEXT,
+    status TEXT
+);
+CREATE TABLE order_items (
+    order_id INTEGER REFERENCES orders(id),
+    product_id INTEGER REFERENCES products(id),
+    quantity INTEGER,
+    unit_price REAL,
+    PRIMARY KEY (order_id, product_id)
+) WITHOUT ROWID;
+CREATE TABLE events (
+    id INTEGER PRIMARY KEY,
+    customer_id INTEGER,
+    event_type TEXT,
+    created_at TEXT
+);
+CREATE INDEX idx_orders_customer ON orders(customer_id);
+CREATE INDEX idx_orders_date ON orders(order_date);
+CREATE INDEX idx_customers_country ON customers(country);
+CREATE INDEX idx_products_category_price ON products(category, price);
+CREATE VIEW order_totals AS
+    SELECT o.id AS order_id, o.customer_id, SUM(oi.quantity * oi.unit_price) AS total
+    FROM orders o JOIN order_items oi ON oi.order_id = o.id
+    GROUP BY o.id;
+"""
+
+
+def load_example_database():
+    global conn
+    import random
+    random.seed(42)
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(EXAMPLE_SCHEMA)
+    countries = ["US", "UK", "FR", "DE", "JP", "BR", "IN", "AU"]
+    categories = ["books", "tools", "toys", "garden", "kitchen"]
+    event_types = ["view", "cart", "purchase", "return"]
+    conn.executemany(
+        "INSERT INTO customers VALUES (?, ?, ?, ?, ?)",
+        ((i, f"Customer {i}", f"c{i}@example.com", random.choice(countries),
+          f"2024-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}")
+         for i in range(1, 2001)))
+    conn.executemany(
+        "INSERT INTO products VALUES (?, ?, ?, ?)",
+        ((i, f"Product {i}", random.choice(categories), round(random.uniform(1, 100), 2))
+         for i in range(1, 201)))
+    conn.executemany(
+        "INSERT INTO orders VALUES (?, ?, ?, ?)",
+        ((i, random.randint(1, 2000),
+          f"2024-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}",
+          random.choice(["shipped", "pending", "cancelled"]))
+         for i in range(1, 20001)))
+    items = []
+    for order_id in range(1, 20001):
+        for product_id in random.sample(range(1, 201), random.randint(1, 3)):
+            items.append((order_id, product_id, random.randint(1, 5),
+                          round(random.uniform(1, 100), 2)))
+    conn.executemany("INSERT INTO order_items VALUES (?, ?, ?, ?)", items)
+    conn.executemany(
+        "INSERT INTO events VALUES (?, ?, ?, ?)",
+        ((i, random.randint(1, 2000), random.choice(event_types),
+          f"2024-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}")
+         for i in range(1, 50001)))
+    conn.execute("ANALYZE")
+    conn.commit()
+    return get_schema()
+
+
+def open_database(path):
+    global conn
+    conn = sqlite3.connect(path)
+    conn.execute("SELECT count(*) FROM sqlite_master")
+    return get_schema()
+
+
+def get_schema():
+    rows = conn.execute(
+        "SELECT type, name, tbl_name, sql FROM sqlite_master "
+        "WHERE name NOT LIKE 'sqlite_%' ORDER BY CASE type "
+        "WHEN 'table' THEN 0 WHEN 'index' THEN 1 WHEN 'view' THEN 2 ELSE 3 END, name"
+    ).fetchall()
+    out = []
+    for type_, name, tbl_name, sql in rows:
+        entry = {"type": type_, "name": name, "tbl_name": tbl_name, "sql": sql or ""}
+        if type_ == "table":
+            try:
+                quoted = name.replace('"', '""')
+                entry["row_count"] = conn.execute(
+                    f'SELECT count(*) FROM "{quoted}"').fetchone()[0]
+            except sqlite3.Error:
+                entry["row_count"] = None
+        out.append(entry)
+    return json.dumps(out)
+
+
+# --------------------------------------------------------------------------
+# EXPLAIN QUERY PLAN annotation
+# --------------------------------------------------------------------------
+
+def annotate_eqp_detail(detail, derived_names):
+    d = detail
+
+    if d == "COMPOUND QUERY":
+        return ("compound", "This query combines multiple SELECTs with a compound "
+                "operator (UNION, UNION ALL, INTERSECT or EXCEPT). Each arm runs as "
+                "its own sub-plan below.")
+    if d == "LEFT-MOST SUBQUERY":
+        return ("compound", "The first SELECT in the compound query — its rows are "
+                "produced first.")
+    if d == "UNION ALL":
+        return ("compound", "A subsequent SELECT combined with UNION ALL: its rows are "
+                "simply appended to the previous results. No de-duplication is needed, "
+                "so this is cheap.")
+    if d == "UNION USING TEMP B-TREE":
+        return ("tempbtree", "A subsequent SELECT combined with UNION. SQLite builds a "
+                "temporary b-tree (a sorted structure, in memory or spilled to disk) to "
+                "remove duplicate rows across the combined results. If you don't need "
+                "de-duplication, UNION ALL avoids this extra work.")
+    if d in ("INTERSECT USING TEMP B-TREE", "EXCEPT USING TEMP B-TREE"):
+        op = d.split()[0]
+        return ("tempbtree", f"A subsequent SELECT combined with {op}. SQLite stores "
+                "one side in a temporary b-tree so it can efficiently check which rows "
+                "appear (or don't appear) on both sides.")
+    if d.startswith("MERGE"):
+        return ("compound", "The compound operator is implemented as a merge: both arms "
+                "produce rows in sorted order and SQLite merges the two sorted streams "
+                "without a temporary table — the efficient path for compound queries.")
+    if d == "SETUP":
+        return ("cte", "The initial (non-recursive) part of a recursive common table "
+                "expression. It seeds the working table with the starting rows before "
+                "the recursive part takes over.")
+    if d == "RECURSIVE STEP":
+        return ("cte", "The recursive part of a recursive CTE. It runs repeatedly, each "
+                "iteration consuming the rows produced by the previous one, until no "
+                "new rows are produced.")
+
+    m = re.match(r"^(CORRELATED )?SCALAR SUBQUERY( \d+)?$", d)
+    if m:
+        n = (m.group(2) or "").strip()
+        label = f"Subquery {n}" if n else "This subquery"
+        if m.group(1):
+            return ("subquery", f"{label} returns a single value and is correlated — it "
+                    "references columns from the outer query, so it must be re-run for "
+                    "every candidate row of the outer query. Inside a scan of a large "
+                    "table this can be a performance problem; consider rewriting it as "
+                    "a join.")
+        return ("subquery", f"{label} returns a single value and does not depend on the "
+                "outer query, so SQLite runs it just once and caches the result.")
+    m = re.match(r"^(CORRELATED )?LIST SUBQUERY( \d+)?$", d)
+    if m:
+        n = (m.group(2) or "").strip()
+        label = f"Subquery {n}" if n else "This subquery"
+        if m.group(1):
+            return ("subquery", f"{label} produces the list of values for an IN (...) "
+                    "test and is correlated with the outer query, so it is re-evaluated "
+                    "for each outer row.")
+        return ("subquery", f"{label} produces the list of values for an IN (...) test. "
+                "SQLite runs it once, storing the results in a transient index so that "
+                "membership checks are fast.")
+    m = re.match(r"^(CORRELATED )?EXISTS SUBQUERY( \d+)?$", d)
+    if m:
+        n = (m.group(2) or "").strip()
+        label = f"Subquery {n}" if n else "This subquery"
+        return ("subquery", f"{label} implements an EXISTS(...) test — SQLite only "
+                "needs to find one row to answer it, so it stops at the first match.")
+    m = re.match(r"^MATERIALIZE (.+)$", d)
+    if m:
+        derived_names.add(m.group(1))
+        return ("cte", f"“{m.group(1)}” (a CTE, view or subquery) is computed once, in "
+                "full, and stored in a temporary table; later parts of the query read "
+                "from that temporary table. Materializing costs memory, but the results "
+                "can then be scanned repeatedly or even indexed.")
+    m = re.match(r"^CO-ROUTINE (.+)$", d)
+    if m:
+        derived_names.add(m.group(1))
+        return ("cte", f"“{m.group(1)}” runs as a co-routine: instead of computing all "
+                "of its rows up front, it runs interleaved with the outer query, "
+                "producing one row each time the outer query asks for one. Nothing is "
+                "stored, making this the most memory-efficient way to run a subquery, "
+                "CTE or view.")
+
+    if d == "MULTI-INDEX OR":
+        return ("search", "The WHERE clause has OR terms that can each use a different "
+                "index. SQLite evaluates each OR branch separately with its own index "
+                "(the INDEX 1, INDEX 2… branches below) and combines the matching "
+                "rowids, skipping duplicates. Usually much faster than a full scan.")
+    m = re.match(r"^INDEX (\d+)$", d)
+    if m:
+        return ("search", f"Branch {m.group(1)} of the MULTI-INDEX OR above — this OR "
+                "term gets its own index lookup, shown below.")
+
+    m = re.match(r"^BLOOM FILTER ON (\S+)", d)
+    if m:
+        return ("bloom", f"SQLite builds a Bloom filter on “{m.group(1)}” — a compact "
+                "in-memory bitmap that can instantly answer “definitely not present” "
+                "for a join key. Before doing the more expensive index/table lookup for "
+                "each row, SQLite consults the filter and skips rows that cannot "
+                "possibly match. A cheap trick that speeds up large joins.")
+
+    m = re.match(r"^USE TEMP B-TREE FOR (.+)$", d)
+    if m:
+        what = m.group(1)
+        base = ("SQLite creates a temporary b-tree (a sorted structure, in memory or "
+                "spilled to disk) ")
+        if what == "ORDER BY":
+            return ("tempbtree", base + "to sort the result rows, because no index "
+                    "delivers them already in the requested order. For large results "
+                    "this is a full extra sort — an index matching the ORDER BY columns "
+                    "could eliminate it.")
+        if what == "GROUP BY":
+            return ("tempbtree", base + "to gather rows into groups, because no index "
+                    "delivers rows already grouped by the GROUP BY columns. An index on "
+                    "those columns would let SQLite aggregate on the fly instead.")
+        if what == "DISTINCT":
+            return ("tempbtree", base + "to drop duplicate rows for DISTINCT. An index "
+                    "on the selected columns can sometimes let SQLite skip duplicates "
+                    "without this temporary structure.")
+        if "RIGHT PART OF ORDER BY" in what:
+            return ("tempbtree", base + "to finish the sort: an index already provides "
+                    "the leading ORDER BY column(s), so SQLite only needs to sort rows "
+                    "within each block of equal leading values — cheaper than a full "
+                    "sort.")
+        return ("tempbtree", base + f"for {what}.")
+
+    m = re.match(r"^SCAN (\d+) CONSTANT ROWS?$", d)
+    if m:
+        n = m.group(1)
+        plural = "s" if n != "1" else ""
+        return ("scan", f"Reads {n} constant row{plural} written directly into the "
+                "query (e.g. a VALUES list) — no table access at all.")
+    if d == "SCAN CONSTANT ROW":
+        return ("scan", "Reads a single constant row supplied by the query itself (a "
+                "VALUES row, or a SELECT with no FROM clause) — no table access at all.")
+
+    return annotate_scan_search(d, derived_names)
+
+
+def annotate_scan_search(d, derived_names):
+    m = re.match(r"^(SCAN|SEARCH) (.+?)(?: USING (.*?))?( LEFT-JOIN)?$", d)
+    if not m:
+        return ("info", "")
+    verb, table, using, leftjoin = m.groups()
+    is_derived = table in derived_names or table.startswith("(subquery")
+    parts = []
+    terms = None
+    using_head = None
+    if using:
+        tm = re.search(r"\((.*)\)$", using)
+        if tm and re.search(r"[<>=]|IS\b", tm.group(1)):
+            terms = tm.group(1)
+            using_head = using[:tm.start()].strip()
+        else:
+            using_head = using.strip()
+
+    if verb == "SCAN":
+        badge = "scan"
+        if using_head is None:
+            if is_derived:
+                parts.append(f"Reads every row produced by “{table}” (defined above as "
+                             "a subquery, CTE or view) — not a base-table scan, just "
+                             "consuming the derived rows.")
+            else:
+                parts.append(f"Full table scan of “{table}”: SQLite visits every row in "
+                             "the table and tests it against the WHERE clause. Cost "
+                             "grows linearly with table size — fine for small tables, "
+                             "but on big tables this is the classic sign that an index "
+                             "could help.")
+        elif "COVERING INDEX" in using_head:
+            idx = using_head.split()[-1]
+            parts.append(f"Scans every entry of index “{idx}” instead of the table "
+                         f"“{table}”. All columns the query needs are present in the "
+                         "index itself (a “covering” index), so the table is never "
+                         "touched — and the index's sorted order may also satisfy "
+                         "ORDER BY or GROUP BY for free.")
+        else:
+            idx = using_head.split()[-1]
+            parts.append(f"Scans every entry of index “{idx}”, following each entry "
+                         f"back to its row in “{table}”. There is no restricting "
+                         "condition — SQLite likely chose the index to visit rows in "
+                         "index order, satisfying an ORDER BY or GROUP BY without a "
+                         "separate sort.")
+    else:
+        badge = "search"
+        if using_head is None:
+            parts.append(f"Reads only the matching subset of rows from “{table}”.")
+        elif using_head == "INTEGER PRIMARY KEY":
+            parts.append(f"Direct rowid lookup on “{table}”: the WHERE clause pins down "
+                         "the INTEGER PRIMARY KEY (which is the rowid — the key the "
+                         "table's b-tree is stored under), so SQLite descends straight "
+                         "to the matching row(s). The fastest possible lookup — no "
+                         "separate index needed.")
+        elif using_head == "PRIMARY KEY":
+            parts.append(f"Primary-key lookup on “{table}”, a WITHOUT ROWID table whose "
+                         "rows are stored in primary-key order — SQLite descends the "
+                         "table's b-tree directly to the matching rows.")
+        elif "AUTOMATIC" in using_head:
+            cov = "covering " if "COVERING" in using_head else ""
+            partial = "partial " if "PARTIAL" in using_head else ""
+            parts.append(f"No useful existing index was found, so SQLite builds a "
+                         f"transient {partial}{cov}index on “{table}” just for this one "
+                         "query (an “automatic index”), then searches it. Building it "
+                         "costs one full scan up front, but that beats repeating full "
+                         "scans inside a loop. A permanent index on these columns would "
+                         "remove the setup cost.")
+        elif "COVERING INDEX" in using_head:
+            idx = using_head.split()[-1]
+            parts.append(f"Index search using covering index “{idx}”: SQLite descends "
+                         "the index b-tree to the first matching entry and reads only "
+                         "the matching range. The index contains every column the query "
+                         "needs, so the table itself is never touched — the fastest "
+                         "kind of index search.")
+        elif using_head.startswith("INDEX"):
+            idx = using_head.split()[-1]
+            parts.append(f"Index search using “{idx}”: SQLite descends the index b-tree "
+                         "to the first matching entry, reads only the matching range, "
+                         "and follows each entry back to the full row in "
+                         f"“{table}” via its rowid.")
+        else:
+            parts.append(f"Search on “{table}” using {using_head}.")
+
+    if terms:
+        nice = terms.replace("?", "…")
+        eq = len(re.findall(r"=", terms))
+        rng = len(re.findall(r"[<>]", terms))
+        bits = []
+        if eq:
+            plural = "s" if eq > 1 else ""
+            bits.append(f"{eq} equality constraint{plural}")
+        if rng:
+            plural = "s" if rng > 1 else ""
+            bits.append(f"{rng} range constraint{plural} bounding the range of "
+                        "entries read")
+        parts.append(f"The terms ({nice}) show which WHERE constraints the lookup "
+                     "uses: " + " and ".join(bits) +
+                     ". Each “?” stands for the value being compared against.")
+    if leftjoin:
+        parts.append("Marked LEFT-JOIN: this is the right-hand table of a LEFT JOIN — "
+                     "when no row matches, a row of NULLs is produced instead of "
+                     "dropping the left-hand row.")
+    return (badge, " ".join(parts))
+
+
+def build_eqp(sql):
+    rows = conn.execute("EXPLAIN QUERY PLAN " + sql).fetchall()
+    derived = set()
+    nodes = {0: {"children": []}}
+    order = []
+    for sid, parent, _, detail in rows:
+        badge, explanation = annotate_eqp_detail(detail, derived)
+        node = {"id": sid, "detail": detail, "badge": badge,
+                "explanation": explanation, "children": []}
+        nodes[sid] = node
+        order.append((parent, node))
+    for parent, node in order:
+        target = nodes.get(parent) or nodes[0]
+        target["children"].append(node)
+    add_join_notes(nodes[0]["children"])
+    return nodes[0]["children"]
+
+
+def add_join_notes(children):
+    loops = [c for c in children if c["detail"].startswith(("SCAN", "SEARCH"))]
+    if len(loops) > 1:
+        loops[0]["joinnote"] = ("Outer loop of a nested-loop join: each row it "
+                                "produces drives one full pass of the loop(s) below.")
+        for i, c in enumerate(loops[1:], 1):
+            c["joinnote"] = (f"Inner loop (level {i + 1}) of the nested-loop join: "
+                             "runs once for every row produced by the loop above it, "
+                             "so cheap lookups matter here far more than in the outer "
+                             "loop.")
+    for c in children:
+        add_join_notes(c["children"])
+
+
+# --------------------------------------------------------------------------
+# EXPLAIN (VDBE bytecode) annotation
+# --------------------------------------------------------------------------
+
+OPCODE_CATEGORIES = {
+    "cursor": ["OpenRead", "OpenWrite", "OpenAutoindex", "OpenEphemeral", "OpenDup",
+               "OpenPseudo", "ReopenIdx", "Close", "ColumnsUsed", "IfNotOpen"],
+    "seek": ["Rewind", "Next", "Prev", "Last", "SeekGE", "SeekGT", "SeekLE", "SeekLT",
+             "SeekRowid", "SeekEnd", "SeekScan", "SeekHit", "DeferredSeek", "NotExists",
+             "Found", "NotFound", "NoConflict"],
+    "column": ["Column", "Rowid", "IdxRowid", "NullRow", "RowData", "Offset",
+               "TypeCheck"],
+    "result": ["ResultRow", "Copy", "SCopy", "IntCopy", "Move"],
+    "control": ["Init", "Goto", "Halt", "HaltIfNull", "If", "IfNot", "Once", "Gosub",
+                "Return", "BeginSubrtn", "Yield", "InitCoroutine", "EndCoroutine",
+                "Jump", "Noop", "Explain"],
+    "compare": ["Eq", "Ne", "Lt", "Le", "Gt", "Ge", "IsNull", "NotNull", "IfPos",
+                "IfNotZero", "DecrJumpZero", "Compare", "ElseEq", "IsTrue",
+                "ZeroOrNull"],
+    "value": ["Integer", "Int64", "Real", "String8", "String", "Null", "SoftNull",
+              "Blob", "Variable", "Affinity", "Cast", "MustBeInt", "RealAffinity",
+              "CollSeq"],
+    "math": ["Add", "Subtract", "Multiply", "Divide", "Remainder", "Concat", "Not",
+             "BitAnd", "BitOr", "BitNot", "ShiftLeft", "ShiftRight", "AddImm"],
+    "function": ["Function", "PureFunc", "AggStep", "AggStep1", "AggInverse",
+                 "AggFinal", "AggValue"],
+    "record": ["MakeRecord", "Insert", "Delete", "NewRowid", "Count", "IdxInsert",
+               "IdxDelete", "RowSetAdd", "RowSetRead", "RowSetTest", "Sequence",
+               "SequenceTest"],
+    "idxcompare": ["IdxGE", "IdxGT", "IdxLE", "IdxLT"],
+    "sort": ["SorterOpen", "SorterInsert", "SorterSort", "SorterNext", "SorterData",
+             "Sort", "ResetSorter"],
+    "bloom": ["Filter", "FilterAdd"],
+    "txn": ["Transaction", "AutoCommit", "ReadCookie", "SetCookie", "TableLock",
+            "Savepoint", "Vacuum", "JournalMode", "ParseSchema", "SqlExec",
+            "CreateBtree"],
+}
+OPCODE_TO_CATEGORY = {}
+for cat, ops in OPCODE_CATEGORIES.items():
+    for op in ops:
+        OPCODE_TO_CATEGORY[op] = cat
+
+
+def null_note(p5):
+    try:
+        if int(p5) & 0x80:
+            return " NULL values compare equal here."
+    except (TypeError, ValueError):
+        pass
+    return ""
+
+
+def p4_int(p4):
+    try:
+        return int(p4)
+    except (TypeError, ValueError):
+        return 1
+
+
+def fn_name(p4):
+    name = str(p4 or "").split("(")[0]
+    return f"“{name}()”" if name else "(unknown)"
+
+
+def explain_opcode(op, p1, p2, p3, p4, p5):
+    """Return a human explanation for one VDBE instruction.
+
+    Jump-target addresses are wrapped in [[a:N]] markers so the UI can turn
+    them into links to the referenced instruction.
+    """
+    p4 = p4 or ""
+
+    def r(n):
+        return f"r[{n}]"
+
+    def c(n):
+        return f"cursor {n}"
+
+    def a(n):
+        return f"[[a:{n}]]"
+
+    def root_info(p4):
+        # For Open* opcodes P4 is either a column count or a k(...) index key spec
+        if p4.isdigit():
+            return f", a table with {p4} column{'s' if p4 != '1' else ''}"
+        if p4.startswith("k("):
+            ncols = p4[2:].split(",")[0]
+            return f", an index whose keys span {ncols} column{'s' if ncols != '1' else ''} ({p4})"
+        return f" ({p4})" if p4 else ""
+
+    E = {
+        "Init": f"Start of the program: jump to instruction {a(p2)} (the one-time setup code placed at the end), which will jump back to the top. Every compiled statement begins with Init.",
+        "Transaction": f"Begin a {'write' if p2 else 'read'} transaction on database {p1}. Every statement that touches the database needs this.",
+        "TableLock": f"Take a {'write' if p3 else 'read'} lock on table “{p4}”.",
+        "Goto": f"Unconditional jump to instruction {a(p2)} — the glue for loops and skipping sections.",
+        "OpenRead": f"Open read-only {c(p1)} on the b-tree rooted at page {p2}{root_info(p4)}. Cursors are SQLite's handles for walking tables and indexes.",
+        "OpenWrite": f"Open read/write {c(p1)} on the b-tree rooted at page {p2}{root_info(p4)}, for inserting, updating or deleting rows.",
+        "ReopenIdx": f"Open {c(p1)} on the index rooted at page {p2}{root_info(p4)} — unless the cursor is already open on that index, in which case do nothing.",
+        "OpenEphemeral": f"Open {c(p1)} on a new transient table ({p2} column{'s' if p2 != 1 else ''}) — a scratch table for things like IN-list values, DISTINCT or intermediate results, kept in memory and spilled to disk only if it grows large.",
+        "OpenAutoindex": f"Open {c(p1)} on a transient automatic index ({p2} columns) that SQLite is about to build on the fly, having estimated that indexing just for this query beats repeated full scans.",
+        "OpenDup": f"Open {c(p1)} as a second, independent cursor on the same transient table as cursor {p2}.",
+        "OpenPseudo": f"Open pseudo-{c(p1)}, which reads its single row directly from the record stored in {r(p2)} — a trick for treating an in-register record like a one-row table (commonly used for sorter output).",
+        "Close": f"Close {c(p1)} and release its resources.",
+        "ColumnsUsed": f"Hint recording which columns of {c(p1)}'s table will actually be read, so the b-tree layer can skip decoding the rest.",
+        "IfNotOpen": f"If {c(p1)} is not open, jump to {a(p2)}.",
+        "Rewind": f"Position {c(p1)} on its first row — the start of a loop over the whole table/index. If it's empty, jump past the loop body to {a(p2)}.",
+        "Last": f"Position {c(p1)} on its last row (used for reverse-order scans and MAX lookups); if empty, jump to {a(p2)}.",
+        "Next": f"Step {c(p1)} forward to its next row; if there is one, jump back to {a(p2)} to run the loop body again — this is the bottom of a scan loop. Otherwise fall through: the loop is done.",
+        "Prev": f"Step {c(p1)} backward to the previous row; if there is one, jump back to {a(p2)} (a reverse-order scan loop).",
+        "SeekGE": f"Binary-search {c(p1)} to the first entry ≥ the key assembled in registers starting at {r(p3)} — the entry point of an ascending index range scan. If no such entry exists, jump to {a(p2)}.",
+        "SeekGT": f"Binary-search {c(p1)} to the first entry > the key in registers starting at {r(p3)}; jump to {a(p2)} if none. Entry point of an exclusive range scan.",
+        "SeekLE": f"Binary-search {c(p1)} to the last entry ≤ the key in registers starting at {r(p3)}; jump to {a(p2)} if none (descending range scan).",
+        "SeekLT": f"Binary-search {c(p1)} to the last entry < the key in registers starting at {r(p3)}; jump to {a(p2)} if none (descending range scan).",
+        "SeekRowid": f"Jump {c(p1)} straight to the row whose rowid equals {r(p3)} — an O(log n) primary-key lookup, the fastest way to find a row. If that row doesn't exist, jump to {a(p2)}.",
+        "SeekEnd": f"Position {c(p1)} at the end of its b-tree, ready to append.",
+        "SeekScan": f"Optimization: before doing a full binary search, try stepping the cursor forward up to {p1} times to reach the target key — cheaper when consecutive lookups hit nearby keys. May jump to {a(p2)}.",
+        "SeekHit": f"Bookkeeping for the previous seek on {c(p1)}, remembering how much of the key matched so later operations can skip redundant seeks.",
+        "DeferredSeek": f"Lazy lookup: remember that table {c(p3)} should be positioned on the rowid found in index {c(p1)}, but don't actually seek until a column of the table row is needed. If the row is filtered out first, the seek never happens.",
+        "NotExists": f"Check whether rowid {r(p3)} exists in {c(p1)}; jump to {a(p2)} if it does not.",
+        "Found": f"Search {c(p1)} for the key in {r(p3)}; if found, jump to {a(p2)}.",
+        "NotFound": f"Search {c(p1)} for the key in {r(p3)}; if NOT found, jump to {a(p2)}.",
+        "NoConflict": f"Search {c(p1)} for the key in {r(p3)}, treating NULLs as distinct; if there is no conflicting entry, jump to {a(p2)} (used for UNIQUE checks).",
+        "Column": f"Read column {p2} of the row {c(p1)} is on, into {r(p3)}." + (f" ({p4})" if p4 else ""),
+        "Rowid": f"Store the rowid of the row {c(p1)} is on into {r(p2)}.",
+        "IdxRowid": f"Read the table rowid stored at the end of the current index entry of {c(p1)} into {r(p2)} — the pointer from index entry back to table row.",
+        "RowData": f"Copy the complete raw record {c(p1)} is on into {r(p2)}.",
+        "NullRow": f"Put {c(p1)} into a fake “all NULL” row state — this is how the NULL side of a LEFT JOIN is produced when no matching row exists.",
+        "Offset": f"Store the file offset of the current row of {c(p1)} into {r(p3)}.",
+        "TypeCheck": f"Enforce the declared column types of a STRICT table on registers starting at {r(p1)}.",
+        "ResultRow": f"Emit one result row to the caller, made of registers {r(p1)}..r[{p1 + p2 - 1}]. Execution pauses here until the caller asks for the next row.",
+        "Copy": f"Copy {(p3 or 0) + 1} register{'s' if p3 else ''} starting at {r(p1)} to {r(p2)}.",
+        "SCopy": f"Shallow-copy {r(p1)} into {r(p2)} (shares the underlying value; cheap).",
+        "IntCopy": f"Copy the integer in {r(p1)} into {r(p2)}.",
+        "Move": f"Move {p3} register{'s' if p3 != 1 else ''} from {r(p1)} to {r(p2)}, clearing the source.",
+        "Halt": ("End of the program — execution stops here. The instructions after this are one-time setup, jumped to from Init." if not p1 else f"Stop with error code {p1}" + (f": {p4}" if p4 else ".")),
+        "HaltIfNull": f"If {r(p3)} is NULL, halt with error code {p1}" + (f": {p4}" if p4 else "."),
+        "If": f"If {r(p1)} is true (non-zero, non-NULL), jump to {a(p2)}.",
+        "IfNot": f"If {r(p1)} is false (zero or NULL), jump to {a(p2)}.",
+        "Once": f"The first time this instruction runs, fall through; every later time, jump to {a(p2)}. Guards one-time work, like running an uncorrelated subquery only once.",
+        "Gosub": f"Call the subroutine at instruction {a(p2)}, saving the return address in {r(p1)}.",
+        "Return": f"Return from a subroutine to the address saved in {r(p1)} (by the matching Gosub).",
+        "BeginSubrtn": f"Mark the start of a subroutine; initialize its return-address register {r(p2)} to NULL.",
+        "InitCoroutine": f"Set up the co-routine whose code starts at instruction {a(p3)}, tracking its state in {r(p1)}" + (f", and jump to {a(p2)}" if p2 else "") + ". Co-routines let a subquery produce rows one at a time, interleaved with the outer query.",
+        "Yield": f"Pause here and switch execution to the co-routine tracked by {r(p1)} (and back again on its next Yield) — how a subquery hands over one row at a time." + (f" Jump to {a(p2)} when the co-routine has ended." if p2 else ""),
+        "EndCoroutine": f"The co-routine tracked by {r(p1)} is finished; jump back to just after its consumer's Yield.",
+        "Jump": f"Three-way branch on the preceding Compare: jump to {a(p1)} if less, {a(p2)} if equal, {a(p3)} if greater.",
+        "Noop": "Does nothing — a placeholder.",
+        "Explain": f"Marker carrying the EXPLAIN QUERY PLAN text for this part of the program: “{p4}”.",
+        "Eq": f"If {r(p3)} == {r(p1)}, jump to {a(p2)}.{null_note(p5)}",
+        "Ne": f"If {r(p3)} != {r(p1)}, jump to {a(p2)}.{null_note(p5)}",
+        "Lt": f"If {r(p3)} < {r(p1)}, jump to {a(p2)}.{null_note(p5)}",
+        "Le": f"If {r(p3)} <= {r(p1)}, jump to {a(p2)}.{null_note(p5)}",
+        "Gt": f"If {r(p3)} > {r(p1)}, jump to {a(p2)}.{null_note(p5)}",
+        "Ge": f"If {r(p3)} >= {r(p1)}, jump to {a(p2)}.{null_note(p5)}",
+        "IsNull": f"If {r(p1)} is NULL, jump to {a(p2)}.",
+        "NotNull": f"If {r(p1)} is not NULL, jump to {a(p2)}.",
+        "IsTrue": f"Store into {r(p2)} whether {r(p1)} is true.",
+        "ZeroOrNull": f"If {r(p1)} or {r(p3)} is NULL store NULL in {r(p2)}, otherwise store 0.",
+        "IfPos": f"If {r(p1)} > 0, " + (f"subtract {p3} from it and " if p3 else "") + f"jump to {a(p2)}. Typically LIMIT bookkeeping.",
+        "IfNotZero": f"If {r(p1)} is non-zero, decrement it and jump to {a(p2)} (LIMIT/OFFSET bookkeeping).",
+        "DecrJumpZero": f"Decrement {r(p1)}; when it reaches zero, jump to {a(p2)}. Typically the LIMIT counter running out and exiting the loop.",
+        "Compare": f"Compare the {p3}-register vectors at {r(p1)} and {r(p2)}; the following Jump acts on the outcome. Used by GROUP BY to detect when a new group starts.",
+        "ElseEq": f"Companion to a prior comparison: jump to {a(p2)} if the operands were equal.",
+        "Integer": f"Load the integer {p1} into {r(p2)}.",
+        "Int64": f"Load the 64-bit integer {p4} into {r(p2)}.",
+        "Real": f"Load the floating-point value {p4} into {r(p2)}.",
+        "String8": f"Load the string ‘{p4}’ into {r(p2)}.",
+        "String": f"Load a {p1}-byte string into {r(p2)}.",
+        "Null": f"Set {r(p2)}" + (f" through {r(p3)}" if p3 and p3 > p2 else "") + " to NULL.",
+        "SoftNull": f"Set {r(p1)} to NULL without fully discarding its old value (used while building records).",
+        "Blob": f"Load a {p1}-byte blob into {r(p2)}.",
+        "Variable": f"Copy bound parameter {p1} ({p4 or '?'}) into {r(p2)} — this is where values you bind to the statement enter the program.",
+        "Affinity": f"Apply column type affinities “{p4}” to registers starting at {r(p1)} (B=blob, C=text, D=numeric, E=integer, F=real), coercing values the way the column types would.",
+        "Cast": f"CAST {r(p1)} to the type coded by {p2}.",
+        "MustBeInt": f"Force {r(p1)} to an integer; jump to {a(p2)} (or error) if it can't be.",
+        "RealAffinity": f"If {r(p1)} holds an integer, convert it to floating point (its column has REAL affinity).",
+        "CollSeq": f"Announce the collating sequence ({p4 or 'default'}) for the function call that follows.",
+        "Add": f"{r(p3)} = {r(p1)} + {r(p2)}.",
+        "Subtract": f"{r(p3)} = {r(p2)} - {r(p1)}.",
+        "Multiply": f"{r(p3)} = {r(p1)} * {r(p2)}.",
+        "Divide": f"{r(p3)} = {r(p2)} / {r(p1)}.",
+        "Remainder": f"{r(p3)} = {r(p2)} % {r(p1)}.",
+        "Concat": f"{r(p3)} = {r(p2)} || {r(p1)} (string concatenation).",
+        "AddImm": f"Add {p2} to {r(p1)} in place.",
+        "Not": f"{r(p2)} = NOT {r(p1)}.",
+        "BitAnd": f"{r(p3)} = {r(p1)} & {r(p2)}.",
+        "BitOr": f"{r(p3)} = {r(p1)} | {r(p2)}.",
+        "BitNot": f"{r(p2)} = ~{r(p1)}.",
+        "ShiftLeft": f"{r(p3)} = {r(p2)} << {r(p1)}.",
+        "ShiftRight": f"{r(p3)} = {r(p2)} >> {r(p1)}.",
+        "Function": f"Call SQL function {fn_name(p4)} with " + (f"arguments starting at {r(p2)}" if p2 else "no arguments") + f", storing the result in {r(p3)}.",
+        "PureFunc": f"Call deterministic SQL function {fn_name(p4)} (safe to cache and reorder), result into {r(p3)}.",
+        "AggStep": f"Feed one row into aggregate {fn_name(p4)}: call its step function with arguments starting at {r(p2)}, accumulating state in {r(p3)}. Runs once per input row.",
+        "AggStep1": f"Feed one row into aggregate {fn_name(p4)} (state already initialized), accumulating into {r(p3)}.",
+        "AggInverse": f"Remove a row from windowed aggregate {fn_name(p4)} as the window slides forward.",
+        "AggFinal": f"All rows seen — finalize aggregate {fn_name(p4)} and replace the accumulator in {r(p1)} with the final answer (e.g. the actual count or average).",
+        "AggValue": f"Read the current value of aggregate {fn_name(p4)} into {r(p3)} without finalizing — used by window functions to report running results.",
+        "MakeRecord": f"Pack {p2} register{'s' if p2 != 1 else ''} starting at {r(p1)} into a single binary record (SQLite's row storage format) in {r(p3)}.",
+        "Insert": f"Insert the record in {r(p2)} into {c(p1)}'s table under the rowid in {r(p3)}.",
+        "Delete": f"Delete the row {c(p1)} is currently on.",
+        "NewRowid": f"Pick an unused rowid for {c(p1)}'s table and put it in {r(p2)}.",
+        "Count": f"Store the total number of entries in {c(p1)} into {r(p2)} — the fast path for a bare COUNT(*).",
+        "IdxInsert": f"Insert the key record in {r(p2)} into the index/transient table at {c(p1)}.",
+        "IdxDelete": f"Remove the entry matching registers starting at {r(p2)} from index {c(p1)}.",
+        "RowSetAdd": f"Add the rowid in {r(p2)} to the rowid-set in {r(p1)} (used when combining OR branches).",
+        "RowSetRead": f"Pull the smallest rowid out of the set in {r(p1)} into {r(p3)}; jump to {a(p2)} when it's empty.",
+        "RowSetTest": f"If the rowid in {r(p3)} is already in the set in {r(p1)}, jump to {a(p2)} — de-duplicating rows matched by more than one OR branch.",
+        "Sequence": f"Store the next sequence number for {c(p1)} into {r(p2)} (keeps sorted rows in insertion order for ties).",
+        "SequenceTest": f"If the sequence counter of {c(p1)} is zero, jump to {a(p2)}.",
+        "IdxGE": f"Range check: if the current entry of index {c(p1)} is ≥ the key starting at {r(p3)}, the scan has passed its end — jump to {a(p2)} to leave the loop.",
+        "IdxGT": f"Range check: if the current entry of index {c(p1)} is > the key starting at {r(p3)}, jump to {a(p2)} — the end of the matching index range.",
+        "IdxLE": f"Range check (descending): if the current index entry of {c(p1)} is ≤ the key, jump to {a(p2)}.",
+        "IdxLT": f"Range check (descending): if the current index entry of {c(p1)} is < the key, jump to {a(p2)}.",
+        "SorterOpen": f"Open sorter {c(p1)} — an external merge-sorter that can sort more data than fits in memory. Rows are fed in, then read back in sorted order.",
+        "SorterInsert": f"Add the record in {r(p2)} to sorter {c(p1)}.",
+        "SorterSort": f"All rows are in — actually perform the sort on {c(p1)}. Jump to {a(p2)} if it's empty.",
+        "SorterNext": f"Advance sorter {c(p1)} to the next row in sorted order; jump back to {a(p2)} while rows remain (the bottom of the sorted-output loop).",
+        "SorterData": f"Read the current sorted record from sorter {c(p1)} into {r(p2)}.",
+        "Sort": f"Like Rewind, but counted as a sort in the stats: position {c(p1)} on its first row; jump to {a(p2)} if empty.",
+        "ResetSorter": f"Empty out the sorter/transient table at {c(p1)} for reuse.",
+        "FilterAdd": f"Add a hash of the key starting at {r(p3)} to the Bloom filter in {r(p1)} (building the filter).",
+        "Filter": f"Probe the Bloom filter in {r(p1)} with the key starting at {r(p3)}: if it says “definitely not present”, jump to {a(p2)} and skip the expensive lookup entirely; otherwise fall through and do the real search.",
+        "ReadCookie": f"Read schema cookie {p3} of database {p1} into {r(p2)}.",
+        "SetCookie": f"Set schema cookie {p2} of database {p1} to {p3}.",
+        "AutoCommit": ("Commit the transaction and return to autocommit mode." if p1 else "Leave autocommit mode (BEGIN)."),
+        "Savepoint": f"Savepoint operation on “{p4}”.",
+        "Vacuum": "Run VACUUM to rebuild the database file.",
+        "ParseSchema": "Re-read part of the schema from sqlite_master.",
+        "SqlExec": f"Execute nested SQL: {p4}",
+        "CreateBtree": f"Allocate a new b-tree in database {p1}; its root page number goes in {r(p2)}.",
+    }
+    return E.get(op, "")
+
+
+def build_explain(sql):
+    rows = conn.execute("EXPLAIN " + sql).fetchall()
+    out = []
+    for addr, opcode, p1, p2, p3, p4, p5, comment in rows:
+        p4s = "" if p4 is None else str(p4)
+        explanation = explain_opcode(opcode, p1, p2, p3, p4s, p5)
+        out.append({
+            "addr": addr, "opcode": opcode,
+            "p1": p1, "p2": p2, "p3": p3, "p4": p4s, "p5": p5,
+            "comment": comment or "",
+            "category": OPCODE_TO_CATEGORY.get(opcode, ""),
+            "explanation": explanation,
+            "jumps": sorted({int(x) for x in re.findall(r"\[\[a:(\d+)\]\]",
+                                                        explanation)}),
+        })
+    depth = [0] * len(out)
+    for row in out:
+        if row["opcode"] in ("Next", "Prev", "SorterNext") and row["p2"] <= row["addr"]:
+            for i in range(row["p2"], row["addr"] + 1):
+                if i < len(depth):
+                    depth[i] += 1
+    for row, d in zip(out, depth):
+        row["loop"] = min(d, 4)
+    return out
+
+
+# --------------------------------------------------------------------------
+# Entry point
+# --------------------------------------------------------------------------
+
+MAX_ROWS = 200
+
+
+def render_value(v):
+    if v is None:
+        return None
+    if isinstance(v, bytes):
+        hexpart = v[:20].hex()
+        return f"<blob {len(v)} bytes: {hexpart}{'…' if len(v) > 20 else ''}>"
+    if isinstance(v, (int, float, str)):
+        return v
+    return str(v)
+
+
+def run_query(sql):
+    sql = re.sub(r"^\s*EXPLAIN\s+(QUERY\s+PLAN\s+)?", "", sql,
+                 flags=re.IGNORECASE)
+    result = {"sql": sql}
+    try:
+        cursor = conn.cursor()
+        start = time.perf_counter()
+        cursor.execute(sql)
+        rows = cursor.fetchmany(MAX_ROWS + 1)
+        elapsed = time.perf_counter() - start
+        truncated = len(rows) > MAX_ROWS
+        rows = rows[:MAX_ROWS]
+        result["results"] = {
+            "columns": [d[0] for d in cursor.description] if cursor.description else [],
+            "rows": [[render_value(v) for v in row] for row in rows],
+            "truncated": truncated,
+            "time_ms": round(elapsed * 1000, 2),
+            "rowcount": cursor.rowcount,
+        }
+    except sqlite3.Error as e:
+        result["error"] = str(e)
+        return json.dumps(result)
+    try:
+        result["eqp"] = build_eqp(sql)
+    except sqlite3.Error as e:
+        result["eqp_error"] = str(e)
+    try:
+        result["explain"] = build_explain(sql)
+    except sqlite3.Error as e:
+        result["explain_error"] = str(e)
+    return json.dumps(result)
+</script>
+
+<script>
+const EXAMPLES = [
+    {
+        title: "Full table scan",
+        desc: "The events table has no index on event_type, so SQLite has to visit all 50,000 rows and test each one.",
+        sql: "SELECT * FROM events WHERE event_type = 'purchase' LIMIT 10"
+    },
+    {
+        title: "Rowid primary key lookup",
+        desc: "Looking a row up by its INTEGER PRIMARY KEY is the fastest operation in SQLite — a single descent of the table's b-tree.",
+        sql: "SELECT * FROM customers WHERE id = 42"
+    },
+    {
+        title: "Index equality search",
+        desc: "idx_orders_customer lets SQLite jump straight to the matching orders instead of scanning all 20,000.",
+        sql: "SELECT * FROM orders WHERE customer_id = 42"
+    },
+    {
+        title: "Index range scan",
+        desc: "A BETWEEN over an indexed column reads just the matching slice of the index — watch for the two range constraints in the plan.",
+        sql: "SELECT * FROM orders WHERE order_date BETWEEN '2024-03-01' AND '2024-03-07'"
+    },
+    {
+        title: "Covering index",
+        desc: "The query only needs customer_id, which lives inside idx_orders_customer itself — the orders table is never touched, and the GROUP BY needs no sort.",
+        sql: "SELECT customer_id, COUNT(*) AS n FROM orders GROUP BY customer_id ORDER BY customer_id LIMIT 10"
+    },
+    {
+        title: "Multi-column index",
+        desc: "idx_products_category_price satisfies both the equality on category and the range on price in one lookup.",
+        sql: "SELECT * FROM products WHERE category = 'books' AND price < 20"
+    },
+    {
+        title: "Nested loop join (three tables)",
+        desc: "Watch the loop nesting: for each UK customer, find their orders; for each order, look up its items by primary key.",
+        sql: "SELECT c.name, o.order_date, oi.quantity\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nJOIN order_items oi ON oi.order_id = o.id\nWHERE c.country = 'UK'\nLIMIT 20"
+    },
+    {
+        title: "LEFT JOIN",
+        desc: "The right-hand table search is marked LEFT-JOIN: customers with no orders still produce a row, with NULLs. Look for the NullRow opcode in the bytecode.",
+        sql: "SELECT c.name, o.id AS order_id\nFROM customers c\nLEFT JOIN orders o ON o.customer_id = c.id AND o.status = 'pending'\nLIMIT 20"
+    },
+    {
+        title: "ORDER BY needing a sort",
+        desc: "No index on customers.name, so SQLite must collect all rows into a temp b-tree and sort them — see the SorterOpen/SorterSort opcodes.",
+        sql: "SELECT * FROM customers ORDER BY name LIMIT 10"
+    },
+    {
+        title: "ORDER BY satisfied by an index",
+        desc: "Same shape of query, but idx_orders_date already stores entries in order_date order — no sort step appears in the plan.",
+        sql: "SELECT * FROM orders ORDER BY order_date LIMIT 10"
+    },
+    {
+        title: "GROUP BY needing a temp b-tree",
+        desc: "No index on status, so rows must be regrouped in a temporary b-tree before aggregation.",
+        sql: "SELECT status, COUNT(*) FROM orders GROUP BY status"
+    },
+    {
+        title: "DISTINCT via covering index",
+        desc: "idx_customers_country delivers countries in sorted order, so duplicates can be skipped without a temp table.",
+        sql: "SELECT DISTINCT country FROM customers"
+    },
+    {
+        title: "IN (subquery) — list subquery",
+        desc: "The subquery runs once, its results are stored, and the outer query probes that stored list.",
+        sql: "SELECT * FROM customers\nWHERE id IN (SELECT customer_id FROM orders WHERE order_date > '2024-12-25')"
+    },
+    {
+        title: "Correlated scalar subquery",
+        desc: "The subquery references the outer row, so it re-runs for every customer — 2,000 little index searches. The covering index keeps each one cheap.",
+        sql: "SELECT name,\n  (SELECT COUNT(*) FROM orders WHERE customer_id = customers.id) AS order_count\nFROM customers LIMIT 10"
+    },
+    {
+        title: "EXISTS subquery",
+        desc: "EXISTS appears in the plan as a correlated subquery, re-run per customer — but it only needs one matching row, so each probe stops at the first hit.",
+        sql: "SELECT name FROM customers c\nWHERE EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id AND o.status = 'cancelled')\nLIMIT 10"
+    },
+    {
+        title: "UNION vs UNION ALL",
+        desc: "UNION must de-duplicate across both arms using a temp b-tree. Change it to UNION ALL and re-run to see that step disappear.",
+        sql: "SELECT country AS val FROM customers\nUNION\nSELECT category FROM products"
+    },
+    {
+        title: "OR using two indexes (MULTI-INDEX OR)",
+        desc: "Each side of the OR uses its own index, and the matching rowids are combined with duplicates skipped — see the RowSetTest opcode.",
+        sql: "SELECT * FROM orders WHERE customer_id = 5 OR order_date = '2024-06-01'"
+    },
+    {
+        title: "Automatic index",
+        desc: "Joining two aggregate subqueries: both are materialized into temp tables, and with no permanent index available SQLite builds an automatic covering index on one side to make the join fast. Newer SQLite versions may add a Bloom filter here too.",
+        sql: "SELECT a.customer_id, a.n, b.latest\nFROM (SELECT customer_id, COUNT(*) AS n FROM orders GROUP BY customer_id) a\nJOIN (SELECT customer_id, MAX(order_date) AS latest FROM orders GROUP BY customer_id) b\n  ON a.customer_id = b.customer_id\nLIMIT 10"
+    },
+    {
+        title: "CTE: MATERIALIZED vs co-routine",
+        desc: "AS MATERIALIZED forces the CTE to be computed into a temp table first. Remove the MATERIALIZED keyword and re-run — SQLite is then free to stream it as a co-routine instead.",
+        sql: "WITH totals AS MATERIALIZED (\n  SELECT customer_id, COUNT(*) AS n FROM orders GROUP BY customer_id\n)\nSELECT * FROM totals WHERE n >= 25"
+    },
+    {
+        title: "Recursive CTE",
+        desc: "Shows the SETUP and RECURSIVE STEP phases: a seed row, then repeated passes over the previous iteration's output.",
+        sql: "WITH RECURSIVE cnt(x) AS (\n  SELECT 1\n  UNION ALL\n  SELECT x + 1 FROM cnt WHERE x < 10\n)\nSELECT x FROM cnt"
+    },
+    {
+        title: "Query against a view",
+        desc: "The order_totals view expands into the plan like a subquery — a co-routine joining orders to order_items.",
+        sql: "SELECT * FROM order_totals WHERE total > 500 LIMIT 10"
+    },
+    {
+        title: "Window function",
+        desc: "Window functions sort partitions and stream aggregate values without collapsing rows — look for AggStep/AggValue pairs in the bytecode.",
+        sql: "SELECT name, category, price,\n  RANK() OVER (PARTITION BY category ORDER BY price DESC) AS price_rank\nFROM products\nLIMIT 15"
+    }
+];
+
+const $ = (id) => document.getElementById(id);
+const statusEl = $("status");
+let pyodide = null;
+let pyRun = null;
+let usingExampleDb = false;
+
+function setStatus(msg, working) {
+    statusEl.textContent = msg;
+    statusEl.classList.toggle("working", !!working);
+    statusEl.classList.remove("failed");
+}
+
+function setStatusError(msg) {
+    statusEl.textContent = msg;
+    statusEl.classList.remove("working");
+    statusEl.classList.add("failed");
+}
+
+function nextPaint() {
+    return new Promise((resolve) => setTimeout(resolve, 30));
+}
+
+async function ensurePyodide() {
+    if (pyodide) return;
+    setStatus("Loading Pyodide (Python in your browser, ~10 MB, first time only)…", true);
+    const { loadPyodide } = await import("https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.mjs");
+    pyodide = await loadPyodide();
+    await pyodide.loadPackage("sqlite3");
+    pyodide.runPython($("py-src").textContent);
+    pyRun = pyodide.globals.get("run_query");
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// ---------------------------------------------------------------- schema
+
+function renderSchema(schemaJson) {
+    const objects = JSON.parse(schemaJson);
+    const container = $("schema");
+    container.innerHTML = "";
+    if (!objects.length) {
+        container.textContent = "This database contains no tables.";
+    }
+    for (const obj of objects) {
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        let extra = "";
+        if (obj.type === "table" && obj.row_count !== null && obj.row_count !== undefined) {
+            extra = ` <span class="obj-count">— ${obj.row_count.toLocaleString()} rows</span>`;
+        } else if (obj.type === "index") {
+            extra = ` <span class="obj-count">on ${escapeHtml(obj.tbl_name)}</span>`;
+        }
+        summary.innerHTML = `<span class="obj-type">${escapeHtml(obj.type)}</span>` +
+            `<span class="obj-name">${escapeHtml(obj.name)}</span>${extra}`;
+        details.appendChild(summary);
+        const pre = document.createElement("pre");
+        pre.textContent = obj.sql || "(no SQL — auto-created)";
+        details.appendChild(pre);
+        container.appendChild(details);
+    }
+    $("schema-details").hidden = false;
+}
+
+// ---------------------------------------------------------------- database loading
+
+async function loadExampleDatabase(initialSql) {
+    $("load-example").disabled = true;
+    try {
+        await ensurePyodide();
+        setStatus("Building the example database (170,000+ rows across 5 tables)…", true);
+        await nextPaint();
+        const schemaJson = pyodide.globals.get("load_example_database")();
+        usingExampleDb = true;
+        renderSchema(schemaJson);
+        const sqliteVersion = pyodide.runPython("sqlite3.sqlite_version");
+        setStatus(`Example database loaded (SQLite ${sqliteVersion}): customers, products, orders, order_items and events, plus four indexes and a view.`);
+        $("db-note").textContent = "The data is generated with a fixed random seed, so results are reproducible — and queries you run are stored in the page URL, so you can bookmark or share them.";
+        $("db-note").hidden = false;
+        setupExamples();
+        $("query-card").hidden = false;
+        if (initialSql) {
+            $("sql").value = initialSql;
+            runCurrentQuery();
+        } else {
+            $("examples").value = "0";
+            $("examples").dispatchEvent(new Event("change"));
+        }
+    } catch (err) {
+        setStatusError(err.message || String(err));
+    } finally {
+        $("load-example").disabled = false;
+    }
+}
+
+$("load-example").addEventListener("click", () => loadExampleDatabase(null));
+
+$("open-db-btn").addEventListener("click", () => $("db-file").click());
+
+$("db-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+        await ensurePyodide();
+        setStatus(`Opening ${file.name}…`, true);
+        await nextPaint();
+        const buf = new Uint8Array(await file.arrayBuffer());
+        pyodide.FS.writeFile("/userdb.sqlite", buf);
+        const schemaJson = pyodide.globals.get("open_database")("/userdb.sqlite");
+        usingExampleDb = false;
+        renderSchema(schemaJson);
+        $("schema-details").open = true;
+        setStatus(`Opened ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB).`);
+        $("db-note").textContent = "Your file was copied into the browser sandbox — queries (even UPDATE or DELETE) only affect the in-browser copy, never the original file.";
+        $("db-note").hidden = false;
+        $("example-picker").hidden = true;
+        $("query-card").hidden = false;
+        $("sql").value = "SELECT type, name, tbl_name, sql\nFROM sqlite_master\nORDER BY type, name";
+        runCurrentQuery();
+    } catch (err) {
+        setStatusError("Could not open that file as a SQLite database: " + (err.message || err));
+    } finally {
+        e.target.value = "";
+    }
+});
+
+function setupExamples() {
+    const select = $("examples");
+    if (!select.options.length) {
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Choose an example…";
+        select.appendChild(placeholder);
+        EXAMPLES.forEach((ex, i) => {
+            const opt = document.createElement("option");
+            opt.value = i;
+            opt.textContent = `${i + 1}. ${ex.title}`;
+            select.appendChild(opt);
+        });
+        select.addEventListener("change", () => {
+            if (select.value === "") return;
+            const ex = EXAMPLES[select.value];
+            $("example-desc").textContent = ex.desc;
+            $("sql").value = ex.sql;
+            runCurrentQuery();
+        });
+    }
+    $("example-picker").hidden = false;
+}
+
+// ---------------------------------------------------------------- running queries
+
+function showError(msg) {
+    const el = $("error");
+    el.textContent = msg;
+    el.hidden = false;
+}
+
+async function runCurrentQuery() {
+    const sql = $("sql").value.trim();
+    if (!sql || !pyRun) return;
+    $("error").hidden = true;
+    $("run").disabled = true;
+    setStatus("Running query…", true);
+    await nextPaint();
+    try {
+        const result = JSON.parse(pyRun(sql));
+        setStatus("");
+        if (result.error) {
+            showError(result.error);
+            $("output").hidden = true;
+            return;
+        }
+        renderResults(result);
+        renderEqp(result);
+        renderBytecode(result);
+        $("output").hidden = false;
+        updateHash(sql);
+    } catch (err) {
+        setStatus("");
+        showError(err.message || String(err));
+    } finally {
+        $("run").disabled = false;
+    }
+}
+
+// Make queries against the example database bookmarkable: the SQL lives in
+// the URL hash, and opening a URL with #sql=... rebuilds the example
+// database and runs it. (A user-supplied database file can't be restored
+// from a URL, so those queries don't touch the hash.)
+function updateHash(sql) {
+    if (usingExampleDb) {
+        history.replaceState(null, "", "#sql=" + encodeURIComponent(sql));
+    } else if (location.hash) {
+        history.replaceState(null, "", location.pathname + location.search);
+    }
+    // Deselect the example picker when the SQL is no longer that example
+    const select = $("examples");
+    if (select.value !== "" && EXAMPLES[select.value].sql.trim() !== sql.trim()) {
+        select.value = "";
+        $("example-desc").textContent = "";
+    }
+}
+
+function getHashSql() {
+    return new URLSearchParams(location.hash.slice(1)).get("sql");
+}
+
+window.addEventListener("hashchange", () => {
+    const sql = getHashSql();
+    if (sql && pyRun && usingExampleDb && sql.trim() !== $("sql").value.trim()) {
+        $("sql").value = sql;
+        runCurrentQuery();
+    }
+});
+
+const bookmarkedSql = getHashSql();
+if (bookmarkedSql) {
+    loadExampleDatabase(bookmarkedSql);
+}
+
+$("run").addEventListener("click", runCurrentQuery);
+$("sql").addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        runCurrentQuery();
+    }
+});
+
+// ---------------------------------------------------------------- rendering: results
+
+function renderResults(result) {
+    const res = result.results;
+    const table = $("results-table");
+    table.innerHTML = "";
+    const meta = $("results-meta");
+    if (!res.columns.length) {
+        const changed = res.rowcount > 0 ? `${res.rowcount} row(s) affected. ` : "";
+        meta.textContent = `Statement completed in ${res.time_ms} ms. ${changed}No rows returned.`;
+        return;
+    }
+    meta.textContent = `${res.rows.length}${res.truncated ? "+" : ""} row(s) in ${res.time_ms} ms` +
+        (res.truncated ? ` — showing the first ${res.rows.length}` : "");
+    const thead = table.createTHead().insertRow();
+    for (const col of res.columns) {
+        const th = document.createElement("th");
+        th.textContent = col;
+        thead.appendChild(th);
+    }
+    const tbody = table.createTBody();
+    for (const row of res.rows) {
+        const tr = tbody.insertRow();
+        for (const val of row) {
+            const td = tr.insertCell();
+            if (val === null) {
+                td.textContent = "NULL";
+                td.className = "null";
+            } else {
+                td.textContent = val;
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- rendering: EXPLAIN QUERY PLAN
+
+function renderEqp(result) {
+    const container = $("eqp");
+    container.innerHTML = "";
+    if (result.eqp_error) {
+        container.textContent = "EXPLAIN QUERY PLAN failed: " + result.eqp_error;
+        return;
+    }
+    if (!result.eqp || !result.eqp.length) {
+        container.textContent = "No query plan — this statement doesn't read any tables.";
+        return;
+    }
+    const build = (nodes, parent) => {
+        for (const node of nodes) {
+            const div = document.createElement("div");
+            div.className = `eqp-node b-${node.badge}`;
+            const detail = document.createElement("div");
+            detail.className = "eqp-detail";
+            detail.innerHTML = `<span class="badge badge-${node.badge}">${node.badge === "tempbtree" ? "temp b-tree" : node.badge}</span>${escapeHtml(node.detail)}`;
+            div.appendChild(detail);
+            if (node.joinnote) {
+                const jn = document.createElement("div");
+                jn.className = "eqp-joinnote";
+                jn.textContent = node.joinnote;
+                div.appendChild(jn);
+            }
+            if (node.explanation) {
+                const ex = document.createElement("div");
+                ex.className = "eqp-explanation";
+                ex.textContent = node.explanation;
+                div.appendChild(ex);
+            }
+            build(node.children, div);
+            parent.appendChild(div);
+        }
+    };
+    build(result.eqp, container);
+}
+
+// ---------------------------------------------------------------- rendering: bytecode
+
+// Turn explanation text (with [[a:N]] address markers) into HTML with
+// clickable instruction links plus hoverable register/cursor tokens.
+function linkify(text) {
+    let html = escapeHtml(text);
+    html = html.replace(/\[\[a:(\d+)\]\]/g,
+        (_, n) => `<a class="addr-link" data-addr="${n}">${n}</a>`);
+    html = html.replace(/r\[(\d+)\](?:\.\.r\[(\d+)\])?/g, (m, r1, r2) => {
+        if (r2 !== undefined) {
+            const parts = [];
+            const from = parseInt(r1, 10);
+            const to = parseInt(r2, 10);
+            for (let i = from; i <= to && i - from < 64; i++) parts.push(i);
+            return `<span class="reg" data-reg="${parts.join(" ")}">${m}</span>`;
+        }
+        return `<span class="reg" data-reg="${r1}">${m}</span>`;
+    });
+    html = html.replace(/\bcursor (\d+)/g,
+        (m, n) => `<span class="cur" data-cur="${n}">${m}</span>`);
+    return html;
+}
+
+function renderBytecode(result) {
+    const table = $("bytecode-table");
+    table.innerHTML = "";
+    if (result.explain_error) {
+        const row = table.insertRow();
+        row.insertCell().textContent = "EXPLAIN failed: " + result.explain_error;
+        return;
+    }
+    const rows = result.explain || [];
+    // Reverse map: which instructions jump TO each address
+    const incoming = new Map();
+    for (const r of rows) {
+        for (const target of r.jumps) {
+            if (!incoming.has(target)) incoming.set(target, []);
+            incoming.get(target).push(r.addr);
+        }
+    }
+    const thead = table.createTHead().insertRow();
+    for (const h of ["addr", "loop", "opcode", "p1", "p2", "p3", "p4", "p5", "explanation"]) {
+        const th = document.createElement("th");
+        th.textContent = h;
+        if (h === "explanation") th.className = "expl-col";
+        thead.appendChild(th);
+    }
+    const tbody = table.createTBody();
+    for (const r of rows) {
+        const tr = tbody.insertRow();
+        tr.id = `op-${r.addr}`;
+        tr.dataset.addr = r.addr;
+
+        const addrTd = tr.insertCell();
+        addrTd.className = "addr-cell";
+        addrTd.textContent = r.addr;
+        const sources = incoming.get(r.addr);
+        if (sources) {
+            const badge = document.createElement("span");
+            badge.className = "from-badge";
+            badge.title = "Instructions that jump here";
+            badge.innerHTML = "⇐ " + sources.map(
+                (s) => `<a class="addr-link" data-addr="${s}">${s}</a>`).join(", ");
+            addrTd.appendChild(badge);
+        }
+
+        const loopTd = tr.insertCell();
+        loopTd.className = "loop-bars";
+        loopTd.textContent = "│".repeat(r.loop);
+
+        const opTd = tr.insertCell();
+        opTd.innerHTML = `<span class="opname op-${r.category || "none"}">${escapeHtml(r.opcode)}</span>`;
+
+        for (const p of ["p1", "p2", "p3"]) {
+            const td = tr.insertCell();
+            const val = r[p];
+            if (r.jumps.includes(val) && val !== 0) {
+                td.innerHTML = `<a class="addr-link" data-addr="${val}">${val}</a>`;
+            } else {
+                td.textContent = val;
+            }
+        }
+        const p4Td = tr.insertCell();
+        p4Td.textContent = r.p4;
+        tr.insertCell().textContent = r.p5;
+
+        const explTd = tr.insertCell();
+        explTd.className = "expl";
+        explTd.innerHTML = linkify(r.explanation || "") +
+            (r.comment ? ` <em>(${escapeHtml(r.comment)})</em>` : "");
+    }
+    applyExplToggle();
+}
+
+function applyExplToggle() {
+    const show = $("show-expl").checked;
+    for (const el of document.querySelectorAll("#bytecode-table .expl, #bytecode-table .expl-col")) {
+        el.style.display = show ? "" : "none";
+    }
+}
+$("show-expl").addEventListener("change", applyExplToggle);
+
+// Address links: click to scroll to + flash the target instruction.
+document.addEventListener("click", (e) => {
+    const link = e.target.closest("a.addr-link");
+    if (!link) return;
+    e.preventDefault();
+    const target = document.getElementById(`op-${link.dataset.addr}`);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.classList.remove("flash");
+    void target.offsetWidth; // restart the animation
+    target.classList.add("flash");
+});
+
+// Hovering an address link highlights its target row; hovering a register or
+// cursor token highlights every other instruction that touches it.
+document.addEventListener("mouseover", (e) => {
+    const link = e.target.closest("a.addr-link");
+    if (link) {
+        const target = document.getElementById(`op-${link.dataset.addr}`);
+        if (target) target.classList.add("jump-target-hl");
+        return;
+    }
+    const reg = e.target.closest(".reg");
+    if (reg) {
+        const regs = new Set(reg.dataset.reg.split(" "));
+        for (const el of document.querySelectorAll("#bytecode-table .reg")) {
+            if (el.dataset.reg.split(" ").some((n) => regs.has(n))) {
+                el.classList.add("hl-token");
+                el.closest("tr").classList.add("hl");
+            }
+        }
+        return;
+    }
+    const cur = e.target.closest(".cur");
+    if (cur) {
+        for (const el of document.querySelectorAll(
+                `#bytecode-table .cur[data-cur="${cur.dataset.cur}"]`)) {
+            el.classList.add("hl-token");
+            el.closest("tr").classList.add("hl");
+        }
+    }
+});
+document.addEventListener("mouseout", (e) => {
+    if (e.target.closest("a.addr-link, .reg, .cur")) {
+        for (const el of document.querySelectorAll(".jump-target-hl, .hl-token, tr.hl")) {
+            el.classList.remove("jump-target-hl", "hl-token", "hl");
+        }
+    }
+});
+</script>
+</body>
+</html>
