@@ -1219,7 +1219,7 @@ function renderSchema(schemaJson) {
 
 // ---------------------------------------------------------------- database loading
 
-$("load-example").addEventListener("click", async () => {
+async function loadExampleDatabase(initialSql) {
     $("load-example").disabled = true;
     try {
         await ensurePyodide();
@@ -1230,18 +1230,25 @@ $("load-example").addEventListener("click", async () => {
         renderSchema(schemaJson);
         const sqliteVersion = pyodide.runPython("sqlite3.sqlite_version");
         setStatus(`Example database loaded (SQLite ${sqliteVersion}): customers, products, orders, order_items and events, plus four indexes and a view.`);
-        $("db-note").textContent = "The data is generated with a fixed random seed, so results are reproducible.";
+        $("db-note").textContent = "The data is generated with a fixed random seed, so results are reproducible — and queries you run are stored in the page URL, so you can bookmark or share them.";
         $("db-note").hidden = false;
         setupExamples();
         $("query-card").hidden = false;
-        $("examples").selectedIndex = 0;
-        $("examples").dispatchEvent(new Event("change"));
+        if (initialSql) {
+            $("sql").value = initialSql;
+            runCurrentQuery();
+        } else {
+            $("examples").value = "0";
+            $("examples").dispatchEvent(new Event("change"));
+        }
     } catch (err) {
         setStatusError(err.message || String(err));
     } finally {
         $("load-example").disabled = false;
     }
-});
+}
+
+$("load-example").addEventListener("click", () => loadExampleDatabase(null));
 
 $("open-db-btn").addEventListener("click", () => $("db-file").click());
 
@@ -1275,6 +1282,10 @@ $("db-file").addEventListener("change", async (e) => {
 function setupExamples() {
     const select = $("examples");
     if (!select.options.length) {
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Choose an example…";
+        select.appendChild(placeholder);
         EXAMPLES.forEach((ex, i) => {
             const opt = document.createElement("option");
             opt.value = i;
@@ -1282,6 +1293,7 @@ function setupExamples() {
             select.appendChild(opt);
         });
         select.addEventListener("change", () => {
+            if (select.value === "") return;
             const ex = EXAMPLES[select.value];
             $("example-desc").textContent = ex.desc;
             $("sql").value = ex.sql;
@@ -1318,12 +1330,48 @@ async function runCurrentQuery() {
         renderEqp(result);
         renderBytecode(result);
         $("output").hidden = false;
+        updateHash(sql);
     } catch (err) {
         setStatus("");
         showError(err.message || String(err));
     } finally {
         $("run").disabled = false;
     }
+}
+
+// Make queries against the example database bookmarkable: the SQL lives in
+// the URL hash, and opening a URL with #sql=... rebuilds the example
+// database and runs it. (A user-supplied database file can't be restored
+// from a URL, so those queries don't touch the hash.)
+function updateHash(sql) {
+    if (usingExampleDb) {
+        history.replaceState(null, "", "#sql=" + encodeURIComponent(sql));
+    } else if (location.hash) {
+        history.replaceState(null, "", location.pathname + location.search);
+    }
+    // Deselect the example picker when the SQL is no longer that example
+    const select = $("examples");
+    if (select.value !== "" && EXAMPLES[select.value].sql.trim() !== sql.trim()) {
+        select.value = "";
+        $("example-desc").textContent = "";
+    }
+}
+
+function getHashSql() {
+    return new URLSearchParams(location.hash.slice(1)).get("sql");
+}
+
+window.addEventListener("hashchange", () => {
+    const sql = getHashSql();
+    if (sql && pyRun && usingExampleDb && sql.trim() !== $("sql").value.trim()) {
+        $("sql").value = sql;
+        runCurrentQuery();
+    }
+});
+
+const bookmarkedSql = getHashSql();
+if (bookmarkedSql) {
+    loadExampleDatabase(bookmarkedSql);
 }
 
 $("run").addEventListener("click", runCurrentQuery);

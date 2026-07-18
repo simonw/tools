@@ -62,3 +62,13 @@ def test_full_flow_with_example_database(page: Page, unused_port_server):
     page.click("#run")
     page.wait_for_selector("#error:not([hidden])")
     expect(page.locator("#error")).to_contain_text("no such column")
+
+    # Queries are bookmarkable: running one stores it in the URL hash
+    page.fill("#sql", "SELECT * FROM customers WHERE id = 42")
+    page.click("#run")
+    page.wait_for_function("location.hash.includes('customers')")
+    # ...and reloading the page restores and re-runs it from the hash
+    page.reload()
+    page.wait_for_selector("#output:not([hidden])", timeout=240_000)
+    assert "WHERE id = 42" in page.input_value("#sql")
+    expect(page.locator("#eqp")).to_contain_text("rowid")
