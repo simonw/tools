@@ -1,3 +1,3 @@
 Detect and highlight common clichéd phrases in text that frequently appear in language model outputs. Paste text into the analyzer to identify patterns like "no X, no Y" chains, "sit with that," "you already know," and other LLM-generated expressions, with toggleable pattern detection and context-aware sentence highlighting. The tool includes pattern counts, match listings with quick navigation, URL loading via the Jina Reader proxy, and runs entirely in your browser with localStorage support for persistence.
 
-<!-- Generated from commit: 409010a0f9b2301b813e0484189e74db205c33a5 -->
+<!-- Generated from commit: a0f5666f6e6ac6194038d2f95e3031c9d89ca74f -->
