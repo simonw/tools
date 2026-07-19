@@ -688,6 +688,8 @@ This closing paragraph is deliberately ordinary, with no list patterns at all, s
 
 // URL loading: the page URL's #fragment holds the article URL, and the text is
 // fetched through the Jina Reader proxy (https://r.jina.ai/) as plain text.
+// A direct fetch of the URL races alongside as a quiet fallback in case the
+// site serves open CORS headers and Jina fails.
 
 function normalizeUrl(raw) {
   const url = raw.trim();
@@ -795,12 +797,27 @@ urlForm.addEventListener('submit', async event => {
   history.replaceState(null, '', fragmentFromUrl(url));
   loadUrlBtn.disabled = true;
   setUrlStatus('Fetching ' + url + ' via r.jina.ai …');
-  try {
-    const response = await fetch('https://r.jina.ai/' + url, {
-      headers: { 'X-Return-Format': 'text' }
-    });
+  const fetchText = async (target, options) => {
+    const response = await fetch(target, options);
     if (!response.ok) throw new Error('HTTP ' + response.status);
-    const text = await response.text();
+    return response.text();
+  };
+  const jinaPromise = fetchText('https://r.jina.ai/' + url, {
+    headers: { 'X-Return-Format': 'text' }
+  });
+  const directPromise = fetchText(url);
+  directPromise.catch(() => {});
+  try {
+    let text;
+    try {
+      text = await jinaPromise;
+    } catch (jinaErr) {
+      try {
+        text = await directPromise;
+      } catch (directErr) {
+        throw jinaErr;
+      }
+    }
     input.value = text;
     run();
     setUrlStatus('Loaded ' + text.length.toLocaleString() + ' characters from ' + url);
