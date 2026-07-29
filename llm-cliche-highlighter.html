@@ -81,6 +81,23 @@ h2 {
   margin-top: 9px;
 }
 
+.pattern-group {
+  margin: 16px 0 0;
+  color: #a29b8d;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pattern-group:first-child {
+  margin-top: 6px;
+}
+
+.pattern-group + div {
+  margin-top: 6px;
+}
+
 .pattern-list label {
   display: flex;
   align-items: baseline;
@@ -400,7 +417,7 @@ mark.hit.pulse {
 <body>
 <main>
   <h1>LLM cliché <mark>highlighter</mark></h1>
-  <p class="subtitle">Paste text below &mdash; or load it from a URL &mdash; and it highlights sentences that match known LLM clichés. Chain patterns like &ldquo;no&nbsp;X, no&nbsp;Y&rdquo; get a badge counting their items; hover a highlight to see which cliché it hit.</p>
+  <p class="subtitle">Paste text below &mdash; or load it from a URL &mdash; and it highlights sentences that match known LLM clichés, including the tells catalogued in Wikipedia&rsquo;s <a href="https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing">Signs of AI writing</a> guide. Chain patterns like &ldquo;no&nbsp;X, no&nbsp;Y&rdquo; get a badge counting their items; hover a highlight to see which cliché it hit.</p>
 
   <div id="stats" class="stats" hidden></div>
 
@@ -493,6 +510,10 @@ function makeRegexFinder(re) {
   };
 }
 
+// Patterns in this group are adapted from Wikipedia's "Signs of AI writing"
+// guide: https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing
+const WIKI_GROUP = 'Signs of AI writing (Wikipedia)';
+
 const patterns = [
   {
     id: 'no-chain',
@@ -565,6 +586,83 @@ const patterns = [
     name: '\u201cThat\u2019s not nothing\u201d',
     description: '\u201cThat is not nothing\u201d / \u201cthat\u2019s not nothing\u201d, plus the \u201cthis / it / which is not nothing\u201d variants.',
     find: makeRegexFinder(/\b(?:that|this|it|which)(?:['\u2019]s|\s+(?:is|was))\s+not\s+nothing\b/gi)
+  },
+  {
+    id: 'ai-vocab',
+    group: WIKI_GROUP,
+    name: 'AI vocabulary words',
+    description: 'Words LLMs lean on far more than people do: \u201cdelve\u201d, \u201ctapestry\u201d, \u201cmeticulous\u201d, \u201cpivotal\u201d, \u201cintricate\u201d, \u201cinterplay\u201d, \u201cunderscore\u201d, \u201cgarner\u201d, \u201cbolster\u201d, \u201cvibrant\u201d, \u201cbustling\u201d, \u201cmultifaceted\u201d, \u201cseamless\u201d, \u201cever-evolving\u201d. One hit can be coincidence \u2014 several is a tell.',
+    find: makeRegexFinder(/\b(?:delv(?:e|es|ed|ing)|tapestr(?:y|ies)|meticulous(?:ly)?|pivotal|intricate(?:ly)?|intricacies|interplay|underscor(?:e|es|ed|ing)|garner(?:s|ed|ing)?|bolster(?:s|ed|ing)?|vibrant|bustling|multifaceted|seamless(?:ly)?|commendable|ever-evolving)\b/gi)
+  },
+  {
+    id: 'not-just',
+    group: WIKI_GROUP,
+    name: '\u201cNot just X, but Y\u201d',
+    description: 'Negative parallelisms: \u201cnot just X, but (also) Y\u201d, \u201cnot only \u2026 but \u2026\u201d, and the \u201cit\u2019s not X \u2014 it\u2019s Y\u201d contrast.',
+    find: makeRegexFinder(/\bnot\s+(?:just|only|merely|simply)\s+[^.!?\n;]*?\bbut(?:\s+also)?\b|\b(?:it|this|that)(?:['\u2019]s|\s+(?:is|was))\s+not\s+[^.!?\n,;\u2014\u2013]{1,60}[,;\u2014\u2013]\s*(?:it|this|that)(?:['\u2019]s|\s+(?:is|was))\b/gi)
+  },
+  {
+    id: 'note-that',
+    group: WIKI_GROUP,
+    name: '\u201cIt\u2019s important to note\u201d',
+    description: 'Didactic hedging: \u201cit is important to note that\u201d, \u201cit\u2019s worth noting\u201d, \u201cit should be noted\u201d.',
+    find: makeRegexFinder(/\bit(?:['\u2019]s|\s+(?:is|was))\s+(?:also\s+)?(?:important|worth|crucial|essential|vital)\s+(?:to\s+(?:note|remember|understand|recognize|mention)|noting|mentioning|remembering)\b(?:\s+that\b)?|\bit\s+should\s+be\s+noted\b/gi)
+  },
+  {
+    id: 'testament',
+    group: WIKI_GROUP,
+    name: '\u201cStands as a testament\u201d',
+    description: '\u201cStands / serves as a testament (or reminder)\u201d, \u201cis a testament to\u201d \u2014 inflating significance instead of saying what happened.',
+    find: makeRegexFinder(/\b(?:stand|stands|stood|serve|serves|served|standing|serving)\s+as\s+(?:a|an)\s+(?:\w+\s+)?(?:testament|reminder)\b|\b(?:is|was|are|were|remain|remains)\s+a\s+(?:\w+\s+)?testament\s+to\b/gi)
+  },
+  {
+    id: 'crucial-role',
+    group: WIKI_GROUP,
+    name: '\u201cPlays a crucial role\u201d',
+    description: '\u201cPlays a crucial / pivotal / vital / key / significant role in \u2026\u201d.',
+    find: makeRegexFinder(/\bplay(?:s|ed|ing)?\s+(?:a|an)\s+(?:\w+\s+)?(?:crucial|pivotal|vital|key|significant|central|critical|important)\s+role\b/gi)
+  },
+  {
+    id: 'landscape',
+    group: WIKI_GROUP,
+    name: '\u201cEver-evolving landscape\u201d',
+    description: 'Scene-setting boilerplate: \u201cthe ever-evolving / changing / shifting landscape\u201d, \u201cin today\u2019s fast-paced world\u201d.',
+    find: makeRegexFinder(/\b(?:ever-)?(?:evolving|changing|shifting)\s+landscape\b|\bin\s+today['\u2019]s\s+(?:fast-paced|ever-changing|ever-evolving|digital|modern|competitive)\s+\w+/gi)
+  },
+  {
+    id: 'vague-experts',
+    group: WIKI_GROUP,
+    name: '\u201cExperts argue\u201d',
+    description: 'Vague attribution to unnamed authorities: \u201cexperts argue\u201d, \u201csome critics have noted\u201d, \u201cobservers suggest\u201d, \u201cindustry reports indicate\u201d.',
+    find: makeRegexFinder(/\b(?:many|some|several|most|numerous)?\s*(?:experts|critics|observers|scholars|analysts|commentators)\s+(?:have\s+|often\s+|widely\s+)?(?:argu(?:e|es|ed)|not(?:e|es|ed)|suggest(?:s|ed)?|believ(?:e|es|ed)|agree[ds]?|contend(?:s|ed)?|observ(?:e|es|ed)|caution(?:s|ed)?|claim(?:s|ed)?|cit(?:e|es|ed)|point(?:s|ed)?\s+out)\b|\bindustry\s+reports?\s+(?:suggest|indicate|show)\w*\b/gi)
+  },
+  {
+    id: 'despite-challenges',
+    group: WIKI_GROUP,
+    name: '\u201cDespite these challenges\u201d',
+    description: 'The boilerplate challenges-and-outlook formula: \u201cdespite these challenges\u201d, \u201cfaces several challenges\u201d, \u201cchallenges remain\u201d, \u201cremains to be seen\u201d.',
+    find: makeRegexFinder(/\bdespite\s+(?:these|those|such|its|their|the|numerous|significant|ongoing)\s+(?:\w+\s+)?challenges\b|\bfac(?:e|es|ed|ing)\s+(?:several|numerous|many|significant|various|a\s+number\s+of)\s+challenges\b|\bchallenges\s+remain\b|\bremains\s+to\s+be\s+seen\b/gi)
+  },
+  {
+    id: 'participle-tail',
+    group: WIKI_GROUP,
+    name: 'Participle sentence tails',
+    description: 'Superficial analysis bolted onto a sentence end: \u201c\u2026, highlighting / underscoring / showcasing / reflecting the \u2026\u201d.',
+    find: makeRegexFinder(/,\s+(?:highlighting|underscoring|emphasizing|showcasing|reflecting|demonstrating|illustrating|signaling|solidifying|cementing|reinforcing|underlining)\s+(?:its|his|her|their|our|the|a|an|how|that|what|both)\b[^.!?\n]*/gi)
+  },
+  {
+    id: 'promo',
+    group: WIKI_GROUP,
+    name: 'Promotional boilerplate',
+    description: 'Travel-brochure tone: \u201cnestled in\u201d, \u201cin the heart of\u201d, \u201crich tapestry / heritage\u201d, \u201chidden gem\u201d, \u201cboasts a\u201d, \u201cbreathtaking\u201d, \u201cstunning views\u201d.',
+    find: makeRegexFinder(/\bnestled\s+(?:in|on|among|between|along|at)\b|\bin\s+the\s+heart\s+of\b|\brich\s+(?:cultural\s+|historical\s+)?(?:heritage|history|tapestry)\b|\bhidden\s+gem\b|\bmust-(?:visit|see|try)\b|\bbreathtaking\b|\bboasts?\s+(?:a|an|the)\b|\bstunning\s+(?:views?|scenery|architecture|backdrop)\b/gi)
+  },
+  {
+    id: 'ai-leftovers',
+    group: WIKI_GROUP,
+    name: 'Chatbot leftovers',
+    description: 'Artifacts pasted straight from a chatbot: \u201cas an AI language model\u201d, \u201cas of my last update\u201d, \u201cknowledge cutoff\u201d, plus markup debris like \u201coaicite\u201d, \u201ccontentReference\u201d, \u201cturn0search\u201d and \u201cutm_source=\u201d tracking parameters.',
+    find: makeRegexFinder(/\bas\s+an\s+ai(?:\s+language)?\s+model\b|\bas\s+of\s+my\s+last\s+(?:update|training)\b|\bknowledge\s+cutoff\b|\bI\s+(?:cannot|can['\u2019]t|do\s+not|don['\u2019]t)\s+(?:browse\s+the\s+internet|access\s+real-?time)\b|contentReference|oaicite|turn0(?:search|news|image)\d*|attributableIndex|utm_source=/gi)
   }
 ];
 
@@ -683,6 +781,12 @@ The reviewer read the draft twice. Did not flinch, did not blink, did not reach 
 Don't call it a rewrite — call it a rescue. The improvement is real, and it's not subtle. That loss is worth naming. Sit with that for a moment. The gains were modest, but that's not nothing.
 
 You already know the answer, of course. Consistency is the entire game, and the punchline is that nobody wants to hear it. The entire pitch is one sentence long.
+
+In this guide we delve into the redesign. It is important to note that the rollout happened in stages. Community feedback plays a pivotal role in every release. Experts argue that the shift was overdue.
+
+The studio is nestled in a converted warehouse. The finished space is not just an office, but a small museum. Visitors keep coming back, reflecting the appeal of the collection. The steady attendance is a testament to the curators.
+
+Despite these challenges, the team kept shipping. They adapted to an ever-evolving landscape. As of my last update, the pricing page still said “coming soon”.
 
 This closing paragraph is deliberately ordinary, with no list patterns at all, so nothing here should light up.`;
 
@@ -839,7 +943,16 @@ input.value = loadStoredText();
 run();
 
 function buildPatternList() {
+  let lastGroup = null;
   for (const p of patterns) {
+    const groupName = p.group || 'Rhetorical tics';
+    if (groupName !== lastGroup) {
+      const heading = document.createElement('p');
+      heading.className = 'pattern-group';
+      heading.textContent = groupName;
+      patternListEl.append(heading);
+      lastGroup = groupName;
+    }
     const wrap = document.createElement('div');
     const label = document.createElement('label');
     const box = document.createElement('input');
@@ -862,7 +975,7 @@ function buildPatternList() {
   }
   const note = document.createElement('p');
   note.className = 'pattern-note';
-  note.innerHTML = 'More patterns can be added to the <code>patterns</code> array at the top of the script.';
+  note.innerHTML = 'The second group is adapted from Wikipedia’s <a href="https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing">Signs of AI writing</a> guide. More patterns can be added to the <code>patterns</code> array at the top of the script.';
   patternListEl.append(note);
 }
 
@@ -1092,7 +1205,53 @@ const patternCases = [
   ['not-nothing', "It's not nothing, even if it's not everything.", 1],
   ['not-nothing', 'The launch drew a small crowd, which was not nothing.', 1],
   ['not-nothing', 'She insisted that nothing was wrong.', 0],
-  ['not-nothing', 'There is nothing left to say.', 0]
+  ['not-nothing', 'There is nothing left to say.', 0],
+  ['ai-vocab', 'We delve into the intricacies of the interplay.', 3],
+  ['ai-vocab', 'Her vibrant tapestry hung in the bustling hall.', 3],
+  ['ai-vocab', 'A meticulously curated, seamless experience.', 2],
+  ['ai-vocab', 'The report was thorough and well organized.', 0],
+  ['not-just', 'This is not just a tool, but a philosophy.', 1],
+  ['not-just', 'Not only fast but also reliable.', 1],
+  ['not-just', 'It’s not a bug — it’s a feature.', 1],
+  ['not-just', 'He did not buy it.', 0],
+  ['not-just', 'She was not sure about the plan.', 0],
+  ['note-that', 'It is important to note that timing matters.', 1],
+  ['note-that', 'It’s worth noting the fees are separate.', 1],
+  ['note-that', 'It should be noted that this changed in 2020.', 1],
+  ['note-that', 'Please note the door code.', 0],
+  ['testament', 'The building stands as a testament to postwar optimism.', 1],
+  ['testament', 'Her career is a testament to persistence.', 1],
+  ['testament', 'It serves as a stark reminder that nothing lasts.', 1],
+  ['testament', 'He read from the Old Testament.', 0],
+  ['crucial-role', 'Volunteers play a crucial role in the program.', 1],
+  ['crucial-role', 'She played a truly pivotal role in the merger.', 1],
+  ['crucial-role', 'He plays the role of the villain.', 0],
+  ['landscape', 'Adapting to an ever-evolving landscape.', 1],
+  ['landscape', 'The rapidly changing landscape of retail.', 1],
+  ['landscape', 'In today’s fast-paced world, attention is scarce.', 1],
+  ['landscape', 'The landscape outside the window was gray.', 0],
+  ['vague-experts', 'Experts argue that the policy failed.', 1],
+  ['vague-experts', 'Some critics have noted a decline in quality.', 1],
+  ['vague-experts', 'Industry reports suggest strong demand.', 1],
+  ['vague-experts', 'Dr. Chen argued the opposite in her paper.', 0],
+  ['despite-challenges', 'Despite these challenges, growth continued.', 1],
+  ['despite-challenges', 'The sector faces several challenges.', 1],
+  ['despite-challenges', 'Whether it works remains to be seen.', 1],
+  ['despite-challenges', 'The climb was a challenge.', 0],
+  ['participle-tail', 'The bridge reopened in June, highlighting the city’s investment in infrastructure.', 1],
+  ['participle-tail', 'Sales doubled, underscoring the strength of the brand.', 1],
+  ['participle-tail', 'She kept highlighting passages in yellow.', 0],
+  ['participle-tail', 'The team, reflecting on the loss, regrouped.', 0],
+  ['promo', 'The inn is nestled in a quiet valley.', 1],
+  ['promo', 'The museum boasts a rich tapestry of exhibits.', 2],
+  ['promo', 'Located in the heart of downtown.', 1],
+  ['promo', 'A hidden gem with breathtaking views.', 2],
+  ['promo', 'The soup was rich and hearty.', 0],
+  ['ai-leftovers', 'As of my last update, the API was in beta.', 1],
+  ['ai-leftovers', 'As an AI language model, I cannot form opinions.', 1],
+  ['ai-leftovers', 'See example.com/page?utm_source=chatgpt.com for details.', 1],
+  ['ai-leftovers', 'contentReference[oaicite:0]{index=0}', 2],
+  ['ai-leftovers', 'The last update shipped on Tuesday.', 0]
 ];
 
 for (const [id, sample, expectMatches, expectItems] of patternCases) {
