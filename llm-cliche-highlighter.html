@@ -282,10 +282,26 @@ mark.hit {
   border-radius: 3px;
   padding: 1px 2px;
   transition: box-shadow 0.3s;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 mark.hit.pulse {
   box-shadow: 0 0 0 2px #b45309;
+}
+
+.hit-tip {
+  position: absolute;
+  z-index: 10;
+  max-width: 280px;
+  padding: 6px 10px;
+  background: #1d1b17;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(29, 27, 23, 0.25);
 }
 
 .badge {
@@ -417,7 +433,7 @@ mark.hit.pulse {
 <body>
 <main>
   <h1>LLM cliché <mark>highlighter</mark></h1>
-  <p class="subtitle">Paste text below &mdash; or load it from a URL &mdash; and it highlights sentences that match known LLM clichés, including the tells catalogued in Wikipedia&rsquo;s <a href="https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing">Signs of AI writing</a> guide. Chain patterns like &ldquo;no&nbsp;X, no&nbsp;Y&rdquo; get a badge counting their items; hover a highlight to see which cliché it hit.</p>
+  <p class="subtitle">Paste text below &mdash; or load it from a URL &mdash; and it highlights sentences that match known LLM clichés, including the tells catalogued in Wikipedia&rsquo;s <a href="https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing">Signs of AI writing</a> guide. Chain patterns like &ldquo;no&nbsp;X, no&nbsp;Y&rdquo; get a badge counting their items; tap or hover a highlight to see which cliché it hit.</p>
 
   <div id="stats" class="stats" hidden></div>
 
@@ -817,6 +833,13 @@ function urlFromFragment(fragment) {
 function fragmentFromUrl(url) {
   return url ? '#' + encodeURI(url) : '';
 }
+
+// Tooltip text for a highlight: the pattern name, plus the chain item count
+// when the match has one. Shown on tap/click (title-attribute hover tooltips
+// don't exist on touch screens) and duplicated in the title attribute.
+function matchTipText(name, badgeTitle) {
+  return badgeTitle ? name + ' · ' + badgeTitle : name;
+}
 // ==== impl end ====
 
 const input = document.getElementById('input');
@@ -836,6 +859,7 @@ const urlInput = document.getElementById('url-input');
 const loadUrlBtn = document.getElementById('load-url');
 const urlStatus = document.getElementById('url-status');
 const countEls = {};
+let currentMatches = [];
 
 const STORAGE_KEY = 'llm_cliches_last_text';
 let lastStoredText = null;
@@ -872,6 +896,62 @@ document.getElementById('clear').addEventListener('click', () => {
 });
 
 highlightsToggle.addEventListener('change', run);
+
+// Tap/click tooltip for highlights. The title attribute covers mouse hover,
+// but touch screens have no hover, so tapping a highlight (or its badge)
+// shows the same information in a floating tip. Tapping it again, tapping
+// elsewhere, or scrolling dismisses it.
+const tipEl = document.createElement('div');
+tipEl.className = 'hit-tip';
+tipEl.setAttribute('role', 'tooltip');
+tipEl.hidden = true;
+document.body.append(tipEl);
+let tipTarget = null;
+
+function hideTip() {
+  if (tipEl.hidden) return;
+  tipEl.hidden = true;
+  tipTarget = null;
+}
+
+function showTip(markEl) {
+  const m = currentMatches[Number(markEl.id.slice('hit-'.length))];
+  if (!m) return;
+  tipEl.textContent = matchTipText(patternsById[m.patternId].name, m.badgeTitle);
+  tipEl.hidden = false;
+  tipTarget = markEl;
+  const rect = markEl.getBoundingClientRect();
+  const viewWidth = document.documentElement.clientWidth;
+  let left = rect.left + rect.width / 2 - tipEl.offsetWidth / 2;
+  left = Math.max(8, Math.min(left, viewWidth - tipEl.offsetWidth - 8));
+  let top = rect.top - tipEl.offsetHeight - 8;
+  if (top < 8) top = rect.bottom + 8;
+  tipEl.style.left = window.scrollX + left + 'px';
+  tipEl.style.top = window.scrollY + top + 'px';
+}
+
+outputEl.addEventListener('click', event => {
+  const badge = event.target.closest('.badge');
+  const markEl = badge
+    ? badge.previousElementSibling
+    : event.target.closest('mark.hit');
+  if (!markEl || !markEl.matches('mark.hit')) {
+    hideTip();
+    return;
+  }
+  if (markEl === tipTarget) {
+    hideTip();
+  } else {
+    showTip(markEl);
+  }
+});
+
+document.addEventListener('click', event => {
+  if (tipEl.hidden || event.target.closest('#output')) return;
+  hideTip();
+});
+
+window.addEventListener('scroll', hideTip, { passive: true });
 
 function setUrlStatus(message, isError) {
   urlStatus.hidden = !message;
@@ -980,6 +1060,7 @@ function buildPatternList() {
 }
 
 function run() {
+  hideTip();
   const text = input.value;
   storeText(text);
   const hasText = text.trim().length > 0;
@@ -1001,6 +1082,7 @@ function run() {
 
   const { matches, perPattern } = collectMatches(text, enabled);
   const regions = buildRegions(text, matches);
+  currentMatches = matches;
 
   renderOutput(text, regions, highlightsToggle.checked);
   renderMatches(text, matches);
@@ -1039,7 +1121,7 @@ function renderRegions(text, from, to, regions) {
     let p = region.start;
     for (const m of region.matches) {
       html += esc(text.slice(p, m.start));
-      html += '<mark class="hit" id="hit-' + m.id + '" title="' + esc(patternsById[m.patternId].name) + '">' + esc(text.slice(m.start, m.end)) + '</mark>';
+      html += '<mark class="hit" id="hit-' + m.id + '" title="' + esc(matchTipText(patternsById[m.patternId].name, m.badgeTitle)) + '">' + esc(text.slice(m.start, m.end)) + '</mark>';
       if (m.badge != null) {
         html += '<span class="badge" title="' + esc(m.badgeTitle || '') + '">' + esc(m.badge) + '</span>';
       }
@@ -1322,6 +1404,11 @@ test('url: urlFromFragment accepts raw unencoded fragments', () => {
   expectEqual(urlFromFragment('#https://example.com/100%'), 'https://example.com/100%', 'bad percent-encoding');
   expectEqual(urlFromFragment('#'), '', 'empty');
   expectEqual(urlFromFragment('#just-some-anchor'), '', 'non-url anchor');
+});
+
+test('tooltip text combines pattern name and chain count', () => {
+  expectEqual(matchTipText('“No X, no Y” chains', '3 “no” items'), '“No X, no Y” chains · 3 “no” items', 'with badge');
+  expectEqual(matchTipText('“Sit with that”', undefined), '“Sit with that”', 'without badge');
 });
 
 test('example text trips every pattern exactly once', () => {
