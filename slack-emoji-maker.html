@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slack Emoji Maker</title>
+<style>
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px;
+    line-height: 1.5;
+    background-color: #f5f5f5;
+    color: #222;
+}
+h1 { margin: 0 0 4px 0; font-size: 28px; }
+.subtitle { margin: 0 0 16px 0; color: #555; }
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 16px;
+}
+#dropzone {
+    border: 3px dashed #bbb;
+    border-radius: 8px;
+    padding: 48px 20px;
+    text-align: center;
+    color: #666;
+    cursor: pointer;
+    background: white;
+    transition: border-color 0.15s, background 0.15s;
+}
+#dropzone.drag-over { border-color: #4a90e2; background: #eef5fd; }
+#dropzone strong { color: #333; }
+#dropzone .hint { font-size: 13px; margin-top: 8px; color: #999; }
+#editor { display: none; }
+#editor.visible { display: block; }
+
+.editor-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+@media (min-width: 880px) {
+    .editor-grid { grid-template-columns: 1fr 340px; align-items: start; }
+}
+
+.canvas-wrap {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    line-height: 0;
+    /* checkerboard to show transparency */
+    background-image:
+        linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%),
+        linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+}
+#canvas {
+    max-width: 100%;
+    max-height: 70vh;
+    display: block;
+    touch-action: none;
+}
+#canvas.picking { cursor: crosshair; }
+.canvas-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.canvas-toolbar .dims { color: #666; font-size: 13px; margin-left: auto; }
+
+/* crop overlay */
+#cropBox {
+    position: absolute;
+    border: 2px solid #4a90e2;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+    cursor: move;
+    display: none;
+    touch-action: none;
+}
+#cropBox.visible { display: block; }
+#cropBox .handle {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: #4a90e2;
+    border: 2px solid white;
+    border-radius: 50%;
+}
+#cropBox .nw { top: -9px; left: -9px; cursor: nwse-resize; }
+#cropBox .ne { top: -9px; right: -9px; cursor: nesw-resize; }
+#cropBox .sw { bottom: -9px; left: -9px; cursor: nesw-resize; }
+#cropBox .se { bottom: -9px; right: -9px; cursor: nwse-resize; }
+
+fieldset {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    margin: 0 0 14px 0;
+    padding: 10px 12px 12px 12px;
+}
+legend { font-weight: 600; font-size: 14px; padding: 0 6px; }
+button {
+    background-color: #4a90e2;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+button:hover { background-color: #357abd; }
+button:disabled { background-color: #ccc; cursor: not-allowed; }
+button.secondary { background: #eee; color: #333; border: 1px solid #ccc; }
+button.secondary:hover { background: #e0e0e0; }
+button.green { background: #2e9e44; }
+button.green:hover { background: #268239; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.btn-row:last-child { margin-bottom: 0; }
+label { font-size: 13px; }
+.slider-row { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px 0; font-size: 13px; }
+.slider-row input[type=range] { flex: 1; }
+.radio-row { display: flex; gap: 14px; margin: 6px 0; font-size: 13px; flex-wrap: wrap; }
+.help { font-size: 12px; color: #777; margin: 6px 0 0 0; }
+
+.size-status {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.size-kb { font-size: 26px; font-weight: bold; }
+.pill {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+.pill.ok { background: #d9f2df; color: #1c7430; }
+.pill.too-big { background: #fde3e3; color: #b02a2a; }
+.name-row { display: flex; align-items: center; gap: 6px; margin: 8px 0; }
+.name-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 9px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: monospace;
+}
+.emoji-name-preview { font-family: monospace; font-size: 13px; color: #666; }
+
+.previews { display: flex; gap: 10px; flex-wrap: wrap; }
+.preview-chip {
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+}
+.preview-chip.light { background: #fff; color: #1d1c1d; }
+.preview-chip.dark { background: #1a1d21; color: #d1d2d3; border-color: #1a1d21; }
+.preview-chip img { image-rendering: auto; object-fit: contain; }
+.preview-chip .small { width: 22px; height: 22px; }
+.preview-chip .large { width: 64px; height: 64px; }
+
+.footer { color: #888; font-size: 13px; margin-top: 8px; }
+.footer a { color: #4a90e2; }
+#error {
+    color: #b02a2a;
+    padding: 10px 12px;
+    background: #fde3e3;
+    border-radius: 4px;
+    margin: 10px 0;
+    display: none;
+}
+#error.visible { display: block; }
+@media (max-width: 600px) {
+    body { padding: 10px; }
+    h1 { font-size: 22px; }
+    .card { padding: 14px; }
+}
+</style>
+</head>
+<body>
+<h1>Slack Emoji Maker</h1>
+<p class="subtitle">Turn any image into a custom Slack emoji: square, transparent background, PNG under 128KB.</p>
+
+<div id="dropzone">
+    <strong>Drag and drop an image here</strong>, click to select a file, or paste from your clipboard
+    <div class="hint">JPG, PNG, GIF, WebP, SVG&hellip; anything your browser can open. Very large images are scaled down to 1024px.</div>
+</div>
+<input type="file" id="fileInput" accept="image/*" style="display: none">
+<div id="error"></div>
+
+<div id="editor">
+    <div class="card">
+        <div class="canvas-toolbar">
+            <button id="undoBtn" class="secondary" disabled>&larr; Undo</button>
+            <button id="redoBtn" class="secondary" disabled>Redo &rarr;</button>
+            <button id="resetBtn" class="secondary">Reset to original</button>
+            <button id="newImageBtn" class="secondary">Open different image</button>
+            <span class="dims" id="dims"></span>
+        </div>
+        <div class="editor-grid">
+            <div>
+                <div class="canvas-wrap" id="canvasWrap">
+                    <canvas id="canvas"></canvas>
+                    <div id="cropBox">
+                        <div class="handle nw" data-handle="nw"></div>
+                        <div class="handle ne" data-handle="ne"></div>
+                        <div class="handle sw" data-handle="sw"></div>
+                        <div class="handle se" data-handle="se"></div>
+                    </div>
+                </div>
+                <p class="help" id="canvasHelp">Click anywhere on the image to remove that color. The checkerboard shows transparent areas.</p>
+            </div>
+            <div>
+                <fieldset>
+                    <legend>Remove background</legend>
+                    <div class="btn-row">
+                        <button id="autoEdgesBtn" title="Flood-fills inwards from the image edges, removing the dominant edge color">Auto: flood from edges</button>
+                        <button id="autoEverywhereBtn" title="Removes every pixel matching the dominant edge color, connected or not">Auto: edge color everywhere</button>
+                    </div>
+                    <div class="radio-row">
+                        <label><input type="radio" name="clickMode" value="contiguous" checked> Click removes connected region</label>
+                        <label><input type="radio" name="clickMode" value="everywhere"> Click removes color everywhere</label>
+                    </div>
+                    <div class="slider-row">
+                        <label for="tolerance">Tolerance</label>
+                        <input type="range" id="tolerance" min="0" max="100" value="25">
+                        <span id="toleranceValue">25</span>
+                    </div>
+                    <p class="help">Higher tolerance removes a wider range of similar colors. Undo and retry if it eats too much.</p>
+                </fieldset>
+                <fieldset>
+                    <legend>Make it square</legend>
+                    <div class="btn-row">
+                        <button id="cropStartBtn">Square crop&hellip;</button>
+                        <button id="cropApplyBtn" class="green" style="display:none">Apply crop</button>
+                        <button id="cropCancelBtn" class="secondary" style="display:none">Cancel</button>
+                    </div>
+                    <div class="btn-row">
+                        <button id="trimBtn" class="secondary" title="Crops away fully transparent edges">Trim transparent edges</button>
+                        <button id="padBtn" class="secondary" title="Adds transparent padding so the image becomes square without cropping">Pad to square</button>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Shrink</legend>
+                    <div class="btn-row">
+                        <button id="resize128Btn">Resize to 128&times;128</button>
+                        <button id="resize64Btn" class="secondary">Resize to 64px</button>
+                        <button id="reduceColorsBtn" class="secondary" title="Posterizes colors so the PNG compresses smaller">Reduce colors</button>
+                    </div>
+                    <p class="help">Slack displays emoji at up to 128&times;128, so resizing to 128px is almost always the right move.</p>
+                </fieldset>
+                <fieldset>
+                    <legend>Result</legend>
+                    <div class="size-status">
+                        <span class="size-kb" id="sizeKb">&hellip;</span>
+                        <span class="pill ok" id="sizePill">checking&hellip;</span>
+                    </div>
+                    <div class="help" id="sizeAdvice"></div>
+                    <div class="name-row">
+                        <input type="text" id="emojiName" placeholder="emoji-name" spellcheck="false">
+                        <span class="emoji-name-preview" id="emojiNamePreview">:emoji:</span>
+                    </div>
+                    <div class="btn-row">
+                        <button id="downloadBtn" class="green">Download PNG</button>
+                        <button id="copyBtn" class="secondary">Copy to clipboard</button>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Preview in Slack</legend>
+                    <div class="previews">
+                        <div class="preview-chip light">
+                            <img class="small" id="previewLightSmall" alt="22px preview on light background">
+                            <img class="large" id="previewLightLarge" alt="64px preview on light background">
+                            <span>Light mode</span>
+                        </div>
+                        <div class="preview-chip dark">
+                            <img class="small" id="previewDarkSmall" alt="22px preview on dark background">
+                            <img class="large" id="previewDarkLarge" alt="64px preview on dark background">
+                            <span>Dark mode</span>
+                        </div>
+                    </div>
+                </fieldset>
+            </div>
+        </div>
+    </div>
+</div>
+
+<p class="footer">Slack custom emoji work best as square PNGs with transparent backgrounds, under 128KB &mdash; Slack scales them down to 128&times;128. Add yours in Slack via your workspace name &rarr; Customize workspace, or the "Add emoji" button in the emoji picker.</p>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const editor = document.getElementById('editor');
+const errorDiv = document.getElementById('error');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const canvasWrap = document.getElementById('canvasWrap');
+const cropBox = document.getElementById('cropBox');
+const dims = document.getElementById('dims');
+const sizeKb = document.getElementById('sizeKb');
+const sizePill = document.getElementById('sizePill');
+const sizeAdvice = document.getElementById('sizeAdvice');
+const emojiName = document.getElementById('emojiName');
+const emojiNamePreview = document.getElementById('emojiNamePreview');
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
+const toleranceInput = document.getElementById('tolerance');
+const toleranceValue = document.getElementById('toleranceValue');
+
+const MAX_LOAD_SIZE = 1024;
+const SLACK_LIMIT_BYTES = 128 * 1024;
+const MAX_HISTORY = 20;
+
+let originalImageData = null;
+let undoStack = [];
+let redoStack = [];
+let currentBlob = null;
+let currentBlobUrl = null;
+let cropping = false;
+let crop = null; // {x, y, size} in image coordinates
+let sizeCheckToken = 0;
+
+function showError(message) {
+    errorDiv.textContent = message;
+    errorDiv.classList.add('visible');
+}
+function hideError() {
+    errorDiv.classList.remove('visible');
+}
+
+// ---------- Loading images ----------
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('drag-over');
+});
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+// Also accept drops on the editor once an image is loaded
+document.addEventListener('dragover', (e) => e.preventDefault());
+document.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+document.addEventListener('paste', (e) => {
+    for (const item of e.clipboardData.items) {
+        if (item.type.startsWith('image/')) {
+            handleFiles([item.getAsFile()]);
+            e.preventDefault();
+            return;
+        }
+    }
+});
+
+function handleFiles(files) {
+    const file = files && files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+        showError('That does not look like an image file (' + (file.type || 'unknown type') + ')');
+        return;
+    }
+    hideError();
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+        URL.revokeObjectURL(url);
+        loadImage(img, file.name);
+    };
+    img.onerror = () => {
+        URL.revokeObjectURL(url);
+        showError('Could not open that image.');
+    };
+    img.src = url;
+}
+
+function loadImage(img, filename) {
+    let w = img.naturalWidth;
+    let h = img.naturalHeight;
+    if (!w || !h) {
+        // SVG without intrinsic size
+        w = w || 512;
+        h = h || 512;
+    }
+    const scale = Math.min(1, MAX_LOAD_SIZE / Math.max(w, h));
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    undoStack = [];
+    redoStack = [];
+    cancelCrop();
+    if (filename) {
+        const base = filename.replace(/\.[^.]+$/, '');
+        emojiName.value = sanitizeName(base) || 'my-emoji';
+    } else if (!emojiName.value) {
+        emojiName.value = 'my-emoji';
+    }
+    updateNamePreview();
+    editor.classList.add('visible');
+    dropzone.style.display = 'none';
+    refresh();
+}
+
+document.getElementById('newImageBtn').addEventListener('click', () => fileInput.click());
+
+// ---------- History ----------
+
+function pushHistory() {
+    undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    if (undoStack.length > MAX_HISTORY) undoStack.shift();
+    redoStack = [];
+    updateHistoryButtons();
+}
+
+function restore(imageData) {
+    canvas.width = imageData.width;
+    canvas.height = imageData.height;
+    ctx.putImageData(imageData, 0, 0);
+    refresh();
+}
+
+undoBtn.addEventListener('click', undo);
+redoBtn.addEventListener('click', redo);
+function undo() {
+    if (!undoStack.length) return;
+    cancelCrop();
+    redoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    restore(undoStack.pop());
+}
+function redo() {
+    if (!redoStack.length) return;
+    cancelCrop();
+    undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    restore(redoStack.pop());
+}
+document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+    }
+});
+
+function updateHistoryButtons() {
+    undoBtn.disabled = !undoStack.length;
+    redoBtn.disabled = !redoStack.length;
+}
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+    if (!originalImageData) return;
+    cancelCrop();
+    pushHistory();
+    restore(originalImageData);
+});
+
+// ---------- Background removal ----------
+
+toleranceInput.addEventListener('input', () => {
+    toleranceValue.textContent = toleranceInput.value;
+});
+
+function getTolerance() {
+    // Map 0-100 slider to a per-pixel RGB distance threshold
+    return parseInt(toleranceInput.value, 10) * 3;
+}
+
+function colorDist2(data, i, r, g, b) {
+    const dr = data[i] - r, dg = data[i + 1] - g, db = data[i + 2] - b;
+    return dr * dr + dg * dg + db * db;
+}
+
+// Flood fill from seed pixels, removing everything within tolerance of target color.
+// Pixels just outside tolerance get partial alpha for a softer edge.
+function removeContiguous(seeds, r, g, b, threshold) {
+    const w = canvas.width, h = canvas.height;
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const data = imageData.data;
+    const thr2 = threshold * threshold;
+    const band = Math.max(20, threshold * 0.4);
+    const outer2 = (threshold + band) * (threshold + band);
+    const visited = new Uint8Array(w * h);
+    const stack = [];
+    for (const [sx, sy] of seeds) {
+        const p = sy * w + sx;
+        if (!visited[p]) { visited[p] = 1; stack.push(p); }
+    }
+    let removed = 0;
+    while (stack.length) {
+        const p = stack.pop();
+        const i = p * 4;
+        const alpha = data[i + 3];
+        let expand = false;
+        if (alpha === 0) {
+            expand = true; // pass through already-transparent areas
+        } else {
+            const d2 = colorDist2(data, i, r, g, b);
+            if (d2 <= thr2) {
+                data[i + 3] = 0;
+                removed++;
+                expand = true;
+            } else if (d2 <= outer2) {
+                // feathered edge
+                const d = Math.sqrt(d2);
+                data[i + 3] = Math.round(alpha * (d - threshold) / band);
+            }
+        }
+        if (expand) {
+            const x = p % w, y = (p / w) | 0;
+            if (x > 0 && !visited[p - 1]) { visited[p - 1] = 1; stack.push(p - 1); }
+            if (x < w - 1 && !visited[p + 1]) { visited[p + 1] = 1; stack.push(p + 1); }
+            if (y > 0 && !visited[p - w]) { visited[p - w] = 1; stack.push(p - w); }
+            if (y < h - 1 && !visited[p + w]) { visited[p + w] = 1; stack.push(p + w); }
+        }
+    }
+    if (removed) {
+        ctx.putImageData(imageData, 0, 0);
+    }
+    return removed;
+}
+
+function removeEverywhere(r, g, b, threshold) {
+    const w = canvas.width, h = canvas.height;
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const data = imageData.data;
+    const thr2 = threshold * threshold;
+    const band = Math.max(20, threshold * 0.4);
+    const outer2 = (threshold + band) * (threshold + band);
+    let removed = 0;
+    for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
+        const d2 = colorDist2(data, i, r, g, b);
+        if (d2 <= thr2) {
+            data[i + 3] = 0;
+            removed++;
+        } else if (d2 <= outer2) {
+            const d = Math.sqrt(d2);
+            data[i + 3] = Math.round(data[i + 3] * (d - threshold) / band);
+        }
+    }
+    if (removed) ctx.putImageData(imageData, 0, 0);
+    return removed;
+}
+
+// Find the most common color around the image border
+function dominantEdgeColor() {
+    const w = canvas.width, h = canvas.height;
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const buckets = new Map();
+    function sample(x, y) {
+        const i = (y * w + x) * 4;
+        if (data[i + 3] === 0) return;
+        const key = (data[i] >> 4) << 8 | (data[i + 1] >> 4) << 4 | (data[i + 2] >> 4);
+        let bucket = buckets.get(key);
+        if (!bucket) { bucket = { n: 0, r: 0, g: 0, b: 0 }; buckets.set(key, bucket); }
+        bucket.n++;
+        bucket.r += data[i];
+        bucket.g += data[i + 1];
+        bucket.b += data[i + 2];
+    }
+    for (let x = 0; x < w; x++) { sample(x, 0); sample(x, h - 1); }
+    for (let y = 1; y < h - 1; y++) { sample(0, y); sample(w - 1, y); }
+    let best = null;
+    for (const bucket of buckets.values()) {
+        if (!best || bucket.n > best.n) best = bucket;
+    }
+    if (!best) return null;
+    return [Math.round(best.r / best.n), Math.round(best.g / best.n), Math.round(best.b / best.n)];
+}
+
+function edgeSeeds() {
+    const w = canvas.width, h = canvas.height;
+    const seeds = [];
+    for (let x = 0; x < w; x++) { seeds.push([x, 0]); seeds.push([x, h - 1]); }
+    for (let y = 1; y < h - 1; y++) { seeds.push([0, y]); seeds.push([w - 1, y]); }
+    return seeds;
+}
+
+document.getElementById('autoEdgesBtn').addEventListener('click', () => {
+    const color = dominantEdgeColor();
+    if (!color) { showError('The image edges are already fully transparent.'); return; }
+    hideError();
+    cancelCrop();
+    pushHistory();
+    removeContiguous(edgeSeeds(), color[0], color[1], color[2], getTolerance());
+    refresh();
+});
+
+document.getElementById('autoEverywhereBtn').addEventListener('click', () => {
+    const color = dominantEdgeColor();
+    if (!color) { showError('The image edges are already fully transparent.'); return; }
+    hideError();
+    cancelCrop();
+    pushHistory();
+    removeEverywhere(color[0], color[1], color[2], getTolerance());
+    refresh();
+});
+
+canvas.classList.add('picking');
+canvas.addEventListener('click', (e) => {
+    if (cropping) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / rect.width * canvas.width);
+    const y = Math.floor((e.clientY - rect.top) / rect.height * canvas.height);
+    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
+    const pixel = ctx.getImageData(x, y, 1, 1).data;
+    if (pixel[3] === 0) return; // clicked an already transparent pixel
+    hideError();
+    pushHistory();
+    const mode = document.querySelector('input[name=clickMode]:checked').value;
+    if (mode === 'contiguous') {
+        removeContiguous([[x, y]], pixel[0], pixel[1], pixel[2], getTolerance());
+    } else {
+        removeEverywhere(pixel[0], pixel[1], pixel[2], getTolerance());
+    }
+    refresh();
+});
+
+// ---------- Cropping ----------
+
+const cropStartBtn = document.getElementById('cropStartBtn');
+const cropApplyBtn = document.getElementById('cropApplyBtn');
+const cropCancelBtn = document.getElementById('cropCancelBtn');
+
+cropStartBtn.addEventListener('click', () => {
+    if (cropping) return;
+    cropping = true;
+    const size = Math.min(canvas.width, canvas.height);
+    crop = {
+        x: Math.floor((canvas.width - size) / 2),
+        y: Math.floor((canvas.height - size) / 2),
+        size: size
+    };
+    cropBox.classList.add('visible');
+    canvas.classList.remove('picking');
+    cropStartBtn.style.display = 'none';
+    cropApplyBtn.style.display = '';
+    cropCancelBtn.style.display = '';
+    document.getElementById('canvasHelp').textContent = 'Drag the square to position it, drag the corner handles to resize, then click Apply crop.';
+    positionCropBox();
+});
+
+cropCancelBtn.addEventListener('click', cancelCrop);
+
+function cancelCrop() {
+    cropping = false;
+    crop = null;
+    cropBox.classList.remove('visible');
+    canvas.classList.add('picking');
+    cropStartBtn.style.display = '';
+    cropApplyBtn.style.display = 'none';
+    cropCancelBtn.style.display = 'none';
+    document.getElementById('canvasHelp').textContent = 'Click anywhere on the image to remove that color. The checkerboard shows transparent areas.';
+}
+
+cropApplyBtn.addEventListener('click', () => {
+    if (!crop) return;
+    pushHistory();
+    const cropped = ctx.getImageData(crop.x, crop.y, crop.size, crop.size);
+    cancelCrop();
+    restore(cropped);
+});
+
+function displayScale() {
+    return canvas.getBoundingClientRect().width / canvas.width;
+}
+
+function positionCropBox() {
+    if (!crop) return;
+    const s = displayScale();
+    cropBox.style.left = (crop.x * s) + 'px';
+    cropBox.style.top = (crop.y * s) + 'px';
+    cropBox.style.width = (crop.size * s) + 'px';
+    cropBox.style.height = (crop.size * s) + 'px';
+}
+window.addEventListener('resize', positionCropBox);
+
+let dragState = null;
+cropBox.addEventListener('pointerdown', (e) => {
+    if (!crop) return;
+    e.preventDefault();
+    cropBox.setPointerCapture(e.pointerId);
+    dragState = {
+        handle: e.target.dataset ? e.target.dataset.handle : null,
+        startX: e.clientX,
+        startY: e.clientY,
+        crop: { ...crop }
+    };
+});
+cropBox.addEventListener('pointermove', (e) => {
+    if (!dragState || !crop) return;
+    const s = displayScale();
+    const dx = Math.round((e.clientX - dragState.startX) / s);
+    const dy = Math.round((e.clientY - dragState.startY) / s);
+    const start = dragState.crop;
+    const minSize = 16;
+    if (!dragState.handle) {
+        // move
+        crop.x = clamp(start.x + dx, 0, canvas.width - crop.size);
+        crop.y = clamp(start.y + dy, 0, canvas.height - crop.size);
+    } else {
+        // resize from a corner, keeping the square anchored at the opposite corner
+        const h = dragState.handle;
+        const anchorX = h === 'nw' || h === 'sw' ? start.x + start.size : start.x;
+        const anchorY = h === 'nw' || h === 'ne' ? start.y + start.size : start.y;
+        const dirX = h === 'ne' || h === 'se' ? 1 : -1;
+        const dirY = h === 'sw' || h === 'se' ? 1 : -1;
+        let size = start.size + (dirX > 0 ? dx : -dx) / 2 + (dirY > 0 ? dy : -dy) / 2;
+        size = Math.round(size);
+        const maxSize = Math.min(
+            dirX > 0 ? canvas.width - anchorX : anchorX,
+            dirY > 0 ? canvas.height - anchorY : anchorY
+        );
+        size = clamp(size, minSize, maxSize);
+        crop.size = size;
+        crop.x = dirX > 0 ? anchorX : anchorX - size;
+        crop.y = dirY > 0 ? anchorY : anchorY - size;
+    }
+    positionCropBox();
+});
+function endDrag() { dragState = null; }
+cropBox.addEventListener('pointerup', endDrag);
+cropBox.addEventListener('pointercancel', endDrag);
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+document.getElementById('trimBtn').addEventListener('click', () => {
+    const w = canvas.width, h = canvas.height;
+    const data = ctx.getImageData(0, 0, w, h).data;
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            if (data[(y * w + x) * 4 + 3] > 0) {
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+        }
+    }
+    if (maxX < 0) { showError('The image is entirely transparent - nothing to trim.'); return; }
+    if (minX === 0 && minY === 0 && maxX === w - 1 && maxY === h - 1) return;
+    hideError();
+    cancelCrop();
+    pushHistory();
+    restore(ctx.getImageData(minX, minY, maxX - minX + 1, maxY - minY + 1));
+});
+
+document.getElementById('padBtn').addEventListener('click', () => {
+    const w = canvas.width, h = canvas.height;
+    if (w === h) return;
+    cancelCrop();
+    pushHistory();
+    const size = Math.max(w, h);
+    const temp = document.createElement('canvas');
+    temp.width = size;
+    temp.height = size;
+    temp.getContext('2d').drawImage(canvas, Math.floor((size - w) / 2), Math.floor((size - h) / 2));
+    canvas.width = size;
+    canvas.height = size;
+    ctx.drawImage(temp, 0, 0);
+    refresh();
+});
+
+// ---------- Shrinking ----------
+
+function resizeTo(target) {
+    const w = canvas.width, h = canvas.height;
+    const scale = target / Math.max(w, h);
+    if (scale >= 1) { showError('The image is already ' + Math.max(w, h) + 'px - no need to resize to ' + target + 'px.'); return; }
+    hideError();
+    cancelCrop();
+    pushHistory();
+    const nw = Math.max(1, Math.round(w * scale));
+    const nh = Math.max(1, Math.round(h * scale));
+    const temp = document.createElement('canvas');
+    temp.width = nw;
+    temp.height = nh;
+    const tctx = temp.getContext('2d');
+    tctx.imageSmoothingQuality = 'high';
+    tctx.drawImage(canvas, 0, 0, nw, nh);
+    canvas.width = nw;
+    canvas.height = nh;
+    ctx.drawImage(temp, 0, 0);
+    refresh();
+}
+document.getElementById('resize128Btn').addEventListener('click', () => resizeTo(128));
+document.getElementById('resize64Btn').addEventListener('click', () => resizeTo(64));
+
+document.getElementById('reduceColorsBtn').addEventListener('click', () => {
+    hideError();
+    cancelCrop();
+    pushHistory();
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+        // Posterize to 32 levels per channel - smaller PNGs, barely visible at emoji size
+        data[i] = (data[i] & 0xF8) | (data[i] >> 5);
+        data[i + 1] = (data[i + 1] & 0xF8) | (data[i + 1] >> 5);
+        data[i + 2] = (data[i + 2] & 0xF8) | (data[i + 2] >> 5);
+    }
+    ctx.putImageData(imageData, 0, 0);
+    refresh();
+});
+
+// ---------- Output: size check, previews, download, copy ----------
+
+function refresh() {
+    updateHistoryButtons();
+    const w = canvas.width, h = canvas.height;
+    dims.textContent = w + ' × ' + h + (w === h ? ' (square ✓)' : ' (not square)');
+    const token = ++sizeCheckToken;
+    sizeKb.innerHTML = '&hellip;';
+    canvas.toBlob((blob) => {
+        if (token !== sizeCheckToken || !blob) return;
+        currentBlob = blob;
+        if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+        currentBlobUrl = URL.createObjectURL(blob);
+        for (const id of ['previewLightSmall', 'previewLightLarge', 'previewDarkSmall', 'previewDarkLarge']) {
+            document.getElementById(id).src = currentBlobUrl;
+        }
+        const kb = blob.size / 1024;
+        sizeKb.textContent = (kb >= 100 ? Math.round(kb) : kb.toFixed(1)) + ' KB';
+        if (blob.size <= SLACK_LIMIT_BYTES) {
+            sizePill.textContent = 'under 128KB ✓';
+            sizePill.className = 'pill ok';
+            sizeAdvice.textContent = w === h
+                ? 'Ready for Slack!'
+                : 'Small enough, but not square yet - use Square crop or Pad to square.';
+        } else {
+            sizePill.textContent = 'over 128KB ✗';
+            sizePill.className = 'pill too-big';
+            sizeAdvice.textContent = Math.max(w, h) > 128
+                ? 'Too big for Slack - try "Resize to 128×128" above.'
+                : 'Too big for Slack - try "Reduce colors" above.';
+        }
+    }, 'image/png');
+}
+
+function sanitizeName(name) {
+    return name.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
+}
+
+emojiName.addEventListener('input', updateNamePreview);
+function updateNamePreview() {
+    const name = sanitizeName(emojiName.value) || 'emoji';
+    emojiNamePreview.textContent = ':' + name + ':';
+}
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+    if (!currentBlob) return;
+    const name = sanitizeName(emojiName.value) || 'emoji';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(currentBlob);
+    a.download = name + '.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+});
+
+const copyBtn = document.getElementById('copyBtn');
+copyBtn.addEventListener('click', async () => {
+    if (!currentBlob) return;
+    try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': currentBlob })]);
+        const original = copyBtn.textContent;
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = original; }, 2000);
+    } catch (err) {
+        showError('Could not copy to clipboard: ' + err.message);
+    }
+});
+</script>
+</body>
+</html>
