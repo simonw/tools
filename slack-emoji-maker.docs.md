@@ -1,0 +1,3 @@
+Create custom Slack emoji from any image by automatically removing backgrounds, cropping to square, and resizing to meet Slack's requirements (under 128KB PNG). The tool provides visual editing controls including color-based background removal, square cropping with handles, transparency trimming, and color reduction, along with real-time preview in light and dark Slack themes.
+
+<!-- Generated from commit: 8ec97cb456b4158a5a1968a82511a2d64c3fb586 -->
