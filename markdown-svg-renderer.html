@@ -310,6 +310,11 @@ function svgAspectRatio(svg) {
   return ratio;
 }
 
+function svgAspectRatioNumbers(svg) {
+  const [w, h] = svgAspectRatio(svg).split("/").map((part) => parseFloat(part));
+  return w > 0 && h > 0 ? [w, h] : [1, 1];
+}
+
 function svgPreviewDocument(svg) {
   return `<!doctype html>
 <html>
@@ -357,7 +362,7 @@ class SvgBlock extends HTMLElement {
           border-bottom: 1px solid #e2e2e2;
           background: #f6f6f6;
         }
-        button {
+        .tabs button {
           font-family: inherit;
           font-size: 13px;
           border: none;
@@ -368,7 +373,7 @@ class SvgBlock extends HTMLElement {
           border-bottom: 2px solid transparent;
           margin-bottom: -1px;
         }
-        button.active {
+        .tabs button.active {
           color: #1a1a1a;
           font-weight: bold;
           border-bottom-color: #2563eb;
@@ -381,6 +386,41 @@ class SvgBlock extends HTMLElement {
           background: #fff;
           padding: 12px;
         }
+        .image-wrap {
+          width: 100%;
+          background: #fff;
+          padding: 12px;
+        }
+        .image-wrap img {
+          display: block;
+          width: 100%;
+          height: auto;
+        }
+        .image-actions {
+          padding: 0 12px 12px;
+          background: #fff;
+        }
+        .image-actions button {
+          font-family: inherit;
+          font-size: 13px;
+          border: 1px solid #e2e2e2;
+          border-radius: 6px;
+          background: #f6f6f6;
+          color: #1a1a1a;
+          padding: 6px 14px;
+          cursor: pointer;
+        }
+        .image-actions button:hover {
+          border-color: #2563eb;
+          color: #2563eb;
+        }
+        .image-status {
+          padding: 12px;
+          background: #fff;
+          font-size: 13px;
+          color: #666;
+        }
+        .image-status.error { color: #dc2626; }
         iframe {
           display: block;
           width: 100%;
@@ -401,11 +441,31 @@ class SvgBlock extends HTMLElement {
       </style>
       <div class="tabs">
         <button class="active" data-tab="render">Rendered</button>
+        <button data-tab="png">PNG</button>
+        <button data-tab="jpeg">JPEG</button>
         <button data-tab="code">Code</button>
       </div>
       <div class="panel active" data-panel="render">
         <div class="svg-wrap">
           <iframe title="Rendered SVG" sandbox="" referrerpolicy="no-referrer"></iframe>
+        </div>
+      </div>
+      <div class="panel" data-panel="png">
+        <div class="image-status">Rendering PNG…</div>
+        <div class="image-wrap" hidden>
+          <img alt="SVG rendered as PNG">
+        </div>
+        <div class="image-actions" hidden>
+          <button type="button">Download PNG</button>
+        </div>
+      </div>
+      <div class="panel" data-panel="jpeg">
+        <div class="image-status">Rendering JPEG…</div>
+        <div class="image-wrap" hidden>
+          <img alt="SVG rendered as JPEG">
+        </div>
+        <div class="image-actions" hidden>
+          <button type="button">Download JPEG</button>
         </div>
       </div>
       <div class="panel" data-panel="code"><pre></pre></div>
@@ -415,7 +475,7 @@ class SvgBlock extends HTMLElement {
     shadow.querySelector("iframe").srcdoc = svgPreviewDocument(code);
     shadow.querySelector("pre").textContent = code;
 
-    const buttons = shadow.querySelectorAll("button");
+    const buttons = shadow.querySelectorAll(".tabs button");
     const panels = shadow.querySelectorAll(".panel");
     buttons.forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -424,8 +484,84 @@ class SvgBlock extends HTMLElement {
         panels.forEach((p) =>
           p.classList.toggle("active", p.dataset.panel === tab)
         );
+        if (tab === "png" || tab === "jpeg") this.renderImage(tab);
       });
     });
+  }
+
+  // Rasterize the SVG to PNG/JPEG at the size the SVG preview is displayed,
+  // by drawing it onto a canvas via a blob URL (same approach as
+  // svg-render.html). Runs lazily on first visit to the tab.
+  renderImage(format) {
+    this._rendered = this._rendered || {};
+    if (this._rendered[format]) return;
+    this._rendered[format] = true;
+
+    const shadow = this.shadowRoot;
+    const code = this.getAttribute("data-svg") || "";
+    const panel = shadow.querySelector(`.panel[data-panel="${format}"]`);
+    const status = panel.querySelector(".image-status");
+    const imageWrap = panel.querySelector(".image-wrap");
+    const imageEl = panel.querySelector("img");
+    const actions = panel.querySelector(".image-actions");
+    const downloadBtn = actions.querySelector("button");
+
+    status.hidden = false;
+    status.textContent = `Rendering ${format.toUpperCase()}…`;
+    status.classList.remove("error");
+
+    const fail = (message) => {
+      this._rendered[format] = false;
+      status.hidden = false;
+      status.textContent = message;
+      status.classList.add("error");
+    };
+
+    // Match the displayed size of the SVG preview: the iframe in .svg-wrap
+    // is width:100% of the host content box, same as the raster <img>.
+    const [ratioW, ratioH] = svgAspectRatioNumbers(code);
+    const width = Math.max(1, Math.round(this.clientWidth));
+    const height = Math.max(1, Math.round((width * ratioH) / ratioW));
+
+    const mimeType = format === "png" ? "image/png" : "image/jpeg";
+    const svgBlob = new Blob([code], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(svgUrl);
+
+      let dataUrl;
+      try {
+        dataUrl = canvas.toDataURL(mimeType, 0.9);
+      } catch (err) {
+        fail(`Could not render ${format.toUpperCase()}: ${err.message}`);
+        return;
+      }
+
+      status.hidden = true;
+      imageEl.src = dataUrl;
+      imageWrap.hidden = false;
+      actions.hidden = false;
+      downloadBtn.onclick = () => {
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = format === "png" ? "image.png" : "image.jpg";
+        link.click();
+      };
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(svgUrl);
+      fail(`Could not render this SVG as ${format.toUpperCase()}.`);
+    };
+    img.src = svgUrl;
   }
 }
 customElements.define("svg-block", SvgBlock);
