@@ -72,6 +72,11 @@
     margin-bottom: 20px;
   }
   
+  label {
+    margin-right: 10px;
+    margin-bottom: 20px;
+  }
+  
   .button:hover {
     background-color: #2a9038;
   }
@@ -134,6 +139,10 @@
     <h2>Clean HTML code</h2>
     <textarea id="html-output" readonly></textarea>
     <button id="copy-button" class="button">Copy HTML</button>
+    <label title="Useful if pasting into rich text editor, as also writes the cleaned text/html payload to the clipboard. Doesn't make a difference if pasting into a plain text editor.">
+      <input type="checkbox" id="include-rich-html" checked >
+      Include Cleaned Rich HTML
+    </label>
     <button id="clear-button" class="button">Clear all</button>
     
     <div id="preview-container">
@@ -279,6 +288,7 @@
   const htmlOutput = document.getElementById('html-output');
   const previewContent = document.getElementById('preview-content');
   const copyButton = document.getElementById('copy-button');
+  const includeRichHtmlCheckbox = document.getElementById('include-rich-html');
   const clearButton = document.getElementById('clear-button');
   
   // Handle paste event
@@ -353,19 +363,26 @@
       pasteArea.innerHTML = '';
     }
   });
-  
-  // Copy HTML to clipboard
-  copyButton.addEventListener('click', function() {
-    htmlOutput.select();
-    document.execCommand('copy');
     
+  // Copy HTML to clipboard
+  copyButton.addEventListener('click', async function() {
+    const content = htmlOutput.value;
+    const items = {
+      'text/plain': new Blob([content], { type: 'text/plain' }),
+    };
+    if (includeRichHtmlCheckbox.checked) {
+      items['text/html'] = new Blob([content], { type: 'text/html' });
+    }
+    const cpItem = new ClipboardItem(items);  
+    await navigator.clipboard.write([cpItem]);
+  
     const originalText = copyButton.textContent;
     copyButton.textContent = 'Copied!';
-    
     setTimeout(function() {
       copyButton.textContent = originalText;
     }, 1500);
   });
+
   
   // Clear all content
   clearButton.addEventListener('click', function() {
