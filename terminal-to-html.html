@@ -443,6 +443,69 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function findDuplicateBlocks(html, minLines = 10) {
+  const lines = html.split('\n');
+  const duplicates = [];
+
+  // Find all duplicate blocks of minLines or more consecutive lines
+  for (let blockSize = minLines; blockSize <= Math.floor(lines.length / 2); blockSize++) {
+    for (let i = 0; i <= lines.length - blockSize; i++) {
+      const block = lines.slice(i, i + blockSize).join('\n');
+
+      // Check if this block appears later in the content
+      for (let j = i + blockSize; j <= lines.length - blockSize; j++) {
+        const compareBlock = lines.slice(j, j + blockSize).join('\n');
+
+        if (block === compareBlock) {
+          // Check if this duplicate is already tracked or overlaps with a larger one
+          const isDuplicate = duplicates.some(d =>
+            (j >= d.startLine && j < d.startLine + d.lineCount) ||
+            (j + blockSize > d.startLine && j < d.startLine + d.lineCount)
+          );
+
+          if (!isDuplicate) {
+            duplicates.push({
+              startLine: j,
+              lineCount: blockSize,
+              originalStartLine: i
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Sort by start line descending (so we can remove from end to beginning)
+  duplicates.sort((a, b) => b.startLine - a.startLine);
+
+  // Merge overlapping duplicates, keeping the larger ones
+  const merged = [];
+  for (const dup of duplicates) {
+    const overlaps = merged.some(m =>
+      (dup.startLine >= m.startLine && dup.startLine < m.startLine + m.lineCount) ||
+      (dup.startLine + dup.lineCount > m.startLine && dup.startLine < m.startLine + m.lineCount)
+    );
+    if (!overlaps) {
+      merged.push(dup);
+    }
+  }
+
+  return merged;
+}
+
+function removeDuplicateBlocks(html, duplicates) {
+  const lines = html.split('\n');
+
+  // Sort duplicates by startLine descending to remove from end first
+  const sortedDups = [...duplicates].sort((a, b) => b.startLine - a.startLine);
+
+  for (const dup of sortedDups) {
+    lines.splice(dup.startLine, dup.lineCount);
+  }
+
+  return lines.join('\n');
+}
+
 function wrapInHtmlDocument(content) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -641,6 +704,7 @@ pasteArea.addEventListener('paste', async (e) => {
     <h2>HTML Code</h2>
     <div class="button-group">
       <button id="copyHtmlBtn">Copy HTML</button>
+      <button id="deduplicateBtn" style="display: none;"></button>
       <span id="authLinkContainer" style="display: none;">
         <button id="authLink">Authenticate with GitHub</button>
       </span>
@@ -686,6 +750,34 @@ pasteArea.addEventListener('paste', async (e) => {
   });
 
   checkGithubAuth();
+
+  // Check for duplicate blocks and show deduplicate button if found
+  const deduplicateBtn = document.getElementById('deduplicateBtn');
+  let currentDuplicates = findDuplicateBlocks(fullHtml);
+
+  if (currentDuplicates.length > 0) {
+    deduplicateBtn.textContent = `Remove ${currentDuplicates.length} duplicate block${currentDuplicates.length > 1 ? 's' : ''}`;
+    deduplicateBtn.style.display = 'inline-block';
+  }
+
+  deduplicateBtn.addEventListener('click', () => {
+    fullHtml = removeDuplicateBlocks(fullHtml, currentDuplicates);
+    htmlOutputTextarea.value = fullHtml;
+
+    // Update preview
+    const previewContainer = document.querySelector('.preview-container');
+    if (previewContainer) {
+      previewContainer.innerHTML = fullHtml;
+    }
+
+    // Re-check for remaining duplicates
+    currentDuplicates = findDuplicateBlocks(fullHtml);
+    if (currentDuplicates.length > 0) {
+      deduplicateBtn.textContent = `Remove ${currentDuplicates.length} duplicate block${currentDuplicates.length > 1 ? 's' : ''}`;
+    } else {
+      deduplicateBtn.style.display = 'none';
+    }
+  });
 
   // Create preview section
   const previewSection = document.createElement('div');
