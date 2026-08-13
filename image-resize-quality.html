@@ -49,6 +49,38 @@
       display: none;
     }
 
+    .format-tabs {
+      margin: 20px auto 0;
+      display: grid;
+      grid-template-columns: repeat(var(--format-count, 3), minmax(58px, 1fr));
+      width: min(100%, 360px);
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .format-tabs:empty { display: none; }
+    .format-tab {
+      appearance: none;
+      border: 0;
+      border-right: 1px solid #bbb;
+      background: #fff;
+      color: #222;
+      cursor: pointer;
+      font: inherit;
+      padding: 10px 14px;
+    }
+    .format-tab:last-child { border-right: 0; }
+    .format-tab[aria-selected="true"] {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+    }
+    .format-tab:focus-visible {
+      outline: 2px solid #005f99;
+      outline-offset: -2px;
+    }
+
     #output {
       margin-top: 20px;
       display: flex;
@@ -156,6 +188,7 @@
     <input type="color" id="background-color" value="#ffffff">
   </div>
 
+  <div id="format-tabs" class="format-tabs" role="tablist" aria-label="Output format"></div>
   <div id="output"></div>
 
   <script>
@@ -163,12 +196,33 @@
     const fileInput = document.getElementById('file-input');
     const cropperContainer = document.getElementById('cropper-container');
     const output = document.getElementById('output');
+    const formatTabs = document.getElementById('format-tabs');
     const colorPicker = document.getElementById('background-color');
     const colorPickerContainer = document.getElementById('color-picker-container');
 
+    const QUALITY_VALUES = [1, 0.9, 0.7, 0.5, 0.3];
+    const OUTPUT_FORMATS = {
+      jpeg: { label: 'JPEG', mime: 'image/jpeg', extension: 'jpg', supportsAlpha: false, qualityValues: QUALITY_VALUES },
+      webp: { label: 'WebP', mime: 'image/webp', extension: 'webp', supportsAlpha: true, qualityValues: QUALITY_VALUES },
+      png: { label: 'PNG', mime: 'image/png', extension: 'png', supportsAlpha: true, qualityValues: [null] }
+    };
+
     let currentImage = null;       // HTMLImageElement created from file
     let cropRect = null;           // { x, y, width, height } in IMAGE (natural) pixels
+    let activeFormat = null;
+    let supportedFormatKeys = [];
+    let cropHasTransparency = false;
+    let renderGeneration = 0;
+    let outputUrls = [];
     const MIN_CROP = 20;           // minimum crop size in image pixels
+
+    detectSupportedOutputFormats().then(keys => {
+      supportedFormatKeys = keys.length ? keys : ['png'];
+      activeFormat = supportedFormatKeys[0];
+      renderFormatTabs();
+      updateBackgroundPickerVisibility();
+      if (currentImage) processImage(currentImage);
+    });
 
     // Drag & drop + paste still supported
     dropZone.addEventListener('dragover', (e) => {
@@ -181,6 +235,85 @@
     document.addEventListener('paste', handlePaste);
     colorPicker.addEventListener('input', () => { if (currentImage) processImage(currentImage); });
     window.addEventListener('resize', () => { if (currentImage) updateCropOverlayPositions(); });
+    window.addEventListener('beforeunload', revokeOutputUrls);
+
+    function renderFormatTabs() {
+      formatTabs.innerHTML = '';
+      formatTabs.style.setProperty('--format-count', String(Math.max(1, supportedFormatKeys.length)));
+      formatTabs.style.width = `min(100%, ${Math.max(1, supportedFormatKeys.length) * 120}px)`;
+
+      supportedFormatKeys.forEach(key => {
+        const format = OUTPUT_FORMATS[key];
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'format-tab';
+        tab.id = `format-tab-${key}`;
+        tab.dataset.format = key;
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('aria-selected', String(key === activeFormat));
+        tab.textContent = format.label;
+        tab.addEventListener('click', () => {
+          if (activeFormat === key) return;
+          const scrollState = captureScrollState();
+          activeFormat = key;
+          updateFormatTabsSelectedState();
+          updateBackgroundPickerVisibility();
+          if (currentImage) {
+            processImage(currentImage, { preserveScroll: true, scrollState });
+          } else {
+            maintainScrollPosition(scrollState);
+          }
+        });
+
+        formatTabs.appendChild(tab);
+      });
+    }
+
+    function detectSupportedOutputFormats() {
+      return Promise.all(
+        Object.entries(OUTPUT_FORMATS).map(([key, format]) => {
+          return canExportMime(format.mime).then(isSupported => isSupported ? key : null);
+        })
+      ).then(keys => keys.filter(Boolean));
+    }
+
+    function canExportMime(mime) {
+      if (mime === 'image/png') return Promise.resolve(true);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      if (!canvas.toBlob) return Promise.resolve(false);
+
+      return new Promise(resolve => {
+        canvas.toBlob(blob => {
+          resolve(Boolean(blob && blob.type === mime));
+        }, mime);
+      });
+    }
+
+    function updateFormatTabsSelectedState() {
+      formatTabs.querySelectorAll('.format-tab').forEach(tab => {
+        tab.setAttribute('aria-selected', String(tab.dataset.format === activeFormat));
+      });
+    }
+
+    function captureScrollState() {
+      return { x: window.scrollX, y: window.scrollY };
+    }
+
+    function maintainScrollPosition(scrollState) {
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      const requiredDocumentHeight = scrollState.y + viewportHeight;
+      const currentDocumentHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+
+      if (currentDocumentHeight < requiredDocumentHeight) {
+        const currentMinHeight = Number.parseFloat(output.style.minHeight) || output.offsetHeight;
+        output.style.minHeight = `${currentMinHeight + requiredDocumentHeight - currentDocumentHeight}px`;
+      }
+
+      window.scrollTo(scrollState.x, scrollState.y);
+    }
 
     function handleDrop(e) {
       e.preventDefault();
@@ -234,15 +367,27 @@
         const data = imageData.data;
         for (let i = 3; i < data.length; i += 4) {
           if (data[i] < 255) {
-            colorPickerContainer.style.display = 'block';
+            cropHasTransparency = true;
+            updateBackgroundPickerVisibility();
             return;
           }
         }
-        colorPickerContainer.style.display = 'none';
+        cropHasTransparency = false;
+        updateBackgroundPickerVisibility();
       } catch (_) {
-        // Cross-origin guard; default to showing the picker
-        colorPickerContainer.style.display = 'block';
+        // Cross-origin guard; default to showing the picker for opaque-only formats.
+        cropHasTransparency = true;
+        updateBackgroundPickerVisibility();
       }
+    }
+
+    function updateBackgroundPickerVisibility() {
+      const format = OUTPUT_FORMATS[activeFormat];
+      colorPickerContainer.style.display = format && cropHasTransparency && !format.supportsAlpha ? 'block' : 'none';
+    }
+
+    function shouldFillBackground(format) {
+      return cropHasTransparency && !format.supportsAlpha;
     }
 
     /* ---------- Cropper rendering and interaction ---------- */
@@ -471,18 +616,47 @@
     }
 
     /* ---------- Processing: resize qualities based on CROP area (rounded dims) ---------- */
-    function processImage(img) {
+    function processImage(img, options = {}) {
+      const generation = ++renderGeneration;
+      const format = OUTPUT_FORMATS[activeFormat];
+      if (!format) return;
+
+      const qualities = format.qualityValues;
+      const preserveScroll = options.preserveScroll === true;
+      const scrollState = options.scrollState || (preserveScroll ? captureScrollState() : null);
+
+      if (preserveScroll) {
+        output.style.minHeight = `${Math.max(output.offsetHeight, Number.parseFloat(output.style.minHeight) || 0)}px`;
+      } else {
+        output.style.minHeight = '';
+      }
+
+      revokeOutputUrls();
       output.innerHTML = '';
+      if (preserveScroll) maintainScrollPosition(scrollState);
       if (!cropRect) return;
 
       const roundedCropW = Math.max(1, Math.round(cropRect.width));
       const roundedCropH = Math.max(1, Math.round(cropRect.height));
 
-      const qualities = [1, 0.9, 0.7, 0.5, 0.3];
       const widths = [
         roundedCropW,
         Math.max(1, Math.round(roundedCropW / 2))
       ];
+      let pendingOutputItems = widths.length * qualities.length;
+
+      function finishOutputItem() {
+        if (!preserveScroll) return;
+
+        maintainScrollPosition(scrollState);
+        requestAnimationFrame(() => {
+          maintainScrollPosition(scrollState);
+          pendingOutputItems--;
+          if (pendingOutputItems === 0 && generation === renderGeneration) {
+            releaseOutputHeightReservation(scrollState);
+          }
+        });
+      }
 
       widths.forEach(w => {
         const h = Math.max(1, Math.round(roundedCropH * (w / roundedCropW)));
@@ -492,8 +666,7 @@
         canvas.height = h;
         const ctx = canvas.getContext('2d');
 
-        // Fill background if color picker is visible (handles transparency)
-        if (colorPickerContainer.style.display === 'block') {
+        if (shouldFillBackground(format)) {
           ctx.fillStyle = colorPicker.value;
           ctx.fillRect(0, 0, w, h);
         }
@@ -506,20 +679,32 @@
 
         qualities.forEach(quality => {
           ctx.clearRect(0, 0, w, h);
-          if (colorPickerContainer.style.display === 'block') {
+          if (shouldFillBackground(format)) {
             ctx.fillStyle = colorPicker.value;
             ctx.fillRect(0, 0, w, h);
           }
           ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
 
-          canvas.toBlob(blob => {
+          const container = document.createElement('div');
+          container.className = 'image-container';
+          output.appendChild(container);
+
+          createOutputBlob(canvas, format, quality, blob => {
+            if (generation !== renderGeneration) return;
+            if (!blob) {
+              container.textContent = `Unable to generate ${format.label}.`;
+              finishOutputItem();
+              return;
+            }
+
             const url = URL.createObjectURL(blob);
-            const container = document.createElement('div');
-            container.className = 'image-container';
+            outputUrls.push(url);
 
             const resultImg = document.createElement('img');
             resultImg.src = url;
-            resultImg.alt = `Resized preview ${w}px q${quality.toFixed(1)}`;
+            resultImg.width = w;
+            resultImg.height = h;
+            resultImg.alt = `Resized ${format.label} preview ${w}px${quality === null ? '' : ` q${quality.toFixed(1)}`}`;
             resultImg.addEventListener('click', () => {
               resultImg.classList.toggle('full-width');
             });
@@ -527,23 +712,58 @@
             const infoDiv = document.createElement('div');
             infoDiv.className = 'image-info';
             infoDiv.innerHTML = `
+              Format: ${format.label}<br>
               Width: ${w}px<br>
-              Quality: ${quality.toFixed(1)}<br>
+              ${quality === null ? '' : `Quality: ${quality.toFixed(1)}<br>`}
               Size: ${(blob.size / 1024).toFixed(2)} KB
             `;
 
             const downloadLink = document.createElement('a');
             downloadLink.href = url;
-            downloadLink.download = `image_crop_${sw}x${sh}_w${w}_q${quality.toFixed(1)}.jpg`;
+            downloadLink.download = `image_crop_${sw}x${sh}_w${w}${quality === null ? '' : `_q${quality.toFixed(1)}`}.${format.extension}`;
             downloadLink.textContent = 'Download';
 
             container.appendChild(resultImg);
             container.appendChild(infoDiv);
             container.appendChild(downloadLink);
-            output.appendChild(container);
-          }, 'image/jpeg', quality);
+            finishOutputItem();
+          });
         });
       });
+    }
+
+    function releaseOutputHeightReservation(scrollState) {
+      const reservedMinHeight = output.style.minHeight;
+      if (!reservedMinHeight) return;
+
+      output.style.minHeight = '';
+
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      const currentDocumentHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+      const maxScrollY = Math.max(0, currentDocumentHeight - viewportHeight);
+
+      if (maxScrollY >= scrollState.y) {
+        window.scrollTo(scrollState.x, scrollState.y);
+      } else {
+        output.style.minHeight = reservedMinHeight;
+        maintainScrollPosition(scrollState);
+      }
+    }
+
+    function createOutputBlob(canvas, format, quality, callback) {
+      if (!canvas.toBlob) {
+        callback(null);
+        return;
+      }
+
+      canvas.toBlob(blob => {
+        callback(blob && blob.type === format.mime ? blob : null);
+      }, format.mime, quality === null ? undefined : quality);
+    }
+
+    function revokeOutputUrls() {
+      outputUrls.forEach(url => URL.revokeObjectURL(url));
+      outputUrls = [];
     }
   </script>
 </body>
