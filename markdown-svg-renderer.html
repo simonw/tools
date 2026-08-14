@@ -315,8 +315,21 @@ function svgAspectRatioNumbers(svg) {
   return w > 0 && h > 0 ? [w, h] : [1, 1];
 }
 
+// Match the datasette-apps sandbox: put a restrictive CSP before any
+// user-controlled markup in srcdoc, and repeat it on the iframe as defense in
+// depth. SVG scripts are not needed, so this is stricter than the app sandbox.
+const svgPreviewCsp = [
+  "default-src 'none'",
+  "script-src 'none'",
+  "style-src 'unsafe-inline'",
+  "img-src data: blob:",
+  "form-action 'none'",
+  "base-uri 'none'"
+].join("; ") + ";";
+
 function svgPreviewDocument(svg) {
   return `<!doctype html>
+<meta http-equiv="Content-Security-Policy" content="${svgPreviewCsp}">
 <html>
 <head>
 <meta charset="utf-8">
@@ -447,7 +460,8 @@ class SvgBlock extends HTMLElement {
       </div>
       <div class="panel active" data-panel="render">
         <div class="svg-wrap">
-          <iframe title="Rendered SVG" sandbox="" referrerpolicy="no-referrer"></iframe>
+          <iframe title="Rendered SVG" sandbox="" csp="${svgPreviewCsp}"
+            referrerpolicy="no-referrer"></iframe>
         </div>
       </div>
       <div class="panel" data-panel="png">
@@ -581,41 +595,15 @@ const markdownSanitizeConfig = {
   FORBID_TAGS: ["style"]
 };
 
-const svgSanitizeConfig = {
-  USE_PROFILES: { svg: true },
-  FORBID_ATTR: ["href", "xlink:href", "src", "style"],
-  FORBID_TAGS: [
-    "animate",
-    "animateMotion",
-    "animatemotion",
-    "animateTransform",
-    "animatetransform",
-    "audio",
-    "embed",
-    "foreignObject",
-    "foreignobject",
-    "iframe",
-    "image",
-    "link",
-    "object",
-    "script",
-    "set",
-    "style",
-    "use",
-    "video"
-  ]
-};
-
 const md = window.markdownit({
   html: false,
   linkify: false,
   typographer: false
 });
 
-// Sanitized SVG sources are stashed here and referenced by id, rather than
-// embedded in a data- attribute: DOMPurify's SAFE_FOR_XML protection strips
-// any attribute whose value contains strings like "</title>" or "</style>",
-// which silently dropped legitimate SVGs during the second sanitize pass.
+// Raw SVG sources are stashed here and represented in the sanitized Markdown
+// by numeric ids. hydrateSvgBlocks() passes them to the sandboxed iframe using
+// DOM APIs, so SVG markup is never parsed in the parent document.
 const svgStore = new Map();
 
 const defaultFenceRenderer = md.renderer.rules.fence;
@@ -626,10 +614,9 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const isSvg = lang === "svg" || (lang === "xml" && trimmed.startsWith("<svg") && trimmed.endsWith("</svg>"));
 
   if (isSvg) {
-    const svg = window.DOMPurify.sanitize(token.content, svgSanitizeConfig).trim();
-    if (svg) {
+    if (trimmed) {
       const id = String(svgStore.size);
-      svgStore.set(id, svg);
+      svgStore.set(id, token.content);
       return `<div class="svg-block-placeholder" data-svg-id="${id}"></div>\n`;
     }
   }
