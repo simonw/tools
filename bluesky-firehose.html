@@ -10,39 +10,108 @@
             max-width: 800px;
             margin: 20px auto;
             padding: 0 20px;
+            color: #1f2733;
+            background: #f7f9fc;
+            line-height: 1.5;
+        }
+        h1 {
+            color: #1185fe;
+            letter-spacing: -0.02em;
+        }
+        h3 {
+            margin-bottom: 4px;
+        }
+        a {
+            color: #1185fe;
         }
         .textarea-container {
             margin: 20px 0;
         }
         textarea {
             width: 100%;
+            box-sizing: border-box;
             height: 200px;
             margin-top: 10px;
             padding: 10px;
-            font-family: monospace;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 16px;
+            color: #1f2733;
+            background: #fff;
+            border: 1px solid #d5dce6;
+            border-radius: 8px;
+        }
+        textarea:focus {
+            outline: 2px solid #1185fe;
+            outline-offset: -1px;
         }
         #output {
             height: 400px;
         }
         .controls {
             margin: 20px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         button {
-            padding: 8px 16px;
-            margin-right: 10px;
+            padding: 10px 18px;
             cursor: pointer;
+            font-size: 15px;
+            color: #1f2733;
+            background: #fff;
+            border: 1px solid #d5dce6;
+            border-radius: 8px;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        button:hover {
+            background: #eef4fd;
+            border-color: #1185fe;
+        }
+        #connect, #send {
+            color: #fff;
+            background: #1185fe;
+            border-color: #1185fe;
+        }
+        #connect:hover, #send:hover {
+            background: #0d6ddb;
+            border-color: #0d6ddb;
+        }
+        pre {
+            overflow-x: auto;
+            padding: 10px;
+            font-size: 14px;
+            background: #eef2f7;
+            border: 1px solid #d5dce6;
+            border-radius: 8px;
         }
         .error {
-            color: red;
+            color: #c0392b;
             margin-top: 5px;
             font-size: 14px;
+        }
+        @media (max-width: 600px) {
+            body {
+                margin: 10px auto;
+                padding: 0 10px;
+            }
+            h1 {
+                font-size: 1.4em;
+            }
+            textarea {
+                height: 150px;
+            }
+            #output {
+                height: 50vh;
+            }
+            .controls button {
+                flex: 1 1 auto;
+            }
         }
     </style>
 </head>
 <body>
     <h1>Bluesky WebSocket Feed Monitor</h1>
+    <p>Streams live posts from <a href="https://bsky.network/docs/jetstream">Jetstream v2</a> — see also the <a href="https://atproto.com/blog/introducing-bluesky-protocol-services">Bluesky Protocol Services announcement</a>.</p>
     <div class="controls">
         <button id="connect">Connect</button>
         <button id="disconnect">Disconnect</button>
@@ -72,31 +141,70 @@
     </div>
 
     <script>
+        // Public Jetstream v2 instances - an instance can accept connections
+        // but stream no data, so connect() falls back to the next one if
+        // nothing arrives
+        const endpoints = [
+            'jetstream.us-east.bsky.network',
+            'jetstream.us-west.bsky.network'
+        ];
+        const firstMessageTimeoutMs = 5000;
+
         let ws = null;
+        let firstMessageTimer = null;
         const output = document.getElementById('output');
         const input = document.getElementById('input');
         const jsonError = document.getElementById('jsonError');
-        
+
         function log(message) {
             const timestamp = new Date().toISOString();
             output.value += `[${timestamp}] ${message}\n`;
             output.scrollTop = output.scrollHeight;
         }
 
-        function connect() {
+        function connect(endpointIndex = 0) {
             if (ws) {
                 log('Already connected!');
                 return;
             }
 
+            if (endpointIndex >= endpoints.length) {
+                log('All Jetstream instances failed - giving up');
+                return;
+            }
+
+            const host = endpoints[endpointIndex];
+            let gotMessage = false;
+            let fallingBack = false;
+
+            function tryNext(reason) {
+                fallingBack = true;
+                clearTimeout(firstMessageTimer);
+                log(`${reason} - trying next instance`);
+                const dead = ws;
+                ws = null;
+                if (dead && dead.readyState !== WebSocket.CLOSED) {
+                    dead.close();
+                }
+                connect(endpointIndex + 1);
+            }
+
             try {
-                ws = new WebSocket('wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post');
-                
+                log(`Connecting to ${host}...`);
+                ws = new WebSocket(`wss://${host}/subscribe?wantedCollections=app.bsky.feed.post`);
+
                 ws.onopen = () => {
-                    log('Connected to Bluesky WebSocket');
+                    log(`Connected to ${host}`);
+                    firstMessageTimer = setTimeout(() => {
+                        if (!gotMessage && !fallingBack) {
+                            tryNext(`No data from ${host} after ${firstMessageTimeoutMs / 1000}s`);
+                        }
+                    }, firstMessageTimeoutMs);
                 };
 
                 ws.onmessage = (event) => {
+                    gotMessage = true;
+                    clearTimeout(firstMessageTimer);
                     try {
                         const data = JSON.parse(event.data);
                         log(`Received: ${JSON.stringify(data, null, 2)}`);
@@ -105,11 +213,19 @@
                     }
                 };
 
-                ws.onerror = (error) => {
-                    log(`WebSocket Error: ${error.message}`);
+                ws.onerror = () => {
+                    log(`WebSocket error on ${host}`);
                 };
 
                 ws.onclose = () => {
+                    if (fallingBack) {
+                        return;
+                    }
+                    clearTimeout(firstMessageTimer);
+                    if (!gotMessage && ws) {
+                        tryNext(`Connection to ${host} closed before any data arrived`);
+                        return;
+                    }
                     log('Disconnected from Bluesky WebSocket');
                     ws = null;
                 };
@@ -122,8 +238,10 @@
 
         function disconnect() {
             if (ws) {
-                ws.close();
+                clearTimeout(firstMessageTimer);
+                const socket = ws;
                 ws = null;
+                socket.close();
                 log('Disconnected by user');
             } else {
                 log('Not connected');
@@ -157,7 +275,7 @@
         }
 
         // Event Listeners
-        document.getElementById('connect').addEventListener('click', connect);
+        document.getElementById('connect').addEventListener('click', () => connect());
         document.getElementById('disconnect').addEventListener('click', disconnect);
         document.getElementById('clear').addEventListener('click', () => {
             output.value = '';
