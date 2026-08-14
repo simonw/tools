@@ -72,31 +72,71 @@
     </div>
 
     <script>
+        // Public Jetstream instances - some can accept connections but stream
+        // no data, so connect() falls back to the next one if nothing arrives
+        const endpoints = [
+            'jetstream1.us-east.bsky.network',
+            'jetstream2.us-east.bsky.network',
+            'jetstream1.us-west.bsky.network',
+            'jetstream2.us-west.bsky.network'
+        ];
+        const firstMessageTimeoutMs = 5000;
+
         let ws = null;
+        let firstMessageTimer = null;
         const output = document.getElementById('output');
         const input = document.getElementById('input');
         const jsonError = document.getElementById('jsonError');
-        
+
         function log(message) {
             const timestamp = new Date().toISOString();
             output.value += `[${timestamp}] ${message}\n`;
             output.scrollTop = output.scrollHeight;
         }
 
-        function connect() {
+        function connect(endpointIndex = 0) {
             if (ws) {
                 log('Already connected!');
                 return;
             }
 
+            if (endpointIndex >= endpoints.length) {
+                log('All Jetstream instances failed - giving up');
+                return;
+            }
+
+            const host = endpoints[endpointIndex];
+            let gotMessage = false;
+            let fallingBack = false;
+
+            function tryNext(reason) {
+                fallingBack = true;
+                clearTimeout(firstMessageTimer);
+                log(`${reason} - trying next instance`);
+                const dead = ws;
+                ws = null;
+                if (dead && dead.readyState !== WebSocket.CLOSED) {
+                    dead.close();
+                }
+                connect(endpointIndex + 1);
+            }
+
             try {
-                ws = new WebSocket('wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post');
-                
+                log(`Connecting to ${host}...`);
+                ws = new WebSocket(`wss://${host}/subscribe?wantedCollections=app.bsky.feed.post`);
+
                 ws.onopen = () => {
-                    log('Connected to Bluesky WebSocket');
+                    log(`Connected to ${host}`);
+                    firstMessageTimer = setTimeout(() => {
+                        if (!gotMessage && !fallingBack) {
+                            tryNext(`No data from ${host} after ${firstMessageTimeoutMs / 1000}s`);
+                        }
+                    }, firstMessageTimeoutMs);
                 };
 
                 ws.onmessage = (event) => {
+                    gotMessage = true;
+                    clearTimeout(firstMessageTimer);
                     try {
                         const data = JSON.parse(event.data);
                         log(`Received: ${JSON.stringify(data, null, 2)}`);
@@ -105,11 +145,19 @@
                     }
                 };
 
-                ws.onerror = (error) => {
-                    log(`WebSocket Error: ${error.message}`);
+                ws.onerror = () => {
+                    log(`WebSocket error on ${host}`);
                 };
 
                 ws.onclose = () => {
+                    if (fallingBack) {
+                        return;
+                    }
+                    clearTimeout(firstMessageTimer);
+                    if (!gotMessage && ws) {
+                        tryNext(`Connection to ${host} closed before any data arrived`);
+                        return;
+                    }
                     log('Disconnected from Bluesky WebSocket');
                     ws = null;
                 };
@@ -122,8 +170,10 @@
 
         function disconnect() {
             if (ws) {
-                ws.close();
+                clearTimeout(firstMessageTimer);
+                const socket = ws;
                 ws = null;
+                socket.close();
                 log('Disconnected by user');
             } else {
                 log('Not connected');
@@ -157,7 +207,7 @@
         }
 
         // Event Listeners
-        document.getElementById('connect').addEventListener('click', connect);
+        document.getElementById('connect').addEventListener('click', () => connect());
         document.getElementById('disconnect').addEventListener('click', disconnect);
         document.getElementById('clear').addEventListener('click', () => {
             output.value = '';
