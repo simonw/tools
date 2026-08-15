@@ -101,7 +101,7 @@
       text-transform: uppercase;
     }
 
-    select, input[type="text"], input[type="url"], input[type="password"], textarea {
+    select, input[type="text"], input[type="url"], input[type="password"], input[type="number"], textarea {
       border: 1px solid #cbcfc8;
       border-radius: 8px;
       background: #fff;
@@ -292,6 +292,7 @@
     }
 
     .message.assistant.stopped .answer:empty::after { content: "Stopped"; animation: none; }
+    .message.assistant.error .answer:empty::after { content: none; animation: none; }
 
     .message-error {
       border: 1px solid #f3c7c2;
@@ -370,8 +371,21 @@
     .code-block pre { max-height: 520px; margin: 0; overflow: auto; padding: 14px 16px; background: #202421; color: #edf3ed; }
     .code-block pre code { font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
-    .svg-frame-wrap { min-height: 180px; aspect-ratio: var(--svg-ratio, 16 / 9); padding: 10px; background: #fff; }
-    .svg-frame-wrap iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+    .svg-frame-wrap { position: relative; min-height: 180px; overflow: hidden; aspect-ratio: var(--svg-ratio, 16 / 9); background: #fff; }
+    .svg-frame-stage { position: absolute; inset: 10px; overflow: hidden; background: #fff; }
+    .svg-frame-stage iframe {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .svg-frame-stage iframe.active { z-index: 2; opacity: 1; }
     .svg-source { border-top: 1px solid #d8dad5; }
     .svg-source summary { padding: 7px 12px; cursor: pointer; color: #666; font-size: 12px; }
     .svg-source pre { max-height: 260px; margin: 0; overflow: auto; padding: 12px 14px; background: #202421; color: #edf3ed; white-space: pre; }
@@ -438,6 +452,15 @@
     .help { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
     .help code { font-size: .95em; }
 
+    .settings-section { margin-top: 19px; border-top: 1px solid #ecece8; padding-top: 17px; }
+    .settings-heading { margin: 0 0 13px; }
+    .settings-heading strong { display: block; font-size: 14px; }
+    .settings-heading span { color: var(--muted); font-size: 12px; }
+    .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+    .settings-grid .form-field { min-width: 0; margin: 0; }
+    .settings-grid .form-field:first-child { grid-column: 1 / -1; }
+    .settings-grid select, .settings-grid input { width: 100%; max-width: none; }
+
     .headers-editor { display: grid; gap: 7px; }
     .header-row { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(180px, 1.2fr) auto; gap: 7px; }
     .header-row input { min-width: 0; padding: 8px 9px; }
@@ -495,6 +518,8 @@
       .header-row { grid-template-columns: 1fr auto; }
       .header-row input:nth-child(2) { grid-column: 1 / 2; }
       .header-remove { grid-column: 2; grid-row: 1 / 3; }
+      .settings-grid { grid-template-columns: 1fr; }
+      .settings-grid .form-field:first-child { grid-column: auto; }
     }
   </style>
 </head>
@@ -604,6 +629,74 @@
           <textarea id="system-message" placeholder="You are a concise and helpful assistant."></textarea>
           <p class="help">This is stored as the first system-role item and included whenever the browser replays the conversation.</p>
         </div>
+        <section class="settings-section" aria-labelledby="request-settings-heading">
+          <p id="request-settings-heading" class="settings-heading">
+            <strong>Request settings</strong>
+            <span>Settings are fixed for this conversation and included in every request and copied JSON payload.</span>
+          </p>
+          <div class="settings-grid">
+            <div class="form-field">
+              <label for="reasoning-effort">Reasoning effort</label>
+              <select id="reasoning-effort">
+                <option value="">Endpoint default</option>
+                <option value="none">none</option>
+                <option value="minimal">minimal</option>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+                <option value="xhigh">xhigh</option>
+                <option value="max">max</option>
+              </select>
+              <p class="help">Sent as <code>reasoning.effort</code>. Support varies by model.</p>
+            </div>
+            <div class="form-field">
+              <label for="reasoning-summary">Reasoning summary</label>
+              <select id="reasoning-summary">
+                <option value="">Endpoint default</option>
+                <option value="auto">auto</option>
+                <option value="concise">concise</option>
+                <option value="detailed">detailed</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="text-verbosity">Text verbosity</label>
+              <select id="text-verbosity">
+                <option value="">Endpoint default</option>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="max-output-tokens">Max output tokens</label>
+              <input id="max-output-tokens" type="number" min="1" step="1" inputmode="numeric" placeholder="Endpoint default">
+            </div>
+            <div class="form-field">
+              <label for="temperature">Temperature</label>
+              <input id="temperature" type="number" min="0" max="2" step="0.1" inputmode="decimal" placeholder="Endpoint default">
+            </div>
+            <div class="form-field">
+              <label for="top-p">Top P</label>
+              <input id="top-p" type="number" min="0" max="1" step="0.05" inputmode="decimal" placeholder="Endpoint default">
+            </div>
+            <div class="form-field">
+              <label for="truncation">Truncation</label>
+              <select id="truncation">
+                <option value="">Endpoint default</option>
+                <option value="auto">auto</option>
+                <option value="disabled">disabled</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="store-response">Store response</label>
+              <select id="store-response">
+                <option value="">Endpoint default</option>
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </div>
+          </div>
+        </section>
       </div>
       <div class="dialog-actions">
         <button class="button" value="cancel">Cancel</button>
@@ -621,6 +714,7 @@
       "use strict";
 
       const STORAGE_KEY = "cors-chat:state:v1";
+      const SVG_STREAM_INTERVAL = 110;
       const SVG_CSP = [
         "default-src 'none'",
         "script-src 'none'",
@@ -663,6 +757,14 @@
         newChatForm: document.querySelector("#new-chat-form"),
         newChatMeta: document.querySelector("#new-chat-meta"),
         systemMessage: document.querySelector("#system-message"),
+        reasoningEffort: document.querySelector("#reasoning-effort"),
+        reasoningSummary: document.querySelector("#reasoning-summary"),
+        textVerbosity: document.querySelector("#text-verbosity"),
+        maxOutputTokens: document.querySelector("#max-output-tokens"),
+        temperature: document.querySelector("#temperature"),
+        topP: document.querySelector("#top-p"),
+        truncation: document.querySelector("#truncation"),
+        storeResponse: document.querySelector("#store-response"),
         toast: document.querySelector("#toast")
       };
 
@@ -959,7 +1061,8 @@
           time.textContent = relativeTime(conversation.updatedAt);
           const model = document.createElement("span");
           model.className = "conversation-model";
-          model.textContent = conversation.model;
+          const effort = conversation.requestOptions?.reasoning?.effort;
+          model.textContent = `${conversation.model}${effort ? ` · reasoning ${effort}` : ""}`;
           button.append(title, time, model);
           button.addEventListener("click", () => selectConversation(conversation.id));
           els.conversationList.append(button);
@@ -1003,7 +1106,8 @@
           return;
         }
         els.activeTitle.textContent = conversation.title || "New conversation";
-        els.activeMeta.textContent = `${conversation.model} · saved in this browser`;
+        const effort = conversation.requestOptions?.reasoning?.effort;
+        els.activeMeta.textContent = `${conversation.model}${effort ? ` · reasoning ${effort}` : ""} · saved in this browser`;
         const list = document.createElement("div");
         list.className = "message-list";
         if (conversation.system) list.append(messageElement({ role: "system", content: conversation.system, id: "system" }));
@@ -1029,7 +1133,7 @@
 
       function messageElement(turn) {
         const article = document.createElement("article");
-        article.className = `message ${turn.role}${turn.status === "stopped" ? " stopped" : ""}`;
+        article.className = `message ${turn.role}${turn.status ? ` ${turn.status}` : ""}`;
         article.dataset.turnId = turn.id;
         const label = document.createElement("div");
         label.className = "message-label";
@@ -1046,7 +1150,7 @@
           answer.className = "answer markdown-body";
           content.append(reasoning, answer);
           if (turn.reasoning) renderMarkdownInto(reasoning.querySelector(".reasoning-body"), turn.reasoning, false);
-          if (turn.content) renderMarkdownInto(answer, turn.content, true);
+          if (turn.content) renderMarkdownInto(answer, turn.content, true, { immediateSvg: true });
           if (turn.error) {
             const error = document.createElement("div");
             error.className = "message-error";
@@ -1060,55 +1164,197 @@
         return article;
       }
 
-      function renderMarkdownInto(root, source, allowSvg) {
+      function renderMarkdownInto(root, source, allowSvg, options = {}) {
         const env = { svgBlocks: allowSvg ? [] : null, codeBlocks: [] };
         const html = md.render(source || "", env);
-        root.innerHTML = window.DOMPurify.sanitize(html, {
+        const template = document.createElement("template");
+        template.innerHTML = window.DOMPurify.sanitize(html, {
           USE_PROFILES: { html: true },
           ADD_ATTR: ["data-svg-id", "data-code-id", "target", "rel"],
           FORBID_TAGS: ["style"],
           FORBID_ATTR: ["style"]
         });
-        root.querySelectorAll("a[href]").forEach(link => {
+        template.content.querySelectorAll("a[href]").forEach(link => {
           link.target = "_blank";
           link.rel = "noopener noreferrer";
         });
-        root.querySelectorAll("[data-code-id]").forEach(button => {
-          const sourceCode = env.codeBlocks[Number(button.dataset.codeId)] || "";
-          button.addEventListener("click", () => copyText(sourceCode, "Code copied"));
+        template.content.querySelectorAll(".svg-placeholder[data-svg-id]").forEach(placeholder => {
+          placeholder._svgSource = env.svgBlocks?.[Number(placeholder.dataset.svgId)] || "";
+          placeholder._svgImmediate = !!options.immediateSvg;
         });
-        if (allowSvg) hydrateSvgPreviews(root, env.svgBlocks);
+        morphChildren(root, template.content);
+        root.querySelectorAll("[data-code-id]").forEach(button => {
+          button._codeSource = env.codeBlocks[Number(button.dataset.codeId)] || "";
+          if (!button._codeCopyBound) {
+            button._codeCopyBound = true;
+            button.addEventListener("click", () => copyText(button._codeSource, "Code copied"));
+          }
+        });
       }
 
-      function hydrateSvgPreviews(root, blocks) {
-        root.querySelectorAll(".svg-placeholder[data-svg-id]").forEach(placeholder => {
-          const source = blocks[Number(placeholder.dataset.svgId)] || "";
-          const preview = document.createElement("div");
-          preview.className = "svg-preview";
-          const head = document.createElement("div");
-          head.className = "code-head";
-          head.innerHTML = '<span>SVG preview</span><button type="button" class="copy-small">Copy SVG</button>';
-          head.querySelector("button").addEventListener("click", () => copyText(source, "SVG copied"));
-          const frameWrap = document.createElement("div");
-          frameWrap.className = "svg-frame-wrap";
-          frameWrap.style.setProperty("--svg-ratio", svgAspectRatio(source));
-          const frame = document.createElement("iframe");
-          frame.title = "Rendered SVG";
-          frame.setAttribute("sandbox", "");
-          frame.setAttribute("csp", SVG_CSP);
-          frame.referrerPolicy = "no-referrer";
-          frame.srcdoc = svgPreviewDocument(completeSvg(source));
-          frameWrap.append(frame);
-          const details = document.createElement("details");
-          details.className = "svg-source";
-          const summary = document.createElement("summary");
-          summary.textContent = "Source";
-          const pre = document.createElement("pre");
-          pre.textContent = source;
-          details.append(summary, pre);
-          preview.append(head, frameWrap, details);
-          placeholder.replaceWith(preview);
-        });
+      function morphChildren(currentParent, nextParent) {
+        const desiredChildren = Array.from(nextParent.childNodes);
+        let current = currentParent.firstChild;
+        for (const desired of desiredChildren) {
+          if (!current) {
+            currentParent.append(materializeNode(desired));
+            continue;
+          }
+          const rendered = morphNode(current, desired);
+          current = rendered.nextSibling;
+        }
+        while (current) {
+          const next = current.nextSibling;
+          current.remove();
+          current = next;
+        }
+      }
+
+      function morphNode(current, desired) {
+        const desiredIsSvg = desired.nodeType === Node.ELEMENT_NODE && desired.matches(".svg-placeholder[data-svg-id]");
+        const currentIsSvg = current.nodeType === Node.ELEMENT_NODE && current.matches(".svg-preview[data-svg-id]");
+        if (desiredIsSvg && currentIsSvg && desired.dataset.svgId === current.dataset.svgId) {
+          updateSvgPreview(current, desired._svgSource || "", desired._svgImmediate);
+          return current;
+        }
+        if (current.nodeType !== desired.nodeType ||
+            (current.nodeType === Node.ELEMENT_NODE && (current.tagName !== desired.tagName || current.namespaceURI !== desired.namespaceURI)) ||
+            desiredIsSvg || currentIsSvg) {
+          const replacement = materializeNode(desired);
+          current.replaceWith(replacement);
+          return replacement;
+        }
+        if (current.nodeType === Node.TEXT_NODE || current.nodeType === Node.COMMENT_NODE) {
+          if (current.nodeValue !== desired.nodeValue) current.nodeValue = desired.nodeValue;
+          return current;
+        }
+        patchAttributes(current, desired);
+        morphChildren(current, desired);
+        return current;
+      }
+
+      function patchAttributes(current, desired) {
+        for (const attribute of Array.from(current.attributes)) {
+          if (!desired.hasAttribute(attribute.name)) current.removeAttribute(attribute.name);
+        }
+        for (const attribute of desired.attributes) {
+          if (current.getAttribute(attribute.name) !== attribute.value) current.setAttribute(attribute.name, attribute.value);
+        }
+      }
+
+      function materializeNode(node) {
+        if (node.nodeType === Node.ELEMENT_NODE && node.matches(".svg-placeholder[data-svg-id]")) {
+          return createSvgPreview(node._svgSource || "", node.dataset.svgId, true);
+        }
+        const copy = node.cloneNode(false);
+        for (const child of node.childNodes) copy.append(materializeNode(child));
+        return copy;
+      }
+
+      function createSvgFrame() {
+        const frame = document.createElement("iframe");
+        frame.title = "Rendered SVG";
+        frame.setAttribute("sandbox", "");
+        frame.setAttribute("csp", SVG_CSP);
+        frame.referrerPolicy = "no-referrer";
+        return frame;
+      }
+
+      function createSvgPreview(source, id) {
+        const preview = document.createElement("div");
+        preview.className = "svg-preview";
+        preview.dataset.svgId = id;
+        const head = document.createElement("div");
+        head.className = "code-head";
+        head.innerHTML = '<span>SVG preview</span><button type="button" class="copy-small">Copy SVG</button>';
+        const frameWrap = document.createElement("div");
+        frameWrap.className = "svg-frame-wrap";
+        const stage = document.createElement("div");
+        stage.className = "svg-frame-stage";
+        const frames = [createSvgFrame(), createSvgFrame()];
+        stage.append(...frames);
+        frameWrap.append(stage);
+        const details = document.createElement("details");
+        details.className = "svg-source";
+        const summary = document.createElement("summary");
+        const pre = document.createElement("pre");
+        details.append(summary, pre);
+        preview.append(head, frameWrap, details);
+        preview._svgState = {
+          frames,
+          activeIndex: -1,
+          renderedSource: null,
+          pendingSource: null,
+          pendingImmediate: false,
+          latestSource: source,
+          loading: false,
+          loadingSource: null,
+          timer: null,
+          lastStarted: 0,
+          pre,
+          summary,
+          frameWrap
+        };
+        head.querySelector("button").addEventListener("click", () => copyText(preview._svgState.latestSource, "SVG copied"));
+        updateSvgPreview(preview, source, true);
+        return preview;
+      }
+
+      function updateSvgPreview(preview, source, immediate = false) {
+        const svgState = preview._svgState;
+        if (!svgState) return;
+        svgState.latestSource = source;
+        svgState.pre.textContent = source;
+        svgState.summary.textContent = `Source · ${source.length.toLocaleString()} ${source.length === 1 ? "character" : "characters"}`;
+        svgState.frameWrap.style.setProperty("--svg-ratio", svgAspectRatio(source));
+        if (source === svgState.pendingSource || source === svgState.loadingSource ||
+            (source === svgState.renderedSource && !svgState.loading)) return;
+        svgState.pendingSource = source;
+        svgState.pendingImmediate ||= immediate;
+        scheduleSvgPreviewFlush(preview);
+      }
+
+      function scheduleSvgPreviewFlush(preview) {
+        const svgState = preview._svgState;
+        if (!svgState || svgState.loading) return;
+        if (svgState.pendingImmediate) {
+          if (svgState.timer) clearTimeout(svgState.timer);
+          svgState.timer = null;
+          flushSvgPreview(preview);
+          return;
+        }
+        if (svgState.timer) return;
+        const delay = Math.max(0, SVG_STREAM_INTERVAL - (performance.now() - svgState.lastStarted));
+        svgState.timer = setTimeout(() => {
+          svgState.timer = null;
+          flushSvgPreview(preview);
+        }, delay);
+      }
+
+      function flushSvgPreview(preview) {
+        const svgState = preview._svgState;
+        if (!svgState || svgState.loading || svgState.pendingSource === null) return;
+        const source = svgState.pendingSource;
+        svgState.pendingSource = null;
+        svgState.pendingImmediate = false;
+        svgState.loading = true;
+        svgState.loadingSource = source;
+        svgState.lastStarted = performance.now();
+        const nextIndex = svgState.activeIndex === 0 ? 1 : 0;
+        const nextFrame = svgState.frames[nextIndex];
+        nextFrame.onload = () => {
+          requestAnimationFrame(() => {
+            const oldFrame = svgState.frames[svgState.activeIndex];
+            if (oldFrame) oldFrame.classList.remove("active");
+            nextFrame.classList.add("active");
+            svgState.activeIndex = nextIndex;
+            svgState.renderedSource = source;
+            svgState.loading = false;
+            svgState.loadingSource = null;
+            scheduleSvgPreviewFlush(preview);
+          });
+        };
+        nextFrame.srcdoc = svgPreviewDocument(completeSvg(source));
       }
 
       function svgAspectRatio(svg) {
@@ -1159,16 +1405,36 @@
         const nearBottom = els.transcript.scrollHeight - els.transcript.scrollTop - els.transcript.clientHeight < 100;
         renderFrame = requestAnimationFrame(() => {
           renderFrame = null;
-          const article = Array.from(els.transcript.querySelectorAll(".message.assistant")).find(item => item.dataset.turnId === turn.id);
-          if (!article) return;
-          const reasoning = article.querySelector(".reasoning");
-          const reasoningBody = article.querySelector(".reasoning-body");
-          const answer = article.querySelector(".answer");
-          reasoning.hidden = !turn.reasoning;
-          if (turn.reasoning) renderMarkdownInto(reasoningBody, turn.reasoning, false);
-          renderMarkdownInto(answer, turn.content || "", true);
+          renderAssistantTurn(turn, false);
           if (nearBottom) els.transcript.scrollTop = els.transcript.scrollHeight;
         });
+      }
+
+      function renderAssistantTurn(turn, immediateSvg) {
+        if (immediateSvg && renderFrame) {
+          cancelAnimationFrame(renderFrame);
+          renderFrame = null;
+        }
+        const article = Array.from(els.transcript.querySelectorAll(".message.assistant")).find(item => item.dataset.turnId === turn.id);
+        if (!article) return;
+        article.className = `message assistant${turn.status ? ` ${turn.status}` : ""}`;
+        const reasoning = article.querySelector(".reasoning");
+        const reasoningBody = article.querySelector(".reasoning-body");
+        const answer = article.querySelector(".answer");
+        reasoning.hidden = !turn.reasoning;
+        if (turn.reasoning) renderMarkdownInto(reasoningBody, turn.reasoning, false);
+        renderMarkdownInto(answer, turn.content || "", true, { immediateSvg });
+        let error = article.querySelector(".message-error");
+        if (turn.error) {
+          if (!error) {
+            error = document.createElement("div");
+            error.className = "message-error";
+            article.querySelector(".message-content").append(error);
+          }
+          error.textContent = turn.error;
+        } else {
+          error?.remove();
+        }
       }
 
       function openConfigDialog(endpoint) {
@@ -1287,8 +1553,31 @@
         if (!endpoint || !model) return;
         els.newChatMeta.textContent = `${endpointLabel(endpoint)} · ${model}`;
         els.systemMessage.value = "";
+        els.reasoningEffort.value = "";
+        els.reasoningSummary.value = "";
+        els.textVerbosity.value = "";
+        els.maxOutputTokens.value = "";
+        els.temperature.value = "";
+        els.topP.value = "";
+        els.truncation.value = "";
+        els.storeResponse.value = "";
         els.newChatDialog.showModal();
         requestAnimationFrame(() => els.systemMessage.focus());
+      }
+
+      function requestOptionsFromDialog() {
+        const options = {};
+        const reasoning = {};
+        if (els.reasoningEffort.value) reasoning.effort = els.reasoningEffort.value;
+        if (els.reasoningSummary.value) reasoning.summary = els.reasoningSummary.value;
+        if (Object.keys(reasoning).length) options.reasoning = reasoning;
+        if (els.textVerbosity.value) options.text = { format: { type: "text" }, verbosity: els.textVerbosity.value };
+        if (els.maxOutputTokens.value !== "") options.max_output_tokens = Number(els.maxOutputTokens.value);
+        if (els.temperature.value !== "") options.temperature = Number(els.temperature.value);
+        if (els.topP.value !== "") options.top_p = Number(els.topP.value);
+        if (els.truncation.value) options.truncation = els.truncation.value;
+        if (els.storeResponse.value) options.store = els.storeResponse.value === "true";
+        return options;
       }
 
       function createConversation() {
@@ -1302,6 +1591,7 @@
           title: "New conversation",
           model,
           system: els.systemMessage.value.trim(),
+          requestOptions: requestOptionsFromDialog(),
           turns: [],
           createdAt: now,
           updatedAt: now
@@ -1326,8 +1616,28 @@
         return input;
       }
 
+      function responsePayload(conversation, stream = false) {
+        const requestOptions = JSON.parse(JSON.stringify(conversation.requestOptions || {}));
+        if (requestOptions.text?.verbosity && !requestOptions.text.format) requestOptions.text.format = { type: "text" };
+        const payload = { model: conversation.model, input: responseInput(conversation), ...requestOptions };
+        if (stream) payload.stream = true;
+        return payload;
+      }
+
       function exportPayload(conversation) {
-        return { model: conversation.model, input: responseInput(conversation) };
+        return responsePayload(conversation);
+      }
+
+      function appendTurnsForSend(conversation, userTurn, assistantTurn) {
+        const list = els.transcript.querySelector(".message-list");
+        if (!list) {
+          renderConversation();
+          return;
+        }
+        els.activeTitle.textContent = conversation.title || "New conversation";
+        list.append(messageElement(userTurn), messageElement(assistantTurn));
+        els.composerShell.classList.add("generating");
+        requestAnimationFrame(() => { els.transcript.scrollTop = els.transcript.scrollHeight; });
       }
 
       async function sendMessage() {
@@ -1339,7 +1649,7 @@
         const userTurn = { id: uid("turn"), role: "user", content: text, createdAt: Date.now() };
         conversation.turns.push(userTurn);
         if (conversation.title === "New conversation") conversation.title = text.replace(/\s+/g, " ").slice(0, 54) || "New conversation";
-        const requestBody = { model: conversation.model, input: responseInput(conversation), stream: true };
+        const requestBody = responsePayload(conversation, true);
         const assistantTurn = { id: uid("turn"), role: "assistant", content: "", reasoning: "", status: "streaming", createdAt: Date.now() };
         conversation.turns.push(assistantTurn);
         conversation.updatedAt = Date.now();
@@ -1349,7 +1659,7 @@
         generation = { controller, conversationId: conversation.id, turnId: assistantTurn.id };
         persistState();
         renderConversationList();
-        renderConversation();
+        appendTurnsForSend(conversation, userTurn, assistantTurn);
         updateNewButtons();
 
         try {
@@ -1382,10 +1692,11 @@
           conversation.updatedAt = Date.now();
           generation = null;
           persistState();
+          renderAssistantTurn(assistantTurn, true);
           els.composerShell.classList.remove("generating");
           updateNewButtons();
           renderConversationList();
-          renderConversation();
+          els.transcript.scrollTop = els.transcript.scrollHeight;
           requestAnimationFrame(() => els.prompt.focus());
         }
       }
