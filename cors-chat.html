@@ -1,0 +1,1597 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CORS Chat</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f7f5;
+      --panel: #ffffff;
+      --ink: #20201e;
+      --muted: #73736c;
+      --line: #deded8;
+      --accent: #166534;
+      --accent-dark: #14532d;
+      --accent-soft: #ecfdf3;
+      --user: #edf6ff;
+      --reasoning: #f7f1ff;
+      --reasoning-ink: #633c86;
+      --danger: #b42318;
+      --shadow: 0 12px 40px rgb(0 0 0 / 9%);
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, select, textarea { font: inherit; }
+
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      height: 100dvh;
+    }
+
+    .topbar {
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 58px;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgb(255 255 255 / 94%);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: max-content;
+      font-weight: 750;
+      letter-spacing: -.015em;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 31px;
+      height: 31px;
+      place-items: center;
+      border-radius: 9px;
+      background: var(--accent);
+      color: #fff;
+      font: 750 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .top-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      margin-left: auto;
+    }
+
+    .field-inline {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .field-inline label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+
+    select, input[type="text"], input[type="url"], input[type="password"], textarea {
+      border: 1px solid #cbcfc8;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+    }
+
+    select:focus, input:focus, textarea:focus {
+      border-color: #58a36f;
+      box-shadow: 0 0 0 3px rgb(22 101 52 / 12%);
+    }
+
+    select {
+      max-width: 250px;
+      height: 36px;
+      padding: 0 30px 0 10px;
+    }
+
+    #endpoint-select { width: min(30vw, 280px); }
+    #model-select { width: min(24vw, 230px); }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #a3a3a0;
+    }
+
+    .status-dot.connecting { background: #e09f1f; animation: pulse 1s infinite alternate; }
+    .status-dot.connected { background: #22a447; }
+    .status-dot.error { background: #cf4035; }
+
+    @keyframes pulse { to { opacity: .35; } }
+
+    .button {
+      display: inline-flex;
+      min-height: 36px;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: 1px solid #cfd2cc;
+      border-radius: 8px;
+      padding: 7px 12px;
+      background: #fff;
+      color: var(--ink);
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .button:hover:not(:disabled) { border-color: #9aa198; background: #fafafa; }
+    .button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .button.primary:hover:not(:disabled) { border-color: var(--accent-dark); background: var(--accent-dark); }
+    .button.danger { color: var(--danger); }
+    .button.icon { width: 36px; padding: 0; }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .sidebar {
+      display: flex;
+      min-height: 0;
+      flex-direction: column;
+      border-right: 1px solid var(--line);
+      background: #f0f1ed;
+    }
+
+    .sidebar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 15px 13px 10px;
+    }
+
+    .sidebar-head h2 {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .conversation-list {
+      min-height: 0;
+      overflow-y: auto;
+      padding: 0 8px 16px;
+    }
+
+    .conversation-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 4px 8px;
+      width: 100%;
+      margin: 2px 0;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      padding: 9px 9px 8px;
+      background: transparent;
+      color: var(--ink);
+      text-align: left;
+    }
+
+    .conversation-item:hover { background: rgb(255 255 255 / 55%); }
+    .conversation-item.active { border-color: #d0d4cd; background: #fff; }
+    .conversation-title { overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .conversation-time { color: var(--muted); font-size: 11px; }
+    .conversation-model { grid-column: 1 / -1; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+
+    .sidebar-empty { padding: 16px 10px; color: var(--muted); font-size: 13px; text-align: center; }
+
+    .main {
+      display: grid;
+      min-width: 0;
+      min-height: 0;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      background: var(--panel);
+    }
+
+    .conversation-bar {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 7px 18px;
+      border-bottom: 1px solid #ecece8;
+      background: #fff;
+    }
+
+    .conversation-bar.active { display: flex; }
+    .conversation-heading { min-width: 0; margin-right: auto; }
+    .conversation-heading strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .conversation-heading span { color: var(--muted); font-size: 12px; }
+
+    .transcript {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scroll-behavior: smooth;
+    }
+
+    .message-list {
+      width: min(100%, 920px);
+      margin: 0 auto;
+      padding: 28px 28px 54px;
+    }
+
+    .message {
+      display: grid;
+      grid-template-columns: 74px minmax(0, 1fr);
+      gap: 18px;
+      margin: 0 0 28px;
+    }
+
+    .message-label {
+      padding-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-align: right;
+      text-transform: uppercase;
+    }
+
+    .message-content { min-width: 0; }
+
+    .message.user .message-content,
+    .message.system .message-content {
+      border: 1px solid #dce8f2;
+      border-radius: var(--radius);
+      padding: 13px 16px;
+      background: var(--user);
+      white-space: pre-wrap;
+    }
+
+    .message.system .message-content {
+      border-color: #e4dfca;
+      background: #fffbed;
+      color: #514b37;
+    }
+
+    .message.assistant .answer:empty::after {
+      content: "Thinking…";
+      color: var(--muted);
+      animation: pulse 1s infinite alternate;
+    }
+
+    .message.assistant.stopped .answer:empty::after { content: "Stopped"; animation: none; }
+
+    .message-error {
+      border: 1px solid #f3c7c2;
+      border-radius: 9px;
+      padding: 11px 13px;
+      background: #fff3f1;
+      color: var(--danger);
+      white-space: pre-wrap;
+    }
+
+    .reasoning {
+      margin: 0 0 15px;
+      border: 1px solid #dfd0ee;
+      border-radius: 10px;
+      background: var(--reasoning);
+      color: var(--reasoning-ink);
+    }
+
+    .reasoning[hidden] { display: none; }
+    .reasoning summary { padding: 8px 12px; cursor: pointer; font-size: 12px; font-weight: 750; letter-spacing: .025em; }
+    .reasoning-body { max-height: 360px; overflow: auto; padding: 0 12px 11px; font-size: 13px; }
+
+    .markdown-body { overflow-wrap: anywhere; }
+    .markdown-body > :first-child { margin-top: 0; }
+    .markdown-body > :last-child { margin-bottom: 0; }
+    .markdown-body p { margin: .72em 0; }
+    .markdown-body h1, .markdown-body h2, .markdown-body h3 { margin: 1.25em 0 .55em; line-height: 1.25; }
+    .markdown-body h1 { font-size: 1.55em; }
+    .markdown-body h2 { font-size: 1.3em; }
+    .markdown-body h3 { font-size: 1.12em; }
+    .markdown-body ul, .markdown-body ol { padding-left: 1.6em; }
+    .markdown-body blockquote { margin: 1em 0; border-left: 3px solid #c9ccc6; padding-left: 14px; color: #5d5d57; }
+    .markdown-body a { color: #145fc1; }
+    .markdown-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+    .markdown-body th, .markdown-body td { border: 1px solid var(--line); padding: 6px 10px; }
+    .markdown-body th { background: #f5f5f2; }
+    .markdown-body :not(pre) > code { border-radius: 4px; padding: 2px 5px; background: #efefeb; font: .9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .code-block, .svg-preview {
+      max-width: 100%;
+      margin: 1em 0;
+      overflow: hidden;
+      border: 1px solid #d8dad5;
+      border-radius: 10px;
+      background: #f8f8f6;
+    }
+
+    .code-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 34px;
+      padding: 5px 8px 5px 12px;
+      border-bottom: 1px solid #d8dad5;
+      color: #686862;
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: .045em;
+      text-transform: uppercase;
+    }
+
+    .copy-small {
+      border: 0;
+      border-radius: 6px;
+      padding: 4px 8px;
+      background: transparent;
+      color: #65655f;
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .copy-small:hover { background: #e8e9e5; color: #222; }
+    .code-block pre { max-height: 520px; margin: 0; overflow: auto; padding: 14px 16px; background: #202421; color: #edf3ed; }
+    .code-block pre code { font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .svg-frame-wrap { min-height: 180px; aspect-ratio: var(--svg-ratio, 16 / 9); padding: 10px; background: #fff; }
+    .svg-frame-wrap iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+    .svg-source { border-top: 1px solid #d8dad5; }
+    .svg-source summary { padding: 7px 12px; cursor: pointer; color: #666; font-size: 12px; }
+    .svg-source pre { max-height: 260px; margin: 0; overflow: auto; padding: 12px 14px; background: #202421; color: #edf3ed; white-space: pre; }
+
+    .welcome {
+      display: grid;
+      min-height: 100%;
+      place-items: center;
+      padding: 34px;
+    }
+
+    .welcome-card { width: min(100%, 590px); text-align: center; }
+    .welcome-icon { display: grid; width: 58px; height: 58px; margin: 0 auto 18px; place-items: center; border-radius: 17px; background: var(--accent-soft); color: var(--accent); font: 800 20px ui-monospace, monospace; }
+    .welcome h1 { margin: 0 0 9px; font-size: clamp(25px, 4vw, 36px); letter-spacing: -.035em; }
+    .welcome p { margin: 0 auto 21px; color: var(--muted); }
+    .welcome-actions { display: flex; justify-content: center; gap: 9px; }
+
+    .composer-shell { display: none; padding: 0 22px 18px; background: linear-gradient(to top, #fff 70%, transparent); }
+    .composer-shell.active { display: block; }
+    .composer {
+      display: grid;
+      width: min(100%, 920px);
+      margin: 0 auto;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 10px;
+      border: 1px solid #cdd0ca;
+      border-radius: 14px;
+      padding: 9px;
+      background: #fff;
+      box-shadow: 0 8px 28px rgb(0 0 0 / 8%);
+    }
+
+    .composer:focus-within { border-color: #66a879; box-shadow: 0 0 0 3px rgb(22 101 52 / 10%), 0 8px 28px rgb(0 0 0 / 8%); }
+    #prompt { width: 100%; min-height: 38px; max-height: 180px; resize: none; border: 0; padding: 8px 9px 5px; box-shadow: none; line-height: 1.45; }
+    #send-button, #stop-button { min-width: 76px; }
+    #stop-button { display: none; }
+    .composer-shell.generating #send-button { display: none; }
+    .composer-shell.generating #stop-button { display: inline-flex; }
+    .composer-note { width: min(100%, 920px); margin: 5px auto 0; color: #91918b; font-size: 11px; text-align: center; }
+
+    dialog {
+      width: min(calc(100% - 28px), 650px);
+      max-height: calc(100dvh - 32px);
+      overflow: auto;
+      border: 1px solid #d2d4cf;
+      border-radius: 15px;
+      padding: 0;
+      background: #fff;
+      color: var(--ink);
+      box-shadow: var(--shadow);
+    }
+
+    dialog::backdrop { background: rgb(25 28 24 / 38%); backdrop-filter: blur(2px); }
+    .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 19px 21px 13px; border-bottom: 1px solid #ecece8; }
+    .dialog-head h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
+    .dialog-head p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+    .dialog-close { border: 0; border-radius: 7px; padding: 4px 8px; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; }
+    .dialog-body { padding: 18px 21px; }
+    .form-field { margin-bottom: 15px; }
+    .form-field > label, .form-label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 750; }
+    .form-field input, .form-field textarea { width: 100%; padding: 9px 11px; }
+    .form-field textarea { min-height: 110px; resize: vertical; }
+    .help { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+    .help code { font-size: .95em; }
+
+    .headers-editor { display: grid; gap: 7px; }
+    .header-row { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(180px, 1.2fr) auto; gap: 7px; }
+    .header-row input { min-width: 0; padding: 8px 9px; }
+    .header-remove { border: 1px solid #d4d6d1; border-radius: 7px; padding: 0 10px; background: #fff; color: var(--danger); }
+    .dialog-error { display: none; margin: 0 0 13px; border-radius: 8px; padding: 9px 11px; background: #fff1ef; color: var(--danger); font-size: 13px; white-space: pre-wrap; }
+    .dialog-error.active { display: block; }
+    .dialog-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 13px 21px 18px; }
+    .dialog-actions .danger { margin-right: auto; }
+
+    .toast {
+      position: fixed;
+      z-index: 20;
+      right: 18px;
+      bottom: 18px;
+      max-width: min(420px, calc(100% - 36px));
+      transform: translateY(14px);
+      border-radius: 9px;
+      padding: 9px 13px;
+      background: #20221f;
+      color: #fff;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      transition: .16s ease;
+    }
+
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.error { background: #8f2119; }
+
+    @media (max-width: 860px) {
+      .brand span:last-child { display: none; }
+      .field-inline label { display: none; }
+      #endpoint-select { width: min(38vw, 250px); }
+      #model-select { width: min(27vw, 190px); }
+      .workspace { grid-template-columns: 220px minmax(0, 1fr); }
+    }
+
+    @media (max-width: 650px) {
+      .topbar { flex-wrap: wrap; }
+      .brand span:last-child { display: inline; }
+      .top-controls { width: 100%; order: 2; }
+      .field-inline:first-child { flex: 1; }
+      #endpoint-select { width: 100%; }
+      #model-select { width: 150px; }
+      .workspace { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+      .sidebar { max-height: 148px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .sidebar-head { padding: 8px 10px 5px; }
+      .conversation-list { display: flex; gap: 5px; overflow-x: auto; padding: 0 8px 8px; }
+      .conversation-item { min-width: 210px; margin: 0; }
+      .sidebar-empty { width: 100%; padding: 8px 10px; text-align: left; }
+      .message-list { padding: 22px 15px 44px; }
+      .message { grid-template-columns: 1fr; gap: 6px; }
+      .message-label { text-align: left; }
+      .composer-shell { padding: 0 10px 10px; }
+      .header-row { grid-template-columns: 1fr auto; }
+      .header-row input:nth-child(2) { grid-column: 1 / 2; }
+      .header-remove { grid-column: 2; grid-row: 1 / 3; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">C↗</span><span>CORS Chat</span></div>
+      <div class="top-controls">
+        <div class="field-inline">
+          <span id="connection-dot" class="status-dot" title="Not connected"></span>
+          <label for="endpoint-select">Endpoint</label>
+          <select id="endpoint-select" aria-label="Endpoint">
+            <option value="">Configure an endpoint…</option>
+          </select>
+        </div>
+        <div class="field-inline">
+          <label for="model-select">Model</label>
+          <select id="model-select" aria-label="Model" disabled>
+            <option value="">No models loaded</option>
+          </select>
+        </div>
+        <button id="settings-button" class="button icon" type="button" aria-label="Endpoint settings" title="Endpoint settings">⚙</button>
+        <button id="top-new-button" class="button primary" type="button" disabled>New chat</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <h2>Conversations</h2>
+          <button id="sidebar-new-button" class="button icon" type="button" aria-label="New chat" title="New chat" disabled>＋</button>
+        </div>
+        <div id="conversation-list" class="conversation-list"></div>
+      </aside>
+
+      <main class="main">
+        <div id="conversation-bar" class="conversation-bar">
+          <div class="conversation-heading">
+            <strong id="active-title"></strong>
+            <span id="active-meta"></span>
+          </div>
+          <button id="copy-json-button" class="button" type="button">Copy JSON</button>
+          <button id="delete-chat-button" class="button danger" type="button" title="Delete conversation">Delete</button>
+        </div>
+
+        <div id="transcript" class="transcript" aria-live="polite"></div>
+
+        <div id="composer-shell" class="composer-shell">
+          <form id="composer" class="composer">
+            <textarea id="prompt" rows="1" placeholder="Message the model…" aria-label="Message"></textarea>
+            <button id="send-button" class="button primary" type="submit">Send</button>
+            <button id="stop-button" class="button" type="button">Stop</button>
+          </form>
+          <div class="composer-note">Enter to send · Shift+Enter for a new line</div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="config-dialog">
+    <form id="config-form" method="dialog">
+      <div class="dialog-head">
+        <div>
+          <h2>Endpoint configuration</h2>
+          <p>Connect to an OpenAI Responses-compatible API with browser-accessible CORS headers.</p>
+        </div>
+        <button class="dialog-close" value="cancel" aria-label="Close">×</button>
+      </div>
+      <div class="dialog-body">
+        <div id="config-error" class="dialog-error"></div>
+        <div class="form-field">
+          <label for="endpoint-url">Base URL</label>
+          <input id="endpoint-url" type="url" required placeholder="http://localhost:1234/v1" spellcheck="false">
+          <p class="help">Enter the API root, usually ending in <code>/v1</code>. The page calls <code>/models</code> and <code>/responses</code>.</p>
+        </div>
+        <div class="form-field">
+          <label for="endpoint-name">Display name <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+          <input id="endpoint-name" type="text" placeholder="Local model server">
+        </div>
+        <div class="form-field">
+          <span class="form-label">Extra HTTP headers <span style="font-weight:400;color:var(--muted)">(optional)</span></span>
+          <div id="headers-editor" class="headers-editor"></div>
+          <button id="add-header-button" class="button" type="button" style="margin-top:8px">Add header</button>
+          <p class="help">Configuration, including header values, is saved in this browser and encoded in the URL fragment. Fragments are not sent in HTTP requests, but avoid sharing a URL that contains secrets.</p>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button id="remove-endpoint-button" class="button danger" type="button" hidden>Remove endpoint</button>
+        <button class="button" value="cancel">Cancel</button>
+        <button id="connect-button" class="button primary" type="submit" value="default">Save &amp; connect</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="new-chat-dialog">
+    <form id="new-chat-form" method="dialog">
+      <div class="dialog-head">
+        <div>
+          <h2>New conversation</h2>
+          <p id="new-chat-meta"></p>
+        </div>
+        <button class="dialog-close" value="cancel" aria-label="Close">×</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-field">
+          <label for="system-message">System message <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+          <textarea id="system-message" placeholder="You are a concise and helpful assistant."></textarea>
+          <p class="help">This is stored as the first system-role item and included whenever the browser replays the conversation.</p>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button class="button" value="cancel">Cancel</button>
+        <button class="button primary" type="submit" value="default">Start conversation</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.1/dist/markdown-it.min.js" integrity="sha384-VjNpj0uWy3ya2VFiHXeS6MxjLjWGb1mSZTNAF0xfbZguX+9CXmTkYSmOxEyUWJ9S" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.3.3/dist/purify.min.js" integrity="sha384-pcBjnGbkyKeOXaoFkmJiuR9E08/6gkmus6/Strimnxtl3uk0Hx23v345pWyC/MMr" crossorigin="anonymous"></script>
+  <script>
+    (() => {
+      "use strict";
+
+      const STORAGE_KEY = "cors-chat:state:v1";
+      const SVG_CSP = [
+        "default-src 'none'",
+        "script-src 'none'",
+        "style-src 'unsafe-inline'",
+        "img-src data: blob:",
+        "font-src 'none'",
+        "connect-src 'none'",
+        "form-action 'none'",
+        "base-uri 'none'"
+      ].join("; ") + ";";
+
+      const els = {
+        endpointSelect: document.querySelector("#endpoint-select"),
+        modelSelect: document.querySelector("#model-select"),
+        connectionDot: document.querySelector("#connection-dot"),
+        settingsButton: document.querySelector("#settings-button"),
+        topNewButton: document.querySelector("#top-new-button"),
+        sidebarNewButton: document.querySelector("#sidebar-new-button"),
+        conversationList: document.querySelector("#conversation-list"),
+        conversationBar: document.querySelector("#conversation-bar"),
+        activeTitle: document.querySelector("#active-title"),
+        activeMeta: document.querySelector("#active-meta"),
+        copyJsonButton: document.querySelector("#copy-json-button"),
+        deleteChatButton: document.querySelector("#delete-chat-button"),
+        transcript: document.querySelector("#transcript"),
+        composerShell: document.querySelector("#composer-shell"),
+        composer: document.querySelector("#composer"),
+        prompt: document.querySelector("#prompt"),
+        stopButton: document.querySelector("#stop-button"),
+        configDialog: document.querySelector("#config-dialog"),
+        configForm: document.querySelector("#config-form"),
+        configError: document.querySelector("#config-error"),
+        endpointUrl: document.querySelector("#endpoint-url"),
+        endpointName: document.querySelector("#endpoint-name"),
+        headersEditor: document.querySelector("#headers-editor"),
+        addHeaderButton: document.querySelector("#add-header-button"),
+        removeEndpointButton: document.querySelector("#remove-endpoint-button"),
+        connectButton: document.querySelector("#connect-button"),
+        newChatDialog: document.querySelector("#new-chat-dialog"),
+        newChatForm: document.querySelector("#new-chat-form"),
+        newChatMeta: document.querySelector("#new-chat-meta"),
+        systemMessage: document.querySelector("#system-message"),
+        toast: document.querySelector("#toast")
+      };
+
+      let state = loadState();
+      let availableModels = [];
+      let fragmentModel = "";
+      let editingEndpointId = null;
+      let modelRequest = null;
+      let generation = null;
+      let toastTimer = null;
+      let saveTimer = null;
+      let renderFrame = null;
+
+      const md = window.markdownit({ html: false, linkify: true, breaks: false, typographer: false });
+      const defaultFence = md.renderer.rules.fence;
+
+      md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+        const token = tokens[idx];
+        const language = (token.info || "").trim().split(/\s+/)[0].toLowerCase();
+        const source = token.content || "";
+        const trimmed = source.trimStart();
+        const isSvg = language === "svg" || (language === "xml" && /^<svg(?:\s|>)/i.test(trimmed));
+        if (isSvg && env && env.svgBlocks) {
+          const id = String(env.svgBlocks.push(source) - 1);
+          return `<div class="svg-placeholder" data-svg-id="${id}"></div>`;
+        }
+        if (env && env.codeBlocks) {
+          const id = String(env.codeBlocks.push(source) - 1);
+          const label = escapeHtml(language || "code");
+          const highlighted = options.highlight ? options.highlight(source, language) : "";
+          const code = highlighted || escapeHtml(source);
+          return `<div class="code-block"><div class="code-head"><span>${label}</span><button type="button" class="copy-small" data-code-id="${id}">Copy</button></div><pre><code>${code}</code></pre></div>`;
+        }
+        return defaultFence(tokens, idx, options, env, self);
+      };
+
+      function emptyState() {
+        return { endpoints: [], conversations: [], activeEndpointId: null, activeConversationId: null };
+      }
+
+      function loadState() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+          if (!parsed || !Array.isArray(parsed.endpoints) || !Array.isArray(parsed.conversations)) return emptyState();
+          return { ...emptyState(), ...parsed };
+        } catch {
+          return emptyState();
+        }
+      }
+
+      function persistState() {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        } catch (error) {
+          showToast(`Could not save browser state: ${error.message}`, true);
+        }
+      }
+
+      function persistSoon() {
+        if (!saveTimer) saveTimer = setTimeout(persistState, 350);
+      }
+
+      function uid(prefix) {
+        const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+        return `${prefix}_${id}`;
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
+      }
+
+      function stableHeaders(headers) {
+        return Object.fromEntries(Object.entries(headers || {}).filter(([key]) => key.trim()).sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase())));
+      }
+
+      function endpointId(url, headers) {
+        const value = `${url}\n${JSON.stringify(stableHeaders(headers))}`;
+        let hash = 2166136261;
+        for (let i = 0; i < value.length; i++) {
+          hash ^= value.charCodeAt(i);
+          hash = Math.imul(hash, 16777619);
+        }
+        return `ep_${(hash >>> 0).toString(36)}`;
+      }
+
+      function normalizeBaseUrl(raw) {
+        const parsed = new URL(raw.trim());
+        if (!/^https?:$/.test(parsed.protocol)) throw new Error("The endpoint must use http or https");
+        parsed.hash = "";
+        parsed.search = "";
+        return parsed.href.replace(/\/+$/, "");
+      }
+
+      function endpointLabel(endpoint) {
+        if (endpoint.name) return endpoint.name;
+        try {
+          const parsed = new URL(endpoint.url);
+          return `${parsed.host}${parsed.pathname.replace(/\/$/, "")}`;
+        } catch {
+          return endpoint.url;
+        }
+      }
+
+      function activeEndpoint() {
+        return state.endpoints.find(item => item.id === state.activeEndpointId) || null;
+      }
+
+      function activeConversation() {
+        return state.conversations.find(item => item.id === state.activeConversationId) || null;
+      }
+
+      function parseFragment() {
+        const params = new URLSearchParams(location.hash.slice(1));
+        const rawUrl = params.get("url");
+        if (!rawUrl) return null;
+        let headers = {};
+        if (params.get("headers")) {
+          try {
+            const parsed = JSON.parse(params.get("headers"));
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) headers = parsed;
+          } catch {
+            showToast("The headers value in the URL fragment is not valid JSON", true);
+          }
+        }
+        return { url: rawUrl, name: params.get("name") || "", headers: stableHeaders(headers), model: params.get("model") || "" };
+      }
+
+      function writeFragment(endpoint, model) {
+        if (!endpoint) {
+          history.replaceState(null, "", location.pathname + location.search);
+          return;
+        }
+        const params = new URLSearchParams();
+        params.set("url", endpoint.url);
+        if (endpoint.name) params.set("name", endpoint.name);
+        if (Object.keys(endpoint.headers || {}).length) params.set("headers", JSON.stringify(stableHeaders(endpoint.headers)));
+        if (model) params.set("model", model);
+        history.replaceState(null, "", `${location.pathname}${location.search}#${params}`);
+      }
+
+      function applyFragmentConfig() {
+        const config = parseFragment();
+        if (!config) return false;
+        try {
+          config.url = normalizeBaseUrl(config.url);
+        } catch (error) {
+          showToast(`Invalid endpoint in URL: ${error.message}`, true);
+          return false;
+        }
+        const id = endpointId(config.url, config.headers);
+        const existing = state.endpoints.find(item => item.id === id);
+        if (existing) {
+          if (config.name) existing.name = config.name;
+        } else {
+          state.endpoints.push({ id, name: config.name, url: config.url, headers: config.headers });
+        }
+        state.activeEndpointId = id;
+        const activeBelongsHere = state.conversations.some(item => item.id === state.activeConversationId && item.endpointId === id);
+        if (!activeBelongsHere) state.activeConversationId = latestConversationFor(id)?.id || null;
+        fragmentModel = config.model;
+        persistState();
+        return true;
+      }
+
+      function latestConversationFor(endpointIdValue) {
+        return state.conversations.filter(item => item.endpointId === endpointIdValue).sort((a, b) => b.updatedAt - a.updatedAt)[0] || null;
+      }
+
+      function setConnectionStatus(status, title) {
+        els.connectionDot.className = `status-dot${status ? ` ${status}` : ""}`;
+        els.connectionDot.title = title;
+      }
+
+      function renderEndpointOptions() {
+        const selected = state.activeEndpointId || "";
+        els.endpointSelect.replaceChildren(new Option("Configure an endpoint…", ""));
+        state.endpoints.forEach(endpoint => els.endpointSelect.add(new Option(endpointLabel(endpoint), endpoint.id)));
+        els.endpointSelect.value = selected;
+      }
+
+      function renderModelOptions(preferred) {
+        const conversation = activeConversation();
+        const wanted = preferred || conversation?.model || els.modelSelect.value || "";
+        els.modelSelect.replaceChildren();
+        if (!availableModels.length) {
+          els.modelSelect.add(new Option("No models available", ""));
+          els.modelSelect.disabled = true;
+          return "";
+        }
+        availableModels.forEach(model => els.modelSelect.add(new Option(model.id, model.id)));
+        let selected = wanted;
+        if (selected && !availableModels.some(model => model.id === selected)) {
+          els.modelSelect.add(new Option(`${selected} (not listed)`, selected));
+        }
+        if (!selected) selected = availableModels.find(model => !/embed/i.test(model.id))?.id || availableModels[0].id;
+        els.modelSelect.value = selected;
+        els.modelSelect.disabled = false;
+        return selected;
+      }
+
+      async function loadModels(preferred) {
+        const endpoint = activeEndpoint();
+        if (!endpoint) {
+          availableModels = [];
+          renderModelOptions();
+          setConnectionStatus("", "Not connected");
+          updateNewButtons();
+          return;
+        }
+        if (modelRequest) modelRequest.abort();
+        modelRequest = new AbortController();
+        availableModels = [];
+        els.modelSelect.replaceChildren(new Option("Loading models…", ""));
+        els.modelSelect.disabled = true;
+        setConnectionStatus("connecting", `Connecting to ${endpoint.url}`);
+        updateNewButtons();
+        try {
+          const response = await fetch(`${endpoint.url}/models`, { headers: endpoint.headers || {}, signal: modelRequest.signal });
+          if (!response.ok) throw new Error(await responseError(response));
+          const data = await response.json();
+          if (!Array.isArray(data.data)) throw new Error("The /models response did not contain a data array");
+          availableModels = data.data.filter(item => item && typeof item.id === "string").sort((a, b) => a.id.localeCompare(b.id));
+          if (!availableModels.length) throw new Error("The endpoint returned no models");
+          const selected = renderModelOptions(preferred || fragmentModel);
+          fragmentModel = "";
+          const conversation = activeConversation();
+          if (conversation && conversation.endpointId === endpoint.id && !conversation.model) conversation.model = selected;
+          writeFragment(endpoint, selected);
+          setConnectionStatus("connected", `Connected to ${endpoint.url}`);
+          persistState();
+        } catch (error) {
+          if (error.name === "AbortError") return;
+          availableModels = [];
+          renderModelOptions();
+          setConnectionStatus("error", error.message);
+          showToast(`Could not load models: ${friendlyFetchError(error, endpoint.url)}`, true);
+        } finally {
+          modelRequest = null;
+          updateNewButtons();
+          renderConversation();
+        }
+      }
+
+      function friendlyFetchError(error, url) {
+        if (error instanceof TypeError) {
+          const mixed = location.protocol === "https:" && url.startsWith("http:");
+          if (mixed) return "the browser blocked an HTTPS page from calling an HTTP endpoint (mixed content)";
+          return `${error.message}. Check that the endpoint is reachable and its CORS headers allow this page.`;
+        }
+        return error.message;
+      }
+
+      async function responseError(response) {
+        const body = await response.text();
+        try {
+          const parsed = JSON.parse(body);
+          return parsed.error?.message || parsed.message || `${response.status} ${response.statusText}`;
+        } catch {
+          return body.trim() || `${response.status} ${response.statusText}`;
+        }
+      }
+
+      function updateNewButtons() {
+        const enabled = !!activeEndpoint() && availableModels.length > 0 && !generation;
+        els.topNewButton.disabled = !enabled;
+        els.sidebarNewButton.disabled = !enabled;
+      }
+
+      function renderConversationList() {
+        const endpoint = activeEndpoint();
+        els.conversationList.replaceChildren();
+        if (!endpoint) {
+          els.conversationList.innerHTML = '<div class="sidebar-empty">Configure an endpoint to begin.</div>';
+          return;
+        }
+        const conversations = state.conversations.filter(item => item.endpointId === endpoint.id).sort((a, b) => b.updatedAt - a.updatedAt);
+        if (!conversations.length) {
+          els.conversationList.innerHTML = '<div class="sidebar-empty">No saved conversations for this endpoint.</div>';
+          return;
+        }
+        conversations.forEach(conversation => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `conversation-item${conversation.id === state.activeConversationId ? " active" : ""}`;
+          button.dataset.conversationId = conversation.id;
+          const title = document.createElement("span");
+          title.className = "conversation-title";
+          title.textContent = conversation.title || "New conversation";
+          const time = document.createElement("time");
+          time.className = "conversation-time";
+          time.dateTime = new Date(conversation.updatedAt).toISOString();
+          time.textContent = relativeTime(conversation.updatedAt);
+          const model = document.createElement("span");
+          model.className = "conversation-model";
+          model.textContent = conversation.model;
+          button.append(title, time, model);
+          button.addEventListener("click", () => selectConversation(conversation.id));
+          els.conversationList.append(button);
+        });
+      }
+
+      function relativeTime(timestamp) {
+        const delta = Date.now() - timestamp;
+        if (delta < 60_000) return "now";
+        if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m`;
+        if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h`;
+        if (delta < 604_800_000) return `${Math.floor(delta / 86_400_000)}d`;
+        return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      }
+
+      function selectConversation(id) {
+        if (generation) return;
+        const conversation = state.conversations.find(item => item.id === id);
+        if (!conversation) return;
+        state.activeConversationId = id;
+        state.activeEndpointId = conversation.endpointId;
+        persistState();
+        renderEndpointOptions();
+        renderModelOptions(conversation.model);
+        const endpoint = activeEndpoint();
+        writeFragment(endpoint, conversation.model);
+        renderConversationList();
+        renderConversation();
+      }
+
+      function renderConversation() {
+        const endpoint = activeEndpoint();
+        const conversation = activeConversation();
+        const validConversation = conversation && endpoint && conversation.endpointId === endpoint.id;
+        els.conversationBar.classList.toggle("active", !!validConversation);
+        els.composerShell.classList.toggle("active", !!validConversation);
+        els.transcript.replaceChildren();
+        if (!validConversation) {
+          renderWelcome(endpoint);
+          renderConversationList();
+          return;
+        }
+        els.activeTitle.textContent = conversation.title || "New conversation";
+        els.activeMeta.textContent = `${conversation.model} · saved in this browser`;
+        const list = document.createElement("div");
+        list.className = "message-list";
+        if (conversation.system) list.append(messageElement({ role: "system", content: conversation.system, id: "system" }));
+        conversation.turns.forEach(turn => list.append(messageElement(turn)));
+        els.transcript.append(list);
+        els.composerShell.classList.toggle("generating", !!generation);
+        requestAnimationFrame(() => { els.transcript.scrollTop = els.transcript.scrollHeight; });
+      }
+
+      function renderWelcome(endpoint) {
+        const welcome = document.createElement("div");
+        welcome.className = "welcome";
+        const card = document.createElement("div");
+        card.className = "welcome-card";
+        card.innerHTML = endpoint
+          ? `<div class="welcome-icon">{ }</div><h1>Start a conversation</h1><p>Connected to <strong>${escapeHtml(endpointLabel(endpoint))}</strong>. Choose a saved conversation or create a new one with an optional system message.</p><div class="welcome-actions"><button class="button primary" type="button" data-action="new" ${availableModels.length ? "" : "disabled"}>New conversation</button><button class="button" type="button" data-action="configure">Endpoint settings</button></div>`
+          : '<div class="welcome-icon">C↗</div><h1>Chat across CORS</h1><p>Connect this page directly to any OpenAI Responses-compatible endpoint that exposes browser-accessible CORS headers.</p><div class="welcome-actions"><button class="button primary" type="button" data-action="configure">Configure endpoint</button></div>';
+        welcome.append(card);
+        els.transcript.append(welcome);
+        card.querySelector('[data-action="new"]')?.addEventListener("click", openNewChatDialog);
+        card.querySelector('[data-action="configure"]')?.addEventListener("click", () => openConfigDialog(endpoint));
+      }
+
+      function messageElement(turn) {
+        const article = document.createElement("article");
+        article.className = `message ${turn.role}${turn.status === "stopped" ? " stopped" : ""}`;
+        article.dataset.turnId = turn.id;
+        const label = document.createElement("div");
+        label.className = "message-label";
+        label.textContent = turn.role;
+        const content = document.createElement("div");
+        content.className = "message-content";
+        if (turn.role === "assistant") {
+          const reasoning = document.createElement("details");
+          reasoning.className = "reasoning";
+          reasoning.open = true;
+          reasoning.hidden = !turn.reasoning;
+          reasoning.innerHTML = '<summary>Reasoning trace</summary><div class="reasoning-body markdown-body"></div>';
+          const answer = document.createElement("div");
+          answer.className = "answer markdown-body";
+          content.append(reasoning, answer);
+          if (turn.reasoning) renderMarkdownInto(reasoning.querySelector(".reasoning-body"), turn.reasoning, false);
+          if (turn.content) renderMarkdownInto(answer, turn.content, true);
+          if (turn.error) {
+            const error = document.createElement("div");
+            error.className = "message-error";
+            error.textContent = turn.error;
+            content.append(error);
+          }
+        } else {
+          content.textContent = turn.content;
+        }
+        article.append(label, content);
+        return article;
+      }
+
+      function renderMarkdownInto(root, source, allowSvg) {
+        const env = { svgBlocks: allowSvg ? [] : null, codeBlocks: [] };
+        const html = md.render(source || "", env);
+        root.innerHTML = window.DOMPurify.sanitize(html, {
+          USE_PROFILES: { html: true },
+          ADD_ATTR: ["data-svg-id", "data-code-id", "target", "rel"],
+          FORBID_TAGS: ["style"],
+          FORBID_ATTR: ["style"]
+        });
+        root.querySelectorAll("a[href]").forEach(link => {
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+        });
+        root.querySelectorAll("[data-code-id]").forEach(button => {
+          const sourceCode = env.codeBlocks[Number(button.dataset.codeId)] || "";
+          button.addEventListener("click", () => copyText(sourceCode, "Code copied"));
+        });
+        if (allowSvg) hydrateSvgPreviews(root, env.svgBlocks);
+      }
+
+      function hydrateSvgPreviews(root, blocks) {
+        root.querySelectorAll(".svg-placeholder[data-svg-id]").forEach(placeholder => {
+          const source = blocks[Number(placeholder.dataset.svgId)] || "";
+          const preview = document.createElement("div");
+          preview.className = "svg-preview";
+          const head = document.createElement("div");
+          head.className = "code-head";
+          head.innerHTML = '<span>SVG preview</span><button type="button" class="copy-small">Copy SVG</button>';
+          head.querySelector("button").addEventListener("click", () => copyText(source, "SVG copied"));
+          const frameWrap = document.createElement("div");
+          frameWrap.className = "svg-frame-wrap";
+          frameWrap.style.setProperty("--svg-ratio", svgAspectRatio(source));
+          const frame = document.createElement("iframe");
+          frame.title = "Rendered SVG";
+          frame.setAttribute("sandbox", "");
+          frame.setAttribute("csp", SVG_CSP);
+          frame.referrerPolicy = "no-referrer";
+          frame.srcdoc = svgPreviewDocument(completeSvg(source));
+          frameWrap.append(frame);
+          const details = document.createElement("details");
+          details.className = "svg-source";
+          const summary = document.createElement("summary");
+          summary.textContent = "Source";
+          const pre = document.createElement("pre");
+          pre.textContent = source;
+          details.append(summary, pre);
+          preview.append(head, frameWrap, details);
+          placeholder.replaceWith(preview);
+        });
+      }
+
+      function svgAspectRatio(svg) {
+        const viewBox = svg.match(/viewBox\s*=\s*["']([\d.eE+\-\s]+)["']/i);
+        if (viewBox) {
+          const parts = viewBox[1].trim().split(/\s+/).map(Number);
+          if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) return `${parts[2]} / ${parts[3]}`;
+        }
+        const width = svg.match(/\bwidth\s*=\s*["']?([\d.]+)/i);
+        const height = svg.match(/\bheight\s*=\s*["']?([\d.]+)/i);
+        if (width && height && Number(width[1]) > 0 && Number(height[1]) > 0) return `${Number(width[1])} / ${Number(height[1])}`;
+        return "16 / 9";
+      }
+
+      function completeSvg(incomplete) {
+        let source = (incomplete || "").trim();
+        const svgStart = source.search(/<svg(?:\s|>)/i);
+        if (svgStart < 0) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 9"></svg>';
+        source = source.slice(svgStart);
+        const lastOpen = source.lastIndexOf("<");
+        const lastClose = source.lastIndexOf(">");
+        if (lastOpen > lastClose) source = source.slice(0, lastOpen);
+        if (!/^<svg(?:\s[^<>]*)?>/i.test(source)) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 9"></svg>';
+
+        const stack = [];
+        const tagPattern = /<\/?([a-zA-Z][\w:.-]*)(?:\s[^<>]*?)?\s*\/?>/g;
+        let match;
+        while ((match = tagPattern.exec(source))) {
+          const tag = match[1];
+          const full = match[0];
+          if (full.startsWith("</")) {
+            const index = stack.map(item => item.toLowerCase()).lastIndexOf(tag.toLowerCase());
+            if (index >= 0) stack.splice(index);
+          } else if (!full.endsWith("/>")) {
+            stack.push(tag);
+          }
+        }
+        while (stack.length) source += `</${stack.pop()}>`;
+        return source;
+      }
+
+      function svgPreviewDocument(svg) {
+        return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${SVG_CSP}"><style>html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#fff}svg{display:block;width:100%;height:100%}</style></head><body>${svg}</body></html>`;
+      }
+
+      function scheduleAssistantRender(turn) {
+        if (renderFrame) return;
+        const nearBottom = els.transcript.scrollHeight - els.transcript.scrollTop - els.transcript.clientHeight < 100;
+        renderFrame = requestAnimationFrame(() => {
+          renderFrame = null;
+          const article = Array.from(els.transcript.querySelectorAll(".message.assistant")).find(item => item.dataset.turnId === turn.id);
+          if (!article) return;
+          const reasoning = article.querySelector(".reasoning");
+          const reasoningBody = article.querySelector(".reasoning-body");
+          const answer = article.querySelector(".answer");
+          reasoning.hidden = !turn.reasoning;
+          if (turn.reasoning) renderMarkdownInto(reasoningBody, turn.reasoning, false);
+          renderMarkdownInto(answer, turn.content || "", true);
+          if (nearBottom) els.transcript.scrollTop = els.transcript.scrollHeight;
+        });
+      }
+
+      function openConfigDialog(endpoint) {
+        editingEndpointId = endpoint?.id || null;
+        els.endpointUrl.value = endpoint?.url || "";
+        els.endpointName.value = endpoint?.name || "";
+        els.headersEditor.replaceChildren();
+        Object.entries(endpoint?.headers || {}).forEach(([name, value]) => addHeaderRow(name, value));
+        if (!els.headersEditor.children.length) addHeaderRow("", "");
+        setDialogError("");
+        els.removeEndpointButton.hidden = !endpoint;
+        els.configDialog.showModal();
+        requestAnimationFrame(() => els.endpointUrl.focus());
+      }
+
+      function addHeaderRow(name, value) {
+        const row = document.createElement("div");
+        row.className = "header-row";
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.placeholder = "Header name";
+        nameInput.value = name;
+        nameInput.autocomplete = "off";
+        const valueInput = document.createElement("input");
+        valueInput.type = /authorization|token|key|secret/i.test(name) ? "password" : "text";
+        valueInput.placeholder = "Value";
+        valueInput.value = value;
+        valueInput.autocomplete = "off";
+        nameInput.addEventListener("input", () => { valueInput.type = /authorization|token|key|secret/i.test(nameInput.value) ? "password" : "text"; });
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "header-remove";
+        remove.textContent = "×";
+        remove.setAttribute("aria-label", "Remove header");
+        remove.addEventListener("click", () => row.remove());
+        row.append(nameInput, valueInput, remove);
+        els.headersEditor.append(row);
+      }
+
+      function collectHeaders() {
+        const headers = {};
+        for (const row of els.headersEditor.querySelectorAll(".header-row")) {
+          const [nameInput, valueInput] = row.querySelectorAll("input");
+          const name = nameInput.value.trim();
+          const value = valueInput.value;
+          if (!name && !value) continue;
+          if (!name) throw new Error("Each header value needs a header name");
+          if (/[^!#$%&'*+.^_`|~0-9A-Za-z-]/.test(name)) throw new Error(`Invalid header name: ${name}`);
+          headers[name] = value;
+        }
+        return stableHeaders(headers);
+      }
+
+      function setDialogError(message) {
+        els.configError.textContent = message;
+        els.configError.classList.toggle("active", !!message);
+      }
+
+      async function saveEndpoint() {
+        setDialogError("");
+        let url, headers;
+        try {
+          url = normalizeBaseUrl(els.endpointUrl.value);
+          headers = collectHeaders();
+        } catch (error) {
+          setDialogError(error.message);
+          return;
+        }
+        const oldId = editingEndpointId;
+        const id = endpointId(url, headers);
+        const endpoint = { id, url, headers, name: els.endpointName.value.trim() };
+        const existingIndex = state.endpoints.findIndex(item => item.id === id);
+        if (existingIndex >= 0) state.endpoints[existingIndex] = endpoint;
+        else state.endpoints.push(endpoint);
+        if (oldId && oldId !== id) {
+          state.endpoints = state.endpoints.filter(item => item.id !== oldId);
+          state.conversations.forEach(item => { if (item.endpointId === oldId) item.endpointId = id; });
+        }
+        state.activeEndpointId = id;
+        const current = activeConversation();
+        if (!current || current.endpointId !== id) state.activeConversationId = latestConversationFor(id)?.id || null;
+        availableModels = [];
+        persistState();
+        renderEndpointOptions();
+        writeFragment(endpoint, "");
+        els.configDialog.close();
+        await loadModels("");
+        renderConversationList();
+        renderConversation();
+      }
+
+      function removeEndpoint() {
+        const endpoint = state.endpoints.find(item => item.id === editingEndpointId);
+        if (!endpoint) return;
+        const count = state.conversations.filter(item => item.endpointId === endpoint.id).length;
+        const suffix = count ? ` ${count} saved conversation${count === 1 ? "" : "s"} will also be deleted.` : "";
+        if (!confirm(`Remove ${endpointLabel(endpoint)}?${suffix}`)) return;
+        state.endpoints = state.endpoints.filter(item => item.id !== endpoint.id);
+        state.conversations = state.conversations.filter(item => item.endpointId !== endpoint.id);
+        state.activeEndpointId = state.endpoints[0]?.id || null;
+        state.activeConversationId = state.activeEndpointId ? latestConversationFor(state.activeEndpointId)?.id || null : null;
+        availableModels = [];
+        persistState();
+        els.configDialog.close();
+        renderEndpointOptions();
+        const next = activeEndpoint();
+        writeFragment(next, "");
+        loadModels("");
+        renderConversationList();
+        renderConversation();
+      }
+
+      function openNewChatDialog() {
+        const endpoint = activeEndpoint();
+        const model = els.modelSelect.value;
+        if (!endpoint || !model) return;
+        els.newChatMeta.textContent = `${endpointLabel(endpoint)} · ${model}`;
+        els.systemMessage.value = "";
+        els.newChatDialog.showModal();
+        requestAnimationFrame(() => els.systemMessage.focus());
+      }
+
+      function createConversation() {
+        const endpoint = activeEndpoint();
+        const model = els.modelSelect.value;
+        if (!endpoint || !model) return;
+        const now = Date.now();
+        const conversation = {
+          id: uid("chat"),
+          endpointId: endpoint.id,
+          title: "New conversation",
+          model,
+          system: els.systemMessage.value.trim(),
+          turns: [],
+          createdAt: now,
+          updatedAt: now
+        };
+        state.conversations.push(conversation);
+        state.activeConversationId = conversation.id;
+        persistState();
+        els.newChatDialog.close();
+        writeFragment(endpoint, model);
+        renderConversationList();
+        renderConversation();
+        requestAnimationFrame(() => els.prompt.focus());
+      }
+
+      function responseInput(conversation) {
+        const input = [];
+        if (conversation.system) input.push({ role: "system", content: [{ type: "input_text", text: conversation.system }] });
+        conversation.turns.forEach(turn => {
+          if (turn.role === "user") input.push({ role: "user", content: [{ type: "input_text", text: turn.content }] });
+          if (turn.role === "assistant" && turn.content && !turn.error) input.push({ role: "assistant", content: [{ type: "output_text", text: turn.content }] });
+        });
+        return input;
+      }
+
+      function exportPayload(conversation) {
+        return { model: conversation.model, input: responseInput(conversation) };
+      }
+
+      async function sendMessage() {
+        if (generation) return;
+        const conversation = activeConversation();
+        const endpoint = activeEndpoint();
+        const text = els.prompt.value.trim();
+        if (!conversation || !endpoint || !text || !conversation.model) return;
+        const userTurn = { id: uid("turn"), role: "user", content: text, createdAt: Date.now() };
+        conversation.turns.push(userTurn);
+        if (conversation.title === "New conversation") conversation.title = text.replace(/\s+/g, " ").slice(0, 54) || "New conversation";
+        const requestBody = { model: conversation.model, input: responseInput(conversation), stream: true };
+        const assistantTurn = { id: uid("turn"), role: "assistant", content: "", reasoning: "", status: "streaming", createdAt: Date.now() };
+        conversation.turns.push(assistantTurn);
+        conversation.updatedAt = Date.now();
+        els.prompt.value = "";
+        resizePrompt();
+        const controller = new AbortController();
+        generation = { controller, conversationId: conversation.id, turnId: assistantTurn.id };
+        persistState();
+        renderConversationList();
+        renderConversation();
+        updateNewButtons();
+
+        try {
+          const headers = new Headers(endpoint.headers || {});
+          if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+          const response = await fetch(`${endpoint.url}/responses`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(requestBody),
+            signal: controller.signal
+          });
+          if (!response.ok) throw new Error(await responseError(response));
+          const contentType = response.headers.get("content-type") || "";
+          if (contentType.includes("text/event-stream") && response.body) {
+            await consumeEventStream(response.body, event => applyStreamEvent(event, assistantTurn));
+          } else {
+            const data = await response.json();
+            applyCompletedResponse(data, assistantTurn);
+          }
+          if (!assistantTurn.content && !assistantTurn.error) assistantTurn.error = "The response completed without an assistant message.";
+          assistantTurn.status = assistantTurn.error ? "error" : "completed";
+        } catch (error) {
+          if (error.name === "AbortError") {
+            assistantTurn.status = "stopped";
+          } else {
+            assistantTurn.status = "error";
+            assistantTurn.error = friendlyFetchError(error, endpoint.url);
+          }
+        } finally {
+          conversation.updatedAt = Date.now();
+          generation = null;
+          persistState();
+          els.composerShell.classList.remove("generating");
+          updateNewButtons();
+          renderConversationList();
+          renderConversation();
+          requestAnimationFrame(() => els.prompt.focus());
+        }
+      }
+
+      async function consumeEventStream(body, onEvent) {
+        const reader = body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+          buffer = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+          let boundary;
+          while ((boundary = buffer.indexOf("\n\n")) >= 0) {
+            const block = buffer.slice(0, boundary);
+            buffer = buffer.slice(boundary + 2);
+            parseEventBlock(block, onEvent);
+          }
+          if (done) break;
+        }
+        if (buffer.trim()) parseEventBlock(buffer, onEvent);
+      }
+
+      function parseEventBlock(block, onEvent) {
+        let eventName = "";
+        const data = [];
+        for (const line of block.split("\n")) {
+          if (line.startsWith("event:")) eventName = line.slice(6).trim();
+          if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+        }
+        const payload = data.join("\n");
+        if (!payload || payload === "[DONE]") return;
+        try {
+          const event = JSON.parse(payload);
+          if (!event.type && eventName) event.type = eventName;
+          onEvent(event);
+        } catch (error) {
+          console.warn("Could not parse SSE event", error, payload);
+        }
+      }
+
+      function applyStreamEvent(event, turn) {
+        const type = event.type || "";
+        if (type === "response.output_text.delta") turn.content += event.delta || "";
+        else if (type === "response.output_text.done" && typeof event.text === "string") turn.content = event.text;
+        else if (type === "response.reasoning_text.delta" || type === "response.reasoning_summary_text.delta") turn.reasoning += event.delta || "";
+        else if ((type === "response.reasoning_text.done" || type === "response.reasoning_summary_text.done") && typeof event.text === "string") turn.reasoning = event.text;
+        else if (type === "response.created") turn.responseId = event.response?.id || turn.responseId;
+        else if (type === "response.completed") applyCompletedResponse(event.response, turn);
+        else if (type === "response.failed" || type === "response.incomplete") {
+          turn.error = event.response?.error?.message || event.error?.message || `Response ended with ${type.replace("response.", "")} status`;
+        } else if (type === "error") {
+          turn.error = event.error?.message || event.message || "The stream returned an error";
+        }
+        scheduleAssistantRender(turn);
+        persistSoon();
+      }
+
+      function applyCompletedResponse(response, turn) {
+        if (!response) return;
+        turn.responseId = response.id || turn.responseId;
+        turn.usage = response.usage || turn.usage;
+        const extracted = extractResponse(response);
+        if (extracted.content) turn.content = extracted.content;
+        if (extracted.reasoning) turn.reasoning = extracted.reasoning;
+        if (response.error) turn.error = response.error.message || JSON.stringify(response.error);
+      }
+
+      function extractResponse(response) {
+        const messages = [];
+        const reasoning = [];
+        for (const item of response.output || []) {
+          if (item.type === "message" && item.role === "assistant") {
+            for (const part of item.content || []) if (part.type === "output_text" && part.text) messages.push(part.text);
+          }
+          if (item.type === "reasoning") {
+            for (const part of item.content || []) if ((part.type === "reasoning_text" || part.type === "text") && part.text) reasoning.push(part.text);
+            for (const part of item.summary || []) if (part.text) reasoning.push(part.text);
+          }
+        }
+        if (!messages.length && typeof response.output_text === "string") messages.push(response.output_text);
+        return { content: messages.join("\n\n"), reasoning: reasoning.join("\n\n") };
+      }
+
+      async function copyText(text, successMessage) {
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast(successMessage);
+        } catch {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.append(textarea);
+          textarea.select();
+          const copied = document.execCommand("copy");
+          textarea.remove();
+          showToast(copied ? successMessage : "Could not copy to the clipboard", !copied);
+        }
+      }
+
+      function showToast(message, isError = false) {
+        clearTimeout(toastTimer);
+        els.toast.textContent = message;
+        els.toast.className = `toast show${isError ? " error" : ""}`;
+        toastTimer = setTimeout(() => { els.toast.className = "toast"; }, 3200);
+      }
+
+      function deleteConversation() {
+        const conversation = activeConversation();
+        if (!conversation || !confirm(`Delete “${conversation.title}”? This cannot be undone.`)) return;
+        state.conversations = state.conversations.filter(item => item.id !== conversation.id);
+        state.activeConversationId = latestConversationFor(conversation.endpointId)?.id || null;
+        persistState();
+        renderConversationList();
+        renderConversation();
+      }
+
+      function resizePrompt() {
+        els.prompt.style.height = "auto";
+        els.prompt.style.height = `${Math.min(els.prompt.scrollHeight, 180)}px`;
+      }
+
+      els.endpointSelect.addEventListener("change", () => {
+        if (!els.endpointSelect.value) {
+          openConfigDialog(null);
+          els.endpointSelect.value = state.activeEndpointId || "";
+          return;
+        }
+        if (generation) return;
+        state.activeEndpointId = els.endpointSelect.value;
+        state.activeConversationId = latestConversationFor(state.activeEndpointId)?.id || null;
+        persistState();
+        const endpoint = activeEndpoint();
+        writeFragment(endpoint, "");
+        renderConversationList();
+        renderConversation();
+        loadModels(activeConversation()?.model || "");
+      });
+
+      els.modelSelect.addEventListener("change", () => {
+        const model = els.modelSelect.value;
+        const conversation = activeConversation();
+        if (conversation && !generation) {
+          conversation.model = model;
+          conversation.updatedAt = Date.now();
+          persistState();
+          renderConversationList();
+          renderConversation();
+        }
+        writeFragment(activeEndpoint(), model);
+      });
+
+      els.settingsButton.addEventListener("click", () => openConfigDialog(activeEndpoint()));
+      els.topNewButton.addEventListener("click", openNewChatDialog);
+      els.sidebarNewButton.addEventListener("click", openNewChatDialog);
+      els.addHeaderButton.addEventListener("click", () => addHeaderRow("", ""));
+      els.removeEndpointButton.addEventListener("click", removeEndpoint);
+      els.copyJsonButton.addEventListener("click", () => {
+        const conversation = activeConversation();
+        if (conversation) copyText(JSON.stringify(exportPayload(conversation), null, 2), "Responses API JSON copied");
+      });
+      els.deleteChatButton.addEventListener("click", deleteConversation);
+      els.stopButton.addEventListener("click", () => generation?.controller.abort());
+      els.prompt.addEventListener("input", resizePrompt);
+      els.prompt.addEventListener("keydown", event => {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+          event.preventDefault();
+          els.composer.requestSubmit();
+        }
+      });
+      els.composer.addEventListener("submit", event => { event.preventDefault(); sendMessage(); });
+      els.configForm.addEventListener("submit", event => {
+        if (event.submitter?.value === "cancel") return;
+        event.preventDefault();
+        saveEndpoint();
+      });
+      els.newChatForm.addEventListener("submit", event => {
+        if (event.submitter?.value === "cancel") return;
+        event.preventDefault();
+        createConversation();
+      });
+      window.addEventListener("hashchange", () => {
+        if (generation) return;
+        if (applyFragmentConfig()) {
+          renderEndpointOptions();
+          renderConversationList();
+          renderConversation();
+          loadModels(fragmentModel);
+        }
+      });
+
+      applyFragmentConfig();
+      if (!state.activeEndpointId && state.endpoints.length) state.activeEndpointId = state.endpoints[0].id;
+      if (state.activeEndpointId && !activeConversation()) state.activeConversationId = latestConversationFor(state.activeEndpointId)?.id || null;
+      renderEndpointOptions();
+      renderConversationList();
+      renderConversation();
+      if (activeEndpoint()) {
+        writeFragment(activeEndpoint(), fragmentModel || activeConversation()?.model || "");
+        loadModels(fragmentModel || activeConversation()?.model || "");
+      } else {
+        renderModelOptions();
+        setConnectionStatus("", "Not connected");
+      }
+    })();
+  </script>
+</body>
+</html>
