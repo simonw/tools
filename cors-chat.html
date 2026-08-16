@@ -304,6 +304,20 @@
       white-space: pre-wrap;
     }
 
+    .response-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px 14px;
+      margin-top: 13px;
+      border-top: 1px solid #ecece8;
+      padding-top: 8px;
+      color: var(--muted);
+      font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .response-metric { white-space: nowrap; }
+    .response-metric strong { color: #4e4e49; font-weight: 750; }
+
     .reasoning {
       margin: 0 0 15px;
       border: 1px solid #dfd0ee;
@@ -1224,11 +1238,147 @@
             error.textContent = turn.error;
             content.append(error);
           }
+          syncResponseMetrics(content, turn);
         } else {
           content.textContent = turn.content;
         }
         article.append(label, content);
         return article;
+      }
+
+      function finiteNumber(...values) {
+        for (const value of values) {
+          if (value === null || value === undefined || value === "") continue;
+          const number = Number(value);
+          if (Number.isFinite(number) && number >= 0) return number;
+        }
+        return null;
+      }
+
+      function tokenUsage(turn) {
+        const usage = turn.usage || {};
+        const stats = turn.stats || {};
+        return {
+          input: finiteNumber(usage.input_tokens, usage.prompt_tokens, usage.promptTokenCount, stats.input_tokens),
+          output: finiteNumber(usage.output_tokens, usage.completion_tokens, usage.candidatesTokenCount, stats.total_output_tokens, stats.output_tokens)
+        };
+      }
+
+      function extractThroughput(response) {
+        const usage = response?.usage || {};
+        const timings = response?.timings || {};
+        const metrics = response?.metrics || {};
+        const stats = response?.stats || {};
+        const input = finiteNumber(
+          timings.prompt_per_second,
+          timings.prompt_tokens_per_second,
+          metrics.input_tokens_per_second,
+          metrics.prompt_tokens_per_second,
+          stats.input_tokens_per_second,
+          stats.prompt_tokens_per_second,
+          usage.input_tokens_per_second,
+          usage.prompt_tokens_per_second
+        );
+        const output = finiteNumber(
+          timings.predicted_per_second,
+          timings.output_tokens_per_second,
+          timings.completion_tokens_per_second,
+          metrics.output_tokens_per_second,
+          metrics.completion_tokens_per_second,
+          metrics.tokens_per_second,
+          stats.output_tokens_per_second,
+          stats.completion_tokens_per_second,
+          stats.tokens_per_second,
+          usage.output_tokens_per_second,
+          usage.completion_tokens_per_second,
+          usage.tokens_per_second
+        );
+        return input === null && output === null ? null : { input, output };
+      }
+
+      function formatMetricNumber(value, maximumFractionDigits = 1) {
+        return value.toLocaleString(undefined, { maximumFractionDigits });
+      }
+
+      function formatElapsed(milliseconds) {
+        const seconds = milliseconds / 1000;
+        const digits = seconds < 10 ? 2 : seconds < 100 ? 1 : 0;
+        return `${formatMetricNumber(seconds, digits)} s`;
+      }
+
+      function syncResponseMetrics(content, turn) {
+        let footer = content.querySelector(".response-metrics");
+        if (turn.status !== "completed") {
+          footer?.remove();
+          return;
+        }
+
+        const usage = tokenUsage(turn);
+        const elapsedMs = finiteNumber(turn.timing?.elapsedMs);
+        const throughput = turn.throughput || {};
+        const observedOutputRate = throughput.output === null || throughput.output === undefined
+          ? (usage.output !== null && elapsedMs > 0 ? usage.output / (elapsedMs / 1000) : null)
+          : null;
+        const items = [];
+        if (usage.input !== null) {
+          const inputRate = finiteNumber(throughput.input);
+          items.push({
+            label: "Input",
+            value: `${formatMetricNumber(usage.input, 0)} tokens`,
+            rate: inputRate,
+            rateNote: "",
+            title: inputRate === null
+              ? "Input token count"
+              : "Input token count and endpoint-reported prompt processing rate"
+          });
+        }
+        if (usage.output !== null) {
+          const reportedRate = finiteNumber(throughput.output);
+          const outputRate = reportedRate ?? observedOutputRate;
+          items.push({
+            label: "Output",
+            value: `${formatMetricNumber(usage.output, 0)} tokens`,
+            rate: outputRate,
+            rateNote: reportedRate === null && outputRate !== null ? " observed" : "",
+            title: reportedRate !== null
+              ? "Output token count and endpoint-reported generation rate"
+              : outputRate !== null
+                ? "Output token count and browser-observed end-to-end output rate"
+                : "Output token count"
+          });
+        }
+        if (elapsedMs !== null) {
+          items.push({
+            label: "Elapsed",
+            value: formatElapsed(elapsedMs),
+            rate: null,
+            rateNote: "",
+            title: "Measured in this browser from starting the request until the full response was received"
+          });
+        }
+        if (!items.length) {
+          footer?.remove();
+          return;
+        }
+
+        if (!footer) {
+          footer = document.createElement("div");
+          footer.className = "response-metrics";
+          footer.setAttribute("aria-label", "Response metrics");
+          content.append(footer);
+        }
+        footer.replaceChildren(...items.map(item => {
+          const metric = document.createElement("span");
+          metric.className = "response-metric";
+          metric.title = item.title;
+          const label = document.createElement("span");
+          label.textContent = `${item.label} `;
+          const value = document.createElement("strong");
+          value.textContent = item.value;
+          metric.append(label, value);
+          if (item.rate !== null) metric.append(` · ${item.rateNote ? "~" : ""}${formatMetricNumber(item.rate)} tokens/s${item.rateNote}`);
+          return metric;
+        }));
       }
 
       function renderMarkdownInto(root, source, allowSvg, options = {}) {
@@ -1502,6 +1652,7 @@
         } else {
           error?.remove();
         }
+        syncResponseMetrics(article.querySelector(".message-content"), turn);
       }
 
       function openConfigDialog(endpoint) {
@@ -1755,9 +1906,12 @@
         appendTurnsForSend(conversation, userTurn, assistantTurn);
         updateNewButtons();
 
+        let requestStartedAt = null;
         try {
           const headers = requestHeaders(endpoint);
           if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+          assistantTurn.timing = { startedAt: Date.now() };
+          requestStartedAt = performance.now();
           const response = await fetch(`${endpoint.url}/responses`, {
             method: "POST",
             headers,
@@ -1788,6 +1942,10 @@
             assistantTurn.error = friendlyFetchError(error, endpoint.url);
           }
         } finally {
+          if (requestStartedAt !== null) {
+            assistantTurn.timing.elapsedMs = performance.now() - requestStartedAt;
+            assistantTurn.timing.completedAt = Date.now();
+          }
           conversation.updatedAt = Date.now();
           generation = null;
           persistState();
@@ -1858,6 +2016,9 @@
         if (!response) return;
         turn.responseId = response.id || turn.responseId;
         turn.usage = response.usage || turn.usage;
+        turn.stats = response.stats || turn.stats;
+        const throughput = extractThroughput(response);
+        if (throughput) turn.throughput = { ...(turn.throughput || {}), ...throughput };
         const extracted = extractResponse(response);
         if (extracted.content) turn.content = extracted.content;
         if (extracted.reasoning) turn.reasoning = extracted.reasoning;
