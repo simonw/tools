@@ -1,3 +1,3 @@
-View Mozilla Bugzilla bug reports and interact with any OpenAI Responses-compatible API endpoint directly from your browser. Configure custom endpoints with optional headers, persist conversations locally, and manage multiple chat sessions with different models and reasoning settings.
+Chat directly with any OpenAI Responses-compatible API endpoint using browser-accessible CORS headers. Configure custom endpoints with optional authentication and headers, maintain multiple conversations with different models and reasoning settings, and persist everything locally in your browser.
 
-<!-- Generated from commit: a6d614f3ebce4543776502e318fca9ff61bdb326 -->
+<!-- Generated from commit: 0ba4f0e811c27cacf8885b130a1921c2c73507b6 -->
