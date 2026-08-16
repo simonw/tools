@@ -4,6 +4,14 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## pi_jsonl_to_md.py
+
+Convert a Pi `.jsonl` transcript to Markdown [like this](https://gist.github.com/simonw/491e55ac9d741202ea0af5d9d93775d4):
+
+```bash
+uv run https://tools.simonwillison.net/python/pi_jsonl_to_md.py transcript.jsonl -o output.md
+```
+
 ## first_line_history.py
 
 Show every version of the first line of a file in a GitHub repository and when it was edited.
