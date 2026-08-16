@@ -117,11 +117,24 @@ def test_smil_animation_gets_mp4_tab_with_detected_duration(
     page: Page, unused_port_server
 ):
     unused_port_server.start(root)
+    ffmpeg_requests = []
+    page.on(
+        "request",
+        lambda request: "/@ffmpeg/" in request.url
+        and ffmpeg_requests.append(request.url),
+    )
     page.goto(
         f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
     )
     block = fill_svg_block(page, ANIMATED_SMIL_SVG)
-    block.locator('button[data-tab="mp4"]').click()
+
+    # ffmpeg.wasm is heavy (~31 MB) so it must not load until the MP4 tab is
+    # first selected.
+    page.wait_for_timeout(200)
+    assert ffmpeg_requests == []
+
+    with page.expect_request("**/@ffmpeg/core**"):
+        block.locator('button[data-tab="mp4"]').click()
     panel = block.locator('.panel[data-panel="mp4"]')
     expect(panel.locator("input")).to_have_value("2")
     expect(panel.locator(".mp4-generate")).to_be_visible()

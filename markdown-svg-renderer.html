@@ -595,7 +595,8 @@ class SvgBlock extends HTMLElement {
           <button type="button" class="mp4-generate">Generate MP4</button>
         </div>
         <div class="mp4-note">Generates a looping H.264 MP4 with ffmpeg.wasm,
-          loaded on demand from jsdelivr (~${FFMPEG_DOWNLOAD_MB} MB, first use only).</div>
+          loaded from jsdelivr the first time this tab is opened
+          (~${FFMPEG_DOWNLOAD_MB} MB, once per page).</div>
         <div class="image-status" hidden></div>
         <div class="video-wrap" hidden>
           <video autoplay muted loop playsinline controls></video>
@@ -802,6 +803,7 @@ class SvgBlock extends HTMLElement {
           p.classList.toggle("active", p.dataset.panel === tab)
         );
         if (tab === "png" || tab === "jpeg") this.renderImage(tab);
+        if (tab === "mp4") this.prefetchFfmpeg();
       });
     });
 
@@ -815,6 +817,37 @@ class SvgBlock extends HTMLElement {
     const generateBtn = panel.querySelector(".mp4-generate");
     durationInput.value = this._animation.duration || 2;
     generateBtn.addEventListener("click", () => this.generateMp4());
+  }
+
+  // Start downloading ffmpeg.wasm as soon as the MP4 tab is first opened, so
+  // it is (mostly) ready by the time the user clicks Generate.
+  prefetchFfmpeg() {
+    if (this._ffmpegPrefetched) return;
+    this._ffmpegPrefetched = true;
+
+    const panel = this.shadowRoot.querySelector('.panel[data-panel="mp4"]');
+    const status = panel.querySelector(".image-status");
+    const alreadyLoading = !!ffmpegPromise;
+    if (!this._generating) {
+      status.hidden = false;
+      status.classList.remove("error");
+      status.textContent = alreadyLoading
+        ? "Loading ffmpeg.wasm…"
+        : `Loading ffmpeg.wasm (~${FFMPEG_DOWNLOAD_MB} MB)…`;
+    }
+    getFfmpeg().then(
+      () => {
+        if (!this._generating) status.hidden = true;
+      },
+      (err) => {
+        // Allow Generate to retry: getFfmpeg() resets itself on failure.
+        this._ffmpegPrefetched = false;
+        if (!this._generating) {
+          status.classList.add("error");
+          status.textContent = `Could not load ffmpeg.wasm: ${err.message}`;
+        }
+      }
+    );
   }
 
   // Capture one frame of the animated SVG at time t, as PNG bytes.
@@ -871,6 +904,7 @@ class SvgBlock extends HTMLElement {
     const width = Math.max(2, 2 * Math.round((ratioW * scale) / 2));
     const height = Math.max(2, 2 * Math.round((ratioH * scale) / 2));
 
+    this._generating = true;
     generateBtn.disabled = true;
     videoWrap.hidden = true;
     actions.hidden = true;
@@ -955,6 +989,7 @@ class SvgBlock extends HTMLElement {
       status.classList.add("error");
       setStatus(`Could not generate MP4: ${err.message}`);
     } finally {
+      this._generating = false;
       generateBtn.disabled = false;
     }
   }
