@@ -1,3 +1,3 @@
-Chat directly with any OpenAI Responses-compatible API endpoint using browser-accessible CORS headers. Configure custom endpoints with optional authentication and headers, maintain multiple conversations with different models and reasoning settings, and persist everything locally in your browser.
+Chat directly with any OpenAI Responses-compatible API endpoint using browser-accessible CORS headers. Configure custom endpoints with optional bearer token authentication and additional HTTP headers, create multiple conversations with different models and request settings, and persist everything locally in your browser.
 
-<!-- Generated from commit: 9fb18d0b0190407a0aeb96eb9c6c85a516c2bddd -->
+<!-- Generated from commit: e8bfbdfb4b7a93de0e0ecf43d825a6e17962010c -->
