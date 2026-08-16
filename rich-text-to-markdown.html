@@ -221,6 +221,30 @@ textarea:focus-visible,
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.check input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.check input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .status {
   font-size: 12px;
   color: var(--faint);
@@ -438,9 +462,15 @@ pre.raw {
 
     <section class="panel">
       <div class="row between toolbar">
-        <div class="seg" role="group" aria-label="Output view">
-          <button id="tab-rendered" type="button" aria-pressed="true">Rendered</button>
-          <button id="tab-raw" type="button" aria-pressed="false">Raw markdown</button>
+        <div class="row" style="gap: 14px;">
+          <div class="seg" role="group" aria-label="Output view">
+            <button id="tab-rendered" type="button" aria-pressed="true">Rendered</button>
+            <button id="tab-raw" type="button" aria-pressed="false">Raw markdown</button>
+          </div>
+          <label class="check">
+            <input id="quoted" type="checkbox">
+            Quoted
+          </label>
         </div>
         <button id="copy" class="btn btn-primary" type="button" disabled>Copy markdown</button>
       </div>
@@ -467,6 +497,7 @@ const els = {
   clear: document.getElementById("clear"),
   tabRendered: document.getElementById("tab-rendered"),
   tabRaw: document.getElementById("tab-raw"),
+  quoted: document.getElementById("quoted"),
   copy: document.getElementById("copy"),
   viewRendered: document.getElementById("view-rendered"),
   viewRaw: document.getElementById("view-raw"),
@@ -586,17 +617,29 @@ function renderMarkdown(md) {
   return DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } });
 }
 
+// The markdown that is previewed and copied: the converted markdown, with a
+// "> " blockquote prefix on every line when the Quoted checkbox is on.
+function outputMarkdown() {
+  if (!currentMarkdown) return "";
+  if (!els.quoted.checked) return currentMarkdown;
+  return currentMarkdown
+    .split("\n")
+    .map((line) => "> " + line)
+    .join("\n");
+}
+
 function setMarkdown(md) {
   currentMarkdown = md;
   const hasContent = md.trim().length > 0;
 
   if (hasContent) {
-    els.raw.textContent = md;
-    els.rendered.innerHTML = renderMarkdown(md);
+    const out = outputMarkdown();
+    els.raw.textContent = out;
+    els.rendered.innerHTML = renderMarkdown(out);
     els.copy.disabled = false;
-    const lines = md.split("\n").length;
+    const lines = out.split("\n").length;
     els.status.textContent =
-      md.length + (md.length === 1 ? " character" : " characters") +
+      out.length + (out.length === 1 ? " character" : " characters") +
       " · " + lines + (lines === 1 ? " line" : " lines");
   } else {
     showEmpty();
@@ -656,13 +699,14 @@ els.input.addEventListener("input", () => {
 
 // Copy markdown, with a graceful fallback for older clipboard support.
 async function copyMarkdown() {
-  if (!currentMarkdown) return;
+  const out = outputMarkdown();
+  if (!out) return;
   let ok = false;
   try {
-    await navigator.clipboard.writeText(currentMarkdown);
+    await navigator.clipboard.writeText(out);
     ok = true;
   } catch (err) {
-    ok = legacyCopy(currentMarkdown);
+    ok = legacyCopy(out);
   }
   flashCopy(ok);
 }
@@ -694,6 +738,9 @@ function flashCopy(ok) {
 }
 
 els.copy.addEventListener("click", copyMarkdown);
+
+// Re-render the preview when the Quoted checkbox is toggled.
+els.quoted.addEventListener("change", () => setMarkdown(currentMarkdown));
 
 // Clear everything.
 els.clear.addEventListener("click", () => {
