@@ -352,12 +352,260 @@ svg {
 ${"</" + "html>"}`;
 }
 
+// ---- Animated SVG detection ----
+// Parse an SMIL clock value ("2s", "150ms", "1.5min", bare seconds) into
+// seconds, or null if it is not a plain clock value (e.g. "click", "0:02").
+function smilClockSeconds(value) {
+  const m = /^\s*(-?\d+(?:\.\d+)?)(h|min|s|ms)?\s*$/.exec(value || "");
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  const unit = m[2];
+  if (unit === "h") return n * 3600;
+  if (unit === "min") return n * 60;
+  if (unit === "ms") return n / 1000;
+  return n;
+}
+
+const cssTimeRe = /(\d+(?:\.\d+)?|\.\d+)\s*(ms|s)\b/gi;
+
+function cssTimesSeconds(value) {
+  const times = [];
+  for (const m of value.matchAll(cssTimeRe)) {
+    times.push(m[2].toLowerCase() === "ms" ? parseFloat(m[1]) / 1000 : parseFloat(m[1]));
+  }
+  return times;
+}
+
+// Inspect SVG source for SMIL or CSS animations. Returns null for a static
+// SVG, otherwise { duration } — a best-effort guess in seconds at how long
+// one loop of the animation takes (null when it could not be determined).
+function detectSvgAnimation(code) {
+  const durations = [];
+  let animated = false;
+
+  let doc = null;
+  try {
+    doc = new DOMParser().parseFromString(code, "image/svg+xml");
+    if (doc.querySelector("parsererror")) doc = null;
+  } catch {
+    doc = null;
+  }
+
+  // SMIL: <animate>, <set>, <animateTransform>, <animateMotion>
+  if (doc) {
+    doc.querySelectorAll("animate, set, animateTransform, animateMotion").forEach((el) => {
+      animated = true;
+      const dur = smilClockSeconds(el.getAttribute("dur"));
+      if (dur === null || dur <= 0) return;
+      const repeatDur = smilClockSeconds(el.getAttribute("repeatDur"));
+      const repeatCountAttr = (el.getAttribute("repeatCount") || "").trim();
+      const repeatCount = /^\d+(\.\d+)?$/.test(repeatCountAttr)
+        ? parseFloat(repeatCountAttr) : null;
+      const begin = smilClockSeconds(el.getAttribute("begin")) || 0;
+      let total;
+      if (repeatDur !== null && repeatDur > 0) {
+        total = Math.max(0, begin) + repeatDur;
+      } else if (repeatCount !== null) {
+        total = Math.max(0, begin) + dur * repeatCount;
+      } else {
+        // Indefinite (or single-shot) repeat: one period is the loop length.
+        total = dur;
+      }
+      durations.push(total);
+    });
+  } else if (/<(animate|set|animateTransform|animateMotion)[\s>]/.test(code)) {
+    animated = true;
+  }
+
+  // CSS animations: require @keyframes plus an animation property.
+  if (/@keyframes\s/i.test(code) && /animation(?:-name|-duration)?\s*:/i.test(code)) {
+    animated = true;
+    for (const m of code.matchAll(/animation-duration\s*:\s*([^;}"']+)/gi)) {
+      durations.push(...cssTimesSeconds(m[1]));
+    }
+    for (const m of code.matchAll(/animation\s*:\s*([^;}"']+)/gi)) {
+      // Each comma-separated layer: first <time> is the duration.
+      for (const layer of m[1].split(",")) {
+        const times = cssTimesSeconds(layer);
+        if (!times.length) continue;
+        const infinite = /\binfinite\b/i.test(layer);
+        const countMatch = /(?:^|\s)(\d+(?:\.\d+)?)(?:\s|$)/.exec(
+          layer.replace(cssTimeRe, " ")
+        );
+        const count = infinite || !countMatch ? 1 : parseFloat(countMatch[1]);
+        const delay = infinite || times.length < 2 ? 0 : times[1];
+        durations.push(delay + times[0] * count);
+      }
+    }
+  }
+
+  if (!animated) return null;
+  const max = Math.max(0, ...durations);
+  return { duration: max > 0 ? Math.min(30, Math.round(max * 100) / 100) : null };
+}
+
+// Produce a copy of the SVG frozen at time t: CSS animations are shifted via
+// a negative animation-delay and paused, SMIL animations via negative begin
+// offsets. Rasterizing the result captures the frame at time t, because SVG
+// images drawn to a canvas render at document time 0.
+function snapshotSvgAtTime(code, t) {
+  const doc = new DOMParser().parseFromString(code, "image/svg+xml");
+  if (doc.querySelector("parsererror")) {
+    throw new Error("SVG could not be parsed");
+  }
+  const svg = doc.documentElement;
+  const style = doc.createElementNS("http://www.w3.org/2000/svg", "style");
+  style.textContent =
+    `*, *::before, *::after { animation-delay: -${t}s !important; ` +
+    "animation-play-state: paused !important; }";
+  svg.insertBefore(style, svg.firstChild);
+  doc.querySelectorAll("animate, set, animateTransform, animateMotion").forEach((el) => {
+    const begin = el.getAttribute("begin");
+    if (!begin || !begin.trim()) {
+      el.setAttribute("begin", `${-t}s`);
+      return;
+    }
+    // Shift each clock value in a begin list; leave event-based begins alone.
+    const shifted = begin.split(";").map((part) => {
+      const seconds = smilClockSeconds(part);
+      return seconds === null ? null : `${seconds - t}s`;
+    });
+    if (shifted.every((part) => part !== null)) {
+      el.setAttribute("begin", shifted.join(";"));
+    }
+  });
+  return new XMLSerializer().serializeToString(svg);
+}
+
+// ---- ffmpeg.wasm (lazy singleton, loaded from jsdelivr on first use) ----
+// The @ffmpeg/ffmpeg wrapper's UMD build cannot start its worker from a CDN
+// (cross-origin worker restrictions), so this drives @ffmpeg/core directly
+// from a small same-origin worker created from a blob URL. The core files are
+// also fetched into blob URLs so importScripts works cross-origin.
+const FFMPEG_CORE_BASE =
+  "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
+const FFMPEG_DOWNLOAD_MB = 31;
+
+async function fetchAsBlobUrl(url, mimeType) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Fetch of ${url} returned ${res.status}`);
+  const blob = new Blob([await res.arrayBuffer()], { type: mimeType });
+  return URL.createObjectURL(blob);
+}
+
+const ffmpegWorkerSource = `
+let core = null;
+self.onmessage = async (e) => {
+  const msg = e.data;
+  try {
+    let result = null;
+    let transfer = [];
+    if (msg.type === "load") {
+      importScripts(msg.coreURL);
+      core = await self.createFFmpegCore({
+        mainScriptUrlOrBlob: msg.coreURL + "#" +
+          btoa(JSON.stringify({ wasmURL: msg.wasmURL, workerURL: msg.coreURL }))
+      });
+      core.setProgress((p) => self.postMessage({ type: "progress", progress: p.progress }));
+    } else if (msg.type === "writeFile") {
+      core.FS.writeFile(msg.name, msg.data);
+    } else if (msg.type === "run") {
+      core.setTimeout(-1);
+      core.exec(...msg.args);
+      result = core.ret;
+      core.reset();
+    } else if (msg.type === "readFile") {
+      result = core.FS.readFile(msg.name, { encoding: "binary" });
+      transfer = [result.buffer];
+    } else if (msg.type === "deleteFile") {
+      core.FS.unlink(msg.name);
+    }
+    self.postMessage({ id: msg.id, result }, transfer);
+  } catch (err) {
+    self.postMessage({ id: msg.id, error: String((err && err.message) || err) });
+  }
+};
+`;
+
+let ffmpegPromise = null;
+// Generations run one at a time: the worker has a single filesystem.
+let ffmpegJobQueue = Promise.resolve();
+
+function getFfmpeg() {
+  if (!ffmpegPromise) {
+    ffmpegPromise = (async () => {
+      const [coreURL, wasmURL] = await Promise.all([
+        fetchAsBlobUrl(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
+        fetchAsBlobUrl(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`, "application/wasm")
+      ]);
+      const workerUrl = URL.createObjectURL(
+        new Blob([ffmpegWorkerSource], { type: "text/javascript" })
+      );
+      const worker = new Worker(workerUrl);
+      const pending = new Map();
+      let nextId = 0;
+      const handlers = { progress: null };
+      worker.onmessage = (e) => {
+        const msg = e.data;
+        if (msg.type === "progress") {
+          if (handlers.progress) handlers.progress(msg.progress);
+          return;
+        }
+        const entry = pending.get(msg.id);
+        if (!entry) return;
+        pending.delete(msg.id);
+        if (msg.error !== undefined) entry.reject(new Error(msg.error));
+        else entry.resolve(msg.result);
+      };
+      worker.onerror = () => {
+        pending.forEach((entry) => entry.reject(new Error("ffmpeg worker failed")));
+        pending.clear();
+      };
+      const call = (type, data, transfer) =>
+        new Promise((resolve, reject) => {
+          const id = nextId++;
+          pending.set(id, { resolve, reject });
+          worker.postMessage({ id, type, ...data }, transfer || []);
+        });
+      await call("load", { coreURL, wasmURL });
+      return { call, handlers };
+    })();
+    ffmpegPromise.catch(() => {
+      ffmpegPromise = null;
+    });
+  }
+  return ffmpegPromise;
+}
+
 class SvgBlock extends HTMLElement {
   connectedCallback() {
     if (this.shadowRoot) return;
 
     const code = this.getAttribute("data-svg") || "";
     const shadow = this.attachShadow({ mode: "open" });
+
+    this._animation = detectSvgAnimation(code);
+    const mp4Tab = this._animation
+      ? '<button data-tab="mp4">MP4</button>'
+      : "";
+    const mp4Panel = this._animation
+      ? `<div class="panel" data-panel="mp4">
+        <div class="mp4-controls">
+          <label>Loop length <input type="number" min="0.1" max="30" step="0.1"> s</label>
+          <button type="button" class="mp4-generate">Generate MP4</button>
+        </div>
+        <div class="mp4-note">Generates a looping H.264 MP4 with ffmpeg.wasm,
+          loaded from jsdelivr the first time this tab is opened
+          (~${FFMPEG_DOWNLOAD_MB} MB, once per page).</div>
+        <div class="image-status" hidden></div>
+        <div class="video-wrap" hidden>
+          <video autoplay muted loop playsinline controls></video>
+        </div>
+        <div class="image-actions" hidden>
+          <button type="button">Download MP4</button>
+        </div>
+      </div>`
+      : "";
 
     shadow.innerHTML = `
       <style>
@@ -434,6 +682,60 @@ class SvgBlock extends HTMLElement {
           color: #666;
         }
         .image-status.error { color: #dc2626; }
+        .mp4-controls {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 10px;
+          padding: 12px;
+          background: #fff;
+        }
+        .mp4-controls label {
+          font-size: 13px;
+          color: #666;
+        }
+        .mp4-controls input {
+          width: 70px;
+          font-family: inherit;
+          font-size: 13px;
+          border: 1px solid #e2e2e2;
+          border-radius: 6px;
+          padding: 5px 8px;
+        }
+        .mp4-controls button {
+          font-family: inherit;
+          font-size: 13px;
+          border: 1px solid #e2e2e2;
+          border-radius: 6px;
+          background: #f6f6f6;
+          color: #1a1a1a;
+          padding: 6px 14px;
+          cursor: pointer;
+        }
+        .mp4-controls button:hover:not(:disabled) {
+          border-color: #2563eb;
+          color: #2563eb;
+        }
+        .mp4-controls button:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+        .mp4-note {
+          padding: 0 12px 12px;
+          background: #fff;
+          font-size: 12px;
+          color: #999;
+        }
+        .video-wrap {
+          width: 100%;
+          background: #fff;
+          padding: 0 12px 12px;
+        }
+        .video-wrap video {
+          display: block;
+          width: 100%;
+          height: auto;
+        }
         iframe {
           display: block;
           width: 100%;
@@ -456,6 +758,7 @@ class SvgBlock extends HTMLElement {
         <button class="active" data-tab="render">Rendered</button>
         <button data-tab="png">PNG</button>
         <button data-tab="jpeg">JPEG</button>
+        ${mp4Tab}
         <button data-tab="code">Code</button>
       </div>
       <div class="panel active" data-panel="render">
@@ -482,6 +785,7 @@ class SvgBlock extends HTMLElement {
           <button type="button">Download JPEG</button>
         </div>
       </div>
+      ${mp4Panel}
       <div class="panel" data-panel="code"><pre></pre></div>
     `;
 
@@ -499,8 +803,195 @@ class SvgBlock extends HTMLElement {
           p.classList.toggle("active", p.dataset.panel === tab)
         );
         if (tab === "png" || tab === "jpeg") this.renderImage(tab);
+        if (tab === "mp4") this.prefetchFfmpeg();
       });
     });
+
+    if (this._animation) this.setupMp4Panel();
+  }
+
+  setupMp4Panel() {
+    const shadow = this.shadowRoot;
+    const panel = shadow.querySelector('.panel[data-panel="mp4"]');
+    const durationInput = panel.querySelector("input");
+    const generateBtn = panel.querySelector(".mp4-generate");
+    durationInput.value = this._animation.duration || 2;
+    generateBtn.addEventListener("click", () => this.generateMp4());
+  }
+
+  // Start downloading ffmpeg.wasm as soon as the MP4 tab is first opened, so
+  // it is (mostly) ready by the time the user clicks Generate.
+  prefetchFfmpeg() {
+    if (this._ffmpegPrefetched) return;
+    this._ffmpegPrefetched = true;
+
+    const panel = this.shadowRoot.querySelector('.panel[data-panel="mp4"]');
+    const status = panel.querySelector(".image-status");
+    const alreadyLoading = !!ffmpegPromise;
+    if (!this._generating) {
+      status.hidden = false;
+      status.classList.remove("error");
+      status.textContent = alreadyLoading
+        ? "Loading ffmpeg.wasm…"
+        : `Loading ffmpeg.wasm (~${FFMPEG_DOWNLOAD_MB} MB)…`;
+    }
+    getFfmpeg().then(
+      () => {
+        if (!this._generating) status.hidden = true;
+      },
+      (err) => {
+        // Allow Generate to retry: getFfmpeg() resets itself on failure.
+        this._ffmpegPrefetched = false;
+        if (!this._generating) {
+          status.classList.add("error");
+          status.textContent = `Could not load ffmpeg.wasm: ${err.message}`;
+        }
+      }
+    );
+  }
+
+  // Capture one frame of the animated SVG at time t, as PNG bytes.
+  snapshotFrame(t, width, height) {
+    const code = this.getAttribute("data-svg") || "";
+    const frameSvg = snapshotSvgAtTime(code, t);
+    const svgBlob = new Blob([frameSvg], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(svgUrl);
+        canvas.toBlob(async (blob) => {
+          if (!blob) return reject(new Error("Could not encode frame"));
+          resolve(new Uint8Array(await blob.arrayBuffer()));
+        }, "image/png");
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(svgUrl);
+        reject(new Error("Could not rasterize this SVG (is xmlns present?)"));
+      };
+      img.src = svgUrl;
+    });
+  }
+
+  async generateMp4() {
+    const shadow = this.shadowRoot;
+    const code = this.getAttribute("data-svg") || "";
+    const panel = shadow.querySelector('.panel[data-panel="mp4"]');
+    const durationInput = panel.querySelector("input");
+    const generateBtn = panel.querySelector(".mp4-generate");
+    const status = panel.querySelector(".image-status");
+    const videoWrap = panel.querySelector(".video-wrap");
+    const video = panel.querySelector("video");
+    const actions = panel.querySelector(".image-actions");
+    const downloadBtn = actions.querySelector("button");
+
+    const duration = Math.min(30, Math.max(0.1, parseFloat(durationInput.value) || 2));
+    durationInput.value = duration;
+    const fps = 30;
+    const frameCount = Math.max(2, Math.round(duration * fps));
+
+    // Mobile-friendly output: scale to fit 720px on the longest side, with
+    // even dimensions as required by yuv420p.
+    const [ratioW, ratioH] = svgAspectRatioNumbers(code);
+    const scale = 720 / Math.max(ratioW, ratioH);
+    const width = Math.max(2, 2 * Math.round((ratioW * scale) / 2));
+    const height = Math.max(2, 2 * Math.round((ratioH * scale) / 2));
+
+    this._generating = true;
+    generateBtn.disabled = true;
+    videoWrap.hidden = true;
+    actions.hidden = true;
+    status.hidden = false;
+    status.classList.remove("error");
+
+    const setStatus = (msg) => {
+      status.textContent = msg;
+    };
+
+    try {
+      setStatus(ffmpegPromise
+        ? "Loading ffmpeg.wasm…"
+        : `Loading ffmpeg.wasm (~${FFMPEG_DOWNLOAD_MB} MB)…`);
+      const ffmpeg = await getFfmpeg();
+
+      const frames = [];
+      for (let i = 0; i < frameCount; i++) {
+        setStatus(`Capturing frame ${i + 1}/${frameCount}…`);
+        frames.push(await this.snapshotFrame((i / fps) % duration, width, height));
+      }
+
+      // One generation at a time: the shared worker has a single filesystem.
+      const mp4 = await (ffmpegJobQueue = ffmpegJobQueue.catch(() => {}).then(async () => {
+        setStatus("Encoding…");
+        ffmpeg.handlers.progress = (progress) => {
+          if (progress >= 0 && progress <= 1) {
+            setStatus(`Encoding… ${Math.round(progress * 100)}%`);
+          }
+        };
+        for (let i = 0; i < frames.length; i++) {
+          const data = frames[i];
+          await ffmpeg.call(
+            "writeFile",
+            { name: `frame${String(i).padStart(5, "0")}.png`, data },
+            [data.buffer]
+          );
+        }
+        const rc = await ffmpeg.call("run", { args: [
+          "-framerate", String(fps), "-i", "frame%05d.png",
+          "-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "main",
+          "-preset", "veryfast", "-crf", "26", "-movflags", "+faststart",
+          "-y", "out.mp4"
+        ]});
+        const cleanup = [];
+        for (let i = 0; i < frames.length; i++) {
+          cleanup.push(ffmpeg.call("deleteFile", {
+            name: `frame${String(i).padStart(5, "0")}.png`
+          }).catch(() => {}));
+        }
+        await Promise.all(cleanup);
+        if (rc !== 0) throw new Error(`ffmpeg exited with code ${rc}`);
+        const bytes = await ffmpeg.call("readFile", { name: "out.mp4" });
+        await ffmpeg.call("deleteFile", { name: "out.mp4" }).catch(() => {});
+        return bytes;
+      }));
+
+      const blob = new Blob([mp4.buffer], { type: "video/mp4" });
+      const url = URL.createObjectURL(blob);
+      if (this._mp4Url) URL.revokeObjectURL(this._mp4Url);
+      this._mp4Url = url;
+
+      status.hidden = true;
+      video.onerror = () => {
+        status.hidden = false;
+        status.classList.remove("error");
+        setStatus("This browser cannot preview H.264 video — the download should still play elsewhere.");
+      };
+      video.src = url;
+      videoWrap.hidden = false;
+      actions.hidden = false;
+      const sizeKB = (mp4.byteLength / 1024).toFixed(1);
+      downloadBtn.textContent = `Download MP4 (${sizeKB} KB)`;
+      downloadBtn.onclick = () => {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "animation.mp4";
+        link.click();
+      };
+    } catch (err) {
+      status.hidden = false;
+      status.classList.add("error");
+      setStatus(`Could not generate MP4: ${err.message}`);
+    } finally {
+      this._generating = false;
+      generateBtn.disabled = false;
+    }
   }
 
   // Rasterize the SVG to PNG/JPEG at the size the SVG preview is displayed,
@@ -816,6 +1307,20 @@ Paste **markdown** here and watch it render on the right.
   <rect x="0" y="0" width="200" height="120" fill="#2563eb"/>
   <circle cx="100" cy="60" r="40" fill="#fbbf24"/>
   <text x="100" y="66" text-anchor="middle" font-family="Helvetica" font-size="18" fill="#1a1a1a">SVG</text>
+</svg>
+\`\`\`
+
+Animated SVGs get an extra **MP4** tab that renders a looping video in your
+browser using ffmpeg.wasm:
+
+\`\`\`svg
+<svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="200" height="120" fill="#0f172a"/>
+  <circle cx="100" cy="60" r="34" fill="none" stroke="#fbbf24" stroke-width="10"
+    stroke-linecap="round" stroke-dasharray="160 54">
+    <animateTransform attributeName="transform" type="rotate"
+      from="0 100 60" to="360 100 60" dur="2s" repeatCount="indefinite"/>
+  </circle>
 </svg>
 \`\`\`
 
