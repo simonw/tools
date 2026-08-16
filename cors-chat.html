@@ -562,6 +562,7 @@
             <strong id="active-title"></strong>
             <span id="active-meta"></span>
           </div>
+          <button id="copy-markdown-button" class="button" type="button">Copy Markdown</button>
           <button id="copy-json-button" class="button" type="button">Copy JSON</button>
           <button id="delete-chat-button" class="button danger" type="button" title="Delete conversation">Delete</button>
         </div>
@@ -738,6 +739,7 @@
         conversationBar: document.querySelector("#conversation-bar"),
         activeTitle: document.querySelector("#active-title"),
         activeMeta: document.querySelector("#active-meta"),
+        copyMarkdownButton: document.querySelector("#copy-markdown-button"),
         copyJsonButton: document.querySelector("#copy-json-button"),
         deleteChatButton: document.querySelector("#delete-chat-button"),
         transcript: document.querySelector("#transcript"),
@@ -1607,26 +1609,46 @@
         requestAnimationFrame(() => els.prompt.focus());
       }
 
-      function responseInput(conversation) {
+      function responseInput(conversation, includeReasoning = false) {
         const input = [];
         if (conversation.system) input.push({ role: "system", content: [{ type: "input_text", text: conversation.system }] });
         conversation.turns.forEach(turn => {
           if (turn.role === "user") input.push({ role: "user", content: [{ type: "input_text", text: turn.content }] });
-          if (turn.role === "assistant" && turn.content && !turn.error) input.push({ role: "assistant", content: [{ type: "output_text", text: turn.content }] });
+          if (turn.role === "assistant" && !turn.error) {
+            if (includeReasoning && turn.reasoning) input.push({ type: "reasoning", content: [{ type: "reasoning_text", text: turn.reasoning }] });
+            if (turn.content) input.push({ role: "assistant", content: [{ type: "output_text", text: turn.content }] });
+          }
         });
         return input;
       }
 
-      function responsePayload(conversation, stream = false) {
+      function responsePayload(conversation, stream = false, includeReasoning = false) {
         const requestOptions = JSON.parse(JSON.stringify(conversation.requestOptions || {}));
         if (requestOptions.text?.verbosity && !requestOptions.text.format) requestOptions.text.format = { type: "text" };
-        const payload = { model: conversation.model, input: responseInput(conversation), ...requestOptions };
+        const payload = { model: conversation.model, input: responseInput(conversation, includeReasoning), ...requestOptions };
         if (stream) payload.stream = true;
         return payload;
       }
 
       function exportPayload(conversation) {
-        return responsePayload(conversation);
+        return responsePayload(conversation, false, true);
+      }
+
+      function markdownExport(conversation) {
+        const effort = conversation.requestOptions?.reasoning?.effort;
+        const blocks = [`# ${conversation.title || "New conversation"}`, `\`${conversation.model}\`${effort ? ` · reasoning ${effort}` : ""}`];
+        if (conversation.system) blocks.push("## System", conversation.system.trim());
+        conversation.turns.forEach(turn => {
+          if (turn.role === "user") {
+            blocks.push("## User", (turn.content || "").trim());
+            return;
+          }
+          blocks.push("## Assistant");
+          if (turn.reasoning) blocks.push("### Reasoning", turn.reasoning.trim());
+          if (turn.content) blocks.push(turn.content.trim());
+          if (turn.error) blocks.push(`> Error: ${turn.error}`);
+        });
+        return `${blocks.join("\n\n")}\n`;
       }
 
       function appendTurnsForSend(conversation, userTurn, assistantTurn) {
@@ -1856,6 +1878,10 @@
       els.sidebarNewButton.addEventListener("click", openNewChatDialog);
       els.addHeaderButton.addEventListener("click", () => addHeaderRow("", ""));
       els.removeEndpointButton.addEventListener("click", removeEndpoint);
+      els.copyMarkdownButton.addEventListener("click", () => {
+        const conversation = activeConversation();
+        if (conversation) copyText(markdownExport(conversation), "Conversation Markdown copied");
+      });
       els.copyJsonButton.addEventListener("click", () => {
         const conversation = activeConversation();
         if (conversation) copyText(JSON.stringify(exportPayload(conversation), null, 2), "Responses API JSON copied");
