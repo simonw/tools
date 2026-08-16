@@ -602,10 +602,17 @@
           <input id="endpoint-name" type="text" placeholder="Local model server">
         </div>
         <div class="form-field">
+          <label style="display:flex;align-items:center;gap:8px">
+            <input id="bearer-auth" type="checkbox" style="width:auto;margin:0">
+            Use an Authorization bearer token
+          </label>
+          <p class="help">Good for endpoints that need an API key, e.g. OpenRouter (<code>https://openrouter.ai/api/v1</code>). You will be prompted for the token the first time it is needed. It is stored only in this browser, keyed by the endpoint URL, and is never included in the shareable URL fragment.</p>
+        </div>
+        <div class="form-field">
           <span class="form-label">Extra HTTP headers <span style="font-weight:400;color:var(--muted)">(optional)</span></span>
           <div id="headers-editor" class="headers-editor"></div>
           <button id="add-header-button" class="button" type="button" style="margin-top:8px">Add header</button>
-          <p class="help">Configuration, including header values, is saved in this browser and encoded in the URL fragment. Fragments are not sent in HTTP requests, but avoid sharing a URL that contains secrets.</p>
+          <p class="help">Configuration, including header values, is saved in this browser and encoded in the URL fragment. Fragments are not sent in HTTP requests, but avoid sharing a URL that contains secrets — for API keys, use the bearer token option above instead.</p>
         </div>
       </div>
       <div class="dialog-actions">
@@ -716,6 +723,7 @@
       "use strict";
 
       const STORAGE_KEY = "cors-chat:state:v1";
+      const TOKENS_KEY = "cors-chat:bearer-tokens:v1";
       const SVG_STREAM_INTERVAL = 110;
       const SVG_CSP = [
         "default-src 'none'",
@@ -752,6 +760,7 @@
         configError: document.querySelector("#config-error"),
         endpointUrl: document.querySelector("#endpoint-url"),
         endpointName: document.querySelector("#endpoint-name"),
+        bearerAuth: document.querySelector("#bearer-auth"),
         headersEditor: document.querySelector("#headers-editor"),
         addHeaderButton: document.querySelector("#add-header-button"),
         removeEndpointButton: document.querySelector("#remove-endpoint-button"),
@@ -845,8 +854,53 @@
         return Object.fromEntries(Object.entries(headers || {}).filter(([key]) => key.trim()).sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase())));
       }
 
-      function endpointId(url, headers) {
-        const value = `${url}\n${JSON.stringify(stableHeaders(headers))}`;
+      function loadBearerTokens() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(TOKENS_KEY) || "null");
+          return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+        } catch {
+          return {};
+        }
+      }
+
+      function saveBearerTokens(tokens) {
+        try {
+          localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
+        } catch (error) {
+          showToast(`Could not save the bearer token: ${error.message}`, true);
+        }
+      }
+
+      function clearBearerToken(url) {
+        const tokens = loadBearerTokens();
+        if (!(url in tokens)) return;
+        delete tokens[url];
+        saveBearerTokens(tokens);
+      }
+
+      function getBearerToken(url) {
+        const tokens = loadBearerTokens();
+        if (tokens[url]) return tokens[url];
+        const entered = window.prompt(`Enter the Authorization bearer token for ${url}\n\nIt will be stored in this browser only and sent as "Authorization: Bearer <token>". It is never included in the shareable URL.`);
+        const token = (entered || "").trim();
+        if (!token) return null;
+        tokens[url] = token;
+        saveBearerTokens(tokens);
+        return token;
+      }
+
+      function requestHeaders(endpoint) {
+        const headers = new Headers(endpoint.headers || {});
+        if (endpoint.bearerAuth) {
+          const token = getBearerToken(endpoint.url);
+          if (!token) throw new Error("This endpoint is configured to use an Authorization bearer token, but no token was provided");
+          headers.set("Authorization", `Bearer ${token}`);
+        }
+        return headers;
+      }
+
+      function endpointId(url, headers, bearerAuth) {
+        const value = `${url}\n${JSON.stringify(stableHeaders(headers))}${bearerAuth ? "\nbearer" : ""}`;
         let hash = 2166136261;
         for (let i = 0; i < value.length; i++) {
           hash ^= value.charCodeAt(i);
@@ -894,7 +948,7 @@
             showToast("The headers value in the URL fragment is not valid JSON", true);
           }
         }
-        return { url: rawUrl, name: params.get("name") || "", headers: stableHeaders(headers), model: params.get("model") || "" };
+        return { url: rawUrl, name: params.get("name") || "", headers: stableHeaders(headers), bearerAuth: params.get("bearer") === "1", model: params.get("model") || "" };
       }
 
       function writeFragment(endpoint, model) {
@@ -906,6 +960,7 @@
         params.set("url", endpoint.url);
         if (endpoint.name) params.set("name", endpoint.name);
         if (Object.keys(endpoint.headers || {}).length) params.set("headers", JSON.stringify(stableHeaders(endpoint.headers)));
+        if (endpoint.bearerAuth) params.set("bearer", "1");
         if (model) params.set("model", model);
         history.replaceState(null, "", `${location.pathname}${location.search}#${params}`);
       }
@@ -919,12 +974,12 @@
           showToast(`Invalid endpoint in URL: ${error.message}`, true);
           return false;
         }
-        const id = endpointId(config.url, config.headers);
+        const id = endpointId(config.url, config.headers, config.bearerAuth);
         const existing = state.endpoints.find(item => item.id === id);
         if (existing) {
           if (config.name) existing.name = config.name;
         } else {
-          state.endpoints.push({ id, name: config.name, url: config.url, headers: config.headers });
+          state.endpoints.push({ id, name: config.name, url: config.url, headers: config.headers, bearerAuth: config.bearerAuth });
         }
         state.activeEndpointId = id;
         const activeBelongsHere = state.conversations.some(item => item.id === state.activeConversationId && item.endpointId === id);
@@ -987,8 +1042,14 @@
         setConnectionStatus("connecting", `Connecting to ${endpoint.url}`);
         updateNewButtons();
         try {
-          const response = await fetch(`${endpoint.url}/models`, { headers: endpoint.headers || {}, signal: modelRequest.signal });
-          if (!response.ok) throw new Error(await responseError(response));
+          const response = await fetch(`${endpoint.url}/models`, { headers: requestHeaders(endpoint), signal: modelRequest.signal });
+          if (!response.ok) {
+            if (response.status === 401 && endpoint.bearerAuth) {
+              clearBearerToken(endpoint.url);
+              throw new Error(`${await responseError(response)} — the stored bearer token was rejected and has been cleared, so you will be prompted for a new one on the next request`);
+            }
+            throw new Error(await responseError(response));
+          }
           const data = await response.json();
           if (!Array.isArray(data.data)) throw new Error("The /models response did not contain a data array");
           availableModels = data.data.filter(item => item && typeof item.id === "string").sort((a, b) => a.id.localeCompare(b.id));
@@ -1444,6 +1505,7 @@
         editingEndpointId = endpoint?.id || null;
         els.endpointUrl.value = endpoint?.url || "";
         els.endpointName.value = endpoint?.name || "";
+        els.bearerAuth.checked = !!endpoint?.bearerAuth;
         els.headersEditor.replaceChildren();
         Object.entries(endpoint?.headers || {}).forEach(([name, value]) => addHeaderRow(name, value));
         if (!els.headersEditor.children.length) addHeaderRow("", "");
@@ -1498,17 +1560,21 @@
 
       async function saveEndpoint() {
         setDialogError("");
+        const bearerAuth = els.bearerAuth.checked;
         let url, headers;
         try {
           url = normalizeBaseUrl(els.endpointUrl.value);
           headers = collectHeaders();
+          if (bearerAuth && Object.keys(headers).some(name => name.toLowerCase() === "authorization")) {
+            throw new Error("Remove the Authorization header from the extra headers — the bearer token option manages that header for you, and keeps the token out of the shareable URL");
+          }
         } catch (error) {
           setDialogError(error.message);
           return;
         }
         const oldId = editingEndpointId;
-        const id = endpointId(url, headers);
-        const endpoint = { id, url, headers, name: els.endpointName.value.trim() };
+        const id = endpointId(url, headers, bearerAuth);
+        const endpoint = { id, url, headers, bearerAuth, name: els.endpointName.value.trim() };
         const existingIndex = state.endpoints.findIndex(item => item.id === id);
         if (existingIndex >= 0) state.endpoints[existingIndex] = endpoint;
         else state.endpoints.push(endpoint);
@@ -1537,6 +1603,7 @@
         if (!confirm(`Remove ${endpointLabel(endpoint)}?${suffix}`)) return;
         state.endpoints = state.endpoints.filter(item => item.id !== endpoint.id);
         state.conversations = state.conversations.filter(item => item.endpointId !== endpoint.id);
+        if (endpoint.bearerAuth && !state.endpoints.some(item => item.url === endpoint.url && item.bearerAuth)) clearBearerToken(endpoint.url);
         state.activeEndpointId = state.endpoints[0]?.id || null;
         state.activeConversationId = state.activeEndpointId ? latestConversationFor(state.activeEndpointId)?.id || null : null;
         availableModels = [];
@@ -1686,7 +1753,7 @@
         updateNewButtons();
 
         try {
-          const headers = new Headers(endpoint.headers || {});
+          const headers = requestHeaders(endpoint);
           if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
           const response = await fetch(`${endpoint.url}/responses`, {
             method: "POST",
@@ -1694,7 +1761,13 @@
             body: JSON.stringify(requestBody),
             signal: controller.signal
           });
-          if (!response.ok) throw new Error(await responseError(response));
+          if (!response.ok) {
+            if (response.status === 401 && endpoint.bearerAuth) {
+              clearBearerToken(endpoint.url);
+              throw new Error(`${await responseError(response)} — the stored bearer token was rejected and has been cleared, so you will be prompted for a new one on the next request`);
+            }
+            throw new Error(await responseError(response));
+          }
           const contentType = response.headers.get("content-type") || "";
           if (contentType.includes("text/event-stream") && response.body) {
             await consumeEventStream(response.body, event => applyStreamEvent(event, assistantTurn));
