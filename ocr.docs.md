@@ -1,3 +1,3 @@
-Extract text from PDF documents and images using optical character recognition (OCR) directly in your browser. The tool leverages Tesseract.js for text recognition and PDF.js to handle multi-page PDF files, supporting multiple languages and file formats including JPEG, PNG, and GIF. All processing occurs locally in your browser with no files being transmitted to external servers.
+Extract text from PDF documents and images using optical character recognition (OCR) directly in your browser. The tool uses Tesseract.js for text recognition and PDF.js to handle multi-page PDF files, supporting over 100 languages and file formats including JPEG, PNG, and GIF. All processing occurs locally in your browser with no files being transmitted to external servers.
 
-<!-- Generated from commit: c335adf1faeb762d474771d17a2d0c8e41204fb0 -->
+<!-- Generated from commit: 2dfe06e7d505ac26bf6045f62a60005c6ba19c8d -->
