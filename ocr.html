@@ -5,9 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script defer data-domain="tools.simonwillison.net" src="https://plausible.io/js/script.js"></script>
   <script type="module">
-  import pdfjsDist from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/+esm';
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.mjs";
+  // Import the package's own ESM build rather than jsdelivr's "+esm" bundle,
+  // and publish it ourselves - relying on the bundle to set a global was
+  // fragile and stopped working.
+  window.pdfjsLibReady = import(
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.min.mjs'
+  ).then((pdfjsLib) => {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.mjs";
+    window.pdfjsLib = pdfjsLib;
+    return pdfjsLib;
+  });
   </script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -411,6 +419,8 @@ document.addEventListener('paste', (event) => {
 
 async function convertPDFToImages(file) {
   // returns { numPages, imageIterator }
+  // Wait for the PDF.js module script, which may still be loading
+  const pdfjsLib = await window.pdfjsLibReady;
   const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
   const numPages = pdf.numPages;
   async function* images() {
