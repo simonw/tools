@@ -490,7 +490,9 @@ mark.hit.pulse {
 // Add new patterns to this array and they get a checkbox, per-pattern count, and highlighting for free.
 // makeChainFinder builds a detector for "HEAD X, HEAD Y, ..." lists and counts the items;
 // makeRegexFinder wraps a plain regex (must use the g flag); makeEchoFinder builds a
-// detector for runs of consecutive sentences repeating the same multi-word skeleton.
+// detector for runs of consecutive sentences repeating the same multi-word skeleton;
+// makeQuestionChainFinder flags runs of consecutive question sentences; and
+// makeAnaphoraFinder flags runs of consecutive sentences opening on the same word.
 
 const CHAIN_BODY = String.raw`[^,.;:!?\n\u2013\u2014\u2026]*`;
 const CHAIN_SEP = String.raw`(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+|\s*[;&\u2013\u2014]\s*(?:and\s+|or\s+)?|\s+-{1,2}\s+)`;
@@ -574,6 +576,69 @@ function makeEchoFinder({ minGram = 3, minRun = 2 } = {}) {
       } else {
         i += 1;
       }
+    }
+    return found;
+  };
+}
+
+// Flags runs of consecutive question sentences -- the stacked rhetorical
+// interrogation. The badge counts the questions.
+function makeQuestionChainFinder({ minRun = 2 } = {}) {
+  const chain = /[^.!?\n]+\?(?:\s+[^.!?\n]+\?)+/g;
+  return function (text) {
+    const found = [];
+    for (const m of text.matchAll(chain)) {
+      const count = (m[0].match(/\?/g) || []).length;
+      if (count < minRun) continue;
+      let start = m.index;
+      while (start < m.index + m[0].length && /\s/.test(text[start])) start += 1;
+      found.push({
+        start,
+        end: m.index + m[0].length,
+        count,
+        badge: String(count),
+        badgeTitle: count + ' questions in a row'
+      });
+    }
+    return found;
+  };
+}
+
+// Flags runs of consecutive sentences opening on the same word -- "Maybe X.
+// Maybe Y. Maybe Z." Pronouns and articles are skipped, since repeating those
+// is just ordinary prose. The badge counts the sentences.
+const ANAPHORA_SKIP = /^(?:i|it|the|a|an|this|that|we|you|they|he|she|there|but|and|so|in|as|if|my|his|her|their|its|these|those|for|at|on|of|to|is|was)$/i;
+function makeAnaphoraFinder({ minRun = 3 } = {}) {
+  const SENT = /[^.!?\n]+[.!?]/g;
+  return function (text) {
+    const sents = [];
+    for (const m of text.matchAll(SENT)) {
+      const w = m[0].match(/[A-Za-z'’-]+/);
+      if (w) {
+        sents.push({
+          start: m.index + m[0].indexOf(w[0]),
+          end: m.index + m[0].length,
+          head: w[0].toLowerCase()
+        });
+      }
+    }
+    const found = [];
+    let i = 0;
+    while (i < sents.length) {
+      let j = i;
+      while (j + 1 < sents.length && sents[j + 1].head === sents[i].head
+             && sents[j + 1].start - sents[j].end < 4) j += 1;
+      const run = j - i + 1;
+      if (run >= minRun && !ANAPHORA_SKIP.test(sents[i].head)) {
+        found.push({
+          start: sents[i].start,
+          end: sents[j].end,
+          count: run,
+          badge: String(run),
+          badgeTitle: run + ' sentences opening “' + sents[i].head + '”'
+        });
+        i = j + 1;
+      } else i += 1;
     }
     return found;
   };
@@ -705,6 +770,48 @@ const patterns = [
     find: makeRegexFinder(/\b(?:hold|fit|fits|holds|held)\s+(?:it\s+)?in\s+your\s+head\b|\bbatteries[-\s]included\b|\bit\s+just\s+works\b|\bzero[-\s]config(?:uration)?\b|\bsane\s+defaults\b/gi)
   },
   {
+    id: 'stacked-questions',
+    name: 'Stacked rhetorical questions',
+    description: 'Two or more questions fired in a row, usually fragments after the first: “Do I know how it works? Where it breaks? Which corners it cut?” The badge counts the questions.',
+    find: makeQuestionChainFinder({ minRun: 2 })
+  },
+  {
+    id: 'sentence-anaphora',
+    name: 'Repeated sentence openers',
+    description: 'Three or more consecutive sentences starting on the same word — “Maybe nobody needed it. Maybe it introduced … Maybe a small convenience …” Pronouns and articles are ignored. The badge counts the sentences.',
+    find: makeAnaphoraFinder({ minRun: 3 })
+  },
+  {
+    id: 'colon-triple',
+    name: 'Colon into a triple',
+    description: 'A colon opening onto three or more comma-separated items: “separate ports, processes, and local state”. The most common shape LLM prose uses to sound concrete. Noisy in technical writing — leave it off by default if your corpus is documentation.',
+    find: makeRegexFinder(/:\s+[^.!?;:\n]{2,40},\s+[^.!?;:\n]{2,40},\s+(?:and\s+|or\s+)?[^.!?;:\n]{2,40}(?=[.!?\n])/g)
+  },
+  {
+    id: 'heres-the-twist',
+    name: '“Here’s the twist”',
+    description: 'The stage-managed reveal: “here’s the twist”, “here’s the thing”, “here’s the catch / kicker / rub”, “here’s the first example:”.',
+    find: makeRegexFinder(/\bhere(?:['’]s|\s+is)\s+(?:the|a|my|one)\s+(?:twist|thing|catch|kicker|rub|problem|first|second|third|next|recent|real|best|worst|surprising|interesting|key|important)\b[\w\s-]{0,20}[:.]/gi)
+  },
+  {
+    id: 'x-is-dead',
+    name: '“X is dead”',
+    description: 'The obituary headline and its sequel: “peer code review is dead”, “botd is dead; long live botd”.',
+    find: makeRegexFinder(/\b[\w\s]{3,30}\s+(?:is|are)\s+dead\b|\blong\s+live\s+\w+/gi)
+  },
+  {
+    id: 'thats-why-mattered',
+    name: '“That’s why X mattered”',
+    description: 'Retroactively assigning significance: “that’s why being able to open the environment mattered”, “this is why preserving every conversation mattered”.',
+    find: makeRegexFinder(/\b(?:that|this)(?:['’]s|\s+(?:is|was))\s+why\b[^.!?\n]{0,80}?\b(?:matter(?:s|ed)?|count(?:s|ed)?)\b/gi)
+  },
+  {
+    id: 'stranded-auxiliary',
+    name: 'Stranded auxiliary contrast',
+    description: 'A clause that lands on a bare auxiliary for the reversal: “The tool died; the data didn’t.”, “Reading mostly passed … Writing didn’t”, “Maybe it wouldn’t have.”',
+    find: makeRegexFinder(/[;:,]\s+[^.;:!?\n]{2,50}\s(?:did|does|do|was|were|is|are|has|have|had|can|could|would|will)(?:n['’]t)?\s*[.;]|\b(?:Maybe|Perhaps)\s+\w+[^.!?\n]{0,40}\s(?:would|could|might|should|did|had|was|is)(?:n['’]t)?\s+(?:have\s*)?\./g)
+  },
+  {
     id: 'ai-vocab',
     group: WIKI_GROUP,
     name: 'AI vocabulary words',
@@ -722,8 +829,8 @@ const patterns = [
     id: 'note-that',
     group: WIKI_GROUP,
     name: '\u201cIt\u2019s important to note\u201d',
-    description: 'Didactic hedging: \u201cit is important to note that\u201d, \u201cit\u2019s worth noting\u201d, \u201cit should be noted\u201d.',
-    find: makeRegexFinder(/\bit(?:['\u2019]s|\s+(?:is|was))\s+(?:also\s+)?(?:important|worth|crucial|essential|vital)\s+(?:to\s+(?:note|remember|understand|recognize|mention)|noting|mentioning|remembering)\b(?:\s+that\b)?|\bit\s+should\s+be\s+noted\b/gi)
+    description: 'Didactic hedging: \u201cit is important to note that\u201d, \u201cit\u2019s worth noting\u201d, \u201cit should be noted\u201d, plus the \u201cworth pausing / considering / asking\u201d family.',
+    find: makeRegexFinder(/\bit(?:['\u2019]s|\s+(?:is|was))\s+(?:also\s+)?(?:important|worth|crucial|essential|vital)\s+(?:to\s+(?:note|remember|understand|recognize|mention|pause|consider|ask)|noting|mentioning|remembering|pausing|considering|asking)\b(?:\s+that\b)?|\bit\s+should\s+be\s+noted\b/gi)
   },
   {
     id: 'testament',
@@ -757,8 +864,8 @@ const patterns = [
     id: 'despite-challenges',
     group: WIKI_GROUP,
     name: '\u201cDespite these challenges\u201d',
-    description: 'The boilerplate challenges-and-outlook formula: \u201cdespite these challenges\u201d, \u201cfaces several challenges\u201d, \u201cchallenges remain\u201d, \u201cremains to be seen\u201d.',
-    find: makeRegexFinder(/\bdespite\s+(?:these|those|such|its|their|the|numerous|significant|ongoing)\s+(?:\w+\s+)?challenges\b|\bfac(?:e|es|ed|ing)\s+(?:several|numerous|many|significant|various|a\s+number\s+of)\s+challenges\b|\bchallenges\s+remain\b|\bremains\s+to\s+be\s+seen\b/gi)
+    description: 'The boilerplate challenges-and-outlook formula: \u201cdespite these challenges\u201d, \u201cfaces several challenges\u201d, \u201cchallenges remain\u201d, \u201cremains to be seen\u201d, \u201ctime will tell\u201d.',
+    find: makeRegexFinder(/\bdespite\s+(?:these|those|such|its|their|the|numerous|significant|ongoing)\s+(?:\w+\s+)?challenges\b|\bfac(?:e|es|ed|ing)\s+(?:several|numerous|many|significant|various|a\s+number\s+of)\s+challenges\b|\bchallenges\s+remain\b|\bremains\s+to\s+be\s+seen\b|\b(?:only\s+)?time\s+will\s+tell\b/gi)
   },
   {
     id: 'participle-tail',
@@ -908,6 +1015,12 @@ Despite these challenges, the team kept shipping. They adapted to an ever-evolvi
 The parser is a tiny state machine. The renderer is a tiny state machine.
 
 I won't pretend the rollout was smooth. It turns out that nobody reads the changelog. Here is the whole secret. The small core still fits in your head. That's the part a schedule can't capture. It's the only estimate I trust. You don't have to take my word for it.
+
+The launch needed three things: a blog post, a demo video, and a pricing page. Here's the catch: the demo was recorded months earlier. Do I regret shipping it? Do I miss the old importer?
+
+The old importer is dead, and nobody mourned. That's why the export button mattered. The tool died; the data didn't.
+
+Maybe nobody needed the importer. Maybe the shortcut confused people. Maybe the redesign was overdue all along.
 
 This closing paragraph is deliberately ordinary, with no list patterns at all, so nothing here should light up.`;
 
@@ -1426,6 +1539,34 @@ const patternCases = [
   ['fits-in-your-head', 'Install it and it just works.', 1],
   ['fits-in-your-head', 'We choose boring technology on purpose.', 0],
   ['fits-in-your-head', 'The helmet fits your head.', 0],
+  ['stacked-questions', 'Do I know how it works? Where it breaks? Which corners it cut?', 1, [3]],
+  ['stacked-questions', 'Was it worth it? Would I do it again?', 1, [2]],
+  ['stacked-questions', 'Did it work? Yes, and then some.', 0, []],
+  ['stacked-questions', 'What changed?', 0, []],
+  ['sentence-anaphora', 'Maybe nobody needed it. Maybe the timing was off. Maybe both.', 1, [3]],
+  ['sentence-anaphora', 'Maybe nobody needed it. Maybe the timing was off.', 0, []],
+  ['sentence-anaphora', 'The parser is small. The renderer is small. The scheduler is small.', 0, []],
+  ['sentence-anaphora', 'Everything changed. Everything slowed down. Everything cost more.', 1, [3]],
+  ['colon-triple', 'The fix needs three things: separate ports, separate processes, and separate state.', 1],
+  ['colon-triple', 'Each service gets its own everything: ports, processes, local state.', 1],
+  ['colon-triple', 'The recipe calls for flour, butter, and sugar.', 0],
+  ['colon-triple', 'Note: the flag is off by default.', 0],
+  ['heres-the-twist', "Here's the twist: nobody clicked it.", 1],
+  ['heres-the-twist', 'Here is the thing. The demo was fake.', 1],
+  ['heres-the-twist', "Here's a surprising result: it got faster.", 1],
+  ['heres-the-twist', "Here's the door code.", 0],
+  ['x-is-dead', 'Peer code review is dead.', 1],
+  ['x-is-dead', 'The old importer is dead; long live the importer.', 2],
+  ['x-is-dead', 'Long live the king.', 1],
+  ['x-is-dead', 'He played dead until the bear left.', 0],
+  ['thats-why-mattered', "That's why being able to open the environment mattered.", 1],
+  ['thats-why-mattered', 'This is why preserving every conversation mattered.', 1],
+  ['thats-why-mattered', "That's why the deadline counts.", 1],
+  ['thats-why-mattered', 'That is why we left early.', 0],
+  ['stranded-auxiliary', "The tool died; the data didn't.", 1],
+  ['stranded-auxiliary', "Reading mostly passed, writing didn't.", 1],
+  ['stranded-auxiliary', "Maybe it wouldn't have.", 1],
+  ['stranded-auxiliary', 'The test passed and the build was green.', 0],
   ['ai-vocab', 'We delve into the intricacies of the interplay.', 3],
   ['ai-vocab', 'Her vibrant tapestry hung in the bustling hall.', 3],
   ['ai-vocab', 'A meticulously curated, seamless experience.', 2],
@@ -1438,6 +1579,8 @@ const patternCases = [
   ['note-that', 'It is important to note that timing matters.', 1],
   ['note-that', 'It’s worth noting the fees are separate.', 1],
   ['note-that', 'It should be noted that this changed in 2020.', 1],
+  ['note-that', "It's worth pausing on that number.", 1],
+  ['note-that', 'It is worth asking who benefits.', 1],
   ['note-that', 'Please note the door code.', 0],
   ['testament', 'The building stands as a testament to postwar optimism.', 1],
   ['testament', 'Her career is a testament to persistence.', 1],
@@ -1457,6 +1600,9 @@ const patternCases = [
   ['despite-challenges', 'Despite these challenges, growth continued.', 1],
   ['despite-challenges', 'The sector faces several challenges.', 1],
   ['despite-challenges', 'Whether it works remains to be seen.', 1],
+  ['despite-challenges', 'Only time will tell whether it sticks.', 1],
+  ['despite-challenges', 'Time will tell.', 1],
+  ['despite-challenges', 'He arrived on time and will tell you himself.', 0],
   ['despite-challenges', 'The climb was a challenge.', 0],
   ['participle-tail', 'The bridge reopened in June, highlighting the city’s investment in infrastructure.', 1],
   ['participle-tail', 'Sales doubled, underscoring the strength of the brand.', 1],
