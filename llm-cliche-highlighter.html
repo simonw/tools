@@ -489,7 +489,8 @@ mark.hit.pulse {
 // Each pattern: { id, name, description, find(text) -> [{ start, end, badge?, badgeTitle?, count? }] }
 // Add new patterns to this array and they get a checkbox, per-pattern count, and highlighting for free.
 // makeChainFinder builds a detector for "HEAD X, HEAD Y, ..." lists and counts the items;
-// makeRegexFinder wraps a plain regex (must use the g flag).
+// makeRegexFinder wraps a plain regex (must use the g flag); makeEchoFinder builds a
+// detector for runs of consecutive sentences repeating the same multi-word skeleton.
 
 const CHAIN_BODY = String.raw`[^,.;:!?\n\u2013\u2014\u2026]*`;
 const CHAIN_SEP = String.raw`(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+|\s*[;&\u2013\u2014]\s*(?:and\s+|or\s+)?|\s+-{1,2}\s+)`;
@@ -521,6 +522,58 @@ function makeRegexFinder(re) {
     const found = [];
     for (const m of text.matchAll(re)) {
       found.push({ start: m.index, end: m.index + m[0].length });
+    }
+    return found;
+  };
+}
+
+// makeEchoFinder builds a detector for runs of consecutive sentences that
+// repeat the same multi-word skeleton -- the "X does A. Y does B." triad.
+// The badge counts the echoing sentences.
+function makeEchoFinder({ minGram = 3, minRun = 2 } = {}) {
+  const SENT = /[^.!?\n]+[.!?]?/g;
+  const grams = (s, n) => {
+    const w = s.toLowerCase().match(/[a-z0-9'’-]+/g) || [];
+    const out = new Set();
+    for (let i = 0; i + n <= w.length; i++) out.add(w.slice(i, i + n).join(' '));
+    return out;
+  };
+  return function (text) {
+    const sents = [];
+    for (const m of text.matchAll(SENT)) {
+      if ((m[0].match(/\S+/g) || []).length >= 4) {
+        sents.push({ start: m.index, end: m.index + m[0].length, text: m[0] });
+      }
+    }
+    const found = [];
+    let i = 0;
+    while (i < sents.length) {
+      let j = i;
+      let shared = null;
+      while (j + 1 < sents.length) {
+        if (sents[j + 1].start - sents[j].end > 3) break; // adjacent prose only
+        const a = grams(sents[j].text, minGram);
+        const b = grams(sents[j + 1].text, minGram);
+        const common = [...a].filter(g => b.has(g));
+        if (!common.length) break;
+        shared = common.sort((x, y) => y.length - x.length)[0];
+        j += 1;
+      }
+      const run = j - i + 1;
+      if (run >= minRun && shared) {
+        let end = sents[j].end;
+        while (end > sents[i].start && /\s/.test(text[end - 1])) end -= 1;
+        found.push({
+          start: sents[i].start,
+          end,
+          count: run,
+          badge: String(run),
+          badgeTitle: run + ' sentences echoing “' + shared + '”'
+        });
+        i = j + 1;
+      } else {
+        i += 1;
+      }
     }
     return found;
   };
@@ -602,6 +655,54 @@ const patterns = [
     name: '\u201cThat\u2019s not nothing\u201d',
     description: '\u201cThat is not nothing\u201d / \u201cthat\u2019s not nothing\u201d, plus the \u201cthis / it / which is not nothing\u201d variants.',
     find: makeRegexFinder(/\b(?:that|this|it|which)(?:['\u2019]s|\s+(?:is|was))\s+not\s+nothing\b/gi)
+  },
+  {
+    id: 'is-the-whole',
+    name: '“Is the whole …”',
+    description: 'Any subject + “is the whole point / trick / pitch / idea”, plus the “here is the whole …” opener. The twin of “is the entire …”, and a generalisation of “That’s the whole …” to subjects other than that/this.',
+    find: makeRegexFinder(/(?:\b(?:is|was|are|were)|['’]s)\s+the\s+whole\b(?:\s+\w+)?|\bhere(?:['’]s|\s+is)\s+the\s+whole\b(?:\s+\w+)?/gi)
+  },
+  {
+    id: 'echo-triad',
+    name: 'Echoing sentence runs',
+    description: 'Consecutive sentences built on the same repeated skeleton — “A shopping cart is an object in the system. A chat room is an object in the system.” The badge counts the echoing sentences.',
+    find: makeEchoFinder({ minGram: 4, minRun: 2 })
+  },
+  {
+    id: 'performative-honesty',
+    name: 'Performative honesty',
+    description: 'Sincerity announced rather than demonstrated: “I won’t pretend”, “I’ll be honest”, “let’s be honest”, “to be clear”, and sentence-initial “Honestly,” or “Look,”.',
+    find: makeRegexFinder(/\bI\s+(?:will\s+not|won['’]t)\s+pretend\b|\b(?:I['’]ll|let['’]s|to)\s+be\s+(?:honest|clear|blunt|real)\b|(?:^|[.!?–—]\s+|\n)(?:Honestly|Look|Truthfully|Frankly)\s*,/gi)
+  },
+  {
+    id: 'thats-the-part',
+    name: '“That’s the part …”',
+    description: 'Gesturing at a favoured detail instead of stating it: “that is the part a counter can’t reach”, “the part that makes me trust the rest”, “my favourite part of …”.',
+    find: makeRegexFinder(/\b(?:that|this|it)(?:['’]s|\s+(?:is|was))\s+the\s+part\b|\bthe\s+part\s+that\s+(?:makes|made|gets|got|keeps|kept)\s+(?:me|you|us|it)\b|\bmy\s+favou?rite\s+part\s+of\b/gi)
+  },
+  {
+    id: 'the-only-i-trust',
+    name: '“The only X I trust”',
+    description: 'The narrowing superlative reveal: “the only marketing I trust”, “the only thing it needs”, “the only X that matters”.',
+    find: makeRegexFinder(/\bthe\s+only\s+[\w'’-]+(?:\s+[\w'’-]+){0,2}?\s+(?:I|you|we|it|he|she|they)\s+(?:trust|need|needs|care|want|wants|use|uses|believe)\b|\bthe\s+only\s+[\w'’-]+\s+that\s+(?:matters|counts|works|survives)\b/gi)
+  },
+  {
+    id: 'take-my-word',
+    name: '“Don’t take my word for it”',
+    description: 'The stock invitation to verify: “you don’t have to take my word for it”, “don’t take my word for any of this”.',
+    find: makeRegexFinder(/\b(?:you\s+)?(?:do\s+not|don['’]t)\s+(?:have\s+to\s+)?take\s+my\s+word\s+for\s+(?:it|any\s+of\s+(?:it|this|that))\b/gi)
+  },
+  {
+    id: 'turns-out',
+    name: '“Turns out …”',
+    description: 'The casual-revelation opener, almost always bolted to a tidy conclusion: “Turns out X”, “it turns out that X”.',
+    find: makeRegexFinder(/(?:^|[.!?–—]\s+|\n)Turns\s+out\b|\bit\s+turns\s+out\s+that\b/gi)
+  },
+  {
+    id: 'fits-in-your-head',
+    name: '“Fits in your head”',
+    description: 'Dev-blog boilerplate for simplicity: “small enough to hold in your head”, “batteries included”, “it just works”, “zero config”, “sane defaults”.',
+    find: makeRegexFinder(/\b(?:hold|fit|fits|holds|held)\s+(?:it\s+)?in\s+your\s+head\b|\bbatteries[-\s]included\b|\bit\s+just\s+works\b|\bzero[-\s]config(?:uration)?\b|\bsane\s+defaults\b/gi)
   },
   {
     id: 'ai-vocab',
@@ -803,6 +904,10 @@ In this guide we delve into the redesign. It is important to note that the rollo
 The studio is nestled in a converted warehouse. The finished space is not just an office, but a small museum. Visitors keep coming back, reflecting the appeal of the collection. The steady attendance is a testament to the curators.
 
 Despite these challenges, the team kept shipping. They adapted to an ever-evolving landscape. As of my last update, the pricing page still said “coming soon”.
+
+The parser is a tiny state machine. The renderer is a tiny state machine.
+
+I won't pretend the rollout was smooth. It turns out that nobody reads the changelog. Here is the whole secret. The small core still fits in your head. That's the part a schedule can't capture. It's the only estimate I trust. You don't have to take my word for it.
 
 This closing paragraph is deliberately ordinary, with no list patterns at all, so nothing here should light up.`;
 
@@ -1288,6 +1393,39 @@ const patternCases = [
   ['not-nothing', 'The launch drew a small crowd, which was not nothing.', 1],
   ['not-nothing', 'She insisted that nothing was wrong.', 0],
   ['not-nothing', 'There is nothing left to say.', 0],
+  ['is-the-whole', 'Distribution is the whole game.', 1],
+  ['is-the-whole', "Here's the whole pitch in one slide.", 1],
+  ['is-the-whole', 'That was the whole point of the meeting.', 1],
+  ['is-the-whole', 'The whole team showed up.', 0],
+  ['echo-triad', 'A shopping cart is an object in the system. A chat room is an object in the system.', 1, [2]],
+  ['echo-triad', 'The parser is a state machine. The renderer is a state machine. The scheduler is a state machine.', 1, [3]],
+  ['echo-triad', 'The parser is fast today. The renderer is fast today.', 0, []],
+  ['echo-triad', 'The parser is fast. The tests are slow.', 0, []],
+  ['performative-honesty', "I won't pretend the migration was painless.", 1],
+  ['performative-honesty', "Let's be honest: nobody reads the docs.", 1],
+  ['performative-honesty', 'To be clear, the API is unchanged.', 1],
+  ['performative-honesty', 'Honestly, it was fine.', 1],
+  ['performative-honesty', 'She answered honestly.', 0],
+  ['performative-honesty', 'Look at the diagram.', 0],
+  ['thats-the-part', "That's the part a counter can't reach.", 1],
+  ['thats-the-part', 'The part that makes me trust the rest is the errata.', 1],
+  ['thats-the-part', 'My favorite part of the demo was the undo.', 1],
+  ['thats-the-part', 'He played the part of the villain.', 0],
+  ['the-only-i-trust', 'It’s the only marketing I trust.', 1],
+  ['the-only-i-trust', 'The only benchmark that matters is retention.', 1],
+  ['the-only-i-trust', 'The only thing it needs is a cache.', 1],
+  ['the-only-i-trust', 'She was the only engineer on call.', 0],
+  ['take-my-word', "You don't have to take my word for it.", 1],
+  ['take-my-word', "Don't take my word for any of this.", 1],
+  ['take-my-word', 'He kept his word.', 0],
+  ['turns-out', 'Turns out the cache was never warm.', 1],
+  ['turns-out', 'It turns out that nobody tested it.', 1],
+  ['turns-out', 'She turns out solid work every week.', 0],
+  ['fits-in-your-head', 'The design is small enough to hold in your head.', 1],
+  ['fits-in-your-head', 'It ships with sane defaults and zero config.', 2],
+  ['fits-in-your-head', 'Install it and it just works.', 1],
+  ['fits-in-your-head', 'We choose boring technology on purpose.', 0],
+  ['fits-in-your-head', 'The helmet fits your head.', 0],
   ['ai-vocab', 'We delve into the intricacies of the interplay.', 3],
   ['ai-vocab', 'Her vibrant tapestry hung in the bustling hall.', 3],
   ['ai-vocab', 'A meticulously curated, seamless experience.', 2],
