@@ -203,6 +203,89 @@
         height: 100%;
         min-height: 680px;
       }
+      select {
+        padding: 0.35rem 0.5rem;
+        border: 1px solid #9fb5bb;
+        border-radius: 0.25rem;
+        background: #fff;
+        color: #152d38;
+        font-size: 0.85rem;
+      }
+      .export-note {
+        margin: 0;
+        font-size: 0.78rem;
+        line-height: 1.4;
+        font-weight: 400;
+        color: #4c626c;
+      }
+      a.button {
+        display: inline-block;
+        border-radius: 0.35rem;
+        padding: 0.68rem 0.9rem;
+        background: #028fc3;
+        color: #fff;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      a.button:hover {
+        background: #0579a7;
+      }
+      dialog {
+        width: min(96vw, 1100px);
+        max-height: 94vh;
+        padding: 1.25rem;
+        border: 1px solid #b7c8cc;
+        border-radius: 0.8rem;
+        background: #fff;
+        color: #172a35;
+        box-shadow: 0 25px 70px #28445140;
+        display: none;
+        flex-direction: column;
+        gap: 0.85rem;
+      }
+      dialog[open] {
+        display: flex;
+      }
+      dialog::backdrop {
+        background: #17283588;
+      }
+      .preview-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+      .preview-header h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        letter-spacing: -0.02em;
+      }
+      .preview-meta {
+        flex: 1;
+        margin: 0;
+        color: #4c626c;
+        font:
+          0.78rem/1 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      .preview-image {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 0.75rem;
+        border: 1px solid #c8d5d8;
+        border-radius: 0.4rem;
+        background: repeating-conic-gradient(#e4edef 0 25%, #f4f8f9 0 50%) 0 0 /
+          20px 20px;
+      }
+      .preview-image img {
+        display: block;
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+        box-shadow: 0 6px 20px #28445133;
+      }
       .leaflet-popup-content pre {
         margin: 0;
         max-width: 260px;
@@ -273,10 +356,27 @@
           </fieldset>
           <div class="actions">
             <button id="render">Render map</button
-            ><button class="quiet" id="download">Download PNG</button
             ><button class="quiet" id="example">Load example</button
             ><button class="quiet" id="clear">Clear</button>
           </div>
+          <fieldset class="export">
+            <legend>PNG export</legend>
+            <label for="resolution"
+              ><span>Resolution</span
+              ><select id="resolution">
+                <option value="1">1× (screen size)</option>
+                <option value="2" selected>2× (retina)</option>
+                <option value="3">3×</option>
+                <option value="4">4×</option></select
+              ><output id="resolution-value"></output
+            ></label>
+            <p class="export-note">
+              OpenStreetMap has no retina tiles, so higher resolutions load
+              tiles from deeper zoom levels for sharper detail. Labels stay the
+              same pixel size, so they look smaller in the export.
+            </p>
+            <button class="quiet" id="download">Export PNG…</button>
+          </fieldset>
           <p class="status" id="status" role="status">
             Paste GeoJSON, then render it.
           </p>
@@ -290,6 +390,24 @@
         </section>
       </section>
     </main>
+    <dialog id="preview" aria-labelledby="preview-title">
+      <div class="preview-header">
+        <h2 id="preview-title">PNG preview</h2>
+        <p class="preview-meta" id="preview-meta"></p>
+        <button class="quiet" id="preview-close" type="button">Close</button>
+      </div>
+      <div class="preview-image">
+        <img id="preview-img" alt="Exported map preview" />
+      </div>
+      <div class="actions">
+        <a id="preview-download" class="button" download="geojson-map.png"
+          >Download PNG</a
+        ><button class="quiet" id="preview-copy" type="button">
+          Copy image
+        </button>
+      </div>
+      <p class="status" id="preview-status" role="status"></p>
+    </dialog>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
       const example = `{"type":"Feature","properties":{"name":"Example polygon"},"geometry":{"type":"Polygon","coordinates":[[[-122.43,37.77],[-122.40,37.77],[-122.40,37.79],[-122.43,37.79],[-122.43,37.77]]]}}`;
@@ -297,7 +415,18 @@
         colorInput = document.querySelector("#fill-color"),
         opacityInput = document.querySelector("#fill-opacity"),
         status = document.querySelector("#status"),
-        download = document.querySelector("#download");
+        download = document.querySelector("#download"),
+        resolutionInput = document.querySelector("#resolution"),
+        resolutionValue = document.querySelector("#resolution-value"),
+        preview = document.querySelector("#preview"),
+        previewImg = document.querySelector("#preview-img"),
+        previewMeta = document.querySelector("#preview-meta"),
+        previewDownload = document.querySelector("#preview-download"),
+        previewCopy = document.querySelector("#preview-copy"),
+        previewStatus = document.querySelector("#preview-status");
+      const maxTileZoom = 19;
+      let previewBlob = null,
+        previewUrl = null;
       const map = L.map("map", { zoomControl: false }).setView(
         [37.77, -122.42],
         12,
@@ -364,13 +493,21 @@
         layer = null;
         setStatus("Cleared.");
       });
+      function updateResolution() {
+        const size = map.getSize(),
+          scale = Number(resolutionInput.value);
+        resolutionValue.textContent = `${Math.round(size.x * scale)}×${Math.round(size.y * scale)}`;
+      }
+      resolutionInput.addEventListener("change", updateResolution);
+      map.on("resize", updateResolution);
+      updateResolution();
       download.addEventListener("click", exportPng);
       async function exportPng() {
         let geojson;
         try {
           geojson = JSON.parse(source.value);
         } catch {
-          setStatus("Paste valid GeoJSON before downloading a PNG.");
+          setStatus("Paste valid GeoJSON before exporting a PNG.");
           return;
         }
         download.disabled = true;
@@ -378,15 +515,22 @@
         setStatus("Preparing PNG…");
         try {
           const size = map.getSize(),
-            scale = Math.min(2, window.devicePixelRatio || 1),
+            scale = Number(resolutionInput.value),
             canvas = document.createElement("canvas");
           canvas.width = Math.round(size.x * scale);
           canvas.height = Math.round(size.y * scale);
           const context = canvas.getContext("2d");
           context.scale(scale, scale);
+          // OpenStreetMap does not serve @2x tiles, so for higher resolutions
+          // fetch tiles from a deeper zoom level and draw them smaller.
           const zoom = map.getZoom(),
-            tileSize = 256,
-            worldSize = 2 ** zoom,
+            zoomOffset = Math.max(
+              0,
+              Math.min(Math.ceil(Math.log2(scale)), maxTileZoom - zoom),
+            ),
+            tileZoom = zoom + zoomOffset,
+            tileSize = 256 / 2 ** zoomOffset,
+            worldSize = 2 ** tileZoom,
             origin = map.getPixelOrigin(),
             firstX = Math.floor(origin.x / tileSize),
             lastX = Math.floor((origin.x + size.x - 1) / tileSize),
@@ -399,12 +543,14 @@
               const wrappedX = ((x % worldSize) + worldSize) % worldSize;
               tiles.push(
                 loadTile(
-                  `https://${["a", "b", "c"][(wrappedX + y) % 3]}.tile.openstreetmap.org/${zoom}/${wrappedX}/${y}.png`,
+                  `https://${["a", "b", "c"][(wrappedX + y) % 3]}.tile.openstreetmap.org/${tileZoom}/${wrappedX}/${y}.png`,
                 ).then((image) =>
                   context.drawImage(
                     image,
                     x * tileSize - origin.x,
                     y * tileSize - origin.y,
+                    tileSize,
+                    tileSize,
                   ),
                 ),
               );
@@ -412,18 +558,72 @@
           await Promise.all(tiles);
           drawGeojson(context, geojson);
           drawAttribution(context, size.x, size.y);
-          const link = document.createElement("a");
-          link.download = "geojson-map.png";
-          link.href = canvas.toDataURL("image/png");
-          link.click();
-          setStatus("PNG downloaded with OpenStreetMap attribution.");
+          const blob = await new Promise((resolve, reject) =>
+            canvas.toBlob(
+              (result) =>
+                result
+                  ? resolve(result)
+                  : reject(new Error("Canvas was empty.")),
+              "image/png",
+            ),
+          );
+          showPreview(blob, canvas.width, canvas.height, scale);
+          setStatus("PNG ready — preview, copy, or download it.");
         } catch (error) {
           setStatus("Could not export PNG: " + error.message);
         } finally {
           download.disabled = false;
-          download.textContent = "Download PNG";
+          download.textContent = "Export PNG…";
         }
       }
+      function showPreview(blob, width, height, scale) {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewBlob = blob;
+        previewUrl = URL.createObjectURL(blob);
+        previewImg.src = previewUrl;
+        previewImg.width = width / scale;
+        previewMeta.textContent = `${width}×${height} px · ${scale}×`;
+        previewDownload.href = previewUrl;
+        previewDownload.textContent = `Download PNG (${formatSize(blob.size)})`;
+        previewCopy.disabled = !(navigator.clipboard && window.ClipboardItem);
+        previewCopy.textContent = "Copy image";
+        previewStatus.textContent = previewCopy.disabled
+          ? "Copying images to the clipboard is not supported in this browser."
+          : "";
+        preview.showModal();
+      }
+      function formatSize(bytes) {
+        return bytes < 1024 * 1024
+          ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+          : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+      }
+      previewCopy.addEventListener("click", async () => {
+        if (!previewBlob) return;
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ "image/png": previewBlob }),
+          ]);
+          previewStatus.textContent = "Image copied to the clipboard.";
+        } catch (error) {
+          previewStatus.textContent = "Could not copy image: " + error.message;
+        }
+      });
+      previewDownload.addEventListener("click", () => {
+        previewStatus.textContent =
+          "PNG downloaded with OpenStreetMap attribution.";
+      });
+      document
+        .querySelector("#preview-close")
+        .addEventListener("click", () => preview.close());
+      preview.addEventListener("click", (event) => {
+        if (event.target === preview) preview.close();
+      });
+      preview.addEventListener("close", () => {
+        previewImg.removeAttribute("src");
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = null;
+        previewBlob = null;
+      });
       function loadTile(url) {
         return new Promise((resolve, reject) => {
           const image = new Image();
