@@ -93,8 +93,8 @@
         color: #315460;
       }
       textarea {
-        flex: 1;
-        min-height: 300px;
+        width: 100%;
+        min-height: 170px;
         resize: vertical;
         padding: 1rem;
         border: 1px solid #b7c8cc;
@@ -124,7 +124,33 @@
           Menlo,
           monospace;
       }
-      fieldset label {
+      .shapes {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+      }
+      .shape {
+        --shape-color: #028fc3;
+        display: grid;
+        gap: 0.6rem;
+        padding: 0.75rem;
+        border: 1px solid #c8d5d8;
+        border-left: 5px solid var(--shape-color);
+        border-radius: 0.4rem;
+        background: #fff;
+      }
+      .shape-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+      }
+      button.remove {
+        padding: 0.32rem 0.6rem;
+        font-size: 0.76rem;
+      }
+      fieldset label,
+      label.style-row {
         display: grid;
         grid-template-columns: 1fr auto auto;
         align-items: center;
@@ -345,34 +371,40 @@
       </header>
       <section class="workspace">
         <aside class="editor">
-          <label for="geojson">GeoJSON</label>
-          <textarea
-            id="geojson"
-            spellcheck="false"
-            placeholder="Paste a Feature, FeatureCollection, or geometry here…"
-          ></textarea>
-          <fieldset>
-            <legend>Feature style</legend>
-            <label for="fill-color"
-              ><span>Fill colour</span
-              ><input id="fill-color" type="color" value="#028FC3" /><output
-                id="color-value"
-                >#028FC3</output
-              ></label
-            >
-            <label for="fill-opacity"
-              ><span>Opacity</span
-              ><input
-                id="fill-opacity"
-                type="range"
-                min="0"
-                max="100"
-                value="50"
-              /><output id="opacity-value">50%</output></label
-            >
-          </fieldset>
+          <div class="shapes" id="shapes"></div>
+          <template id="shape-template">
+            <section class="shape">
+              <div class="shape-header">
+                <label class="shape-title">Shape 1</label>
+                <button class="quiet remove" type="button">Remove</button>
+              </div>
+              <textarea
+                spellcheck="false"
+                placeholder="Paste a Feature, FeatureCollection, or geometry here…"
+              ></textarea>
+              <label class="style-row"
+                ><span>Fill colour</span
+                ><input
+                  class="fill-color"
+                  type="color"
+                  value="#028FC3"
+                /><output class="color-value">#028FC3</output></label
+              >
+              <label class="style-row"
+                ><span>Opacity</span
+                ><input
+                  class="fill-opacity"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="50"
+                /><output class="opacity-value">50%</output></label
+              >
+            </section>
+          </template>
           <div class="actions">
             <button id="render">Render map</button
+            ><button class="quiet" id="add-shape">Add shape</button
             ><button class="quiet" id="example">Load example</button
             ><button class="quiet" id="clear">Clear</button>
           </div>
@@ -428,7 +460,9 @@
           </p>
           <p class="hint">
             Supports GeoJSON Geometry, Feature, and FeatureCollection objects.
-            Coordinates use longitude, latitude order.
+            Coordinates use longitude, latitude order. Add more shapes to
+            overlay several GeoJSON objects, each with its own colour and
+            opacity — later shapes are drawn on top.
           </p>
         </aside>
         <section class="map-panel" aria-label="Map">
@@ -456,10 +490,28 @@
     </dialog>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-      const example = `{"type":"Feature","properties":{"name":"Example polygon"},"geometry":{"type":"Polygon","coordinates":[[[-122.43,37.77],[-122.40,37.77],[-122.40,37.79],[-122.43,37.79],[-122.43,37.77]]]}}`;
-      const source = document.querySelector("#geojson"),
-        colorInput = document.querySelector("#fill-color"),
-        opacityInput = document.querySelector("#fill-opacity"),
+      const examples = [
+        {
+          color: "#028FC3",
+          opacity: 50,
+          value: `{"type":"Feature","properties":{"name":"Example polygon"},"geometry":{"type":"Polygon","coordinates":[[[-122.43,37.77],[-122.40,37.77],[-122.40,37.79],[-122.43,37.79],[-122.43,37.77]]]}}`,
+        },
+        {
+          color: "#E4572E",
+          opacity: 35,
+          value: `{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"Overlapping polygon"},"geometry":{"type":"Polygon","coordinates":[[[-122.415,37.76],[-122.385,37.76],[-122.385,37.78],[-122.415,37.78],[-122.415,37.76]]]}},{"type":"Feature","properties":{"name":"Example route"},"geometry":{"type":"LineString","coordinates":[[-122.45,37.765],[-122.435,37.775],[-122.42,37.8]]}},{"type":"Feature","properties":{"name":"Example point"},"geometry":{"type":"Point","coordinates":[-122.445,37.785]}}]}`,
+        },
+      ];
+      const palette = [
+        "#028FC3",
+        "#E4572E",
+        "#2E8B57",
+        "#8E44AD",
+        "#F39C12",
+        "#C0392B",
+      ];
+      const shapesContainer = document.querySelector("#shapes"),
+        shapeTemplate = document.querySelector("#shape-template"),
         status = document.querySelector("#status"),
         download = document.querySelector("#download"),
         presetInput = document.querySelector("#preset"),
@@ -487,62 +539,170 @@
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
       }).addTo(map);
-      let layer = null;
-      function style() {
+      // Each shape is an independent GeoJSON document with its own colour and
+      // opacity. Shapes are drawn in list order, so later shapes sit on top.
+      const shapes = [];
+      let shapeCount = 0;
+      function nextColor() {
+        const used = new Set(
+          shapes.map((shape) => shape.colorInput.value.toUpperCase()),
+        );
+        return (
+          palette.find((color) => !used.has(color)) ||
+          palette[shapes.length % palette.length]
+        );
+      }
+      function addShape({ value = "", color, opacity = 50 } = {}) {
+        const element = shapeTemplate.content.firstElementChild.cloneNode(true),
+          id = `shape-${++shapeCount}-geojson`;
+        const shape = {
+          element,
+          title: element.querySelector(".shape-title"),
+          remove: element.querySelector(".remove"),
+          source: element.querySelector("textarea"),
+          colorInput: element.querySelector(".fill-color"),
+          opacityInput: element.querySelector(".fill-opacity"),
+          colorValue: element.querySelector(".color-value"),
+          opacityValue: element.querySelector(".opacity-value"),
+          layer: null,
+        };
+        shape.source.id = id;
+        shape.title.htmlFor = id;
+        shape.source.value = value;
+        shape.colorInput.value = color || nextColor();
+        shape.opacityInput.value = opacity;
+        shape.colorInput.addEventListener("input", () => updateStyle(shape));
+        shape.opacityInput.addEventListener("input", () => updateStyle(shape));
+        shape.remove.addEventListener("click", () => removeShape(shape));
+        shapes.push(shape);
+        shapesContainer.append(element);
+        updateStyle(shape);
+        renumberShapes();
+        return shape;
+      }
+      function removeShape(shape) {
+        if (shape.layer) map.removeLayer(shape.layer);
+        shape.element.remove();
+        shapes.splice(shapes.indexOf(shape), 1);
+        renumberShapes();
+        setStatus("Shape removed.");
+      }
+      function removeAllShapes() {
+        shapes.slice().forEach((shape) => {
+          if (shape.layer) map.removeLayer(shape.layer);
+          shape.element.remove();
+        });
+        shapes.length = 0;
+      }
+      function renumberShapes() {
+        shapes.forEach((shape, i) => {
+          shape.title.textContent = `Shape ${i + 1}`;
+          shape.remove.disabled = shapes.length === 1;
+        });
+      }
+      function style(shape) {
         return {
-          color: colorInput.value,
+          color: shape.colorInput.value,
           weight: 3,
-          fillColor: colorInput.value,
-          fillOpacity: Number(opacityInput.value) / 100,
+          fillColor: shape.colorInput.value,
+          fillOpacity: Number(shape.opacityInput.value) / 100,
         };
       }
       function setStatus(text) {
         status.textContent = text;
       }
+      // Parses every non-empty shape, throwing an error that names the shape
+      // whose GeoJSON is invalid.
+      function parseShapes() {
+        const parsed = [];
+        shapes.forEach((shape, i) => {
+          const text = shape.source.value.trim();
+          if (!text) return;
+          try {
+            parsed.push({ shape, geojson: JSON.parse(text) });
+          } catch (error) {
+            throw new Error(`Shape ${i + 1}: ${error.message}`);
+          }
+        });
+        return parsed;
+      }
       function render() {
+        let parsed;
         try {
-          const geojson = JSON.parse(source.value);
-          if (layer) map.removeLayer(layer);
-          layer = L.geoJSON(geojson, {
-            style,
-            pointToLayer: (_, latlng) =>
-              L.circleMarker(latlng, { radius: 7, ...style() }),
-            onEachFeature: (feature, featureLayer) => {
-              if (feature.properties && Object.keys(feature.properties).length)
-                featureLayer.bindPopup(
-                  "<pre>" +
-                    escapeHtml(JSON.stringify(feature.properties, null, 2)) +
-                    "</pre>",
-                );
-            },
-          }).addTo(map);
-          const bounds = layer.getBounds();
-          if (bounds.isValid()) map.fitBounds(bounds.pad(0.12));
-          setStatus("Rendered. Click a feature to inspect its properties.");
+          parsed = parseShapes();
         } catch (error) {
-          setStatus("Could not parse GeoJSON: " + error.message);
+          setStatus("Could not parse GeoJSON — " + error.message);
+          return;
         }
+        shapes.forEach((shape) => {
+          if (shape.layer) map.removeLayer(shape.layer);
+          shape.layer = null;
+        });
+        if (!parsed.length) {
+          setStatus("Paste GeoJSON into at least one shape, then render it.");
+          return;
+        }
+        const bounds = L.latLngBounds([]);
+        try {
+          parsed.forEach(({ shape, geojson }) => {
+            shape.layer = L.geoJSON(geojson, {
+              style: () => style(shape),
+              pointToLayer: (_, latlng) =>
+                L.circleMarker(latlng, { radius: 7, ...style(shape) }),
+              onEachFeature: (feature, featureLayer) => {
+                if (
+                  feature.properties &&
+                  Object.keys(feature.properties).length
+                )
+                  featureLayer.bindPopup(
+                    "<pre>" +
+                      escapeHtml(JSON.stringify(feature.properties, null, 2)) +
+                      "</pre>",
+                  );
+              },
+            }).addTo(map);
+            bounds.extend(shape.layer.getBounds());
+          });
+        } catch (error) {
+          setStatus("Could not render GeoJSON: " + error.message);
+          return;
+        }
+        if (bounds.isValid()) map.fitBounds(bounds.pad(0.12));
+        setStatus(
+          `Rendered ${parsed.length} shape${parsed.length === 1 ? "" : "s"}. Click a feature to inspect its properties.`,
+        );
       }
-      function updateStyle() {
-        document.querySelector("#color-value").textContent =
-          colorInput.value.toUpperCase();
-        document.querySelector("#opacity-value").textContent =
-          opacityInput.value + "%";
-        if (layer) layer.setStyle(style());
+      function updateStyle(shape) {
+        shape.colorValue.textContent = shape.colorInput.value.toUpperCase();
+        shape.opacityValue.textContent = shape.opacityInput.value + "%";
+        shape.element.style.setProperty(
+          "--shape-color",
+          shape.colorInput.value,
+        );
+        if (shape.layer) shape.layer.setStyle(style(shape));
       }
-      colorInput.addEventListener("input", updateStyle);
-      opacityInput.addEventListener("input", updateStyle);
       document.querySelector("#render").addEventListener("click", render);
+      document.querySelector("#add-shape").addEventListener("click", () => {
+        const shape = addShape();
+        shape.source.focus();
+        setStatus(`Shape ${shapes.length} added — paste GeoJSON into it.`);
+      });
       document.querySelector("#example").addEventListener("click", () => {
-        source.value = example;
-        setStatus("Example loaded — render when ready.");
+        removeAllShapes();
+        examples.forEach(addShape);
+        setStatus("Example loaded with two shapes — render when ready.");
       });
       document.querySelector("#clear").addEventListener("click", () => {
-        source.value = "";
-        if (layer) map.removeLayer(layer);
-        layer = null;
+        removeAllShapes();
+        addShape();
         setStatus("Cleared.");
       });
+      addShape();
+      // The editor grows as shapes are added, which resizes the map beside it.
+      if (window.ResizeObserver)
+        new ResizeObserver(() => map.invalidateSize()).observe(
+          document.querySelector(".map-panel"),
+        );
       function exportSize() {
         const clamp = (input) =>
           Math.min(
@@ -581,11 +741,17 @@
       applyPreset();
       download.addEventListener("click", exportPng);
       async function exportPng() {
-        let geojson;
+        let parsed;
         try {
-          geojson = JSON.parse(source.value);
-        } catch {
-          setStatus("Paste valid GeoJSON before exporting a PNG.");
+          parsed = parseShapes();
+        } catch (error) {
+          setStatus("Could not export PNG — " + error.message);
+          return;
+        }
+        if (!parsed.length) {
+          setStatus(
+            "Paste GeoJSON into at least one shape before exporting a PNG.",
+          );
           return;
         }
         download.disabled = true;
@@ -645,7 +811,12 @@
               );
             }
           await Promise.all(tiles);
-          drawGeojson(context, geojson, zoom, origin);
+          parsed.forEach(({ shape, geojson }) =>
+            drawGeojson(context, geojson, zoom, origin, {
+              color: shape.colorInput.value,
+              opacity: Number(shape.opacityInput.value) / 100,
+            }),
+          );
           drawAttribution(context, size.x, size.y);
           const blob = await new Promise((resolve, reject) =>
             canvas.toBlob(
@@ -724,7 +895,7 @@
           image.src = url;
         });
       }
-      function drawGeojson(context, value, zoom, origin) {
+      function drawGeojson(context, value, zoom, origin, { color, opacity }) {
         const point = ([longitude, latitude]) =>
           map.project([latitude, longitude], zoom).subtract(origin);
         const line = (coordinates) => {
@@ -733,7 +904,7 @@
             const p = point(coordinate);
             i ? context.lineTo(p.x, p.y) : context.moveTo(p.x, p.y);
           });
-          context.strokeStyle = colorInput.value;
+          context.strokeStyle = color;
           context.lineWidth = 3;
           context.stroke();
         };
@@ -745,11 +916,11 @@
               i ? context.lineTo(p.x, p.y) : context.moveTo(p.x, p.y);
             }),
           );
-          context.fillStyle = colorInput.value;
-          context.globalAlpha = Number(opacityInput.value) / 100;
+          context.fillStyle = color;
+          context.globalAlpha = opacity;
           context.fill("evenodd");
           context.globalAlpha = 1;
-          context.strokeStyle = colorInput.value;
+          context.strokeStyle = color;
           context.lineWidth = 3;
           context.stroke();
         };
@@ -757,11 +928,11 @@
           const p = point(coordinate);
           context.beginPath();
           context.arc(p.x, p.y, 7, 0, Math.PI * 2);
-          context.fillStyle = colorInput.value;
-          context.globalAlpha = Number(opacityInput.value) / 100;
+          context.fillStyle = color;
+          context.globalAlpha = opacity;
           context.fill();
           context.globalAlpha = 1;
-          context.strokeStyle = colorInput.value;
+          context.strokeStyle = color;
           context.lineWidth = 2;
           context.stroke();
         };
