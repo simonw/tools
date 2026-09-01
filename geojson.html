@@ -211,6 +211,22 @@
         color: #152d38;
         font-size: 0.85rem;
       }
+      .size-inputs {
+        grid-column: 2 / 4;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: #4c626c;
+      }
+      input[type="number"] {
+        width: 5.2rem;
+        padding: 0.35rem 0.5rem;
+        border: 1px solid #9fb5bb;
+        border-radius: 0.25rem;
+        background: #fff;
+        color: #152d38;
+        font-size: 0.85rem;
+      }
       .export-note {
         margin: 0;
         font-size: 0.78rem;
@@ -361,10 +377,38 @@
           </div>
           <fieldset class="export">
             <legend>PNG export</legend>
+            <label for="preset"
+              ><span>Size preset</span
+              ><select id="preset">
+                <option value="map" selected>Match map</option>
+                <option value="1200x630">Social card (1200×630)</option>
+                <option value="1920x1080">HD (1920×1080)</option>
+                <option value="1240x1754">A4 portrait at 150 dpi</option>
+                <option value="custom">Custom</option>
+              </select></label
+            >
+            <label for="width"
+              ><span>Size (px)</span
+              ><span class="size-inputs"
+                ><input
+                  id="width"
+                  type="number"
+                  min="100"
+                  max="4096"
+                  step="1" />
+                ×
+                <input
+                  id="height"
+                  type="number"
+                  min="100"
+                  max="4096"
+                  step="1"
+                  aria-label="Height (px)" /></span
+            ></label>
             <label for="resolution"
               ><span>Resolution</span
               ><select id="resolution">
-                <option value="1">1× (screen size)</option>
+                <option value="1">1×</option>
                 <option value="2" selected>2× (retina)</option>
                 <option value="3">3×</option>
                 <option value="4">4×</option></select
@@ -373,7 +417,8 @@
             <p class="export-note">
               OpenStreetMap has no retina tiles, so higher resolutions load
               tiles from deeper zoom levels for sharper detail. Labels stay the
-              same pixel size, so they look smaller in the export.
+              same pixel size, so they look smaller in the export. The export is
+              centred on the current map view at the current zoom.
             </p>
             <button class="quiet" id="download">Export PNG…</button>
           </fieldset>
@@ -416,6 +461,9 @@
         opacityInput = document.querySelector("#fill-opacity"),
         status = document.querySelector("#status"),
         download = document.querySelector("#download"),
+        presetInput = document.querySelector("#preset"),
+        widthInput = document.querySelector("#width"),
+        heightInput = document.querySelector("#height"),
         resolutionInput = document.querySelector("#resolution"),
         resolutionValue = document.querySelector("#resolution-value"),
         preview = document.querySelector("#preview"),
@@ -424,7 +472,8 @@
         previewDownload = document.querySelector("#preview-download"),
         previewCopy = document.querySelector("#preview-copy"),
         previewStatus = document.querySelector("#preview-status");
-      const maxTileZoom = 19;
+      const maxTileZoom = 19,
+        maxOutputSide = 8192;
       let previewBlob = null,
         previewUrl = null;
       const map = L.map("map", { zoomControl: false }).setView(
@@ -493,14 +542,42 @@
         layer = null;
         setStatus("Cleared.");
       });
-      function updateResolution() {
-        const size = map.getSize(),
-          scale = Number(resolutionInput.value);
-        resolutionValue.textContent = `${Math.round(size.x * scale)}×${Math.round(size.y * scale)}`;
+      function exportSize() {
+        const clamp = (input) =>
+          Math.min(
+            Number(input.max),
+            Math.max(Number(input.min), Math.round(Number(input.value) || 0)),
+          );
+        return { x: clamp(widthInput), y: clamp(heightInput) };
       }
-      resolutionInput.addEventListener("change", updateResolution);
-      map.on("resize", updateResolution);
-      updateResolution();
+      function updateReadout() {
+        const size = exportSize(),
+          scale = Number(resolutionInput.value);
+        resolutionValue.textContent = `${size.x * scale}×${size.y * scale}`;
+      }
+      function applyPreset() {
+        const value = presetInput.value;
+        if (value === "custom") return;
+        const size =
+          value === "map"
+            ? map.getSize()
+            : (([x, y]) => ({ x: Number(x), y: Number(y) }))(value.split("x"));
+        widthInput.value = size.x;
+        heightInput.value = size.y;
+        updateReadout();
+      }
+      presetInput.addEventListener("change", applyPreset);
+      [widthInput, heightInput].forEach((input) =>
+        input.addEventListener("input", () => {
+          presetInput.value = "custom";
+          updateReadout();
+        }),
+      );
+      resolutionInput.addEventListener("change", updateReadout);
+      map.on("resize", () => {
+        if (presetInput.value === "map") applyPreset();
+      });
+      applyPreset();
       download.addEventListener("click", exportPng);
       async function exportPng() {
         let geojson;
@@ -514,24 +591,35 @@
         download.textContent = "Preparing PNG…";
         setStatus("Preparing PNG…");
         try {
-          const size = map.getSize(),
-            scale = Number(resolutionInput.value),
-            canvas = document.createElement("canvas");
-          canvas.width = Math.round(size.x * scale);
-          canvas.height = Math.round(size.y * scale);
+          const size = exportSize(),
+            scale = Number(resolutionInput.value);
+          widthInput.value = size.x;
+          heightInput.value = size.y;
+          if (Math.max(size.x, size.y) * scale > maxOutputSide)
+            throw new Error(
+              `${size.x * scale}×${size.y * scale} is too large — keep each side at or below ${maxOutputSide} px.`,
+            );
+          const canvas = document.createElement("canvas");
+          canvas.width = size.x * scale;
+          canvas.height = size.y * scale;
           const context = canvas.getContext("2d");
           context.scale(scale, scale);
+          // The export frame is centred on the current view at the current
+          // zoom, but sized independently of the on-screen map.
+          const zoom = map.getZoom(),
+            origin = map
+              .project(map.getCenter(), zoom)
+              .subtract([size.x / 2, size.y / 2])
+              .round();
           // OpenStreetMap does not serve @2x tiles, so for higher resolutions
           // fetch tiles from a deeper zoom level and draw them smaller.
-          const zoom = map.getZoom(),
-            zoomOffset = Math.max(
+          const zoomOffset = Math.max(
               0,
               Math.min(Math.ceil(Math.log2(scale)), maxTileZoom - zoom),
             ),
             tileZoom = zoom + zoomOffset,
             tileSize = 256 / 2 ** zoomOffset,
             worldSize = 2 ** tileZoom,
-            origin = map.getPixelOrigin(),
             firstX = Math.floor(origin.x / tileSize),
             lastX = Math.floor((origin.x + size.x - 1) / tileSize),
             firstY = Math.floor(origin.y / tileSize),
@@ -556,7 +644,7 @@
               );
             }
           await Promise.all(tiles);
-          drawGeojson(context, geojson);
+          drawGeojson(context, geojson, zoom, origin);
           drawAttribution(context, size.x, size.y);
           const blob = await new Promise((resolve, reject) =>
             canvas.toBlob(
@@ -636,9 +724,9 @@
           image.src = url;
         });
       }
-      function drawGeojson(context, value) {
+      function drawGeojson(context, value, zoom, origin) {
         const point = ([longitude, latitude]) =>
-          map.latLngToContainerPoint([latitude, longitude]);
+          map.project([latitude, longitude], zoom).subtract(origin);
         const line = (coordinates) => {
           context.beginPath();
           coordinates.forEach((coordinate, i) => {
