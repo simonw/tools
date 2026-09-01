@@ -160,6 +160,36 @@
           600 0.85rem/1 Arial,
           sans-serif;
       }
+      label.url-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #315460;
+        font:
+          600 0.85rem/1 Arial,
+          sans-serif;
+      }
+      input[type="url"] {
+        flex: 1;
+        min-width: 0;
+        padding: 0.42rem 0.5rem;
+        border: 1px solid #9fb5bb;
+        border-radius: 0.25rem;
+        background: #fff;
+        color: #152d38;
+        font-size: 0.82rem;
+      }
+      input[type="url"]:focus {
+        outline-color: #028fc3;
+      }
+      button.load-url {
+        padding: 0.42rem 0.7rem;
+        font-size: 0.78rem;
+      }
+      textarea[readonly] {
+        background: #eef2f3;
+        color: #4c626c;
+      }
       input[type="color"] {
         width: 2rem;
         height: 1.75rem;
@@ -378,9 +408,20 @@
                 <label class="shape-title">Shape 1</label>
                 <button class="quiet remove" type="button">Remove</button>
               </div>
+              <label class="url-row"
+                ><span>URL</span
+                ><input
+                  class="source-url"
+                  type="url"
+                  spellcheck="false"
+                  placeholder="https://gist.github.com/… or a raw GeoJSON URL"
+                /><button class="quiet load-url" type="button">
+                  Load
+                </button></label
+              >
               <textarea
                 spellcheck="false"
-                placeholder="Paste a Feature, FeatureCollection, or geometry here…"
+                placeholder="Paste a Feature, FeatureCollection, or geometry here, or load one from a URL above…"
               ></textarea>
               <label class="style-row"
                 ><span>Fill colour</span
@@ -462,7 +503,11 @@
             Supports GeoJSON Geometry, Feature, and FeatureCollection objects.
             Coordinates use longitude, latitude order. Add more shapes to
             overlay several GeoJSON objects, each with its own colour and
-            opacity — later shapes are drawn on top.
+            opacity — later shapes are drawn on top. Instead of pasting, load a
+            shape from a GitHub Gist or any JSON URL served with CORS headers;
+            loaded URLs, colours, opacities, the map view, and PNG export
+            settings are saved in this page's URL fragment so the map can be
+            shared and renders automatically when opened.
           </p>
         </aside>
         <section class="map-panel" aria-label="Map">
@@ -552,7 +597,7 @@
           palette[shapes.length % palette.length]
         );
       }
-      function addShape({ value = "", color, opacity = 50 } = {}) {
+      function addShape({ value = "", color, opacity = 50, url = "" } = {}) {
         const element = shapeTemplate.content.firstElementChild.cloneNode(true),
           id = `shape-${++shapeCount}-geojson`;
         const shape = {
@@ -560,6 +605,10 @@
           title: element.querySelector(".shape-title"),
           remove: element.querySelector(".remove"),
           source: element.querySelector("textarea"),
+          urlInput: element.querySelector(".source-url"),
+          loadButton: element.querySelector(".load-url"),
+          // The URL whose contents currently fill the textarea, if any.
+          url: null,
           colorInput: element.querySelector(".fill-color"),
           opacityInput: element.querySelector(".fill-opacity"),
           colorValue: element.querySelector(".color-value"),
@@ -571,9 +620,34 @@
         shape.source.value = value;
         shape.colorInput.value = color || nextColor();
         shape.opacityInput.value = opacity;
-        shape.colorInput.addEventListener("input", () => updateStyle(shape));
-        shape.opacityInput.addEventListener("input", () => updateStyle(shape));
+        shape.urlInput.value = url;
+        shape.colorInput.addEventListener("input", () => {
+          updateStyle(shape);
+          updateFragment();
+        });
+        shape.opacityInput.addEventListener("input", () => {
+          updateStyle(shape);
+          updateFragment();
+        });
         shape.remove.addEventListener("click", () => removeShape(shape));
+        shape.loadButton.addEventListener("click", async () => {
+          const loaded = await loadShapeUrl(shape);
+          if (loaded) render();
+        });
+        shape.urlInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            shape.loadButton.click();
+          }
+        });
+        // Clearing the URL hands the textarea back to manual editing.
+        shape.urlInput.addEventListener("input", () => {
+          if (!shape.urlInput.value.trim() && shape.url) {
+            shape.url = null;
+            shape.source.readOnly = false;
+            updateFragment();
+          }
+        });
         shapes.push(shape);
         shapesContainer.append(element);
         updateStyle(shape);
@@ -585,7 +659,167 @@
         shape.element.remove();
         shapes.splice(shapes.indexOf(shape), 1);
         renumberShapes();
+        updateFragment();
         setStatus("Shape removed.");
+      }
+      // Gist pages are resolved through the GitHub API, which sends CORS
+      // headers; anything else is fetched directly and must do the same.
+      const gistPattern =
+        /^https?:\/\/gist\.github\.com\/(?:[^/]+\/)?([0-9a-f]+)/i;
+      function normalizeUrl(raw) {
+        let parsed;
+        try {
+          parsed = new URL(raw.trim());
+        } catch {
+          throw new Error("enter a valid URL.");
+        }
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
+          throw new Error("only http and https URLs are supported.");
+        return parsed.href;
+      }
+      async function fetchGeojson(url) {
+        const gist = gistPattern.exec(url);
+        if (gist) {
+          const response = await fetch(
+            `https://api.github.com/gists/${gist[1]}`,
+          );
+          if (!response.ok)
+            throw new Error(`Gist API returned ${response.status}.`);
+          const files = Object.values((await response.json()).files || {});
+          if (!files.length) throw new Error("the Gist contains no files.");
+          const file =
+            files.find((f) => /\.(geo)?json$/i.test(f.filename)) || files[0];
+          // The API truncates large files, so fall back to the raw URL.
+          if (!file.truncated) return file.content;
+          url = file.raw_url;
+        }
+        const response = await fetch(url);
+        if (!response.ok)
+          throw new Error(`the server returned ${response.status}.`);
+        return await response.text();
+      }
+      // Fills a shape's textarea from its URL field. Resolves to true when the
+      // shape loaded, false when it failed (the status explains why).
+      async function loadShapeUrl(shape) {
+        const index = shapes.indexOf(shape) + 1;
+        let url;
+        try {
+          url = normalizeUrl(shape.urlInput.value);
+        } catch (error) {
+          setStatus(`Shape ${index}: ${error.message}`);
+          return false;
+        }
+        shape.loadButton.disabled = true;
+        shape.loadButton.textContent = "Loading…";
+        setStatus(`Loading shape ${index} from ${url}…`);
+        try {
+          const text = await fetchGeojson(url);
+          shape.source.value = text;
+          shape.source.readOnly = true;
+          shape.url = url;
+          shape.urlInput.value = url;
+          updateFragment();
+          setStatus(`Loaded shape ${index} from ${url}.`);
+          return true;
+        } catch (error) {
+          setStatus(`Shape ${index} could not be loaded — ${error.message}`);
+          return false;
+        } finally {
+          shape.loadButton.disabled = false;
+          shape.loadButton.textContent = "Load";
+        }
+      }
+      // Shapes loaded from URLs are recorded in the fragment along with
+      // their colour and opacity and the PNG export settings, so the page
+      // can be shared as a link. Pasted GeoJSON is never written to the URL.
+      let restoringFragment = false;
+      function updateFragment() {
+        if (restoringFragment) return;
+        const params = new URLSearchParams();
+        shapes
+          .filter((shape) => shape.url)
+          .forEach((shape) => {
+            params.append("url", shape.url);
+            params.append("color", shape.colorInput.value.toUpperCase());
+            params.append("opacity", shape.opacityInput.value);
+          });
+        const target = params.has("url")
+          ? location.pathname + location.search + "#" + serializeExport(params)
+          : location.pathname + location.search;
+        if (location.href !== new URL(target, location.href).href)
+          history.replaceState(null, "", target);
+      }
+      function serializeExport(params) {
+        params.set("preset", presetInput.value);
+        if (presetInput.value === "custom") {
+          params.set("width", widthInput.value);
+          params.set("height", heightInput.value);
+        }
+        params.set("resolution", resolutionInput.value);
+        const center = map.getCenter();
+        params.set("lat", center.lat.toFixed(5));
+        params.set("lng", center.lng.toFixed(5));
+        params.set("zoom", String(Math.round(map.getZoom() * 100) / 100));
+        return params.toString();
+      }
+      function viewFromParams(params) {
+        const lat = Number(params.get("lat")),
+          lng = Number(params.get("lng")),
+          zoom = Number(params.get("zoom"));
+        if (!params.has("lat") || !params.has("lng") || !params.has("zoom"))
+          return null;
+        if (
+          !Number.isFinite(lat) ||
+          !Number.isFinite(lng) ||
+          !Number.isFinite(zoom) ||
+          Math.abs(lat) > 90
+        )
+          return null;
+        return { center: [lat, lng], zoom };
+      }
+      async function restoreFragment() {
+        const params = new URLSearchParams(location.hash.slice(1)),
+          urls = params.getAll("url");
+        if (!urls.length) return false;
+        const colors = params.getAll("color"),
+          opacities = params.getAll("opacity");
+        restoringFragment = true;
+        removeAllShapes();
+        urls.forEach((url, i) => {
+          const opacity = Number(opacities[i]);
+          addShape({
+            url,
+            color: /^#[0-9a-f]{6}$/i.test(colors[i] || "")
+              ? colors[i]
+              : undefined,
+            opacity: Number.isFinite(opacity)
+              ? Math.min(100, Math.max(0, opacity))
+              : 50,
+          });
+        });
+        const preset = params.get("preset");
+        if ([...presetInput.options].some((o) => o.value === preset)) {
+          presetInput.value = preset;
+          if (preset === "custom") {
+            widthInput.value = params.get("width") || widthInput.value;
+            heightInput.value = params.get("height") || heightInput.value;
+            updateReadout();
+          } else applyPreset();
+        }
+        const resolution = params.get("resolution");
+        if ([...resolutionInput.options].some((o) => o.value === resolution)) {
+          resolutionInput.value = resolution;
+          updateReadout();
+        }
+        const view = viewFromParams(params);
+        if (view) map.setView(view.center, view.zoom, { animate: false });
+        restoringFragment = false;
+        const results = await Promise.all(shapes.map(loadShapeUrl));
+        // A saved view wins over fitting the shapes, so the export frame
+        // matches what was shared.
+        if (results.some(Boolean)) render({ fit: !view });
+        if (view) map.setView(view.center, view.zoom, { animate: false });
+        return true;
       }
       function removeAllShapes() {
         shapes.slice().forEach((shape) => {
@@ -626,7 +860,7 @@
         });
         return parsed;
       }
-      function render() {
+      function render({ fit = true } = {}) {
         let parsed;
         try {
           parsed = parseShapes();
@@ -667,7 +901,7 @@
           setStatus("Could not render GeoJSON: " + error.message);
           return;
         }
-        if (bounds.isValid()) map.fitBounds(bounds.pad(0.12));
+        if (fit && bounds.isValid()) map.fitBounds(bounds.pad(0.12));
         setStatus(
           `Rendered ${parsed.length} shape${parsed.length === 1 ? "" : "s"}. Click a feature to inspect its properties.`,
         );
@@ -690,14 +924,15 @@
       document.querySelector("#example").addEventListener("click", () => {
         removeAllShapes();
         examples.forEach(addShape);
+        updateFragment();
         setStatus("Example loaded with two shapes — render when ready.");
       });
       document.querySelector("#clear").addEventListener("click", () => {
         removeAllShapes();
         addShape();
+        updateFragment();
         setStatus("Cleared.");
       });
-      addShape();
       // The editor grows as shapes are added, which resizes the map beside it.
       if (window.ResizeObserver)
         new ResizeObserver(() => map.invalidateSize()).observe(
@@ -727,18 +962,37 @@
         heightInput.value = size.y;
         updateReadout();
       }
-      presetInput.addEventListener("change", applyPreset);
+      presetInput.addEventListener("change", () => {
+        applyPreset();
+        updateFragment();
+      });
       [widthInput, heightInput].forEach((input) =>
         input.addEventListener("input", () => {
           presetInput.value = "custom";
           updateReadout();
+          updateFragment();
         }),
       );
-      resolutionInput.addEventListener("change", updateReadout);
+      resolutionInput.addEventListener("change", () => {
+        updateReadout();
+        updateFragment();
+      });
       map.on("resize", () => {
         if (presetInput.value === "map") applyPreset();
       });
+      map.on("moveend", updateFragment);
       applyPreset();
+      // Start from the fragment when it names URLs, otherwise with one empty
+      // shape. Editing the fragment by hand (or navigating back to an earlier
+      // one) reloads the page state the same way.
+      restoreFragment().then((restored) => {
+        if (!restored) addShape();
+      });
+      window.addEventListener("hashchange", () => {
+        restoreFragment().then((restored) => {
+          if (!restored && !shapes.length) addShape();
+        });
+      });
       download.addEventListener("click", exportPng);
       async function exportPng() {
         let parsed;
