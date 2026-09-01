@@ -235,6 +235,19 @@ body {
 
 #output a { color: #2563eb; }
 
+#output .header-anchor {
+  margin-left: 0.4em;
+  font-size: 0.75em;
+  font-weight: normal;
+  color: #bbb;
+  text-decoration: none;
+}
+
+#output .header-anchor:hover,
+#output .header-anchor:focus-visible {
+  color: #2563eb;
+}
+
 #output img { max-width: 100%; }
 
 #output hr {
@@ -1145,8 +1158,52 @@ const urlLoad = document.getElementById("url-load");
 const urlStatus = document.getElementById("url-status");
 const sourceToggle = document.getElementById("source-toggle");
 
+// Give every heading a GitHub-style id (derived from its text) plus a small
+// "#" link so individual sections can be linked to. This runs on the sanitized
+// DOM rather than in the markdown-it renderer so DOMPurify cannot strip the ids.
+function slugify(text) {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s_-]+/gu, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function addHeadingAnchors(root) {
+  const seen = new Map();
+  root.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((heading) => {
+    let slug = slugify(heading.textContent) || "section";
+    const count = seen.get(slug) || 0;
+    seen.set(slug, count + 1);
+    if (count) slug = `${slug}-${count}`;
+    heading.id = slug;
+    const anchor = document.createElement("a");
+    anchor.className = "header-anchor";
+    anchor.href = "#" + encodeURIComponent(slug);
+    anchor.setAttribute("aria-label", "Link to this section");
+    anchor.textContent = "#";
+    heading.appendChild(anchor);
+  });
+}
+
+function scrollToHash() {
+  const hash = location.hash.slice(1);
+  if (!hash) return;
+  let id;
+  try {
+    id = decodeURIComponent(hash);
+  } catch {
+    id = hash;
+  }
+  const target = output.querySelector(`[id="${CSS.escape(id)}"]`);
+  if (target) target.scrollIntoView();
+}
+
 function update() {
   output.innerHTML = renderMarkdown(input.value);
+  addHeadingAnchors(output);
   hydrateSvgBlocks(output);
 }
 
@@ -1183,7 +1240,7 @@ tabPaste.addEventListener("click", () => {
   setMode("paste");
   input.readOnly = false;
   input.style.background = "#fff";
-  if (location.hash) history.pushState("", document.title, location.pathname + location.search);
+  if (location.search || location.hash) history.pushState("", document.title, location.pathname);
 });
 
 tabUrl.addEventListener("click", () => setMode("url"));
@@ -1241,7 +1298,7 @@ async function fetchSource(url) {
   return await res.text();
 }
 
-async function loadFromUrl(url, recordHash) {
+async function loadFromUrl(url, recordUrl) {
   setMode("url");
   urlInput.value = url;
   setStatus("Loading…");
@@ -1252,12 +1309,13 @@ async function loadFromUrl(url, recordHash) {
     setStatus("");
     setUrlContentLoaded(true);
     setViewerMode(true);
-    if (recordHash) {
-      const newHash = "#url=" + encodeURIComponent(url);
-      if (location.hash !== newHash) {
-        history.pushState({ url }, "", newHash);
+    if (recordUrl) {
+      const newSearch = "?url=" + encodeURIComponent(url);
+      if (location.search !== newSearch) {
+        history.pushState({ url }, "", location.pathname + newSearch);
       }
     }
+    scrollToHash();
   } catch (err) {
     setStatus("Error: " + err.message, true);
   }
@@ -1275,14 +1333,26 @@ urlInput.addEventListener("keydown", (e) => {
   }
 });
 
-// ---- Fragment-based load on startup / navigation ----
-function urlFromHash() {
+// ---- Query-string based load on startup / navigation ----
+function urlFromQuery() {
+  const url = new URLSearchParams(location.search).get("url");
+  return url ? url.trim() : null;
+}
+
+// Older links used #url=... in the fragment; redirect those to ?url=... so the
+// fragment is free for section anchors.
+function legacyUrlFromHash() {
   const m = /^#url=(.+)$/.exec(location.hash);
-  return m ? decodeURIComponent(m[1]) : null;
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return m[1];
+  }
 }
 
 window.addEventListener("popstate", () => {
-  const url = urlFromHash();
+  const url = urlFromQuery();
   if (url) {
     loadFromUrl(url, false);
   }
@@ -1330,12 +1400,16 @@ browser using ffmpeg.wasm:
 | SVG tabs| Yes       |
 `;
 
-// On load: if a URL is in the fragment, switch to URL tab and load it.
-const startupUrl = urlFromHash();
-if (startupUrl) {
+// On load: redirect legacy #url= links, otherwise load ?url= if present.
+const legacyUrl = legacyUrlFromHash();
+const startupUrl = urlFromQuery();
+if (legacyUrl) {
+  window.location = location.pathname + "?url=" + encodeURIComponent(legacyUrl);
+} else if (startupUrl) {
   loadFromUrl(startupUrl, false);
 } else {
   input.value = sample;
   update();
+  scrollToHash();
 }
 </script>
