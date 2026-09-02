@@ -1,3 +1,3 @@
-View and render markdown content with live preview. Paste markdown directly or load from a raw URL or GitHub Gist, with support for standard formatting, tables, code blocks, and SVG previews featuring tabbed display for rendered output, PNG/JPEG export, MP4 generation for animated SVGs, and source code viewing. Toggle between split editor and full-screen viewer modes.
+View and render markdown content with live preview. Paste markdown directly or load from a raw URL or GitHub Gist, with support for standard formatting, tables, code blocks, and SVG previews featuring tabbed display for rendered output, PNG/JPEG/WebP export, MP4 generation for animated SVGs, and source code viewing. Toggle between split editor and full-screen viewer modes.
 
 <!-- Generated from commit: 4fbd2f2ec2bbe13448ee2e116af8c92264140de2 -->

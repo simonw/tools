@@ -185,3 +185,47 @@ def test_generate_mp4(page: Page, unused_port_server):
     assert b"moov" in data
     assert b"avc1" in data
 
+
+
+def test_webp_tab_renders_and_offers_download(page: Page, unused_port_server):
+    unused_port_server.start(root)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    block = fill_svg_block(page, STATIC_SVG)
+    block.locator('button[data-tab="webp"]').click()
+    panel = block.locator('.panel[data-panel="webp"]')
+    img = panel.locator("img")
+    expect(img).to_be_visible()
+    assert img.get_attribute("src").startswith("data:image/webp;base64,")
+    download_btn = panel.locator(".image-actions button")
+    expect(download_btn).to_be_visible()
+    expect(download_btn).to_contain_text("Download WebP (")
+    with page.expect_download() as download_info:
+        download_btn.click()
+    assert download_info.value.suggested_filename == "image.webp"
+
+
+def test_webp_tab_hidden_when_browser_cannot_encode_webp(
+    page: Page, unused_port_server
+):
+    unused_port_server.start(root)
+    # Simulate a browser without a WebP encoder: toDataURL("image/webp")
+    # falls back to PNG output, as older Safari does.
+    page.add_init_script(
+        """
+        const original = HTMLCanvasElement.prototype.toDataURL;
+        HTMLCanvasElement.prototype.toDataURL = function (type, ...rest) {
+          if (type === "image/webp") type = "image/png";
+          return original.call(this, type, ...rest);
+        };
+        """
+    )
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    block = fill_svg_block(page, STATIC_SVG)
+    expect(block.locator('button[data-tab="png"]')).to_be_visible()
+    expect(block.locator('button[data-tab="jpeg"]')).to_be_visible()
+    assert block.locator('button[data-tab="webp"]').count() == 0
+    assert block.locator('.panel[data-panel="webp"]').count() == 0
