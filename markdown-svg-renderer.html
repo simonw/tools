@@ -499,6 +499,13 @@ const FFMPEG_CORE_BASE =
   "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
 const FFMPEG_DOWNLOAD_MB = 31;
 
+// Raster export formats offered as tabs on each SVG block.
+const IMAGE_FORMATS = {
+  png: { mimeType: "image/png", label: "PNG", filename: "image.png" },
+  jpeg: { mimeType: "image/jpeg", label: "JPEG", filename: "image.jpg" },
+  webp: { mimeType: "image/webp", label: "WebP", filename: "image.webp" }
+};
+
 async function fetchAsBlobUrl(url, mimeType) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Fetch of ${url} returned ${res.status}`);
@@ -771,6 +778,7 @@ class SvgBlock extends HTMLElement {
         <button class="active" data-tab="render">Rendered</button>
         <button data-tab="png">PNG</button>
         <button data-tab="jpeg">JPEG</button>
+        <button data-tab="webp">WebP</button>
         ${mp4Tab}
         <button data-tab="code">Code</button>
       </div>
@@ -798,6 +806,15 @@ class SvgBlock extends HTMLElement {
           <button type="button">Download JPEG</button>
         </div>
       </div>
+      <div class="panel" data-panel="webp">
+        <div class="image-status">Rendering WebP…</div>
+        <div class="image-wrap" hidden>
+          <img alt="SVG rendered as WebP">
+        </div>
+        <div class="image-actions" hidden>
+          <button type="button">Download WebP</button>
+        </div>
+      </div>
       ${mp4Panel}
       <div class="panel" data-panel="code"><pre></pre></div>
     `;
@@ -815,7 +832,7 @@ class SvgBlock extends HTMLElement {
         panels.forEach((p) =>
           p.classList.toggle("active", p.dataset.panel === tab)
         );
-        if (tab === "png" || tab === "jpeg") this.renderImage(tab);
+        if (IMAGE_FORMATS[tab]) this.renderImage(tab);
         if (tab === "mp4") this.prefetchFfmpeg();
       });
     });
@@ -1007,7 +1024,7 @@ class SvgBlock extends HTMLElement {
     }
   }
 
-  // Rasterize the SVG to PNG/JPEG at the size the SVG preview is displayed,
+  // Rasterize the SVG to PNG/JPEG/WebP at the size the SVG preview is displayed,
   // by drawing it onto a canvas via a blob URL (same approach as
   // svg-render.html). Runs lazily on first visit to the tab.
   renderImage(format) {
@@ -1017,6 +1034,7 @@ class SvgBlock extends HTMLElement {
 
     const shadow = this.shadowRoot;
     const code = this.getAttribute("data-svg") || "";
+    const { mimeType, label, filename } = IMAGE_FORMATS[format];
     const panel = shadow.querySelector(`.panel[data-panel="${format}"]`);
     const status = panel.querySelector(".image-status");
     const imageWrap = panel.querySelector(".image-wrap");
@@ -1025,7 +1043,7 @@ class SvgBlock extends HTMLElement {
     const downloadBtn = actions.querySelector("button");
 
     status.hidden = false;
-    status.textContent = `Rendering ${format.toUpperCase()}…`;
+    status.textContent = `Rendering ${label}…`;
     status.classList.remove("error");
 
     const fail = (message) => {
@@ -1041,7 +1059,6 @@ class SvgBlock extends HTMLElement {
     const width = Math.max(1, Math.round(this.clientWidth));
     const height = Math.max(1, Math.round((width * ratioH) / ratioW));
 
-    const mimeType = format === "png" ? "image/png" : "image/jpeg";
     const svgBlob = new Blob([code], { type: "image/svg+xml;charset=utf-8" });
     const svgUrl = URL.createObjectURL(svgBlob);
 
@@ -1060,7 +1077,13 @@ class SvgBlock extends HTMLElement {
       try {
         dataUrl = canvas.toDataURL(mimeType, 0.9);
       } catch (err) {
-        fail(`Could not render ${format.toUpperCase()}: ${err.message}`);
+        fail(`Could not render ${label}: ${err.message}`);
+        return;
+      }
+      // canvas.toDataURL() silently falls back to PNG when the browser cannot
+      // encode the requested format (older Safari has no WebP encoder).
+      if (!dataUrl.startsWith(`data:${mimeType}`)) {
+        fail(`This browser cannot encode ${label} images.`);
         return;
       }
 
@@ -1073,18 +1096,18 @@ class SvgBlock extends HTMLElement {
       const padding = (base64.match(/=+$/) || [""])[0].length;
       const bytes = (base64.length * 3) / 4 - padding;
       const sizeKB = (bytes / 1024).toFixed(2);
-      downloadBtn.textContent = `Download ${format.toUpperCase()} (${sizeKB} KB)`;
+      downloadBtn.textContent = `Download ${label} (${sizeKB} KB)`;
 
       downloadBtn.onclick = () => {
         const link = document.createElement("a");
         link.href = dataUrl;
-        link.download = format === "png" ? "image.png" : "image.jpg";
+        link.download = filename;
         link.click();
       };
     };
     img.onerror = () => {
       URL.revokeObjectURL(svgUrl);
-      fail(`Could not render this SVG as ${format.toUpperCase()}.`);
+      fail(`Could not render this SVG as ${label}.`);
     };
     img.src = svgUrl;
   }
