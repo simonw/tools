@@ -4,6 +4,17 @@ These Python scripts can be run directly from their URLs using `uv run`.
 
 Their source code is [available on GitHub](https://github.com/simonw/tools/tree/main/python).
 
+## extract_urls.py
+
+Extract potential URLs from a local text file or an HTTP(S) resource and print
+one match per line. It recognizes both explicit HTTP(S) URLs and bare domain
+names.
+
+```bash
+uv run https://tools.simonwillison.net/python/extract_urls.py page.html
+uv run https://tools.simonwillison.net/python/extract_urls.py https://example.com/
+```
+
 ## pi_jsonl_to_md.py
 
 Convert a Pi `.jsonl` transcript to Markdown [like this](https://gist.github.com/simonw/491e55ac9d741202ea0af5d9d93775d4):
