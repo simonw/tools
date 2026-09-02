@@ -506,6 +506,25 @@ const IMAGE_FORMATS = {
   webp: { mimeType: "image/webp", label: "WebP", filename: "image.webp" }
 };
 
+// canvas.toDataURL() silently falls back to PNG when the browser has no
+// encoder for the requested format (older Safari cannot encode WebP), so
+// probe a 1x1 canvas once and hide the WebP tab if it is unsupported.
+let _webpSupported = null;
+function browserCanEncodeWebp() {
+  if (_webpSupported === null) {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      _webpSupported = canvas
+        .toDataURL("image/webp")
+        .startsWith("data:image/webp");
+    } catch (err) {
+      _webpSupported = false;
+    }
+  }
+  return _webpSupported;
+}
+
 async function fetchAsBlobUrl(url, mimeType) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Fetch of ${url} returned ${res.status}`);
@@ -605,6 +624,20 @@ class SvgBlock extends HTMLElement {
     const shadow = this.attachShadow({ mode: "open" });
 
     this._animation = detectSvgAnimation(code);
+    const webpTab = browserCanEncodeWebp()
+      ? '<button data-tab="webp">WebP</button>'
+      : "";
+    const webpPanel = browserCanEncodeWebp()
+      ? `<div class="panel" data-panel="webp">
+        <div class="image-status">Rendering WebP…</div>
+        <div class="image-wrap" hidden>
+          <img alt="SVG rendered as WebP">
+        </div>
+        <div class="image-actions" hidden>
+          <button type="button">Download WebP</button>
+        </div>
+      </div>`
+      : "";
     const mp4Tab = this._animation
       ? '<button data-tab="mp4">MP4</button>'
       : "";
@@ -778,7 +811,7 @@ class SvgBlock extends HTMLElement {
         <button class="active" data-tab="render">Rendered</button>
         <button data-tab="png">PNG</button>
         <button data-tab="jpeg">JPEG</button>
-        <button data-tab="webp">WebP</button>
+        ${webpTab}
         ${mp4Tab}
         <button data-tab="code">Code</button>
       </div>
@@ -806,15 +839,7 @@ class SvgBlock extends HTMLElement {
           <button type="button">Download JPEG</button>
         </div>
       </div>
-      <div class="panel" data-panel="webp">
-        <div class="image-status">Rendering WebP…</div>
-        <div class="image-wrap" hidden>
-          <img alt="SVG rendered as WebP">
-        </div>
-        <div class="image-actions" hidden>
-          <button type="button">Download WebP</button>
-        </div>
-      </div>
+      ${webpPanel}
       ${mp4Panel}
       <div class="panel" data-panel="code"><pre></pre></div>
     `;

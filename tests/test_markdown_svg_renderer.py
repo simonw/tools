@@ -204,3 +204,28 @@ def test_webp_tab_renders_and_offers_download(page: Page, unused_port_server):
     with page.expect_download() as download_info:
         download_btn.click()
     assert download_info.value.suggested_filename == "image.webp"
+
+
+def test_webp_tab_hidden_when_browser_cannot_encode_webp(
+    page: Page, unused_port_server
+):
+    unused_port_server.start(root)
+    # Simulate a browser without a WebP encoder: toDataURL("image/webp")
+    # falls back to PNG output, as older Safari does.
+    page.add_init_script(
+        """
+        const original = HTMLCanvasElement.prototype.toDataURL;
+        HTMLCanvasElement.prototype.toDataURL = function (type, ...rest) {
+          if (type === "image/webp") type = "image/png";
+          return original.call(this, type, ...rest);
+        };
+        """
+    )
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    block = fill_svg_block(page, STATIC_SVG)
+    expect(block.locator('button[data-tab="png"]')).to_be_visible()
+    expect(block.locator('button[data-tab="jpeg"]')).to_be_visible()
+    assert block.locator('button[data-tab="webp"]').count() == 0
+    assert block.locator('.panel[data-panel="webp"]').count() == 0
