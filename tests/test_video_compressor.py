@@ -82,6 +82,25 @@ def describe_mp4(data):
     return info
 
 
+def route_ffmpeg_core(page: Page):
+    """Serve the ffmpeg.wasm core from FFMPEG_WASM_CACHE_DIR, if set, instead of the CDN."""
+    cache_dir = os.environ.get("FFMPEG_WASM_CACHE_DIR")
+    if not cache_dir:
+        return
+    cache = pathlib.Path(cache_dir)
+
+    def serve_from_cache(route, request):
+        local = cache / request.url.rsplit("/", 1)[-1]
+        if local.exists():
+            content_type = "application/wasm" if local.suffix == ".wasm" else "text/javascript"
+            route.fulfill(status=200, body=local.read_bytes(), content_type=content_type,
+                          headers={"Access-Control-Allow-Origin": "*"})
+        else:
+            route.abort()
+
+    page.route("https://cdn.jsdelivr.net/**", serve_from_cache)
+
+
 def test_initial_state(page: Page, unused_port_server):
     unused_port_server.start(root)
     page.goto(f"http://localhost:{unused_port_server.port}/video-compressor.html")
@@ -101,21 +120,7 @@ def test_initial_state(page: Page, unused_port_server):
 
 def test_full_flow_encodes_compatible_mp4s(page: Page, unused_port_server):
     """Downloads ffmpeg.wasm from the CDN unless FFMPEG_WASM_CACHE_DIR is set."""
-    cache_dir = os.environ.get("FFMPEG_WASM_CACHE_DIR")
-    if cache_dir:
-        cache = pathlib.Path(cache_dir)
-
-        def serve_from_cache(route, request):
-            local = cache / request.url.rsplit("/", 1)[-1]
-            if local.exists():
-                content_type = "application/wasm" if local.suffix == ".wasm" else "text/javascript"
-                route.fulfill(status=200, body=local.read_bytes(), content_type=content_type,
-                              headers={"Access-Control-Allow-Origin": "*"})
-            else:
-                route.abort()
-
-        page.route("https://cdn.jsdelivr.net/**", serve_from_cache)
-
+    route_ffmpeg_core(page)
     unused_port_server.start(root)
     page.goto(f"http://localhost:{unused_port_server.port}/video-compressor.html")
 
@@ -191,21 +196,7 @@ def test_full_flow_encodes_compatible_mp4s(page: Page, unused_port_server):
 
 def test_sample_mode_estimates_full_size(page: Page, unused_port_server):
     """Same download as the full flow; checks the 'first N seconds' and 'no audio' options."""
-    cache_dir = os.environ.get("FFMPEG_WASM_CACHE_DIR")
-    if cache_dir:
-        cache = pathlib.Path(cache_dir)
-
-        def serve_from_cache(route, request):
-            local = cache / request.url.rsplit("/", 1)[-1]
-            if local.exists():
-                content_type = "application/wasm" if local.suffix == ".wasm" else "text/javascript"
-                route.fulfill(status=200, body=local.read_bytes(), content_type=content_type,
-                              headers={"Access-Control-Allow-Origin": "*"})
-            else:
-                route.abort()
-
-        page.route("https://cdn.jsdelivr.net/**", serve_from_cache)
-
+    route_ffmpeg_core(page)
     unused_port_server.start(root)
     page.goto(f"http://localhost:{unused_port_server.port}/video-compressor.html")
     page.set_input_files("#file-input", str(fixture))
@@ -242,3 +233,131 @@ def test_sample_mode_estimates_full_size(page: Page, unused_port_server):
     info = describe_mp4(base64.b64decode(b64))
     assert info["profile_idc"] in (66, 77)
     assert not info["has_mp4a"], info
+
+
+def test_filename_poster_and_embed_snippet(page: Page, unused_port_server):
+    """The filename field drives every download name, the first frame is saved as a
+    JPEG, and the embed snippet always points at the first displayed video.
+    Same ffmpeg.wasm download as the full flow."""
+    route_ffmpeg_core(page)
+    unused_port_server.start(root)
+    page.goto(f"http://localhost:{unused_port_server.port}/video-compressor.html")
+    expect(page.locator("#embed-card")).to_be_hidden()
+
+    page.set_input_files("#file-input", str(fixture))
+    expect(page.locator("#settings-card")).to_be_visible()
+
+    # Filename is populated from the chosen file, minus its extension
+    expect(page.locator("#base-name")).to_have_value("test-video")
+    expect(page.locator("#base-name-hint")).to_contain_text("test-video-medium.mp4")
+    expect(page.locator("#base-name-hint")).to_contain_text("test-video.jpg")
+
+    # Before anything is encoded the snippet uses the first selected version
+    expect(page.locator("#embed-card")).to_be_visible()
+    snippet = page.locator("#embed-code").text_content()
+    assert '<video controls playsinline preload="none" poster="test-video.jpg">' in snippet
+    assert '<source src="test-video-largest.mp4" type="video/mp4">' in snippet
+
+    # Editing the filename is reflected everywhere, and unsafe characters are cleaned up
+    page.fill("#base-name", "My Clip")
+    page.locator("#base-name").blur()
+    expect(page.locator("#base-name")).to_have_value("My-Clip")
+    expect(page.locator("#base-name-hint")).to_contain_text("My-Clip-medium.mp4")
+    expect(page.locator("#embed-code")).to_contain_text('src="My-Clip-largest.mp4"')
+    expect(page.locator("#embed-code")).to_contain_text('poster="My-Clip.jpg"')
+
+    for row_id in ("xl", "l", "m", "s"):
+        page.locator(f"#variants-body tr[data-id={row_id}] input.enabled").uncheck()
+    expect(page.locator("#embed-code")).to_contain_text('src="My-Clip-smallest.mp4"')
+    page.select_option("#preset", "ultrafast")
+    page.check("#sample-mode")
+    page.fill("#sample-seconds", "1")
+
+    page.click("#generate")
+    page.wait_for_selector("#results-card[data-state=done]", timeout=300_000)
+    expect(page.locator("#error")).to_be_hidden()
+    card = page.locator(".result[data-state=done]")
+    expect(card).to_have_count(1)
+
+    # Download links use the edited filename plus the version name
+    expect(card.locator("a.download")).to_have_attribute("download", "My-Clip-smallest-sample.mp4")
+    assert "My-Clip-smallest-sample.mp4" in card.locator(".command").text_content()
+
+    # The first frame of the original was saved as a JPEG at the source resolution
+    expect(page.locator("#poster-row")).to_be_visible()
+    expect(page.locator("#poster-error")).to_be_hidden()
+    expect(page.locator("#poster-download")).to_have_attribute("download", "My-Clip.jpg")
+    expect(page.locator("#poster-meta")).to_contain_text("640×360")
+    poster = page.locator("#poster-img").evaluate("""async (img) => {
+        const buf = await (await fetch(img.src)).arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        return {length: bytes.length, head: Array.from(bytes.slice(0, 3)), width: img.naturalWidth, height: img.naturalHeight};
+    }""")
+    assert poster["head"] == [0xFF, 0xD8, 0xFF], poster
+    assert poster["length"] > 1000
+    assert (poster["width"], poster["height"]) == (640, 360)
+    expect(page.locator("#poster-size")).to_contain_text("KB")
+
+    # The snippet now names the first displayed video, with its dimensions and the poster
+    snippet = page.locator("#embed-code").text_content()
+    assert 'preload="none"' in snippet
+    assert 'width="640" height="360"' in snippet
+    assert 'poster="My-Clip.jpg"' in snippet
+    assert '<source src="My-Clip-smallest-sample.mp4" type="video/mp4">' in snippet
+
+    # Renaming after encoding updates the existing results too
+    page.fill("#base-name", "final")
+    expect(card.locator("a.download")).to_have_attribute("download", "final-smallest-sample.mp4")
+    expect(card.locator(".command")).to_contain_text("final-smallest-sample.mp4")
+    expect(page.locator("#poster-download")).to_have_attribute("download", "final.jpg")
+    expect(page.locator("#embed-code")).to_contain_text('src="final-smallest-sample.mp4"')
+    expect(page.locator("#embed-code")).to_contain_text('poster="final.jpg"')
+
+    # The XHTML option spells out boolean attributes and closes the empty element
+    expect(page.locator("#embed-xhtml")).not_to_be_checked()
+    page.check("#embed-xhtml")
+    snippet = page.locator("#embed-code").text_content()
+    assert snippet.startswith('<video controls="controls" playsinline="playsinline" preload="none" width="640" height="360" poster="final.jpg">')
+    assert '<source src="final-smallest-sample.mp4" type="video/mp4" />' in snippet
+    page.uncheck("#embed-xhtml")
+    expect(page.locator("#embed-code")).to_contain_text('<video controls playsinline preload="none"')
+
+    # The poster already matches the only video, so there is nothing to resize it to
+    expect(card.locator("button.resize-poster")).to_be_hidden()
+
+    # Encode a 320x180 version as well: it becomes the first displayed video and offers
+    # to resize the poster to its dimensions
+    page.locator("#variants-body tr[data-id=xs] input.enabled").uncheck()
+    page.click("#settings-card details summary")
+    page.fill("#custom-short", "180")
+    page.click("#add-custom")
+    page.click("#generate")
+    cards = page.locator(".result[data-state=done]")
+    expect(cards).to_have_count(2, timeout=120_000)
+    page.wait_for_selector("#results-card[data-state=done]", timeout=120_000)
+    small = cards.filter(has_text="Custom 1")
+    card = cards.filter(has_text="Smallest")
+    expect(small.locator(".meta")).to_contain_text("320×180")
+    expect(small.locator("a.download")).to_have_attribute("download", "final-custom-1-sample.mp4")
+    expect(page.locator("#embed-code")).to_contain_text('src="final-custom-1-sample.mp4"')
+    expect(page.locator("#embed-code")).to_contain_text('width="320" height="180"')
+
+    resize = small.locator("button.resize-poster")
+    expect(resize).to_be_visible()
+    expect(resize).to_have_text("Resize poster to 320×180")
+    expect(card.locator("button.resize-poster")).to_be_hidden()
+    resize.click()
+    expect(page.locator("#poster-meta")).to_contain_text("320×180 JPEG, first frame of the original resized from 640×360")
+    assert page.locator("#poster-img").evaluate("img => [img.naturalWidth, img.naturalHeight]") == [320, 180]
+    expect(page.locator("#poster-download")).to_have_attribute("download", "final.jpg")
+    expect(resize).to_be_hidden()
+
+    # ...and the 640x360 card now offers to resize it back
+    back = card.locator("button.resize-poster")
+    expect(back).to_be_visible()
+    expect(back).to_have_text("Resize poster to 640×360")
+    back.click()
+    expect(page.locator("#poster-meta")).to_have_text("640×360 JPEG, first frame of the original")
+    assert page.locator("#poster-img").evaluate("img => [img.naturalWidth, img.naturalHeight]") == [640, 360]
+    expect(back).to_be_hidden()
+    expect(resize).to_be_visible()

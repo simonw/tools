@@ -388,6 +388,114 @@ button.small {
   padding-left: 20px;
 }
 
+.filename-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.filename-field input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 14px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+}
+
+.filename-field .hint {
+  color: #777;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.poster {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+.poster h3,
+.embed h3 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+
+.poster-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.poster-row img {
+  max-width: 320px;
+  width: 100%;
+  height: auto;
+  background: #000;
+  border-radius: 4px;
+  flex: 0 1 320px;
+}
+
+.poster-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 200px;
+}
+
+.poster-info .size {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.poster-info .meta {
+  font-size: 13px;
+  color: #555;
+}
+
+.poster-info a.download {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #4CAF50;
+  color: white;
+  text-decoration: none;
+}
+
+.poster-info a.download:hover {
+  background: #43a047;
+}
+
+.embed p {
+  font-size: 14px;
+  color: #444;
+}
+
+.embed-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+pre.embed-code {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  background: #1a1a1a;
+  color: #8bc34a;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0 0 10px;
+  user-select: all;
+}
+
 pre.log {
   font-family: 'Courier New', monospace;
   font-size: 11px;
@@ -435,6 +543,10 @@ pre.log {
   </div>
 
   <div class="card" id="settings-card" hidden>
+    <label class="filename-field">Filename
+      <input type="text" id="base-name" autocomplete="off" spellcheck="false">
+      <span class="hint" id="base-name-hint"></span>
+    </label>
     <h2>Versions to generate</h2>
     <div class="table-wrap">
       <table class="variants" id="variants-table">
@@ -502,6 +614,31 @@ pre.log {
       </div>
     </div>
     <div class="grid" id="results"></div>
+    <div class="poster" id="poster-section" hidden>
+      <h3>Poster frame</h3>
+      <p class="intro">The first frame of the original video, saved as a JPEG to use as the poster image for the embedded video.</p>
+      <div class="poster-row" id="poster-row" hidden>
+        <img id="poster-img" alt="First frame of the video">
+        <div class="poster-info">
+          <div class="size" id="poster-size"></div>
+          <div class="meta" id="poster-meta"></div>
+          <a class="download" id="poster-download">Download .jpg</a>
+        </div>
+      </div>
+      <div class="pending" id="poster-pending">Extracting the first frame…</div>
+      <div class="error" id="poster-error" hidden></div>
+    </div>
+  </div>
+
+  <div class="card embed" id="embed-card" hidden>
+    <h3>Embed on a web page</h3>
+    <p>Upload the video and the poster JPEG alongside your page, then paste this in. It uses the first video shown in the results above. <code>preload="none"</code> means the browser only shows the poster image and does not download any of the video until someone presses play.</p>
+    <pre class="embed-code" id="embed-code"></pre>
+    <div class="actions">
+      <button type="button" class="small" id="copy-embed">Copy HTML</button>
+      <label class="embed-option"><input type="checkbox" id="embed-xhtml"> XHTML</label>
+      <span class="pending" id="copy-embed-status"></span>
+    </div>
   </div>
 
   <div class="info">
@@ -545,6 +682,8 @@ const els = {
   sourceDetails: $('source-details'),
   sizeWarning: $('size-warning'),
   settingsCard: $('settings-card'),
+  baseName: $('base-name'),
+  baseNameHint: $('base-name-hint'),
   variantsBody: $('variants-body'),
   preset: $('preset'),
   profile: $('profile'),
@@ -563,13 +702,26 @@ const els = {
   results: $('results'),
   playAll: $('play-all'),
   pauseAll: $('pause-all'),
+  posterSection: $('poster-section'),
+  posterRow: $('poster-row'),
+  posterImg: $('poster-img'),
+  posterSize: $('poster-size'),
+  posterMeta: $('poster-meta'),
+  posterDownload: $('poster-download'),
+  posterPending: $('poster-pending'),
+  posterError: $('poster-error'),
+  embedCard: $('embed-card'),
+  embedCode: $('embed-code'),
+  copyEmbed: $('copy-embed'),
+  embedXhtml: $('embed-xhtml'),
+  copyEmbedStatus: $('copy-embed-status'),
   log: $('log'),
 };
 
 let variants = DEFAULT_VARIANTS.map((v) => ({ ...v, enabled: true }));
 let customCounter = 0;
 
-let source = null; // { file, name, size, width, height, duration, fps, hasAudio, audioChannels, audioRate, memName, written }
+let source = null; // { file, name, size, width, height, duration, fps, hasAudio, audioChannels, audioRate, memName, written, poster }
 let ffmpeg = null;
 let coreURLs = null; // { coreURL, wasmURL } blob URLs, kept so a restart after Stop is quick
 let loadPromise = null;
@@ -606,6 +758,50 @@ function formatElapsed(ms) {
 
 function sanitizeBaseName(name) {
   return (name.replace(/\.[^.]+$/, '') || 'video').replace(/[^\w.-]+/g, '-').slice(0, 60);
+}
+
+// The base filename for every download and for the embed snippet: whatever is in the
+// filename field, cleaned up, falling back to the name of the source file.
+function baseName() {
+  const typed = els.baseName.value.trim().replace(/[^\w.-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '');
+  if (typed) return typed.slice(0, 80);
+  return source ? sanitizeBaseName(source.name) : 'video';
+}
+
+function variantSlug(variant) {
+  return variant.name.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '') || variant.id;
+}
+
+function jobFilename(job) {
+  return `${baseName()}-${variantSlug(job.variant)}${job.sampleSeconds ? '-sample' : ''}.mp4`;
+}
+
+function posterFilename() {
+  return `${baseName()}.jpg`;
+}
+
+// Re-derive every filename that depends on the filename field.
+function refreshFilenames() {
+  els.baseNameHint.textContent = `Downloads will be named ${baseName()}-medium.mp4, ${baseName()}-small.mp4 and so on, plus ${posterFilename()} for the poster frame.`;
+  for (const card of els.results.querySelectorAll('.result')) {
+    const job = card.job;
+    if (!job) continue;
+    const download = card.querySelector('a.download');
+    if (download) download.download = jobFilename(job);
+    const command = card.querySelector('.command');
+    if (command && job.args) command.textContent = commandText(job);
+  }
+  els.posterDownload.download = posterFilename();
+  updateEmbed();
+}
+
+function commandText(job) {
+  const displayArgs = job.args.map((arg) => {
+    if (arg === source.memName) return source.name;
+    if (/^(?:[\w-]+)-(?:sample|full)\.mp4$/.test(arg)) return jobFilename(job);
+    return arg;
+  });
+  return `ffmpeg ${displayArgs.map(shellQuote).join(' ')}`;
 }
 
 function shellQuote(arg) {
@@ -675,7 +871,7 @@ function renderVariants() {
     `;
     tr.querySelector('.name').textContent = v.name;
     tr.querySelector('.dims').textContent = dimsText;
-    tr.querySelector('.enabled').addEventListener('change', (e) => { v.enabled = e.target.checked; });
+    tr.querySelector('.enabled').addEventListener('change', (e) => { v.enabled = e.target.checked; updateEmbed(); });
     tr.querySelector('.crf').addEventListener('change', (e) => { v.crf = clampInt(e.target.value, 10, 45, v.crf); e.target.value = v.crf; });
     tr.querySelector('.audio').disabled = els.noAudio.checked;
     tr.querySelector('.audio').addEventListener('change', (e) => { v.audio = clampInt(e.target.value, 32, 256, v.audio); e.target.value = v.audio; });
@@ -754,14 +950,23 @@ async function handleFile(file) {
     written: false,
     probed: false,
   };
+  els.baseName.value = sanitizeBaseName(file.name);
   els.dropZoneText.textContent = `${file.name} (${formatBytes(file.size)}). Drop or click to choose a different video.`;
   els.sizeWarning.hidden = file.size < WARN_INPUT_BYTES;
   els.sizeWarning.textContent = `This file is ${formatBytes(file.size)}. Large files can exhaust browser memory, especially on phones, and each version can take a long time to encode. Consider using the "first N seconds" option to compare settings first.`;
   renderSourceInfo();
   els.settingsCard.hidden = false;
+  els.embedCard.hidden = false;
   renderVariants();
+  refreshFilenames();
   setStatus('');
 }
+
+els.baseName.addEventListener('input', refreshFilenames);
+els.baseName.addEventListener('change', () => {
+  els.baseName.value = baseName();
+  refreshFilenames();
+});
 
 function renderSourceInfo() {
   const rows = [
@@ -949,6 +1154,199 @@ async function ensureInputWritten() {
   return ff;
 }
 
+// ---------- poster frame ----------
+
+// Save the first frame of the original video as a JPEG. Runs once per source file,
+// before the first encode, so the input has already been written into ffmpeg's memory.
+// ffmpeg decodes the frame (applying any rotation metadata) and writes it as a lossless
+// PNG; the browser then turns that into a JPEG. Encoding straight to JPEG with ffmpeg's
+// mjpeg encoder crashed the ffmpeg.wasm worker in testing, and a canvas is more than
+// good enough for a poster image. The PNG is kept so the JPEG can be regenerated at the
+// size of any of the encoded versions without going through a second lossy step.
+const POSTER_JPEG_QUALITY = 0.85;
+
+async function ensurePoster(ff) {
+  if (source.poster || source.posterFailed) return;
+  els.posterSection.hidden = false;
+  els.posterPending.hidden = false;
+  els.posterError.hidden = true;
+  setStatus('Saving the first frame as a JPEG…', null);
+  const args = ['-y', '-hide_banner', '-i', source.memName, '-map', '0:v:0', '-frames:v', '1', '-c:v', 'png', '-update', '1', '-f', 'image2', 'poster.png'];
+  let ret;
+  const logStart = logLines.length;
+  try {
+    ret = await ff.exec(args);
+  } catch (err) {
+    if (ffmpeg !== ff) return; // stopped
+    ret = -1;
+    appendLog(String(err));
+  }
+  if (ffmpeg !== ff) return;
+  if (ret !== 0) {
+    const tail = logLines.slice(Math.max(logStart, logLines.length - 4)).join('\n');
+    posterFailed(`ffmpeg exited with code ${ret}.\n${tail}`);
+    return;
+  }
+  let png;
+  try {
+    png = await ff.readFile('poster.png');
+    await ff.deleteFile('poster.png');
+  } catch (err) {
+    posterFailed(`Could not read the frame back from ffmpeg: ${err}`);
+    return;
+  }
+  source.posterFrame = new Blob([png], { type: 'image/png' });
+  try {
+    const result = await pngToJpeg(source.posterFrame);
+    source.poster = result.blob;
+    source.posterWidth = result.width;
+    source.posterHeight = result.height;
+    source.posterFrameWidth = result.width;
+    source.posterFrameHeight = result.height;
+  } catch (err) {
+    posterFailed(`Could not convert the frame to a JPEG: ${err.message || err}`);
+    return;
+  }
+  renderPoster();
+}
+
+// Draw the PNG frame onto a canvas and read it back as a JPEG, scaled to width×height
+// when given (the frame's own size otherwise).
+async function pngToJpeg(pngBlob, width, height) {
+  const bitmap = await createImageBitmap(pngBlob);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = width || bitmap.width;
+    canvas.height = height || bitmap.height;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const jpeg = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', POSTER_JPEG_QUALITY));
+    if (!jpeg) throw new Error('the browser returned an empty image');
+    return { blob: jpeg, width: canvas.width, height: canvas.height };
+  } finally {
+    bitmap.close();
+  }
+}
+
+// Regenerate the poster JPEG from the original frame at the size of one of the videos.
+async function resizePoster(width, height) {
+  if (!source || !source.posterFrame) return;
+  els.posterPending.hidden = false;
+  els.posterPending.textContent = `Resizing the poster to ${width}×${height}…`;
+  try {
+    const result = await pngToJpeg(source.posterFrame, width, height);
+    source.poster = result.blob;
+    source.posterWidth = result.width;
+    source.posterHeight = result.height;
+  } catch (err) {
+    els.posterPending.hidden = true;
+    els.posterError.hidden = false;
+    els.posterError.textContent = `Could not resize the poster: ${err.message || err}`;
+    return;
+  }
+  renderPoster();
+}
+
+function posterMetaText() {
+  const size = `${source.posterWidth}×${source.posterHeight} JPEG`;
+  const resized = source.posterWidth !== source.posterFrameWidth || source.posterHeight !== source.posterFrameHeight;
+  return resized ? `${size}, first frame of the original resized from ${source.posterFrameWidth}×${source.posterFrameHeight}` : `${size}, first frame of the original`;
+}
+
+// Each encoded version gets a "Resize poster" button, shown only while the poster's
+// dimensions differ from that version's.
+function updatePosterButtons() {
+  for (const card of els.results.querySelectorAll('.result')) {
+    const button = card.querySelector('button.resize-poster');
+    if (!button) continue;
+    const width = parseInt(card.dataset.width, 10);
+    const height = parseInt(card.dataset.height, 10);
+    const matches = width === source.posterWidth && height === source.posterHeight;
+    button.hidden = !source.poster || !width || !height || matches;
+    button.textContent = `Resize poster to ${width}×${height}`;
+  }
+}
+
+function posterFailed(message) {
+  source.posterFailed = true;
+  els.posterPending.hidden = true;
+  els.posterError.hidden = false;
+  els.posterError.textContent = `Could not extract the first frame. ${message}`;
+}
+
+function renderPoster() {
+  if (els.posterImg.src && els.posterImg.src.startsWith('blob:')) URL.revokeObjectURL(els.posterImg.src);
+  const url = URL.createObjectURL(source.poster);
+  els.posterImg.src = url;
+  els.posterSize.textContent = formatBytes(source.poster.size);
+  els.posterMeta.textContent = posterMetaText();
+  els.posterDownload.href = url;
+  els.posterDownload.download = posterFilename();
+  els.posterSection.hidden = false;
+  els.posterPending.hidden = true;
+  els.posterError.hidden = true;
+  els.posterRow.hidden = false;
+  updatePosterButtons();
+}
+
+function resetPoster() {
+  if (els.posterImg.src && els.posterImg.src.startsWith('blob:')) URL.revokeObjectURL(els.posterImg.src);
+  els.posterImg.removeAttribute('src');
+  els.posterDownload.removeAttribute('href');
+  els.posterSection.hidden = true;
+  els.posterRow.hidden = true;
+  els.posterPending.hidden = false;
+  els.posterPending.textContent = 'Extracting the first frame…';
+  els.posterError.hidden = true;
+}
+
+// ---------- embed snippet ----------
+
+// The first video shown in the results (they are sorted smallest first), or, before
+// anything has been encoded, the first version that is selected to be generated.
+function embedTarget() {
+  for (const card of els.results.querySelectorAll('.result')) {
+    if (card.job && card.dataset.state === 'done') {
+      return { filename: jobFilename(card.job), width: card.dataset.width, height: card.dataset.height };
+    }
+  }
+  const variant = variants.find((v) => v.enabled) || variants[0] || DEFAULT_VARIANTS[2];
+  const dims = source ? outputDimensions(source.width, source.height, variant.shortSide) : null;
+  return { filename: `${baseName()}-${variantSlug(variant)}.mp4`, width: dims && dims.width, height: dims && dims.height };
+}
+
+function escapeAttr(value) {
+  return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function updateEmbed() {
+  if (!source) return;
+  const target = embedTarget();
+  const xhtml = els.embedXhtml.checked;
+  // Boolean attributes must be written out in full in XHTML, and empty elements closed.
+  const flag = (name) => (xhtml ? `${name}="${name}"` : name);
+  const size = target.width && target.height ? ` width="${target.width}" height="${target.height}"` : '';
+  els.embedCode.textContent = [
+    `<video ${flag('controls')} ${flag('playsinline')} preload="none"${size} poster="${escapeAttr(posterFilename())}">`,
+    `  <source src="${escapeAttr(target.filename)}" type="video/mp4"${xhtml ? ' /' : ''}>`,
+    `</video>`,
+  ].join('\n');
+}
+
+els.embedXhtml.addEventListener('change', updateEmbed);
+
+els.copyEmbed.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(els.embedCode.textContent);
+    els.copyEmbedStatus.textContent = 'Copied.';
+  } catch (err) {
+    els.copyEmbedStatus.textContent = 'Could not copy: select the text and copy it yourself.';
+  }
+  setTimeout(() => { els.copyEmbedStatus.textContent = ''; }, 2500);
+});
+
 // ---------- encoding ----------
 
 function currentOptions() {
@@ -1004,6 +1402,8 @@ async function runQueue() {
   let failed = 0;
   try {
     const ff = await ensureInputWritten();
+    await ensurePoster(ff);
+    if (ffmpeg !== ff) return; // stopped while extracting the poster
     while (queue.length) {
       const job = queue.shift();
       currentJob = job;
@@ -1134,6 +1534,7 @@ function clearResults() {
   els.results.innerHTML = '';
   els.resultsCard.hidden = true;
   delete els.resultsCard.dataset.state;
+  resetPoster();
 }
 
 function ensureOriginalCard() {
@@ -1200,10 +1601,10 @@ function fillCard(job) {
   const sampleLength = isSample ? Math.min(job.sampleSeconds, source.duration || job.sampleSeconds) : null;
   const estimatedFull = isSample && source.duration ? (job.size * source.duration) / sampleLength : null;
   const effectiveSize = estimatedFull || job.size;
-  const baseName = sanitizeBaseName(source.name);
   resultCounter += 1;
 
   card.className = 'result';
+  card.job = job;
   card.dataset.size = Math.round(effectiveSize);
   card.dataset.bytes = job.size;
   card.dataset.state = 'done';
@@ -1231,8 +1632,8 @@ function fillCard(job) {
       job.options.noAudio ? 'no audio' : null,
       `encoded in ${formatElapsed(job.elapsedMs)}`,
     ].filter(Boolean).join(', ');
-    const download = card.querySelector('a.download');
-    download.download = `${baseName}-${video.videoWidth}x${video.videoHeight}-crf${variant.crf}${isSample ? '-sample' : ''}.mp4`;
+    updateEmbed();
+    updatePosterButtons();
   }, { once: true });
 
   card.querySelector('.title').textContent = `${variant.name}${isSample ? ` (first ${formatDuration(sampleLength)})` : ''}`;
@@ -1266,7 +1667,7 @@ function fillCard(job) {
   const download = document.createElement('a');
   download.className = 'download';
   download.href = url;
-  download.download = `${baseName}-${dims ? `${dims.width}x${dims.height}-` : ''}crf${variant.crf}${isSample ? '-sample' : ''}.mp4`;
+  download.download = jobFilename(job);
   download.textContent = 'Download .mp4';
   buttons.appendChild(download);
   if (isSample) {
@@ -1280,15 +1681,18 @@ function fillCard(job) {
     });
     buttons.appendChild(full);
   }
+  const resize = document.createElement('button');
+  resize.type = 'button';
+  resize.className = 'small resize-poster';
+  resize.hidden = true;
+  resize.addEventListener('click', () => resizePoster(parseInt(card.dataset.width, 10), parseInt(card.dataset.height, 10)));
+  buttons.appendChild(resize);
 
-  const displayArgs = job.args.map((arg) => {
-    if (arg === source.memName) return source.name;
-    if (/^(?:[\w-]+)-(?:sample|full)\.mp4$/.test(arg)) return `${baseName}-crf${variant.crf}.mp4`;
-    return arg;
-  });
-  card.querySelector('.command').textContent = `ffmpeg ${displayArgs.map(shellQuote).join(' ')}`;
+  card.querySelector('.command').textContent = commandText(job);
 
   sortResults();
+  updateEmbed();
+  updatePosterButtons();
 }
 
 function sortResults() {
