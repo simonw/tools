@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mercator ↔ Equal Earth</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, sans-serif;
+      background: #101a2a;
+      color: #edf4fa;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main {
+      max-width: 1280px;
+      margin: auto;
+      padding: 30px;
+    }
+    h1 {
+      font-size: clamp(26px, 4vw, 40px);
+      font-weight: 550;
+      letter-spacing: -.04em;
+      margin: 0 0 22px;
+    }
+    h1 span { color: #67d7ce; }
+    .map-panel {
+      position: relative;
+      background: #0b1422;
+      border: 1px solid #2b394b;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .map-top, .map-bottom {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+    .map-top { top: 16px; font-size: 14px; }
+    #state { color: #6be0d2; }
+    #percent {
+      color: #aab9cc;
+      font-variant-numeric: tabular-nums;
+    }
+    .map-bottom {
+      bottom: 14px;
+      font-size: 12px;
+      color: #8799b0;
+    }
+    canvas {
+      width: 100%;
+      height: clamp(340px, 65vh, 650px);
+      display: block;
+    }
+    #loading {
+      position: absolute;
+      top: 45%;
+      left: 15%;
+      right: 15%;
+      text-align: center;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 26px;
+      padding: 22px 0;
+    }
+    button {
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+    #play {
+      border: 1px solid #57cdbf;
+      background: #163c43;
+      border-radius: 7px;
+      min-width: 100px;
+      padding: 12px 16px;
+    }
+    #play:hover { background: #20515a; }
+    #play:disabled { opacity: .5; cursor: wait; }
+    .scrubber { flex: 1; min-width: 0; }
+    .ends, .scale-labels {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .ends button {
+      padding: 0;
+      border: 0;
+      background: none;
+      font-size: 15px;
+    }
+    .ends button:hover { color: #6be0d2; }
+    .scale-labels { font-size: 13px; color: #93a6bf; }
+    .scale-labels span:last-child { text-align: right; }
+    input[type="range"] {
+      width: 100%;
+      margin: 14px 0;
+      accent-color: #6be0d2;
+      cursor: ew-resize;
+    }
+    button:focus-visible, input:focus-visible {
+      outline: 2px solid white;
+      outline-offset: 5px;
+    }
+    .note {
+      border-top: 1px solid #2b394b;
+      padding-top: 16px;
+      color: #99adc5;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    @media (max-width: 600px) {
+      main { padding: 20px 14px; }
+      .controls { gap: 15px; }
+      #play { min-width: 76px; padding: 12px; }
+      canvas { height: 50vh; }
+      .scale-labels { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Mercator <span>↔</span> Equal Earth</h1>
+
+    <section class="map-panel" aria-label="Animated world map">
+      <div class="map-top">
+        <span id="state">Mercator</span>
+        <span id="percent">0% Equal Earth</span>
+      </div>
+      <canvas id="map" role="img"
+        aria-label="World map morphing between Mercator and Equal Earth">
+      </canvas>
+      <div id="loading" role="status">Loading the world…</div>
+      <div class="map-bottom">
+        <span>15° graticule</span>
+        <span>D3 · Natural Earth</span>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="Projection controls">
+      <button id="play" disabled>Play</button>
+      <div class="scrubber">
+        <div class="ends">
+          <button id="merc">Mercator</button>
+          <button id="equal">Equal Earth</button>
+        </div>
+        <input id="blend" type="range" min="0" max="1000" value="0"
+          aria-label="Projection blend" aria-valuetext="Mercator">
+        <div class="scale-labels">
+          <span>Preserves local angles</span>
+          <span>Preserves relative areas</span>
+        </div>
+      </div>
+    </section>
+
+    <p class="note">
+      Intermediate frames blend projected coordinates; they are not equal-area.
+      Mercator is cropped at ±85.05° latitude.
+      Each endpoint is fitted to the available space.
+    </p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+  <script>
+    const canvas = document.querySelector("#map");
+    const ctx = canvas.getContext("2d");
+    const slider = document.querySelector("#blend");
+    const play = document.querySelector("#play");
+    const loading = document.querySelector("#loading");
+    const state = document.querySelector("#state");
+    const percent = document.querySelector("#percent");
+
+    let t = 0;
+    let playing = false;
+    let direction = 1;
+    let last = null;
+    let hold = 700;
+    let world;
+    let width, height;
+
+    async function init() {
+      try {
+        if (!window.d3 || !window.topojson) {
+          throw new Error("A required library failed to load.");
+        }
+
+        const graticule = d3.geoGraticule().step([15, 15])();
+        const sphere = { type: "Sphere" };
+        const eqWidth = d3.geoEqualEarthRaw(Math.PI, 0)[0];
+        const eqHeight = d3.geoEqualEarthRaw(0, Math.PI / 2)[1];
+
+        function projectionAt(blend) {
+          const innerWidth = width - 38;
+          const innerHeight = height - 90;
+
+          const mercatorScale =
+            Math.min(innerWidth, innerHeight) / (2 * Math.PI);
+
+          const equalEarthScale = Math.min(
+            innerWidth / (2 * eqWidth),
+            innerHeight / (2 * eqHeight)
+          );
+
+          const halfHeight =
+            (1 - blend) * Math.PI * mercatorScale +
+            blend * eqHeight * equalEarthScale;
+
+          return d3.geoProjection((lambda, phi) => {
+            // Avoid Mercator's singularities at the exact poles.
+            const safePhi = Math.max(
+              -Math.PI / 2 + 1e-7,
+              Math.min(Math.PI / 2 - 1e-7, phi)
+            );
+            const a = d3.geoMercatorRaw(lambda, safePhi);
+            const b = d3.geoEqualEarthRaw(lambda, phi);
+
+            return [
+              (1 - blend) * a[0] * mercatorScale +
+                blend * b[0] * equalEarthScale,
+              (1 - blend) * a[1] * mercatorScale +
+                blend * b[1] * equalEarthScale
+            ];
+          })
+            .scale(1)
+            .translate([width / 2, height / 2])
+            .precision(0.4)
+            .clipExtent([
+              [18, height / 2 - halfHeight],
+              [width - 18, height / 2 + halfHeight]
+            ]);
+        }
+
+        function draw() {
+          if (!world) return;
+          ctx.clearRect(0, 0, width, height);
+          const path = d3.geoPath(projectionAt(t), ctx);
+
+          function paint(geometry, fill, stroke, lineWidth) {
+            ctx.beginPath();
+            path(geometry);
+            if (fill) {
+              ctx.fillStyle = fill;
+              ctx.fill();
+            }
+            if (stroke) {
+              ctx.strokeStyle = stroke;
+              ctx.lineWidth = lineWidth;
+              ctx.stroke();
+            }
+          }
+
+          paint(sphere, "#112b40", "#3b5c74", 1);
+          paint(graticule, null, "#2b475e", 0.65);
+          paint(world.land, "#69c8b6", "#a0e6d2", 0.5);
+          paint(world.borders, null, "#28746f", 0.55);
+
+          const label = `${Math.round(t * 100)}% Equal Earth`;
+          slider.value = Math.round(t * 1000);
+          slider.setAttribute("aria-valuetext", label);
+          percent.textContent = label;
+          state.textContent = t < 0.001 ? "Mercator"
+            : t > 0.999 ? "Equal Earth"
+            : "Projection blend";
+        }
+
+        function resize() {
+          const rect = canvas.getBoundingClientRect();
+          width = rect.width;
+          height = rect.height;
+
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(height * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          draw();
+        }
+
+        function setPlaying(value) {
+          playing = value;
+          play.textContent = playing ? "Pause" : "Play";
+          play.setAttribute("aria-pressed", String(playing));
+          last = null;
+        }
+
+        play.onclick = () => setPlaying(!playing);
+
+        slider.oninput = () => {
+          setPlaying(false);
+          t = Number(slider.value) / 1000;
+          hold = 0;
+          draw();
+        };
+
+        function jump(value) {
+          setPlaying(false);
+          t = value;
+          direction = value === 0 ? 1 : -1;
+          hold = 700;
+          draw();
+        }
+
+        document.querySelector("#merc").onclick = () => jump(0);
+        document.querySelector("#equal").onclick = () => jump(1);
+
+        new ResizeObserver(resize).observe(canvas);
+        document.addEventListener("visibilitychange", () => {
+          last = null;
+        });
+
+        const data = await d3.json(
+          "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json"
+        );
+
+        world = {
+          land: topojson.feature(data, data.objects.land),
+          borders: topojson.mesh(
+            data, data.objects.countries, (a, b) => a !== b
+          )
+        };
+
+        loading.hidden = true;
+        play.disabled = false;
+        resize();
+        setPlaying(
+          !matchMedia("(prefers-reduced-motion: reduce)").matches
+        );
+
+        d3.timer(now => {
+          if (!playing || document.hidden) {
+            last = null;
+            return;
+          }
+          if (last === null) {
+            last = now;
+            return;
+          }
+
+          const dt = Math.min(now - last, 80);
+          last = now;
+
+          if (hold > 0) {
+            hold -= dt;
+            return;
+          }
+
+          t = Math.max(0, Math.min(1, t + direction * dt / 5000));
+
+          if (t === 0 || t === 1) {
+            direction *= -1;
+            hold = 1200;
+          }
+
+          draw();
+        });
+      } catch (error) {
+        loading.hidden = false;
+        loading.textContent =
+          "The map could not load. Reload the page to try again.";
+        console.error(error);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
