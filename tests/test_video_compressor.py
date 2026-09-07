@@ -190,7 +190,7 @@ def test_full_flow_encodes_compatible_mp4s(page: Page, unused_port_server):
 
 
 def test_sample_mode_estimates_full_size(page: Page, unused_port_server):
-    """Same download as the full flow; checks the 'first N seconds' path."""
+    """Same download as the full flow; checks the 'first N seconds' and 'no audio' options."""
     cache_dir = os.environ.get("FFMPEG_WASM_CACHE_DIR")
     if cache_dir:
         cache = pathlib.Path(cache_dir)
@@ -216,6 +216,8 @@ def test_sample_mode_estimates_full_size(page: Page, unused_port_server):
     page.select_option("#preset", "ultrafast")
     page.check("#sample-mode")
     page.fill("#sample-seconds", "1")
+    page.check("#no-audio")
+    expect(page.locator("#variants-body tr[data-id=xs] input.audio")).to_be_disabled()
 
     page.click("#generate")
     page.wait_for_selector("#results-card[data-state=done]", timeout=300_000)
@@ -223,6 +225,20 @@ def test_sample_mode_estimates_full_size(page: Page, unused_port_server):
     expect(card).to_have_count(1)
     expect(card.locator(".title")).to_contain_text("first 0:01")
     expect(card.locator(".size")).to_contain_text("estimated full length")
+    expect(card.locator(".meta")).to_contain_text("no audio")
     expect(card.locator("button", has_text="Encode full version")).to_be_visible()
     command = card.locator(".command").text_content()
     assert " -t 1 " in command
+    assert " -an " in command
+    assert "-c:a" not in command
+
+    # The file really has no audio track
+    b64 = card.evaluate("""async (el) => {
+        const buf = await (await fetch(el.querySelector('video').src)).arrayBuffer();
+        let s = '';
+        for (const b of new Uint8Array(buf)) s += String.fromCharCode(b);
+        return btoa(s);
+    }""")
+    info = describe_mp4(base64.b64decode(b64))
+    assert info["profile_idc"] in (66, 77)
+    assert not info["has_mp4a"], info

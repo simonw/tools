@@ -480,6 +480,7 @@ pre.log {
       </label>
       <label><input type="checkbox" id="cap-fps"> Limit to 30 fps</label>
       <label><input type="checkbox" id="strip-metadata" checked> Strip metadata (location, camera, dates)</label>
+      <label><input type="checkbox" id="no-audio"> No audio (drop the sound track)</label>
       <label><input type="checkbox" id="sample-mode"> Only encode the first
         <input type="number" id="sample-seconds" value="10" min="1" max="600"> seconds (quick comparison)</label>
     </div>
@@ -549,6 +550,7 @@ const els = {
   profile: $('profile'),
   capFps: $('cap-fps'),
   stripMetadata: $('strip-metadata'),
+  noAudio: $('no-audio'),
   sampleMode: $('sample-mode'),
   sampleSeconds: $('sample-seconds'),
   generate: $('generate'),
@@ -675,6 +677,7 @@ function renderVariants() {
     tr.querySelector('.dims').textContent = dimsText;
     tr.querySelector('.enabled').addEventListener('change', (e) => { v.enabled = e.target.checked; });
     tr.querySelector('.crf').addEventListener('change', (e) => { v.crf = clampInt(e.target.value, 10, 45, v.crf); e.target.value = v.crf; });
+    tr.querySelector('.audio').disabled = els.noAudio.checked;
     tr.querySelector('.audio').addEventListener('change', (e) => { v.audio = clampInt(e.target.value, 32, 256, v.audio); e.target.value = v.audio; });
     const remove = tr.querySelector('.remove');
     if (remove) {
@@ -954,6 +957,7 @@ function currentOptions() {
     profile: els.profile.value,
     capFps: els.capFps.checked,
     stripMetadata: els.stripMetadata.checked,
+    noAudio: els.noAudio.checked,
     sampleSeconds: els.sampleMode.checked ? clampInt(els.sampleSeconds.value, 1, 600, 10) : null,
   };
 }
@@ -962,13 +966,15 @@ function buildArgs(variant, options, outputName) {
   const args = ['-y', '-hide_banner'];
   if (options.sampleSeconds) args.push('-t', String(options.sampleSeconds));
   args.push('-i', source.memName);
-  args.push('-map', '0:v:0', '-map', '0:a:0?');
+  const noAudio = options.noAudio || source.hasAudio === false;
+  args.push('-map', '0:v:0');
+  if (!noAudio) args.push('-map', '0:a:0?');
   args.push('-c:v', 'libx264', '-preset', options.preset, '-crf', String(variant.crf));
   args.push('-profile:v', options.profile, '-pix_fmt', 'yuv420p');
   args.push('-vf', scaleFilter(variant.shortSide));
   if (options.capFps && (!source.fps || source.fps > 30)) args.push('-r', '30');
   else if (source.fps && source.fps > 60) args.push('-r', '60');
-  if (source.hasAudio === false) {
+  if (noAudio) {
     args.push('-an');
   } else {
     args.push('-c:a', 'aac', '-b:a', `${variant.audio}k`);
@@ -1115,6 +1121,10 @@ els.generate.addEventListener('click', () => {
 
 els.stop.addEventListener('click', () => stopEverything());
 
+els.noAudio.addEventListener('change', () => {
+  for (const input of els.variantsBody.querySelectorAll('input.audio')) input.disabled = els.noAudio.checked;
+});
+
 // ---------- results ----------
 
 function clearResults() {
@@ -1218,6 +1228,7 @@ function fillCard(job) {
       `${video.videoWidth}×${video.videoHeight}`,
       `CRF ${variant.crf}`,
       kbps ? `${kbps} kbps` : null,
+      job.options.noAudio ? 'no audio' : null,
       `encoded in ${formatElapsed(job.elapsedMs)}`,
     ].filter(Boolean).join(', ');
     const download = card.querySelector('a.download');
@@ -1243,6 +1254,7 @@ function fillCard(job) {
     dims ? `${dims.width}×${dims.height}` : null,
     `CRF ${variant.crf}`,
     kbpsGuess ? `${kbpsGuess} kbps` : null,
+    job.options.noAudio ? 'no audio' : null,
     `encoded in ${formatElapsed(job.elapsedMs)}`,
   ].filter(Boolean).join(', ');
   if (dims) {
