@@ -312,3 +312,52 @@ def test_filename_poster_and_embed_snippet(page: Page, unused_port_server):
     expect(page.locator("#poster-download")).to_have_attribute("download", "final.jpg")
     expect(page.locator("#embed-code")).to_contain_text('src="final-smallest-sample.mp4"')
     expect(page.locator("#embed-code")).to_contain_text('poster="final.jpg"')
+
+    # The XHTML option spells out boolean attributes and closes the empty element
+    expect(page.locator("#embed-xhtml")).not_to_be_checked()
+    page.check("#embed-xhtml")
+    snippet = page.locator("#embed-code").text_content()
+    assert snippet.startswith('<video controls="controls" playsinline="playsinline" preload="none" width="640" height="360" poster="final.jpg">')
+    assert '<source src="final-smallest-sample.mp4" type="video/mp4" />' in snippet
+    page.uncheck("#embed-xhtml")
+    expect(page.locator("#embed-code")).to_contain_text('<video controls playsinline preload="none"')
+
+    # The poster already matches the only video, so there is nothing to resize it to
+    expect(card.locator("button.resize-poster")).to_be_hidden()
+
+    # Encode a 320x180 version as well: it becomes the first displayed video and offers
+    # to resize the poster to its dimensions
+    page.locator("#variants-body tr[data-id=xs] input.enabled").uncheck()
+    page.click("#settings-card details summary")
+    page.fill("#custom-short", "180")
+    page.click("#add-custom")
+    page.click("#generate")
+    cards = page.locator(".result[data-state=done]")
+    expect(cards).to_have_count(2, timeout=120_000)
+    page.wait_for_selector("#results-card[data-state=done]", timeout=120_000)
+    small = cards.filter(has_text="Custom 1")
+    card = cards.filter(has_text="Smallest")
+    expect(small.locator(".meta")).to_contain_text("320×180")
+    expect(small.locator("a.download")).to_have_attribute("download", "final-custom-1-sample.mp4")
+    expect(page.locator("#embed-code")).to_contain_text('src="final-custom-1-sample.mp4"')
+    expect(page.locator("#embed-code")).to_contain_text('width="320" height="180"')
+
+    resize = small.locator("button.resize-poster")
+    expect(resize).to_be_visible()
+    expect(resize).to_have_text("Resize poster to 320×180")
+    expect(card.locator("button.resize-poster")).to_be_hidden()
+    resize.click()
+    expect(page.locator("#poster-meta")).to_contain_text("320×180 JPEG, first frame of the original resized from 640×360")
+    assert page.locator("#poster-img").evaluate("img => [img.naturalWidth, img.naturalHeight]") == [320, 180]
+    expect(page.locator("#poster-download")).to_have_attribute("download", "final.jpg")
+    expect(resize).to_be_hidden()
+
+    # ...and the 640x360 card now offers to resize it back
+    back = card.locator("button.resize-poster")
+    expect(back).to_be_visible()
+    expect(back).to_have_text("Resize poster to 640×360")
+    back.click()
+    expect(page.locator("#poster-meta")).to_have_text("640×360 JPEG, first frame of the original")
+    assert page.locator("#poster-img").evaluate("img => [img.naturalWidth, img.naturalHeight]") == [640, 360]
+    expect(back).to_be_hidden()
+    expect(resize).to_be_visible()
