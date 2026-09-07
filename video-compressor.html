@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video compressor</title>
+  <style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #f5f5f5;
+  color: #222;
+  line-height: 1.4;
+}
+
+h1 {
+  font-size: 24px;
+  margin: 0 0 12px;
+}
+
+h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+
+p {
+  margin: 0 0 12px;
+}
+
+.card {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.intro {
+  font-size: 15px;
+  color: #444;
+}
+
+.drop-zone {
+  display: block;
+  border: 2px dashed #bbb;
+  border-radius: 8px;
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  color: #555;
+  font-size: 16px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.drop-zone:hover,
+.drop-zone.dragover {
+  border-color: #4CAF50;
+  background: #f1f8f1;
+}
+
+.drop-zone input {
+  display: none;
+}
+
+.source-info {
+  margin-top: 14px;
+  font-size: 14px;
+  color: #333;
+}
+
+.source-info dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 0;
+}
+
+.source-info dt {
+  color: #777;
+}
+
+.source-info dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+table.variants {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+table.variants th,
+table.variants td {
+  text-align: left;
+  padding: 7px 8px;
+  border-bottom: 1px solid #eee;
+  white-space: nowrap;
+}
+
+table.variants th {
+  color: #666;
+  font-weight: normal;
+  font-size: 13px;
+}
+
+table.variants input[type="number"] {
+  width: 64px;
+  padding: 4px;
+  font-size: 14px;
+}
+
+table.variants .remove {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 6px;
+}
+
+table.variants .remove:hover {
+  color: #c00;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin: 12px 0 16px;
+  font-size: 14px;
+  align-items: center;
+}
+
+.options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.options select,
+.options input[type="number"] {
+  font-size: 14px;
+  padding: 4px;
+}
+
+.options input[type="number"] {
+  width: 60px;
+}
+
+.add-custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  font-size: 14px;
+  margin: 8px 0 4px;
+}
+
+.add-custom input {
+  width: 72px;
+  padding: 4px;
+  font-size: 14px;
+}
+
+details {
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+summary {
+  cursor: pointer;
+  color: #1976d2;
+}
+
+button {
+  font-size: 15px;
+  padding: 9px 16px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fafafa;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #eee;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.primary {
+  background: #4CAF50;
+  border-color: #43a047;
+  color: white;
+}
+
+button.primary:hover:not(:disabled) {
+  background: #43a047;
+}
+
+button.danger {
+  background: #fff;
+  border-color: #e57373;
+  color: #c62828;
+}
+
+button.small {
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.status {
+  margin-top: 14px;
+  font-size: 14px;
+  color: #333;
+  min-height: 1.4em;
+}
+
+.progress {
+  height: 10px;
+  background: #e6e6e6;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0;
+  background: #4CAF50;
+  transition: width 0.15s;
+}
+
+.warning {
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  color: #6d4c00;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  margin-top: 12px;
+}
+
+.error {
+  background: #fdecea;
+  border: 1px solid #f5c6c2;
+  color: #8a1f11;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  margin-top: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.results-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
+}
+
+.result {
+  border: 1px solid #e3e3e3;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.result.original {
+  border-color: #90caf9;
+  background: #f3f9ff;
+}
+
+.result.failed {
+  border-color: #ef9a9a;
+}
+
+.result video {
+  width: 100%;
+  background: #000;
+  border-radius: 4px;
+  aspect-ratio: 16 / 9;
+}
+
+.result .title {
+  font-weight: bold;
+  font-size: 15px;
+}
+
+.result .size {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.result .size small {
+  font-size: 13px;
+  font-weight: normal;
+  color: #666;
+}
+
+.result .meta {
+  font-size: 13px;
+  color: #555;
+}
+
+.result .buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.result a.download {
+  display: inline-block;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #4CAF50;
+  color: white;
+  text-decoration: none;
+}
+
+.result a.download:hover {
+  background: #43a047;
+}
+
+.result .command {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  background: #1a1a1a;
+  color: #8bc34a;
+  padding: 8px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+  margin-top: 6px;
+}
+
+.result .pending {
+  font-size: 13px;
+  color: #888;
+}
+
+.info {
+  background: #e3f2fd;
+  padding: 15px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1976d2;
+  margin-bottom: 20px;
+}
+
+.info ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+pre.log {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  background: #1a1a1a;
+  color: #ccc;
+  padding: 12px;
+  border-radius: 6px;
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+@media (max-width: 600px) {
+  body {
+    padding: 10px;
+  }
+  .card {
+    padding: 14px;
+  }
+  h1 {
+    font-size: 21px;
+  }
+}
+  </style>
+</head>
+<body>
+  <h1>Video compressor</h1>
+  <p class="intro">
+    Open a video and this tool encodes several smaller versions of it entirely in your browser, using
+    <a href="https://ffmpegwasm.netlify.app/">FFmpeg compiled to WebAssembly</a>. Nothing is uploaded anywhere.
+    Every version is an H.264 + AAC <code>.mp4</code> with settings chosen to play in as many mobile browsers and
+    operating systems as possible. Compare them side by side and download the smallest one that still looks good.
+  </p>
+
+  <div class="card">
+    <label class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept="video/*,.mp4,.m4v,.mov,.webm,.mkv,.avi,.mts,.m2ts,.3gp,.wmv,.flv">
+      <span id="drop-zone-text">Drop a video here, or click to choose one</span>
+    </label>
+    <div class="source-info" id="source-info" hidden>
+      <dl id="source-details"></dl>
+    </div>
+    <div class="warning" id="size-warning" hidden></div>
+  </div>
+
+  <div class="card" id="settings-card" hidden>
+    <h2>Versions to generate</h2>
+    <div class="table-wrap">
+      <table class="variants" id="variants-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Name</th>
+            <th>Output size</th>
+            <th title="Constant Rate Factor: lower numbers mean higher quality and larger files. 18 is near-lossless, 28 is visibly compressed.">Quality (CRF)</th>
+            <th>Audio</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="variants-body"></tbody>
+      </table>
+    </div>
+    <details>
+      <summary>Add a custom version</summary>
+      <div class="add-custom">
+        <label>Short side <input type="number" id="custom-short" value="540" min="64" max="1080" step="2"> px</label>
+        <label>CRF <input type="number" id="custom-crf" value="25" min="10" max="45"></label>
+        <label>Audio <input type="number" id="custom-audio" value="96" min="32" max="256" step="8"> kbps</label>
+        <button type="button" class="small" id="add-custom">Add</button>
+      </div>
+    </details>
+    <div class="options">
+      <label>Encoder speed
+        <select id="preset">
+          <option value="ultrafast">Ultrafast (largest files)</option>
+          <option value="superfast">Superfast</option>
+          <option value="veryfast" selected>Veryfast (recommended)</option>
+          <option value="faster">Faster</option>
+          <option value="fast">Fast</option>
+          <option value="medium">Medium (smallest files, slow)</option>
+        </select>
+      </label>
+      <label>H.264 profile
+        <select id="profile">
+          <option value="main" selected>Main (recommended)</option>
+          <option value="high">High (slightly smaller, needs a less ancient device)</option>
+          <option value="baseline">Baseline (largest, works on anything)</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="cap-fps"> Limit to 30 fps</label>
+      <label><input type="checkbox" id="strip-metadata" checked> Strip metadata (location, camera, dates)</label>
+      <label><input type="checkbox" id="sample-mode"> Only encode the first
+        <input type="number" id="sample-seconds" value="10" min="1" max="600"> seconds (quick comparison)</label>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="generate">Generate versions</button>
+      <button type="button" class="danger" id="stop" hidden>Stop</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="progress" id="progress" hidden><div class="progress-bar" id="progress-bar"></div></div>
+    <div class="error" id="error" hidden></div>
+  </div>
+
+  <div class="card" id="results-card" hidden>
+    <div class="results-header">
+      <h2 style="margin:0">Results, smallest first</h2>
+      <div class="actions">
+        <button type="button" class="small" id="play-all">Play all (muted)</button>
+        <button type="button" class="small" id="pause-all">Pause all</button>
+      </div>
+    </div>
+    <div class="grid" id="results"></div>
+  </div>
+
+  <div class="info">
+    How the output files are made compatible:
+    <ul>
+      <li>H.264 video (libx264) in the Main profile by default, 8-bit 4:2:0 colour (<code>yuv420p</code>), even width and height, capped at 1080p and 60 fps. The H.264 level is picked automatically from the resolution and frame rate.</li>
+      <li>AAC-LC audio at 44.1 or 48 kHz, downmixed to stereo when the source has more channels.</li>
+      <li>MP4 container with the index moved to the front (<code>+faststart</code>) so playback can begin before the file has fully downloaded.</li>
+      <li>Only the first video and first audio track are kept. Rotation metadata from phones is baked into the pixels so every player shows the video the right way up.</li>
+    </ul>
+    Encoding runs on a single CPU core inside WebAssembly, so it is much slower than a native ffmpeg. Long or high resolution videos can take a while: use the "first N seconds" option to compare settings quickly, then encode the full version of the one you like. The ffmpeg engine (about 32&nbsp;MB) is downloaded once and cached by your browser.
+  </div>
+
+  <details id="log-details">
+    <summary>ffmpeg log</summary>
+    <pre class="log" id="log"></pre>
+  </details>
+
+  <script src="ffmpeg-wasm/ffmpeg.js"></script>
+  <script>
+const CORE_VERSION = '0.12.10';
+const CORE_BASE = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${CORE_VERSION}/dist/umd`;
+const MAX_INPUT_BYTES = 1.5 * 1024 * 1024 * 1024;
+const WARN_INPUT_BYTES = 400 * 1024 * 1024;
+const MAX_LOG_LINES = 400;
+
+const DEFAULT_VARIANTS = [
+  { id: 'xl', name: 'Largest', shortSide: 1080, crf: 22, audio: 128 },
+  { id: 'l', name: 'Large', shortSide: 720, crf: 23, audio: 128 },
+  { id: 'm', name: 'Medium', shortSide: 720, crf: 27, audio: 96 },
+  { id: 's', name: 'Small', shortSide: 480, crf: 26, audio: 96 },
+  { id: 'xs', name: 'Smallest', shortSide: 360, crf: 28, audio: 64 },
+];
+
+const $ = (id) => document.getElementById(id);
+const els = {
+  dropZone: $('drop-zone'),
+  dropZoneText: $('drop-zone-text'),
+  fileInput: $('file-input'),
+  sourceInfo: $('source-info'),
+  sourceDetails: $('source-details'),
+  sizeWarning: $('size-warning'),
+  settingsCard: $('settings-card'),
+  variantsBody: $('variants-body'),
+  preset: $('preset'),
+  profile: $('profile'),
+  capFps: $('cap-fps'),
+  stripMetadata: $('strip-metadata'),
+  sampleMode: $('sample-mode'),
+  sampleSeconds: $('sample-seconds'),
+  generate: $('generate'),
+  stop: $('stop'),
+  status: $('status'),
+  progress: $('progress'),
+  progressBar: $('progress-bar'),
+  error: $('error'),
+  resultsCard: $('results-card'),
+  results: $('results'),
+  playAll: $('play-all'),
+  pauseAll: $('pause-all'),
+  log: $('log'),
+};
+
+let variants = DEFAULT_VARIANTS.map((v) => ({ ...v, enabled: true }));
+let customCounter = 0;
+
+let source = null; // { file, name, size, width, height, duration, fps, hasAudio, audioChannels, audioRate, memName, written }
+let ffmpeg = null;
+let coreURLs = null; // { coreURL, wasmURL } blob URLs, kept so a restart after Stop is quick
+let loadPromise = null;
+let queue = [];
+let running = false;
+let currentJob = null;
+let progressHandler = null;
+let logLines = [];
+let resultCounter = 0;
+
+// ---------- utilities ----------
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function formatDuration(seconds) {
+  if (!isFinite(seconds)) return 'unknown';
+  const s = Math.round(seconds);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  const pad = (n) => String(n).padStart(2, '0');
+  return h ? `${h}:${pad(m % 60)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
+}
+
+function formatElapsed(ms) {
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
+}
+
+function sanitizeBaseName(name) {
+  return (name.replace(/\.[^.]+$/, '') || 'video').replace(/[^\w.-]+/g, '-').slice(0, 60);
+}
+
+function shellQuote(arg) {
+  if (/^[\w.,:=+\/@%-]+$/.test(arg)) return arg;
+  return `'${arg.replace(/'/g, `'\\''`)}'`;
+}
+
+function appendLog(message) {
+  logLines.push(message);
+  if (logLines.length > MAX_LOG_LINES) logLines = logLines.slice(-MAX_LOG_LINES);
+  els.log.textContent = logLines.join('\n');
+}
+
+function setStatus(text, fraction) {
+  els.status.textContent = text;
+  if (fraction === undefined || fraction === null) {
+    els.progress.hidden = true;
+  } else {
+    els.progress.hidden = false;
+    els.progressBar.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+  }
+}
+
+function showError(text) {
+  els.error.textContent = text;
+  els.error.hidden = !text;
+}
+
+// Longest-side cap that goes with a short-side cap, so a very wide video still fits a 16:9 box.
+function longSideFor(shortSide) {
+  const known = { 1080: 1920, 720: 1280, 480: 864, 360: 640 };
+  return known[shortSide] || Math.round((shortSide * 16) / 9 / 2) * 2;
+}
+
+function outputDimensions(width, height, shortSide) {
+  if (!width || !height) return null;
+  const factor = Math.min(1, shortSide / Math.min(width, height), longSideFor(shortSide) / Math.max(width, height));
+  return {
+    width: Math.trunc((width * factor) / 2) * 2,
+    height: Math.trunc((height * factor) / 2) * 2,
+  };
+}
+
+// Same maths as outputDimensions(), expressed as an ffmpeg scale filter so it also
+// works when the browser could not read the source dimensions.
+function scaleFilter(shortSide) {
+  const factor = `min(1\\,min(${shortSide}/min(iw\\,ih)\\,${longSideFor(shortSide)}/max(iw\\,ih)))`;
+  return `scale=trunc(iw*${factor}/2)*2:trunc(ih*${factor}/2)*2`;
+}
+
+// ---------- variants table ----------
+
+function renderVariants() {
+  els.variantsBody.innerHTML = '';
+  for (const v of variants) {
+    const tr = document.createElement('tr');
+    tr.dataset.id = v.id;
+    const dims = source ? outputDimensions(source.width, source.height, v.shortSide) : null;
+    const dimsText = dims ? `${dims.width}×${dims.height}` : `up to ${v.shortSide}p`;
+    tr.innerHTML = `
+      <td><input type="checkbox" class="enabled" ${v.enabled ? 'checked' : ''}></td>
+      <td class="name"></td>
+      <td class="dims"></td>
+      <td><input type="number" class="crf" min="10" max="45" value="${v.crf}"></td>
+      <td><input type="number" class="audio" min="32" max="256" step="8" value="${v.audio}"> kbps</td>
+      <td>${v.custom ? '<button type="button" class="remove" title="Remove">×</button>' : ''}</td>
+    `;
+    tr.querySelector('.name').textContent = v.name;
+    tr.querySelector('.dims').textContent = dimsText;
+    tr.querySelector('.enabled').addEventListener('change', (e) => { v.enabled = e.target.checked; });
+    tr.querySelector('.crf').addEventListener('change', (e) => { v.crf = clampInt(e.target.value, 10, 45, v.crf); e.target.value = v.crf; });
+    tr.querySelector('.audio').addEventListener('change', (e) => { v.audio = clampInt(e.target.value, 32, 256, v.audio); e.target.value = v.audio; });
+    const remove = tr.querySelector('.remove');
+    if (remove) {
+      remove.addEventListener('click', () => {
+        variants = variants.filter((x) => x !== v);
+        renderVariants();
+      });
+    }
+    els.variantsBody.appendChild(tr);
+  }
+}
+
+function clampInt(value, min, max, fallback) {
+  const n = parseInt(value, 10);
+  if (isNaN(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+$('add-custom').addEventListener('click', () => {
+  const shortSide = clampInt($('custom-short').value, 64, 1080, 540);
+  const crf = clampInt($('custom-crf').value, 10, 45, 25);
+  const audio = clampInt($('custom-audio').value, 32, 256, 96);
+  customCounter += 1;
+  variants.push({ id: `custom-${customCounter}`, name: `Custom ${customCounter}`, shortSide, crf, audio, enabled: true, custom: true });
+  renderVariants();
+});
+
+// ---------- source file ----------
+
+function readVideoMetadata(file) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    const url = URL.createObjectURL(file);
+    const done = (result) => {
+      URL.revokeObjectURL(url);
+      video.removeAttribute('src');
+      resolve(result);
+    };
+    video.addEventListener('loadedmetadata', () => {
+      done({ width: video.videoWidth, height: video.videoHeight, duration: video.duration, playable: true });
+    }, { once: true });
+    video.addEventListener('error', () => done({ playable: false }), { once: true });
+    setTimeout(() => done({ playable: false }), 8000);
+    video.src = url;
+  });
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  showError('');
+  if (file.size > MAX_INPUT_BYTES) {
+    showError(`This file is ${formatBytes(file.size)}. Files over ${formatBytes(MAX_INPUT_BYTES)} do not fit in the memory available to ffmpeg.wasm. Trim it first or use a native ffmpeg.`);
+    return;
+  }
+  await stopEverything();
+  clearResults();
+
+  const meta = await readVideoMetadata(file);
+  source = {
+    file,
+    name: file.name,
+    size: file.size,
+    width: meta.width || 0,
+    height: meta.height || 0,
+    duration: meta.duration || 0,
+    playable: meta.playable,
+    fps: null,
+    hasAudio: null,
+    audioChannels: null,
+    audioRate: null,
+    memName: 'input' + ((file.name.match(/\.([a-z0-9]{1,5})$/i) || ['', 'bin'])[0]).toLowerCase(),
+    written: false,
+    probed: false,
+  };
+  els.dropZoneText.textContent = `${file.name} (${formatBytes(file.size)}). Drop or click to choose a different video.`;
+  els.sizeWarning.hidden = file.size < WARN_INPUT_BYTES;
+  els.sizeWarning.textContent = `This file is ${formatBytes(file.size)}. Large files can exhaust browser memory, especially on phones, and each version can take a long time to encode. Consider using the "first N seconds" option to compare settings first.`;
+  renderSourceInfo();
+  els.settingsCard.hidden = false;
+  renderVariants();
+  setStatus('');
+}
+
+function renderSourceInfo() {
+  const rows = [
+    ['File', `${source.name} (${formatBytes(source.size)})`],
+    ['Dimensions', source.width ? `${source.width}×${source.height}` : (source.probed ? 'unknown' : 'read when encoding starts')],
+    ['Duration', source.duration ? formatDuration(source.duration) : (source.probed ? 'unknown' : 'read when encoding starts')],
+  ];
+  if (source.fps) rows.push(['Frame rate', `${source.fps} fps`]);
+  if (source.hasAudio === false) rows.push(['Audio', 'none']);
+  else if (source.hasAudio && source.audioRate) rows.push(['Audio', `${source.audioCodec || ''} ${source.audioRate} Hz, ${source.audioChannelsText || ''}`.trim()]);
+  if (!source.playable) rows.push(['Note', 'Your browser cannot play this file directly, so there is no preview of the original. ffmpeg will still try to convert it.']);
+  els.sourceDetails.innerHTML = '';
+  for (const [k, v] of rows) {
+    const dt = document.createElement('dt');
+    dt.textContent = k;
+    const dd = document.createElement('dd');
+    dd.textContent = v;
+    els.sourceDetails.append(dt, dd);
+  }
+  els.sourceInfo.hidden = false;
+}
+
+els.fileInput.addEventListener('change', () => handleFile(els.fileInput.files[0]));
+['dragenter', 'dragover'].forEach((evt) => els.dropZone.addEventListener(evt, (e) => {
+  e.preventDefault();
+  els.dropZone.classList.add('dragover');
+}));
+['dragleave', 'drop'].forEach((evt) => els.dropZone.addEventListener(evt, (e) => {
+  e.preventDefault();
+  els.dropZone.classList.remove('dragover');
+}));
+els.dropZone.addEventListener('drop', (e) => {
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+// ---------- ffmpeg loading ----------
+
+async function fetchWithProgress(url, label) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
+  const total = parseInt(response.headers.get('content-length') || '0', 10);
+  if (!response.body || !total) {
+    setStatus(`Downloading ${label}…`, null);
+    return new Uint8Array(await response.arrayBuffer());
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    setStatus(`Downloading ${label} (${formatBytes(received)} of ${formatBytes(total)})…`, received / total);
+  }
+  const out = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return out;
+}
+
+async function ensureCoreURLs() {
+  if (coreURLs) return coreURLs;
+  const core = await fetchWithProgress(`${CORE_BASE}/ffmpeg-core.js`, 'ffmpeg engine script');
+  const wasm = await fetchWithProgress(`${CORE_BASE}/ffmpeg-core.wasm`, 'ffmpeg engine');
+  coreURLs = {
+    coreURL: URL.createObjectURL(new Blob([core], { type: 'text/javascript' })),
+    wasmURL: URL.createObjectURL(new Blob([wasm], { type: 'application/wasm' })),
+  };
+  return coreURLs;
+}
+
+async function ensureFFmpeg() {
+  if (ffmpeg && ffmpeg.loaded) return ffmpeg;
+  if (loadPromise) return loadPromise;
+  loadPromise = (async () => {
+    const urls = await ensureCoreURLs();
+    setStatus('Starting ffmpeg…', null);
+    const instance = new FFmpegWASM.FFmpeg();
+    instance.on('log', ({ message }) => appendLog(message));
+    instance.on('progress', ({ time }) => {
+      if (progressHandler) progressHandler(time / 1e6);
+    });
+    await instance.load(urls);
+    ffmpeg = instance;
+    if (source) source.written = false;
+    return instance;
+  })();
+  try {
+    return await loadPromise;
+  } finally {
+    loadPromise = null;
+  }
+}
+
+// ---------- probing ----------
+
+function parseProbeOutput(lines) {
+  const text = lines.join('\n');
+  const info = {};
+  const duration = text.match(/Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/);
+  if (duration) info.duration = parseInt(duration[1], 10) * 3600 + parseInt(duration[2], 10) * 60 + parseFloat(duration[3]);
+  const video = text.match(/Stream #\d+:\d+.*?Video: (\S+).*?, (\d{2,5})x(\d{2,5})/);
+  if (video) {
+    info.videoCodec = video[1];
+    let width = parseInt(video[2], 10);
+    let height = parseInt(video[3], 10);
+    const rotation = text.match(/rotation of (-?\d+(?:\.\d+)?) degrees/) || text.match(/\brotate\s*:\s*(-?\d+)/);
+    if (rotation && Math.abs(Math.round(parseFloat(rotation[1]))) % 180 === 90) {
+      [width, height] = [height, width];
+    }
+    info.width = width;
+    info.height = height;
+    const fps = text.match(/(\d+(?:\.\d+)?) fps/) || text.match(/(\d+(?:\.\d+)?) tbr/);
+    if (fps) info.fps = parseFloat(fps[1]);
+  }
+  const audio = text.match(/Stream #\d+:\d+.*?Audio: (\S+).*?(\d+) Hz, ([^,\n]+)/);
+  if (audio) {
+    info.hasAudio = true;
+    info.audioCodec = audio[1];
+    info.audioRate = parseInt(audio[2], 10);
+    const channels = audio[3].trim();
+    info.audioChannelsText = channels;
+    if (channels === 'mono') info.audioChannels = 1;
+    else if (channels === 'stereo') info.audioChannels = 2;
+    else if (/^(\d+) channels?$/.test(channels)) info.audioChannels = parseInt(channels, 10);
+    else info.audioChannels = 6; // 5.1, 7.1, quad and friends: anything that needs a downmix
+  } else {
+    info.hasAudio = false;
+  }
+  return info;
+}
+
+// Dimensions of the encoded video, from the "Output #0" section of ffmpeg's log. Used
+// until (or instead of, if this browser cannot decode H.264) the <video> element reports them.
+function parseOutputDimensions(lines) {
+  const start = lines.findIndex((line) => /^Output #0/.test(line));
+  if (start === -1) return null;
+  for (const line of lines.slice(start)) {
+    const match = line.match(/Video: .*?, (\d{2,5})x(\d{2,5})/);
+    if (match) return { width: parseInt(match[1], 10), height: parseInt(match[2], 10) };
+  }
+  return null;
+}
+
+async function ensureInputWritten() {
+  const ff = await ensureFFmpeg();
+  if (!source.written) {
+    setStatus('Loading video into ffmpeg…', null);
+    const data = new Uint8Array(await source.file.arrayBuffer());
+    await ff.writeFile(source.memName, data);
+    source.written = true;
+  }
+  if (!source.probed) {
+    setStatus('Reading video details…', null);
+    const captured = [];
+    const capture = ({ message }) => captured.push(message);
+    ff.on('log', capture);
+    try {
+      await ff.exec(['-hide_banner', '-i', source.memName]);
+    } finally {
+      ff.off('log', capture);
+    }
+    const info = parseProbeOutput(captured);
+    if (!source.width && info.width) {
+      source.width = info.width;
+      source.height = info.height;
+    }
+    if (!source.duration && info.duration) source.duration = info.duration;
+    source.fps = info.fps || null;
+    source.hasAudio = info.hasAudio;
+    source.audioCodec = info.audioCodec;
+    source.audioChannels = info.audioChannels;
+    source.audioChannelsText = info.audioChannelsText;
+    source.audioRate = info.audioRate;
+    source.probed = true;
+    renderSourceInfo();
+    renderVariants();
+    updateOriginalCard();
+  }
+  return ff;
+}
+
+// ---------- encoding ----------
+
+function currentOptions() {
+  return {
+    preset: els.preset.value,
+    profile: els.profile.value,
+    capFps: els.capFps.checked,
+    stripMetadata: els.stripMetadata.checked,
+    sampleSeconds: els.sampleMode.checked ? clampInt(els.sampleSeconds.value, 1, 600, 10) : null,
+  };
+}
+
+function buildArgs(variant, options, outputName) {
+  const args = ['-y', '-hide_banner'];
+  if (options.sampleSeconds) args.push('-t', String(options.sampleSeconds));
+  args.push('-i', source.memName);
+  args.push('-map', '0:v:0', '-map', '0:a:0?');
+  args.push('-c:v', 'libx264', '-preset', options.preset, '-crf', String(variant.crf));
+  args.push('-profile:v', options.profile, '-pix_fmt', 'yuv420p');
+  args.push('-vf', scaleFilter(variant.shortSide));
+  if (options.capFps && (!source.fps || source.fps > 30)) args.push('-r', '30');
+  else if (source.fps && source.fps > 60) args.push('-r', '60');
+  if (source.hasAudio === false) {
+    args.push('-an');
+  } else {
+    args.push('-c:a', 'aac', '-b:a', `${variant.audio}k`);
+    if (!source.audioChannels || source.audioChannels > 2) args.push('-ac', '2');
+    if (source.audioRate && source.audioRate !== 44100 && source.audioRate !== 48000) args.push('-ar', '48000');
+  }
+  args.push('-movflags', '+faststart');
+  if (options.stripMetadata) args.push('-map_metadata', '-1', '-map_chapters', '-1');
+  args.push('-f', 'mp4', outputName);
+  return args;
+}
+
+function enqueue(job) {
+  queue.push(job);
+  els.resultsCard.hidden = false;
+  job.card = createPendingCard(job);
+  if (!running) runQueue();
+}
+
+async function runQueue() {
+  running = true;
+  els.generate.disabled = true;
+  els.stop.hidden = false;
+  showError('');
+  const startedAll = performance.now();
+  let completed = 0;
+  let failed = 0;
+  try {
+    const ff = await ensureInputWritten();
+    while (queue.length) {
+      const job = queue.shift();
+      currentJob = job;
+      const position = `${completed + failed + 1} of ${completed + failed + 1 + queue.length}`;
+      const label = jobLabel(job);
+      const expected = job.sampleSeconds ? Math.min(job.sampleSeconds, source.duration || job.sampleSeconds) : source.duration;
+      const started = performance.now();
+      progressHandler = (seconds) => {
+        const fraction = expected ? seconds / expected : null;
+        const pct = fraction === null ? '' : ` ${Math.round(Math.min(1, fraction) * 100)}%`;
+        setStatus(`Encoding ${position}: ${label}${pct} (${formatElapsed(performance.now() - started)})`, fraction);
+      };
+      setStatus(`Encoding ${position}: ${label}`, 0);
+      const outputName = `${job.variant.id}-${job.sampleSeconds ? 'sample' : 'full'}.mp4`;
+      job.args = buildArgs(job.variant, job.options, outputName);
+      let ret;
+      const logStart = logLines.length;
+      const captured = [];
+      const capture = ({ message }) => captured.push(message);
+      ff.on('log', capture);
+      try {
+        ret = await ff.exec(job.args);
+      } catch (err) {
+        if (job.stopped) return;
+        ret = -1;
+        appendLog(String(err));
+      } finally {
+        ff.off('log', capture);
+      }
+      progressHandler = null;
+      job.outputDims = parseOutputDimensions(captured);
+      job.elapsedMs = performance.now() - started;
+      if (job.stopped) return;
+      if (ret !== 0) {
+        failed += 1;
+        const tail = logLines.slice(Math.max(logStart, logLines.length - 6)).filter((l) => !/^frame=/.test(l)).join('\n');
+        markFailed(job, `ffmpeg exited with code ${ret}.\n${tail}`);
+        continue;
+      }
+      let data;
+      try {
+        data = await ff.readFile(outputName);
+        await ff.deleteFile(outputName);
+      } catch (err) {
+        failed += 1;
+        markFailed(job, `Could not read the output file: ${err}`);
+        continue;
+      }
+      job.blob = new Blob([data], { type: 'video/mp4' });
+      job.size = job.blob.size;
+      completed += 1;
+      fillCard(job);
+    }
+    const summary = failed ? `Finished ${completed} version${completed === 1 ? '' : 's'}, ${failed} failed, in ${formatElapsed(performance.now() - startedAll)}.` : `Done: ${completed} version${completed === 1 ? '' : 's'} in ${formatElapsed(performance.now() - startedAll)}.`;
+    setStatus(summary, null);
+    els.resultsCard.dataset.state = 'done';
+  } catch (err) {
+    console.error(err);
+    showError(`Something went wrong: ${err.message || err}`);
+    setStatus('', null);
+    for (const job of queue) markFailed(job, 'Not started.');
+    queue = [];
+  } finally {
+    progressHandler = null;
+    currentJob = null;
+    running = false;
+    els.generate.disabled = false;
+    els.stop.hidden = true;
+  }
+}
+
+function jobLabel(job) {
+  const dims = outputDimensions(source.width, source.height, job.variant.shortSide);
+  const res = dims ? `${dims.width}×${dims.height}` : `${job.variant.shortSide}p`;
+  return `${job.variant.name} (${res}, CRF ${job.variant.crf})`;
+}
+
+async function stopEverything() {
+  for (const job of queue) markFailed(job, 'Stopped.');
+  queue = [];
+  if (currentJob) {
+    currentJob.stopped = true;
+    markFailed(currentJob, 'Stopped.');
+  }
+  if (ffmpeg) {
+    try {
+      ffmpeg.terminate();
+    } catch (e) { /* ignore */ }
+    ffmpeg = null;
+  }
+  if (running) setStatus('Stopped.', null);
+  running = false;
+  currentJob = null;
+  progressHandler = null;
+  els.generate.disabled = false;
+  els.stop.hidden = true;
+}
+
+els.generate.addEventListener('click', () => {
+  if (!source) return;
+  const options = currentOptions();
+  const selected = variants.filter((v) => v.enabled);
+  if (!selected.length) {
+    showError('Select at least one version to generate.');
+    return;
+  }
+  els.resultsCard.dataset.state = 'running';
+  ensureOriginalCard();
+  // Smallest first so results start appearing quickly.
+  const ordered = [...selected].sort((a, b) => (a.shortSide - b.shortSide) || (b.crf - a.crf));
+  for (const variant of ordered) {
+    enqueue({ variant: { ...variant }, options, sampleSeconds: options.sampleSeconds });
+  }
+});
+
+els.stop.addEventListener('click', () => stopEverything());
+
+// ---------- results ----------
+
+function clearResults() {
+  for (const video of els.results.querySelectorAll('video')) {
+    if (video.src && video.src.startsWith('blob:')) URL.revokeObjectURL(video.src);
+  }
+  els.results.innerHTML = '';
+  els.resultsCard.hidden = true;
+  delete els.resultsCard.dataset.state;
+}
+
+function ensureOriginalCard() {
+  if (els.results.querySelector('.result.original')) return;
+  const card = document.createElement('div');
+  card.className = 'result original';
+  card.dataset.size = source.size;
+  card.innerHTML = `
+    <div class="title">Original</div>
+    <div class="size"></div>
+    <div class="meta"></div>
+  `;
+  card.querySelector('.size').textContent = formatBytes(source.size);
+  if (source.playable) {
+    const video = document.createElement('video');
+    video.controls = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+    video.src = URL.createObjectURL(source.file);
+    card.insertBefore(video, card.querySelector('.size'));
+  }
+  els.results.appendChild(card);
+  updateOriginalCard();
+}
+
+function updateOriginalCard() {
+  const card = els.results.querySelector('.result.original');
+  if (!card) return;
+  const parts = [source.name];
+  if (source.width) parts.push(`${source.width}×${source.height}`);
+  if (source.duration) parts.push(formatDuration(source.duration));
+  if (source.fps) parts.push(`${source.fps} fps`);
+  card.querySelector('.meta').textContent = parts.join(', ');
+}
+
+function createPendingCard(job) {
+  const card = document.createElement('div');
+  card.className = 'result pending-card';
+  card.dataset.size = Number.MAX_SAFE_INTEGER;
+  card.innerHTML = `
+    <div class="title"></div>
+    <div class="pending">Waiting…</div>
+  `;
+  card.querySelector('.title').textContent = jobLabel(job) + (job.sampleSeconds ? `, first ${job.sampleSeconds}s` : '');
+  els.results.appendChild(card);
+  return card;
+}
+
+function markFailed(job, message) {
+  const card = job.card;
+  if (!card) return;
+  card.className = 'result failed';
+  const pending = card.querySelector('.pending');
+  if (pending) {
+    pending.className = 'error';
+    pending.textContent = message;
+  }
+}
+
+function fillCard(job) {
+  const card = job.card;
+  const variant = job.variant;
+  const isSample = !!job.sampleSeconds;
+  const sampleLength = isSample ? Math.min(job.sampleSeconds, source.duration || job.sampleSeconds) : null;
+  const estimatedFull = isSample && source.duration ? (job.size * source.duration) / sampleLength : null;
+  const effectiveSize = estimatedFull || job.size;
+  const baseName = sanitizeBaseName(source.name);
+  resultCounter += 1;
+
+  card.className = 'result';
+  card.dataset.size = Math.round(effectiveSize);
+  card.dataset.bytes = job.size;
+  card.dataset.state = 'done';
+  card.innerHTML = `
+    <div class="title"></div>
+    <video controls playsinline preload="metadata"></video>
+    <div class="size"></div>
+    <div class="meta"></div>
+    <div class="buttons"></div>
+    <details><summary>ffmpeg command</summary><div class="command"></div></details>
+  `;
+
+  const url = URL.createObjectURL(job.blob);
+  const video = card.querySelector('video');
+  video.src = url;
+  video.addEventListener('loadedmetadata', () => {
+    card.dataset.width = video.videoWidth;
+    card.dataset.height = video.videoHeight;
+    const durationSeconds = video.duration && isFinite(video.duration) ? video.duration : null;
+    const kbps = durationSeconds ? Math.round((job.size * 8) / durationSeconds / 1000) : null;
+    card.querySelector('.meta').textContent = [
+      `${video.videoWidth}×${video.videoHeight}`,
+      `CRF ${variant.crf}`,
+      kbps ? `${kbps} kbps` : null,
+      `encoded in ${formatElapsed(job.elapsedMs)}`,
+    ].filter(Boolean).join(', ');
+    const download = card.querySelector('a.download');
+    download.download = `${baseName}-${video.videoWidth}x${video.videoHeight}-crf${variant.crf}${isSample ? '-sample' : ''}.mp4`;
+  }, { once: true });
+
+  card.querySelector('.title').textContent = `${variant.name}${isSample ? ` (first ${formatDuration(sampleLength)})` : ''}`;
+  const sizeEl = card.querySelector('.size');
+  const pctOfOriginal = source.size ? Math.round((effectiveSize / source.size) * 100) : null;
+  if (isSample) {
+    sizeEl.innerHTML = `≈ <span class="estimate"></span> <small>estimated full length${pctOfOriginal !== null ? `, ${pctOfOriginal}% of original` : ''}. Sample: <span class="actual"></span></small>`;
+    sizeEl.querySelector('.estimate').textContent = estimatedFull ? formatBytes(estimatedFull) : '?';
+    sizeEl.querySelector('.actual').textContent = formatBytes(job.size);
+  } else {
+    sizeEl.innerHTML = `<span class="actual"></span> <small></small>`;
+    sizeEl.querySelector('.actual').textContent = formatBytes(job.size);
+    sizeEl.querySelector('small').textContent = pctOfOriginal !== null ? `${pctOfOriginal}% of original` : '';
+  }
+  const dims = job.outputDims;
+  const durationGuess = isSample ? sampleLength : source.duration;
+  const kbpsGuess = durationGuess ? Math.round((job.size * 8) / durationGuess / 1000) : null;
+  card.querySelector('.meta').textContent = [
+    dims ? `${dims.width}×${dims.height}` : null,
+    `CRF ${variant.crf}`,
+    kbpsGuess ? `${kbpsGuess} kbps` : null,
+    `encoded in ${formatElapsed(job.elapsedMs)}`,
+  ].filter(Boolean).join(', ');
+  if (dims) {
+    card.dataset.width = dims.width;
+    card.dataset.height = dims.height;
+  }
+
+  const buttons = card.querySelector('.buttons');
+  const download = document.createElement('a');
+  download.className = 'download';
+  download.href = url;
+  download.download = `${baseName}-${dims ? `${dims.width}x${dims.height}-` : ''}crf${variant.crf}${isSample ? '-sample' : ''}.mp4`;
+  download.textContent = 'Download .mp4';
+  buttons.appendChild(download);
+  if (isSample) {
+    const full = document.createElement('button');
+    full.type = 'button';
+    full.className = 'small';
+    full.textContent = 'Encode full version';
+    full.addEventListener('click', () => {
+      full.disabled = true;
+      enqueue({ variant: { ...variant }, options: { ...job.options, sampleSeconds: null }, sampleSeconds: null });
+    });
+    buttons.appendChild(full);
+  }
+
+  const displayArgs = job.args.map((arg) => {
+    if (arg === source.memName) return source.name;
+    if (/^(?:[\w-]+)-(?:sample|full)\.mp4$/.test(arg)) return `${baseName}-crf${variant.crf}.mp4`;
+    return arg;
+  });
+  card.querySelector('.command').textContent = `ffmpeg ${displayArgs.map(shellQuote).join(' ')}`;
+
+  sortResults();
+}
+
+function sortResults() {
+  const cards = [...els.results.children];
+  cards.sort((a, b) => Number(a.dataset.size) - Number(b.dataset.size));
+  for (const card of cards) els.results.appendChild(card);
+}
+
+els.playAll.addEventListener('click', () => {
+  for (const video of els.results.querySelectorAll('video')) {
+    video.muted = true;
+    video.currentTime = 0;
+    video.play().catch(() => {});
+  }
+});
+
+els.pauseAll.addEventListener('click', () => {
+  for (const video of els.results.querySelectorAll('video')) video.pause();
+});
+
+if (typeof WebAssembly === 'undefined' || typeof Worker === 'undefined') {
+  showError('This browser does not support WebAssembly and Web Workers, which this tool needs.');
+}
+  </script>
+</body>
+</html>
