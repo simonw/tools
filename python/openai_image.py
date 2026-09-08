@@ -9,6 +9,8 @@ Generate an image with OpenAI’s image models (Click CLI).
 
 - PROMPT is required.
 - OUTFILE is optional; defaults to /tmp/image-<6-hex>.png.
+- -i/--image (repeatable) takes a file path or URL to an existing image; when
+  given, the prompt is applied as an edit to that image via `images.edit`.
 - Flags are auto-derived by introspecting `OpenAI().images.generate` using
   typing.get_type_hints(include_extras=True), so Literal[...] choices appear
   in --help.
@@ -18,10 +20,13 @@ Generate an image with OpenAI’s image models (Click CLI).
 """
 
 import json
+import mimetypes
 import os
 import secrets
 import sys
 import time
+import urllib.parse
+import urllib.request
 import typing as t
 import types as pytypes
 import typing_extensions as tx
@@ -107,9 +112,42 @@ def literal_choices(annotation) -> list[str]:
     return out
 
 
+# ----------------------------- Input images -----------------------------
+
+_IMAGE_EXTS = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
+
+
+def load_input_image(ref: str) -> tuple[str, bytes, str]:
+    """Load an image from a local path or an http(s) URL.
+
+    Returns a (filename, bytes, content_type) tuple suitable for the SDK.
+    """
+    if ref.startswith(("http://", "https://")):
+        req = urllib.request.Request(ref, headers={"User-Agent": "openai_image.py"})
+        try:
+            with urllib.request.urlopen(req) as r:
+                data = r.read()
+                ctype = (r.headers.get_content_type() or "").lower()
+        except Exception as e:
+            raise click.BadParameter(f"could not fetch {ref}: {e}", param_hint="--image")
+        name = os.path.basename(urllib.parse.urlsplit(ref).path) or "image"
+        if not ctype.startswith("image/"):
+            ctype = mimetypes.guess_type(name)[0] or "image/png"
+        if not os.path.splitext(name)[1]:
+            name += _IMAGE_EXTS.get(ctype, ".png")
+        return name, data, ctype
+    path = Path(ref).expanduser()
+    if not path.is_file():
+        raise click.BadParameter(f"file not found: {ref}", param_hint="--image")
+    ctype = mimetypes.guess_type(path.name)[0] or "image/png"
+    return path.name, path.read_bytes(), ctype
+
+
 # ----------------------------- CLI construction -----------------------------
 
 PARAMS = ["background", "moderation", "output_format", "quality"]
+# Parameters accepted by images.edit but not images.generate
+EDIT_ONLY_PARAMS = ["input_fidelity"]
 
 
 def build_command() -> click.Command:
@@ -117,6 +155,9 @@ def build_command() -> click.Command:
     images_mod_globals = sys.modules[Images.__module__].__dict__
     hints = get_type_hints(
         Images.generate, globalns=images_mod_globals, include_extras=True
+    )
+    edit_hints = get_type_hints(
+        Images.edit, globalns=images_mod_globals, include_extras=True
     )
 
     # model choices are “known” but we don’t enforce them; we just show in help
@@ -135,6 +176,20 @@ def build_command() -> click.Command:
             required=False,
             type=click.Path(dir_okay=False, writable=True, path_type=Path),
             metavar="OUTFILE",
+        )
+    )
+
+    # -i/--image (repeatable): file path or URL to an existing image to edit
+    params.append(
+        click.Option(
+            ["-i", "--image", "images"],
+            multiple=True,
+            metavar="PATH_OR_URL",
+            help=(
+                "Existing image to edit (file path or URL). May be repeated to "
+                "supply multiple reference images. When given, the prompt is "
+                "applied as an edit using the images.edit endpoint."
+            ),
         )
     )
 
@@ -180,6 +235,19 @@ def build_command() -> click.Command:
                 click.Option([f"--{name.replace('_','-')}"], help=f"{label}.")
             )
 
+    # Edit-only options (e.g. --input-fidelity), choices from images.edit Literals
+    for name in EDIT_ONLY_PARAMS:
+        ann = edit_hints.get(name)
+        label = name.replace("_", " ")
+        choices = literal_choices(ann) if ann is not None else []
+        params.append(
+            click.Option(
+                [f"--{name.replace('_','-')}"],
+                type=click.Choice(choices, case_sensitive=True) if choices else None,
+                help=f"{label} (only used with --image).",
+            )
+        )
+
     @click.pass_context
     def callback(ctx: click.Context, **kw):
         if not os.getenv("OPENAI_API_KEY"):
@@ -187,6 +255,7 @@ def build_command() -> click.Command:
 
         prompt: str = kw.pop("prompt")
         outfile: Path | None = kw.pop("outfile", None)
+        images: tuple[str, ...] = kw.pop("images", ())
         model: str = kw.pop("model")
         size: str | None = kw.pop("size", None)
 
@@ -204,11 +273,42 @@ def build_command() -> click.Command:
             if v is not None:
                 gen_kwargs[p] = v
 
+        if images:
+            # Edit mode: drop params images.edit does not accept, add edit-only ones
+            edit_params = signature(Images.edit).parameters
+            for p in list(gen_kwargs):
+                if p not in edit_params:
+                    click.secho(
+                        f"Warning: --{p.replace('_', '-')} is not supported with "
+                        "--image, ignoring",
+                        fg="red",
+                        err=True,
+                    )
+                    gen_kwargs.pop(p)
+            for p in EDIT_ONLY_PARAMS:
+                v = kw.get(p, None)
+                if v is not None:
+                    gen_kwargs[p] = v
+            loaded = [load_input_image(ref) for ref in images]
+            gen_kwargs["image"] = loaded[0] if len(loaded) == 1 else loaded
+        else:
+            for p in EDIT_ONLY_PARAMS:
+                if kw.get(p, None) is not None:
+                    click.secho(
+                        f"Warning: --{p.replace('_', '-')} only applies with "
+                        "--image, ignoring",
+                        fg="red",
+                        err=True,
+                    )
+
         client = OpenAI()
 
         # ---- timing just the generation call ----
         t0 = time.perf_counter()
-        resp = client.images.generate(prompt=prompt, **gen_kwargs)
+        if images:
+            resp = client.images.edit(prompt=prompt, **gen_kwargs)
+        else:
+            resp = client.images.generate(prompt=prompt, **gen_kwargs)
         t1 = time.perf_counter()
         generation_time = float(t1 - t0)
         # -----------------------------------------
@@ -236,7 +336,8 @@ def build_command() -> click.Command:
         params=params,
         callback=callback,
         help=(
-            "Generate an image with OpenAI image models.\n\n"
+            "Generate an image with OpenAI image models, or edit an existing "
+            "image passed with -i/--image.\n\n"
             "Positional args:\n"
             "  PROMPT   Text prompt describing the image to generate.\n"
             "  OUTFILE  Output file path (default: /tmp/image-XXXXXX.png)\n"

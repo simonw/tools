@@ -208,20 +208,37 @@ Generate an image from a text prompt using OpenAI's image models.
 uv run https://tools.simonwillison.net/python/openai_image.py \
   'A racoon eating cheese wearing an inappropriate hat'
 ```
+Pass `-i/--image` with a file path or URL to an existing image to edit that image instead. The option can be repeated to provide multiple reference images:
+
+```bash
+uv run https://tools.simonwillison.net/python/openai_image.py \
+  'Add a racoon eating cheese wearing an inappropriate hat' \
+  -i photo.jpg -m gpt-image-1
+```
 Use `--help` to see all available options:
 
 ```
 Usage: openai_image.py [OPTIONS] PROMPT OUTFILE
 
-  Generate an image with OpenAI image models.
+  Generate an image with OpenAI image models, or edit an existing image passed
+  with -i/--image.
 
   Positional args:   PROMPT   Text prompt describing the image to generate.
   OUTFILE  Output file path (default: /tmp/image-XXXXXX.png)
 
 Options:
-  -m, --model TEXT                Model to use (known: dall-e-2, dall-e-3,
-                                  gpt-image-1, gpt-image-1-mini)  [default:
+  -i, --image PATH_OR_URL         Existing image to edit (file path or URL).
+                                  May be repeated to supply multiple reference
+                                  images. When given, the prompt is applied as
+                                  an edit using the images.edit endpoint.
+  -m, --model TEXT                Model to use (known: gpt-image-1, gpt-
+                                  image-1-mini, gpt-image-2, gpt-
+                                  image-2-2026-04-21, gpt-image-1.5, chatgpt-
+                                  image-latest, dall-e-2, dall-e-3)  [default:
                                   gpt-image-1-mini]
+  --size TEXT                     size (known: auto, 1024x1024, 1536x1024,
+                                  1024x1536, 256x256, 512x512, 1792x1024,
+                                  1024x1792)
   --background [transparent|opaque|auto]
                                   background.
   --moderation [low|auto]         moderation.
@@ -229,8 +246,7 @@ Options:
                                   output format.
   --quality [standard|hd|low|medium|high|auto]
                                   quality.
-  --size [auto|1024x1024|1536x1024|1024x1536|256x256|512x512|1792x1024|1024x1792]
-                                  size.
+  --input-fidelity [high|low]     input fidelity (only used with --image).
   -h, --help                      Show this message and exit.
 ```
 ## codex_to_markdown.py
