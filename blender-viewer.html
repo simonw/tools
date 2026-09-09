@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>.blend URL Viewer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #111;
+      color: #eee;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #111; }
+    body { display: grid; grid-template-rows: auto 1fr; }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: .55rem;
+      padding: max(.65rem, env(safe-area-inset-top)) .7rem .65rem;
+      background: rgba(20,20,20,.96);
+      border-bottom: 1px solid #333;
+      z-index: 10;
+    }
+    #url {
+      width: 100%;
+      min-width: 0;
+      font: inherit;
+      font-size: 16px;
+      color: #fff;
+      background: #222;
+      border: 1px solid #444;
+      border-radius: .55rem;
+      padding: .7rem .75rem;
+      outline: none;
+    }
+    #url:focus { border-color: #888; }
+    button {
+      font: inherit;
+      color: #fff;
+      background: #333;
+      border: 1px solid #555;
+      border-radius: .55rem;
+      padding: .65rem .85rem;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    button:hover { background: #3d3d3d; }
+    button:disabled { opacity: .5; cursor: default; }
+    #view { position: relative; min-height: 0; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    #hud {
+      position: absolute;
+      left: max(.65rem, env(safe-area-inset-left));
+      right: max(.65rem, env(safe-area-inset-right));
+      bottom: max(.65rem, env(safe-area-inset-bottom));
+      display: flex;
+      gap: .45rem;
+      align-items: end;
+      pointer-events: none;
+    }
+    #status {
+      max-width: min(42rem, calc(100vw - 1.3rem));
+      background: rgba(15,15,15,.82);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: .65rem;
+      padding: .55rem .7rem;
+      backdrop-filter: blur(10px);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: .82rem;
+      line-height: 1.35;
+      pointer-events: auto;
+    }
+    #toolbar {
+      position: absolute;
+      top: .65rem;
+      right: max(.65rem, env(safe-area-inset-right));
+      display: flex;
+      gap: .4rem;
+      z-index: 4;
+    }
+    #toolbar button {
+      background: rgba(30,30,30,.84);
+      backdrop-filter: blur(8px);
+      padding: .5rem .65rem;
+      font-size: .86rem;
+    }
+    #empty {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 2rem;
+      color: #aaa;
+      pointer-events: none;
+    }
+    #empty strong { display: block; color: #ddd; margin-bottom: .35rem; }
+    @media (max-width: 620px) {
+      header { grid-template-columns: 1fr auto; }
+      #status { font-size: .76rem; }
+      #toolbar { top: .5rem; right: .5rem; }
+    }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header>
+    <input id="url" type="url" inputmode="url" autocapitalize="none" autocomplete="off"
+      spellcheck="false" placeholder="https://example.com/model.blend or GitHub /blob/ URL">
+    <button id="load">View</button>
+  </header>
+
+  <main id="view">
+    <div id="empty">
+      <div>
+        <strong>Paste a CORS-accessible .blend URL above</strong>
+        Blender 5.x files are the best-supported target.
+      </div>
+    </div>
+    <div id="toolbar">
+      <button id="fit" title="Fit model in view">Fit</button>
+      <button id="wire" title="Toggle wireframe">Wireframe</button>
+      <button id="reset" title="Reset viewer">Clear</button>
+    </div>
+    <div id="hud"><div id="status">Ready.</div></div>
+  </main>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import {
+  parseBlend,
+  extractMeshes,
+  extractObjects,
+  extractMaterials,
+  extractCameras,
+  extractScenes
+} from "https://esm.sh/jsblender@0.0.4?bundle";
+
+const $ = (s) => document.querySelector(s);
+const urlInput = $("#url");
+const loadButton = $("#load");
+const status = $("#status");
+const empty = $("#empty");
+const view = $("#view");
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x181818);
+
+let camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100000);
+camera.up.set(0, 0, 1);
+camera.position.set(4, -6, 4);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+view.prepend(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.screenSpacePanning = true;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x333344, 2.2));
+const key = new THREE.DirectionalLight(0xffffff, 2.4);
+key.position.set(4, -5, 8);
+scene.add(key);
+
+const grid = new THREE.GridHelper(20, 20, 0x666666, 0x333333);
+grid.rotation.x = Math.PI / 2; // XY plane, because Blender uses Z-up
+grid.material.transparent = true;
+grid.material.opacity = 0.35;
+scene.add(grid);
+
+const modelRoot = new THREE.Group();
+scene.add(modelRoot);
+
+let wireframe = false;
+let loading = false;
+
+function setStatus(text) {
+  status.textContent = text;
+}
+
+function formatBytes(n) {
+  if (!Number.isFinite(n)) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(i ? 1 : 0)} ${units[i]}`;
+}
+
+function normalizeURL(input) {
+  const u = new URL(input.trim());
+
+  // Normal GitHub file page:
+  // https://github.com/owner/repo/blob/ref/path/file.blend
+  if (u.hostname === "github.com") {
+    const parts = u.pathname.split("/").filter(Boolean);
+    const blobIndex = parts.indexOf("blob");
+    if (blobIndex === 2 && parts.length >= 5) {
+      const owner = parts[0];
+      const repo = parts[1];
+      const ref = parts[3];
+      const path = parts.slice(4).join("/");
+      // jsDelivr is usually convenient and CORS-friendly for public repositories.
+      return `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${ref}/${path}`;
+    }
+  }
+  return u.href;
+}
+
+function clearModel() {
+  while (modelRoot.children.length) {
+    const obj = modelRoot.children.pop();
+    obj.traverse?.((child) => {
+      child.geometry?.dispose?.();
+      if (Array.isArray(child.material)) child.material.forEach(m => m.dispose?.());
+      else child.material?.dispose?.();
+    });
+  }
+  empty.style.display = "";
+  setStatus("Ready.");
+}
+
+function makeMaterial(blenderMat) {
+  if (!blenderMat) {
+    return new THREE.MeshStandardMaterial({
+      color: 0xb9bcc4,
+      metalness: 0,
+      roughness: 0.72,
+      side: THREE.DoubleSide,
+      wireframe
+    });
+  }
+  const p = blenderMat.shader?.principled;
+  const rgba = p?.baseColor || blenderMat.diffuse || [0.7, 0.7, 0.7, 1];
+  const alpha = p?.alpha ?? rgba[3] ?? 1;
+  return new THREE.MeshStandardMaterial({
+    color: new THREE.Color(rgba[0], rgba[1], rgba[2]),
+    metalness: THREE.MathUtils.clamp(p?.metallic ?? blenderMat.metallic ?? 0, 0, 1),
+    roughness: THREE.MathUtils.clamp(p?.roughness ?? blenderMat.roughness ?? 0.7, 0.02, 1),
+    opacity: alpha,
+    transparent: alpha < 0.999,
+    side: THREE.DoubleSide,
+    wireframe
+  });
+}
+
+function geometryFromBlendMesh(m) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(m.vertices, 3));
+
+  g.setIndex(new THREE.BufferAttribute(m.triangles, 1));
+
+  if (m.vertexNormals?.length === m.vertices.length) {
+    g.setAttribute("normal", new THREE.BufferAttribute(m.vertexNormals, 3));
+  } else {
+    g.computeVertexNormals();
+  }
+
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}
+
+function applyBlenderWorldMatrix(obj3d, worldMatrix) {
+  if (!worldMatrix || worldMatrix.length !== 16) return;
+  // jsblender and Three.js store matrices in column-major order.
+  obj3d.matrix.fromArray(worldMatrix);
+  obj3d.matrixAutoUpdate = false;
+}
+
+function useSavedCamera(blend, objects) {
+  const savedScene = extractScenes(blend)[0];
+  const object = objects.find(o => o.name === savedScene?.cameraObject);
+  const data = extractCameras(blend).find(c => c.name === object?.dataName);
+  if (!object || !data || !["perspective", "orthographic"].includes(data.type)) return false;
+  const aspect = view.clientWidth / Math.max(view.clientHeight, 1);
+  const renderAspect = savedScene.resolutionX / Math.max(savedScene.resolutionY, 1);
+  const near = Math.max(data.clipStart, 0.001);
+  const far = Math.max(data.clipEnd, near + 1);
+  if (data.type === "orthographic") {
+    const vertical = data.sensorFit === "vertical" || (data.sensorFit === "auto" && renderAspect < 1);
+    const height = vertical ? data.orthoScale : data.orthoScale / renderAspect;
+    const width = height * renderAspect;
+    const halfHeight = Math.max(height, width / aspect) / 2;
+    camera = new THREE.OrthographicCamera(-halfHeight * aspect, halfHeight * aspect, halfHeight, -halfHeight, near, far);
+    camera.userData.savedFrame = {width, height};
+  } else {
+    const vertical = data.sensorFit === "vertical" || (data.sensorFit === "auto" && renderAspect < 1);
+    const height = vertical ? data.sensorHeight : data.sensorWidth / renderAspect;
+    const fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.max(height, height * renderAspect / aspect) / (2 * data.lens)));
+    camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+  }
+  camera.up.set(0, 0, 1);
+  const matrix = new THREE.Matrix4().fromArray(object.worldMatrix);
+  matrix.decompose(camera.position, camera.quaternion, new THREE.Vector3());
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  const distance = Math.max(1, camera.position.length());
+  controls.object = camera;
+  controls.target.copy(camera.position).addScaledVector(forward, distance);
+  controls.update();
+  return true;
+}
+
+function fitCamera() {
+  if (camera.isOrthographicCamera) {
+    camera = new THREE.PerspectiveCamera(45, view.clientWidth / Math.max(view.clientHeight, 1), 0.01, 100000);
+    camera.up.set(0, 0, 1);
+    controls.object = camera;
+  }
+  const box = new THREE.Box3().setFromObject(modelRoot);
+  if (box.isEmpty()) return;
+
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const radius = Math.max(sphere.radius, 0.001);
+  const center = sphere.center;
+
+  controls.target.copy(center);
+
+  const verticalHalfFov = THREE.MathUtils.degToRad(camera.fov * 0.5);
+  const halfFov = Math.min(verticalHalfFov, Math.atan(Math.tan(verticalHalfFov) * camera.aspect));
+  const distance = (radius / Math.sin(halfFov)) * 1.15;
+  const direction = new THREE.Vector3(1, -1.4, 0.9).normalize();
+
+  camera.position.copy(center).addScaledVector(direction, distance);
+  camera.near = Math.max(distance / 10000, radius / 10000, 0.001);
+  camera.far = Math.max(distance * 100, radius * 100, 100);
+  camera.updateProjectionMatrix();
+  controls.update();
+
+  // Scale grid to suit the scene.
+  const size = Math.max(box.getSize(new THREE.Vector3()).length(), 1);
+  grid.scale.setScalar(Math.pow(10, Math.floor(Math.log10(size / 10))));
+}
+
+async function loadBlend(rawURL) {
+  if (loading) return;
+  loading = true;
+  loadButton.disabled = true;
+
+  try {
+    const share = new URL(location.href);
+    share.searchParams.set("url", rawURL.trim());
+    history.replaceState(null, "", share);
+
+    const normalized = normalizeURL(rawURL);
+    const displayNormalized = normalized !== rawURL.trim()
+      ? `\nResolved GitHub URL → ${normalized}`
+      : "";
+
+    setStatus(`Fetching…${displayNormalized}`);
+
+    const response = await fetch(normalized);
+    if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+
+    const contentLength = Number(response.headers.get("content-length"));
+    if (contentLength) setStatus(`Downloading ${formatBytes(contentLength)}…${displayNormalized}`);
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    setStatus(`Downloaded ${formatBytes(bytes.byteLength)}. Parsing .blend…`);
+
+    // Give the browser one paint before synchronous parsing.
+    await new Promise(requestAnimationFrame);
+
+    const blend = parseBlend(bytes);
+    const meshes = extractMeshes(blend);
+    const objects = extractObjects(blend);
+    const materials = extractMaterials(blend);
+
+    const meshByName = new Map(meshes.map(m => [m.name, m]));
+    const materialByName = new Map(materials.map(m => [m.name, m]));
+
+    clearModel();
+
+    let renderedObjects = 0;
+    let triangles = 0;
+    let vertices = 0;
+    const usedMeshNames = new Set();
+
+    // Prefer object instances so Blender transforms are preserved.
+    for (const obj of objects) {
+      if (!obj.dataName) continue;
+      const bm = meshByName.get(obj.dataName);
+      if (!bm || !bm.vertices?.length || !bm.triangles?.length) continue;
+
+      const geometry = geometryFromBlendMesh(bm);
+      const slotName = bm.materialSlotNames?.[0];
+      const material = makeMaterial(slotName ? materialByName.get(slotName) : null);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = obj.name || bm.name;
+      applyBlenderWorldMatrix(mesh, obj.worldMatrix);
+      modelRoot.add(mesh);
+
+      usedMeshNames.add(bm.name);
+      renderedObjects++;
+      vertices += bm.vertexCount || bm.vertices.length / 3;
+      triangles += bm.triangles.length / 3;
+    }
+
+    // Some files may have mesh datablocks that aren't represented by extractObjects().
+    for (const bm of meshes) {
+      if (usedMeshNames.has(bm.name) || !bm.vertices?.length || !bm.triangles?.length) continue;
+      const geometry = geometryFromBlendMesh(bm);
+      const slotName = bm.materialSlotNames?.[0];
+      const material = makeMaterial(slotName ? materialByName.get(slotName) : null);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = bm.name;
+      modelRoot.add(mesh);
+      renderedObjects++;
+      vertices += bm.vertexCount || bm.vertices.length / 3;
+      triangles += bm.triangles.length / 3;
+    }
+
+    if (!renderedObjects) {
+      throw new Error(`Parsed successfully, but found no renderable mesh geometry (${meshes.length} mesh datablocks, ${objects.length} objects).`);
+    }
+
+    empty.style.display = "none";
+    fitCamera();
+    try { useSavedCamera(blend, objects); } catch (error) { console.warn("Saved camera unavailable", error); }
+
+    const version = blend.header?.versionString
+      ? `${blend.header.versionString.slice(0,2)}.${blend.header.versionString.slice(2)}`
+      : (blend.header?.version ?? "?");
+
+    setStatus(
+      `Loaded Blender ${version} · ${formatBytes(bytes.byteLength)}\n` +
+      `${renderedObjects} mesh objects · ${vertices.toLocaleString()} vertices · ${Math.round(triangles).toLocaleString()} triangles · ${materials.length} materials` +
+      (normalized !== rawURL.trim() ? `\nGitHub URL resolved through jsDelivr` : "")
+    );
+  } catch (err) {
+    console.error(err);
+    setStatus(
+      `Error: ${err?.message || err}\n\n` +
+      `The URL must permit cross-origin fetches. jsblender 0.0.4 is primarily validated against Blender 5.x files.`
+    );
+  } finally {
+    loading = false;
+    loadButton.disabled = false;
+  }
+}
+
+function resize() {
+  const w = view.clientWidth;
+  const h = view.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / Math.max(h, 1);
+  if (camera.isOrthographicCamera) {
+    const frame = camera.userData.savedFrame;
+    const halfHeight = Math.max(frame.height, frame.width / camera.aspect) / 2;
+    camera.left = -halfHeight * camera.aspect;
+    camera.right = halfHeight * camera.aspect;
+    camera.top = halfHeight;
+    camera.bottom = -halfHeight;
+  }
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(view);
+resize();
+
+function animate() {
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+loadButton.addEventListener("click", () => {
+  if (urlInput.value.trim()) loadBlend(urlInput.value);
+});
+urlInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && urlInput.value.trim()) loadBlend(urlInput.value);
+});
+$("#fit").addEventListener("click", fitCamera);
+$("#wire").addEventListener("click", () => {
+  wireframe = !wireframe;
+  modelRoot.traverse((obj) => {
+    if (obj.isMesh) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach(m => { if (m) m.wireframe = wireframe; });
+    }
+  });
+});
+$("#reset").addEventListener("click", () => {
+  clearModel();
+  urlInput.value = "";
+  const share = new URL(location.href);
+  share.searchParams.delete("url");
+  history.replaceState(null, "", share);
+});
+
+const initial = new URL(location.href).searchParams.get("url");
+if (initial) {
+  urlInput.value = initial;
+  loadBlend(initial);
+}
+</script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38a2295493debe3',t:'MTc4ODk5ODI0NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
