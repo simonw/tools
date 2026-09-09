@@ -961,7 +961,10 @@ function collectMatches(text, enabled) {
   const matches = [];
   for (const m of raw) {
     const last = matches[matches.length - 1];
-    if (last && m.start < last.end) continue;
+    const openerOverlap = last && m.start < last.end
+      && ((last.patternId === 'sentence-anaphora' && m.patternId === 'not-but')
+        || (last.patternId === 'not-but' && m.patternId === 'sentence-anaphora'));
+    if (last && m.start < last.end && !openerOverlap) continue;
     m.id = matches.length;
     matches.push(m);
     perPattern[m.patternId] += 1;
@@ -1345,16 +1348,33 @@ function renderRegions(text, from, to, regions) {
   for (const region of regions) {
     html += esc(text.slice(pos, region.start));
     html += '<span class="flagged">';
-    let p = region.start;
+    const points = new Set([region.start, region.end]);
     for (const m of region.matches) {
-      html += esc(text.slice(p, m.start));
-      html += '<mark class="hit" id="hit-' + m.id + '" title="' + esc(matchTipText(patternsById[m.patternId].name, m.badgeTitle)) + '">' + esc(text.slice(m.start, m.end)) + '</mark>';
-      if (m.badge != null) {
-        html += '<span class="badge" title="' + esc(m.badgeTitle || '') + '">' + esc(m.badge) + '</span>';
-      }
-      p = m.end;
+      points.add(m.start);
+      points.add(m.end);
     }
-    html += esc(text.slice(p, region.end));
+    const sortedPoints = Array.from(points).sort((a, b) => a - b);
+    const rendered = new Set();
+    for (let i = 0; i + 1 < sortedPoints.length; i += 1) {
+      const start = sortedPoints[i];
+      const end = sortedPoints[i + 1];
+      if (end <= start) continue;
+      const active = region.matches
+        .filter(m => m.start <= start && m.end >= end)
+        .sort((a, b) => (b.end - b.start) - (a.end - a.start));
+      let segment = esc(text.slice(start, end));
+      for (const m of active) {
+        const id = rendered.has(m.id) ? '' : ' id="hit-' + m.id + '"';
+        segment = '<mark class="hit"' + id + ' title="' + esc(matchTipText(patternsById[m.patternId].name, m.badgeTitle)) + '">' + segment + '</mark>';
+        rendered.add(m.id);
+      }
+      html += segment;
+      for (const m of region.matches) {
+        if (m.end === end && m.badge != null) {
+          html += '<span class="badge" title="' + esc(m.badgeTitle || '') + '">' + esc(m.badge) + '</span>';
+        }
+      }
+    }
     html += '</span>';
     pos = region.end;
   }
@@ -1715,6 +1735,14 @@ test('example text trips every pattern exactly once', () => {
   expectEqual(matches.length, patterns.length, 'matches');
   expectEqual(new Set(matches.map(m => m.patternId)).size, patterns.length, 'distinct patterns');
   expectEqual(buildRegions(EXAMPLE, matches).length, patterns.length - 1, 'flagged sentences (two cliches share one)');
+});
+
+test('collection keeps repeated openers ahead of overlapping phrase matches', () => {
+  const t = 'Maybe not speed, but clarity. Maybe not scale, but simplicity. Maybe not polish, but utility.';
+  const { matches } = collectMatches(t, new Set(['sentence-anaphora', 'not-but']));
+  expectEqual(matches.length, 4, 'matches');
+  expectEqual(matches.filter(m => m.patternId === 'sentence-anaphora').length, 1, 'opener matches');
+  expectEqual(matches.filter(m => m.patternId === 'not-but').length, 3, 'not-but matches');
 });
 // ==== tests end ====
 
