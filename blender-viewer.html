@@ -138,6 +138,9 @@
 
 <script type="module">
 import * as THREE from "three";
+import { FontLoader } from "three/addons/loaders/FontLoader.js";
+import { NURBSCurve } from "three/addons/curves/NURBSCurve.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
   parseBlend,
@@ -165,6 +168,13 @@ camera.position.set(4, -6, 4);
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.AgXToneMapping;
+const pmrem = new THREE.PMREMGenerator(renderer);
+const studio = new RoomEnvironment();
+scene.environment = pmrem.fromScene(studio).texture;
+scene.environmentIntensity = 0.6;
+studio.dispose();
+pmrem.dispose();
 view.prepend(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -234,6 +244,139 @@ function clearModel() {
   setStatus("Ready.");
 }
 
+// Extra node storage not surfaced by jsblender's socket graph.
+function readProceduralSettings(blend, materials) {
+  const r = blend.reader;
+  const offset = (type, base, name) => base + r.layoutOf(type).fieldByName.get(name).offset;
+  const scalar = (type, base, name) => {
+    const f = r.layoutOf(type).fieldByName.get(name);
+    return Number(r.readPrimitive(f.typeName, base + f.offset));
+  };
+  for (const block of blend.blocks.filter(b => b.code === "MA")) {
+    const name = r.readCString(offset("ID", block.dataOffset, "name"), 258).slice(2);
+    const mat = materials.find(m => m.name === name);
+    if (!mat?.shader) continue;
+    const tree = r.followPointer(offset("Material", block.dataOffset, "nodetree"), block.dataOffset);
+    if (!tree) continue;
+    let node = r.followPointer(offset("bNodeTree", tree.dataOffset, "nodes"), tree.dataOffset);
+    const seen = new Set();
+    while (node && !seen.has(node.dataOffset)) {
+      seen.add(node.dataOffset);
+      const o = node.dataOffset;
+      const nodeName = r.readCString(offset("bNode", o, "name"), 64);
+      const parsed = mat.shader.nodes.find(n => n.name === nodeName);
+      const storage = r.followPointer(offset("bNode", o, "storage"), tree.dataOffset);
+      if (parsed?.idname === "ShaderNodeValToRGB" && storage) {
+        const count = Math.min(32, scalar("ColorBand", storage.dataOffset, "tot"));
+        parsed.ramp = Array.from({ length: count }, (_, i) => {
+          const c = offset("ColorBand", storage.dataOffset, "data") + i * r.layoutOf("CBData").size;
+          return { position: scalar("CBData", c, "pos"), color: ["r", "g", "b"].map(k => scalar("CBData", c, k)) };
+        }).sort((a, b) => a.position - b.position);
+      }
+      if (parsed?.idname === "ShaderNodeTexVoronoi" && storage) parsed.feature = scalar("NodeTexVoronoi", storage.dataOffset, "feature");
+      node = r.followPointer(offset("bNode", o, "next"), tree.dataOffset);
+    }
+  }
+}
+
+const proceduralGLSL = `
+float blendHash(vec3 p) { return fract(sin(dot(p, vec3(127.1,311.7,74.7))) * 43758.5453); }
+vec3 blendHash3(vec3 p) { return vec3(blendHash(p), blendHash(p+19.1), blendHash(p+47.7)); }
+float blendNoise(vec3 p) {
+  vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(blendHash(i),blendHash(i+vec3(1,0,0)),f.x),mix(blendHash(i+vec3(0,1,0)),blendHash(i+vec3(1,1,0)),f.x),f.y),
+    mix(mix(blendHash(i+vec3(0,0,1)),blendHash(i+vec3(1,0,1)),f.x),mix(blendHash(i+vec3(0,1,1)),blendHash(i+vec3(1,1,1)),f.x),f.y),f.z);
+}
+float blendFBM(vec3 p, float detail, float roughness, float lacunarity) {
+  float sum=0.0, weight=1.0, total=0.0;
+  for(int i=0;i<9;i++) { if(float(i)>detail) break; sum+=weight*blendNoise(p); total+=weight; weight*=roughness; p*=lacunarity; }
+  return sum/max(total,0.0001);
+}
+vec3 blendNoiseColor(vec3 p,float d,float r,float l) { return vec3(blendFBM(p,d,r,l),blendFBM(p+19.1,d,r,l),blendFBM(p+47.7,d,r,l)); }
+float blendVoronoi(vec3 p, float edge, float randomness) {
+  vec3 cell=floor(p), local=fract(p), nearest=vec3(0); float distance2=100.0;
+  for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) for(int z=-1;z<=1;z++) {
+    vec3 g=vec3(float(x),float(y),float(z)); vec3 v=g+blendHash3(cell+g)*randomness-local;
+    float d=dot(v,v); if(d<distance2) { distance2=d; nearest=v; }
+  }
+  if(edge<0.5) return sqrt(distance2);
+  float result=100.0;
+  for(int x=-2;x<=2;x++) for(int y=-2;y<=2;y++) for(int z=-2;z<=2;z++) {
+    vec3 g=vec3(float(x),float(y),float(z)); vec3 v=g+blendHash3(cell+g)*randomness-local;
+    vec3 delta=v-nearest; if(dot(delta,delta)>0.00001) result=min(result,dot(0.5*(nearest+v),normalize(delta)));
+  }
+  return result;
+}`;
+
+function applyProceduralMaterial(material, blenderMat) {
+  const nodes = blenderMat.shader?.nodes || [];
+  const principled = nodes.find(n => n.name === blenderMat.shader?.principled?.nodeName);
+  if (!principled) return;
+  const socket = (node, name) => node?.inputs.find(s => s.name === name || s.identifier === name);
+  const num = x => Number.isFinite(Number(x)) ? Number(x).toFixed(8) : "0.0";
+  const value = (node, name, fallback) => num(socket(node, name)?.defaultValue ?? fallback);
+  const linked = s => nodes.find(n => n.name === s?.linkedFrom?.nodeName);
+  // Compile only the supported connected subgraph. Other materials keep their
+  // Principled fallback. Noise uses a WebGL approximation, not Cycles' kernel.
+  function expression(node, output = "Color", depth = 0) {
+    if (!node || depth > 12) return null;
+    const input = socket(node, "Vector");
+    const vector = input?.linkedFrom ? expression(linked(input), input.linkedFrom.socketName, depth + 1) : "vBlendGenerated";
+    if (node.idname === "ShaderNodeTexNoise" && vector) {
+      const p = `(${vector})*${value(node,"Scale",5)}`;
+      const args = `${p},${value(node,"Detail",2)},${value(node,"Roughness",0.5)},${value(node,"Lacunarity",2)}`;
+      return output === "Color" ? `blendNoiseColor(${args})` : `vec3(blendFBM(${args}))`;
+    }
+    if (node.idname === "ShaderNodeTexVoronoi" && vector && [0,3].includes(node.feature)) {
+      return `vec3(blendVoronoi((${vector})*${value(node,"Scale",5)},${node.feature === 3 ? "1.0" : "0.0"},${value(node,"Randomness",1)}))`;
+    }
+    if (node.idname === "ShaderNodeValToRGB" && node.ramp?.length) {
+      const fac = socket(node, "Fac");
+      const f = expression(linked(fac), fac?.linkedFrom?.socketName, depth + 1);
+      if (!f) return null;
+      const rgb = c => `vec3(${c.map(num).join(",")})`;
+      let result = rgb(node.ramp[0].color);
+      for (let i=1;i<node.ramp.length;i++) {
+        const a=node.ramp[i-1], b=node.ramp[i];
+        result = `mix(${result},${rgb(b.color)},clamp(((${f}).x-${num(a.position)})/${num(Math.max(0.000001,b.position-a.position))},0.0,1.0))`;
+      }
+      return result;
+    }
+    return null;
+  }
+  const base = socket(principled, "Base Color"), normal = linked(socket(principled, "Normal"));
+  const color = expression(linked(base), base?.linkedFrom?.socketName);
+  const heightSocket = normal?.idname === "ShaderNodeBump" ? socket(normal, "Height") : null;
+  const height = expression(linked(heightSocket), heightSocket?.linkedFrom?.socketName);
+  if (!color && !height) return;
+  material.onBeforeCompile = shader => {
+    shader.vertexShader = "attribute vec3 blendGenerated; varying vec3 vBlendGenerated;\n" + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvBlendGenerated = blendGenerated;");
+    shader.fragmentShader = "varying vec3 vBlendGenerated;\n" + proceduralGLSL + "\n" + shader.fragmentShader;
+    if (color) shader.fragmentShader = shader.fragmentShader.replace("#include <color_fragment>", `#include <color_fragment>\ndiffuseColor.rgb = ${color};`);
+    if (height) shader.fragmentShader = shader.fragmentShader.replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+      float bh=(${height}).x*${value(normal,"Distance",0.1)};
+      vec3 bx=dFdx(-vViewPosition), by=dFdy(-vViewPosition);
+      vec3 br1=cross(by,normal), br2=cross(normal,bx);
+      float bd=dot(bx,br1);
+      vec3 bn=normalize(abs(bd)*normal-sign(bd)*(dFdx(bh)*br1+dFdy(bh)*br2));
+      normal=normalize(mix(normal,bn,${value(normal,"Strength",1)}));`);
+  };
+  material.customProgramCacheKey = () => JSON.stringify([color, height, normal?.inputs]);
+}
+
+function addGeneratedCoordinates(g) {
+  g.computeBoundingBox();
+  const min = g.boundingBox.min, size = g.boundingBox.getSize(new THREE.Vector3());
+  const p = g.attributes.position, generated = new Float32Array(p.count * 3);
+  for (let i=0;i<p.count;i++) {
+    generated[i*3]=(p.getX(i)-min.x)/(size.x||1);
+    generated[i*3+1]=(p.getY(i)-min.y)/(size.y||1);
+    generated[i*3+2]=(p.getZ(i)-min.z)/(size.z||1);
+  }
+  g.setAttribute("blendGenerated",new THREE.BufferAttribute(generated,3));
+}
+
 function makeMaterial(blenderMat) {
   if (!blenderMat) {
     return new THREE.MeshStandardMaterial({
@@ -247,7 +390,15 @@ function makeMaterial(blenderMat) {
   const p = blenderMat.shader?.principled;
   const rgba = p?.baseColor || blenderMat.diffuse || [0.7, 0.7, 0.7, 1];
   const alpha = p?.alpha ?? rgba[3] ?? 1;
-  return new THREE.MeshStandardMaterial({
+  const node = blenderMat.shader?.nodes.find(n => n.name === p?.nodeName);
+  const value = (name, fallback) => node?.inputs.find(s => s.name === name)?.defaultValue ?? fallback;
+  const material = new THREE.MeshPhysicalMaterial({
+    clearcoat: value("Coat Weight", 0),
+    clearcoatRoughness: value("Coat Roughness", 0.03),
+    transmission: value("Transmission Weight", 0),
+    ior: p?.ior || 1.5,
+    emissive: new THREE.Color(...(p?.emissionColor || [0, 0, 0]).slice(0, 3)),
+    emissiveIntensity: p?.emissionStrength || 0,
     color: new THREE.Color(rgba[0], rgba[1], rgba[2]),
     metalness: THREE.MathUtils.clamp(p?.metallic ?? blenderMat.metallic ?? 0, 0, 1),
     roughness: THREE.MathUtils.clamp(p?.roughness ?? blenderMat.roughness ?? 0.7, 0.02, 1),
@@ -256,6 +407,8 @@ function makeMaterial(blenderMat) {
     side: THREE.DoubleSide,
     wireframe
   });
+  applyProceduralMaterial(material, blenderMat);
+  return material;
 }
 
 function geometryFromBlendMesh(m) {
@@ -272,6 +425,168 @@ function geometryFromBlendMesh(m) {
 
   g.computeBoundingBox();
   g.computeBoundingSphere();
+  addGeneratedCoordinates(g);
+  return g;
+}
+
+// Read legacy Curve datablocks using the file's own SDNA offsets (not a
+// particular Blender version's memory layout).
+function extractCurves(blend) {
+  const r = blend.reader;
+  if (!blend.sdna.structIndexByType.has("Curve")) return new Map();
+  const field = (type, name) => r.layoutOf(type).fieldByName.get(name);
+  const at = (type, offset, name) => offset + field(type, name).offset;
+  const number = (type, offset, name) => {
+    const f = field(type, name);
+    return f ? Number(r.readPrimitive(f.typeName, offset + f.offset)) : 0;
+  };
+  const follow = (type, offset, name, anchor) => r.followPointer(at(type, offset, name), anchor);
+  const idName = offset => r.readCString(at("ID", offset, "name"), field("ID", "name").size).slice(2);
+  const curves = new Map();
+  for (const block of blend.blocks) {
+    if (blend.sdna.layouts[block.sdnaIndex]?.typeName !== "Curve") continue;
+    const o = block.dataOffset;
+    const slots = follow("Curve", o, "mat", o);
+    const materialNames = [];
+    for (let i = 0; slots && i < number("Curve", o, "totcol"); i++) {
+      const m = r.followPointer(slots.dataOffset + i * blend.header.pointerSize, o);
+      materialNames.push(m ? idName(m.dataOffset) : null);
+    }
+    const curve = { name: idName(o), materialNames, splines: [],
+      depth: number("Curve", o, "ext2"), bevelResolution: number("Curve", o, "bevresol"),
+      caps: Boolean(number("Curve", o, "flag") & 1024),
+      size: number("Curve", o, "fsize"), align: number("Curve", o, "spacemode"),
+      x: number("Curve", o, "xof"), y: number("Curve", o, "yof"),
+      spacing: number("Curve", o, "spacing"), extrusion: number("Curve", o, "ext1"),
+      customProfile: r.readPointer(at("Curve", o, "bevobj")) !== 0n
+    };
+    const str = follow("Curve", o, "str", o);
+    if (str) curve.text = new TextDecoder().decode(r.buf.subarray(str.dataOffset, str.dataOffset + Math.min(str.size, number("Curve", o, "len")))).replace(/\0.*$/s, "");
+    let nb = r.followPointer(at("Curve", o, "nurb") + field("ListBase", "first").offset, o);
+    const visited = new Set();
+    while (nb && !visited.has(nb.dataOffset)) {
+      visited.add(nb.dataOffset);
+      const n = nb.dataOffset;
+      const type = number("Nurb", n, "type") & 7;
+      const count = number("Nurb", n, "pntsu");
+      const pointType = type === 1 ? "BezTriple" : "BPoint";
+      const pb = follow("Nurb", n, type === 1 ? "bezt" : "bp", o);
+      const points = [];
+      const stride = r.layoutOf(pointType).size;
+      if (pb && count >= 2 && count * stride <= pb.size && number("Nurb", n, "pntsv") <= 1) {
+        for (let i = 0; i < count; i++) {
+          const p = pb.dataOffset + stride * i;
+          points.push({ vec: Array.from(r.readFloatArray(at(pointType, p, "vec"), type === 1 ? 9 : 4)), radius: number(pointType, p, "radius") });
+        }
+        const knots = follow("Nurb", n, "knotsu", o);
+        curve.splines.push({ type, points, cyclic: Boolean(number("Nurb", n, "flagu") & 1),
+          resolution: Math.max(1, number("Nurb", n, "resolu")), material: number("Nurb", n, "mat_nr"),
+          order: number("Nurb", n, "orderu"), knots: knots ? Array.from(r.readFloatArray(knots.dataOffset, knots.size / 4)) : [] });
+      }
+      nb = follow("Nurb", n, "next", o);
+    }
+    curves.set(curve.name, curve);
+  }
+  return curves;
+}
+
+function curveGeometry(curve, spline) {
+  const points = [], radii = [];
+  const vector = (a, offset = 0) => new THREE.Vector3(...a.slice(offset, offset + 3));
+  const controls = spline.points;
+  const segmentCount = controls.length - (spline.cyclic ? 0 : 1);
+  if (spline.type === 0 || spline.type === 1) {
+    for (let i = 0; i < segmentCount; i++) {
+      const a = controls[i], b = controls[(i + 1) % controls.length];
+      const path = spline.type === 1 ? new THREE.CubicBezierCurve3(vector(a.vec, 3), vector(a.vec, 6), vector(b.vec), vector(b.vec, 3)) : new THREE.LineCurve3(vector(a.vec), vector(b.vec));
+      const steps = spline.type === 1 ? Math.min(64, spline.resolution) : 1;
+      for (let j = 0; j < steps; j++) {
+        const t = j / steps;
+        points.push(path.getPoint(t)); radii.push(THREE.MathUtils.lerp(a.radius, b.radius, t));
+      }
+    }
+    const last = spline.cyclic ? controls[0] : controls.at(-1);
+    points.push(vector(last.vec, spline.type === 1 ? 3 : 0)); radii.push(last.radius);
+  } else if (spline.type === 4 && spline.knots.length) {
+    const cp = controls.map(p => new THREE.Vector4(...p.vec));
+    if (spline.cyclic) cp.push(...cp.slice(0, spline.order - 1));
+    const path = new NURBSCurve(spline.order - 1, spline.knots, cp, spline.order - 1, cp.length);
+    const steps = Math.min(4096, controls.length * spline.resolution);
+    for (let i = 0; i <= steps; i++) {
+      points.push(path.getPoint(i / steps));
+      const t = i / steps * segmentCount, a = Math.min(Math.floor(t), controls.length - 1);
+      radii.push(THREE.MathUtils.lerp(controls[a].radius, controls[(a + 1) % controls.length].radius, t - a));
+    }
+  } else return null;
+  if (points.length < 2 || curve.depth <= 0) return null;
+  // Preserve polyline corners and per-point radii; TubeGeometry's arc-length
+  // sampling would otherwise move vertices away from the saved control points.
+  const path = new THREE.Curve();
+  path.getPoint = t => {
+    const f = t * (points.length - 1), i = Math.min(Math.floor(f), points.length - 2);
+    return points[i].clone().lerp(points[i + 1], f - i);
+  };
+  path.getTangent = t => {
+    const i = Math.round(t * (points.length - 1));
+    const before = points[i > 0 ? i - 1 : spline.cyclic ? points.length - 2 : 0];
+    const after = points[i < points.length - 1 ? i + 1 : spline.cyclic ? 1 : points.length - 1];
+    return after.clone().sub(before).normalize();
+  };
+  const frames = path.computeFrenetFrames(points.length - 1, spline.cyclic);
+  const sides = Math.min(32, Math.max(8, 4 + curve.bevelResolution * 2));
+  const positions = [], indices = [];
+  for (let i = 0; i < points.length; i++) {
+    for (let j = 0; j < sides; j++) {
+      const a = j / sides * Math.PI * 2;
+      const v = points[i].clone().addScaledVector(frames.normals[i], Math.cos(a) * curve.depth * radii[i]).addScaledVector(frames.binormals[i], Math.sin(a) * curve.depth * radii[i]);
+      positions.push(v.x, v.y, v.z);
+      if (i) {
+        const b = i * sides + j, c = i * sides + (j + 1) % sides;
+        indices.push(b - sides, c - sides, b, c - sides, c, b);
+      }
+    }
+  }
+  if (curve.caps && !spline.cyclic) {
+    for (const end of [0, points.length - 1]) {
+      const center = positions.length / 3;
+      positions.push(...points[end].toArray());
+      for (let j = 0; j < sides; j++) {
+        const a = end * sides + j, b = end * sides + (j + 1) % sides;
+        indices.push(...(end ? [center, a, b] : [center, b, a]));
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  g.setIndex(indices); g.computeVertexNormals(); addGeneratedCoordinates(g);
+  return g;
+}
+
+let viewerFontPromise;
+async function textGeometry(curve) {
+  // Blender's bundled Bfont is not serialized as outlines. Use a browser font
+  // substitute for built-in text; preserve size, tracking and baseline alignment.
+  viewerFontPromise ||= new FontLoader().loadAsync("https://cdn.jsdelivr.net/npm/three@0.180.0/examples/fonts/helvetiker_regular.typeface.json").catch(error => { viewerFontPromise = null; throw error; });
+  const font = await viewerFontPromise;
+  const shapes = [];
+  let x = 0;
+  for (const char of curve.text) {
+    const glyph = font.data.glyphs[char] || font.data.glyphs["?"];
+    const letter = font.generateShapes(char, curve.size);
+    for (const shape of letter) {
+      // Translate the shape through its curves, including holes.
+      for (const path of [shape, ...shape.holes]) for (const c of path.curves) {
+        for (const key of ["v0", "v1", "v2", "v3"]) if (c[key]) c[key].x += x;
+      }
+    }
+    shapes.push(...letter);
+    x += glyph.ha / font.data.resolution * curve.size * (curve.spacing || 1);
+  }
+  const g = new THREE.ExtrudeGeometry(shapes, { depth: Math.max(0.00001, curve.extrusion * 2), bevelEnabled: false, curveSegments: 6 });
+  g.computeBoundingBox();
+  const width = g.boundingBox.max.x;
+  g.translate(curve.x - (curve.align === 1 ? width / 2 : curve.align === 2 ? width : 0), curve.y, -curve.extrusion);
+  addGeneratedCoordinates(g);
   return g;
 }
 
@@ -321,7 +636,24 @@ function fitCamera() {
     camera.up.set(0, 0, 1);
     controls.object = camera;
   }
-  const box = new THREE.Box3().setFromObject(modelRoot);
+  modelRoot.updateMatrixWorld(true);
+  const bounds = [];
+  modelRoot.traverse(obj => {
+    if (!obj.isMesh) return;
+    obj.geometry.computeBoundingBox();
+    const local = obj.geometry.boundingBox;
+    const size = local.getSize(new THREE.Vector3());
+    const world = local.clone().applyMatrix4(obj.matrixWorld);
+    bounds.push({ box: world, extent: world.getSize(new THREE.Vector3()).length(),
+      flat: Math.min(size.x, size.y, size.z) < Math.max(size.x, size.y, size.z) * 1e-6 });
+  });
+  const solidExtent = Math.max(0, ...bounds.filter(b => !b.flat).map(b => b.extent));
+  const box = new THREE.Box3();
+  for (const b of bounds) {
+    // Keep the studio floor in the scene without fitting the camera to it.
+    if (solidExtent && b.flat && b.extent > solidExtent * 10) continue;
+    box.union(b.box);
+  }
   if (box.isEmpty()) return;
 
   const sphere = box.getBoundingSphere(new THREE.Sphere());
@@ -379,6 +711,8 @@ async function loadBlend(rawURL) {
     const meshes = extractMeshes(blend);
     const objects = extractObjects(blend);
     const materials = extractMaterials(blend);
+    const curves = extractCurves(blend);
+    readProceduralSettings(blend, materials);
 
     const meshByName = new Map(meshes.map(m => [m.name, m]));
     const materialByName = new Map(materials.map(m => [m.name, m]));
@@ -424,7 +758,36 @@ async function loadBlend(rawURL) {
       triangles += bm.triangles.length / 3;
     }
 
-    if (!renderedObjects) {
+    let renderedCurves = 0, renderedText = 0, skippedCurves = 0;
+    for (const obj of objects) {
+      if (![2, 4].includes(obj.type)) continue;
+      const curve = curves.get(obj.dataName);
+      if (!curve) { skippedCurves++; continue; }
+      const group = new THREE.Group();
+      group.name = obj.name;
+      if (obj.type === 4 && curve.text) {
+        try {
+          group.add(new THREE.Mesh(await textGeometry(curve), makeMaterial(materialByName.get(curve.materialNames[0]))));
+          renderedText++;
+        } catch (error) { console.warn("Text unavailable", obj.name, error); }
+      } else if (!curve.customProfile) {
+        for (const spline of curve.splines) {
+          const geometry = curveGeometry(curve, spline);
+          if (geometry) group.add(new THREE.Mesh(geometry, makeMaterial(materialByName.get(curve.materialNames[spline.material]))));
+        }
+        if (group.children.length) renderedCurves++;
+      }
+      if (!group.children.length) { skippedCurves++; continue; }
+      applyBlenderWorldMatrix(group, obj.worldMatrix);
+      group.traverse(child => {
+        if (!child.geometry) return;
+        vertices += child.geometry.attributes.position.count;
+        triangles += (child.geometry.index?.count || child.geometry.attributes.position.count) / 3;
+      });
+      modelRoot.add(group);
+    }
+
+    if (!renderedObjects && !renderedCurves && !renderedText) {
       throw new Error(`Parsed successfully, but found no renderable mesh geometry (${meshes.length} mesh datablocks, ${objects.length} objects).`);
     }
 
@@ -438,7 +801,9 @@ async function loadBlend(rawURL) {
 
     setStatus(
       `Loaded Blender ${version} · ${formatBytes(bytes.byteLength)}\n` +
-      `${renderedObjects} mesh objects · ${vertices.toLocaleString()} vertices · ${Math.round(triangles).toLocaleString()} triangles · ${materials.length} materials` +
+      `${renderedObjects} meshes · ${renderedCurves} curves · ${renderedText} text · ${vertices.toLocaleString()} vertices · ${Math.round(triangles).toLocaleString()} triangles · ${materials.length} materials` +
+      (skippedCurves ? `\n${skippedCurves} unsupported curve/text objects` : "") +
+      `\nPreview: approximate materials and text; unapplied modifiers are omitted.` +
       (normalized !== rawURL.trim() ? `\nGitHub URL resolved through jsDelivr` : "")
     );
   } catch (err) {
