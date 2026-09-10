@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spell Checker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Spell Checker</h1>
+    <textarea placeholder="Enter text to check..." id="spellcheck-text"></textarea>
+    <script>
+        // Textarea Spell Checker with Claude API Integration
+
+        let ANTHROPIC_API_KEY = null;
+
+        class TextareaSpellChecker {
+            constructor() {
+                this.init();
+            }
+
+            init() {
+                // Find all textareas on the page and add spell check functionality
+                const textareas = document.querySelectorAll('textarea');
+                textareas.forEach(textarea => this.addSpellCheckToTextarea(textarea));
+
+                // Watch for dynamically added textareas
+                this.observeNewTextareas();
+            }
+
+            addSpellCheckToTextarea(textarea) {
+                // Skip if already processed
+                if (textarea.hasAttribute('data-spell-check-added')) {
+                    return;
+                }
+
+                textarea.setAttribute('data-spell-check-added', 'true');
+
+                // Create container for spell check UI
+                const container = document.createElement('div');
+                container.className = 'spell-check-container';
+                container.style.marginTop = '8px';
+
+                // Create spell check button
+                const button = document.createElement('button');
+                button.textContent = 'Check Spelling';
+                button.style.cssText = `
+                    background: #4CAF50;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    margin-right: 10px;
+                `;
+
+                button.onmouseover = () => button.style.background = '#45a049';
+                button.onmouseout = () => button.style.background = '#4CAF50';
+
+                // Create loading indicator
+                const loadingSpinner = document.createElement('span');
+                loadingSpinner.textContent = '⏳ Checking...';
+                loadingSpinner.style.display = 'none';
+                loadingSpinner.style.color = '#666';
+
+                // Create results container
+                const resultsContainer = document.createElement('div');
+                resultsContainer.className = 'spell-check-results';
+                resultsContainer.style.marginTop = '10px';
+
+                container.appendChild(button);
+                container.appendChild(loadingSpinner);
+                container.appendChild(resultsContainer);
+
+                // Insert after textarea
+                textarea.parentNode.insertBefore(container, textarea.nextSibling);
+
+                // Add click handler
+                button.addEventListener('click', () => this.checkSpelling(textarea, button, loadingSpinner, resultsContainer));
+            }
+
+            observeNewTextareas() {
+                const observer = new MutationObserver(mutations => {
+                    mutations.forEach(mutation => {
+                        mutation.addedNodes.forEach(node => {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                // Check if the added node is a textarea
+                                if (node.tagName === 'TEXTAREA') {
+                                    this.addSpellCheckToTextarea(node);
+                                }
+                                // Check for textareas within added elements
+                                const textareas = node.querySelectorAll ? node.querySelectorAll('textarea') : [];
+                                textareas.forEach(textarea => this.addSpellCheckToTextarea(textarea));
+                            }
+                        });
+                    });
+                });
+
+                observer.observe(document.body, { childList: true, subtree: true });
+            }
+
+            async getApiKey() {
+                if (!ANTHROPIC_API_KEY) {
+                    // Try to read from localStorage first
+                    ANTHROPIC_API_KEY = localStorage.getItem('ANTHROPIC_API_KEY');
+
+                    if (!ANTHROPIC_API_KEY) {
+                        // Prompt for API key if not found in localStorage
+                        ANTHROPIC_API_KEY = prompt('Please enter your Anthropic API key:');
+                        if (!ANTHROPIC_API_KEY) {
+                            throw new Error('API key is required for spell checking');
+                        }
+                        // Save to localStorage for future use
+                        localStorage.setItem('ANTHROPIC_API_KEY', ANTHROPIC_API_KEY);
+                    }
+                }
+                return ANTHROPIC_API_KEY;
+            }
+
+            async checkSpelling(textarea, button, loadingSpinner, resultsContainer) {
+                try {
+                    const apiKey = await this.getApiKey();
+                    const text = textarea.value.trim();
+
+                    if (!text) {
+                        this.showMessage(resultsContainer, '⚠️ Please enter some text to check', '#ff9800');
+                        return;
+                    }
+
+                    // Show loading state
+                    button.style.display = 'none';
+                    loadingSpinner.style.display = 'inline';
+                    resultsContainer.innerHTML = '';
+
+                    const response = await this.callClaudeAPI(apiKey, text);
+                    this.displayResults(textarea, response, resultsContainer);
+
+                } catch (error) {
+                    console.error('Spell check error:', error);
+                    this.showMessage(resultsContainer, `❌ Error: ${error.message}`, '#f44336');
+                } finally {
+                    // Restore button state
+                    button.style.display = 'inline-block';
+                    loadingSpinner.style.display = 'none';
+                }
+            }
+
+            async callClaudeAPI(apiKey, text) {
+                const tools = [
+                    {
+                        name: "highlight_error",
+                        description: "Report a spelling error found in the text",
+                        input_schema: {
+                            type: "object",
+                            properties: {
+                                word_to_replace: {
+                                    type: "string",
+                                    description: "The incorrectly spelled word"
+                                },
+                                replacement_string: {
+                                    type: "string",
+                                    description: "The correct spelling of the word"
+                                },
+                                commentary: {
+                                    type: "string",
+                                    description: "Brief explanation of the error or correction"
+                                }
+                            },
+                            required: ["word_to_replace", "replacement_string", "commentary"]
+                        }
+                    }
+                ];
+
+                const messages = [
+                    {
+                        role: "user",
+                        content: `Please check the following text for spelling errors. For each spelling error you find, use the highlight_error tool to report it. Only report actual spelling errors, not grammar or style issues.\n\nText to check:\n${text}`
+                    }
+                ];
+
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': apiKey,
+                        'anthropic-version': '2023-06-01'
+                    },
+                    body: JSON.stringify({
+                        model: 'claude-3-sonnet-20240229',
+                        max_tokens: 1000,
+                        tools: tools,
+                        messages: messages
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorData.error?.message || ''}`);
+                }
+
+                return await response.json();
+            }
+
+            displayResults(textarea, response, resultsContainer) {
+                // Extract tool calls from response
+                const toolCalls = [];
+
+                if (response.content) {
+                    response.content.forEach(block => {
+                        if (block.type === 'tool_use' && block.name === 'highlight_error') {
+                            toolCalls.push(block.input);
+                        }
+                    });
+                }
+
+                if (toolCalls.length === 0) {
+                    // No errors found
+                    this.showMessage(resultsContainer, '✅ No spelling errors found!', '#4CAF50');
+                    return;
+                }
+
+                // Display errors
+                const errorsDiv = document.createElement('div');
+                errorsDiv.innerHTML = `<h4 style="margin: 0 0 10px 0; color: #333;">Found ${toolCalls.length} spelling error(s):</h4>`;
+
+                toolCalls.forEach((error, index) => {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.cssText = `
+                        background: #fff3cd;
+                        border: 1px solid #ffeaa7;
+                        border-radius: 4px;
+                        padding: 10px;
+                        margin: 5px 0;
+                        font-size: 14px;
+                    `;
+
+                    errorDiv.innerHTML = `
+                        <strong>"${error.word_to_replace}"</strong> → <strong style="color: #4CAF50;">"${error.replacement_string}"</strong>
+                        <br><small style="color: #666;">${error.commentary}</small>
+                        <br><button class="apply-fix-btn" data-original="${error.word_to_replace}" data-replacement="${error.replacement_string}" 
+                            style="background: #2196F3; color: white; border: none; padding: 4px 8px; border-radius: 3px; 
+                                   cursor: pointer; font-size: 12px; margin-top: 5px;">Apply Fix</button>
+                    `;
+
+                    errorsDiv.appendChild(errorDiv);
+                });
+
+                resultsContainer.appendChild(errorsDiv);
+
+                // Add event listeners for apply fix buttons
+                errorsDiv.querySelectorAll('.apply-fix-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const original = e.target.getAttribute('data-original');
+                        const replacement = e.target.getAttribute('data-replacement');
+                        this.applyFix(textarea, original, replacement);
+                        e.target.textContent = '✓ Applied';
+                        e.target.disabled = true;
+                        e.target.style.background = '#4CAF50';
+                    });
+                });
+            }
+
+            applyFix(textarea, original, replacement) {
+                // Simple find and replace - could be enhanced for better word boundary matching
+                const currentText = textarea.value;
+                const regex = new RegExp(`\\b${original.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
+                textarea.value = currentText.replace(regex, replacement);
+
+                // Trigger change event
+                textarea.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            showMessage(container, message, color) {
+                container.innerHTML = `<div style="color: ${color}; font-weight: bold; padding: 10px 0;">${message}</div>`;
+            }
+        }
+
+        // Initialize the spell checker when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => new TextareaSpellChecker());
+        } else {
+            new TextareaSpellChecker();
+        }
+
+        // For manual initialization
+        window.TextareaSpellChecker = TextareaSpellChecker;
+    </script>
+</body>
+</html>
