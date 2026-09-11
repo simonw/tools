@@ -257,6 +257,8 @@
       <div class="form-group">
         <label for="modelSelect">Model</label>
         <select id="modelSelect">
+          <option value="gpt-realtime-2.1">gpt-realtime-2.1</option>
+          <option value="gpt-realtime-2.1-mini">gpt-realtime-2.1-mini</option>
           <option value="gpt-realtime-2">gpt-realtime-2</option>
           <option value="gpt-realtime-1.5">gpt-realtime-1.5</option>
           <option value="gpt-realtime-mini">gpt-realtime-mini</option>
@@ -390,12 +392,14 @@ async function createRealtimeSession(inStream, token, voice, model, documentText
           const usage = eventData.response.usage
           const inputDetails = usage.input_token_details
           const outputDetails = usage.output_token_details
-          const cachedDetails = inputDetails.cached_tokens_details
+          const cachedDetails = inputDetails.cached_tokens_details || {}
 
           const currentStats = {
-            audioInputTokens: inputDetails.audio_tokens - cachedDetails.audio_tokens,
-            textInputTokens: inputDetails.text_tokens - cachedDetails.text_tokens,
+            audioInputTokens: inputDetails.audio_tokens - (cachedDetails.audio_tokens || 0),
+            textInputTokens: inputDetails.text_tokens - (cachedDetails.text_tokens || 0),
             cachedInputTokens: inputDetails.cached_tokens,
+            cachedAudioInputTokens: cachedDetails.audio_tokens || 0,
+            cachedTextInputTokens: cachedDetails.text_tokens || 0,
             audioOutputTokens: outputDetails.audio_tokens,
             textOutputTokens: outputDetails.text_tokens
           }
@@ -455,13 +459,13 @@ async function createRealtimeSession(inStream, token, voice, model, documentText
   return pc
 }
 
-function calculateCosts({audioInputTokens, textInputTokens, cachedInputTokens, audioOutputTokens, textOutputTokens}, model) {
+function calculateCosts({audioInputTokens, textInputTokens, cachedAudioInputTokens = 0, cachedTextInputTokens = 0, audioOutputTokens, textOutputTokens}, model) {
   const pricing = getModelPricing(model)
 
   const audioInputCost = audioInputTokens * pricing.audioInput
-  const cachedAudioInputCost = cachedInputTokens * pricing.cachedAudioInput
+  const cachedAudioInputCost = cachedAudioInputTokens * pricing.cachedAudioInput
   const textInputCost = textInputTokens * pricing.textInput
-  const cachedTextInputCost = cachedInputTokens * pricing.cachedTextInput
+  const cachedTextInputCost = cachedTextInputTokens * pricing.cachedTextInput
   const audioOutputCost = audioOutputTokens * pricing.audioOutput
   const textOutputCost = textOutputTokens * pricing.textOutput
 
@@ -473,14 +477,34 @@ function calculateCosts({audioInputTokens, textInputTokens, cachedInputTokens, a
 }
 
 function getModelPricing(model) {
+  // USD per token; official model pages checked 2026-09-11:
+  // https://developers.openai.com/api/docs/models/gpt-realtime-2.1
+  // https://developers.openai.com/api/docs/models/gpt-realtime-2.1-mini
+  // https://developers.openai.com/api/docs/models/gpt-realtime-2
   const pricingByModel = {
+    'gpt-realtime-2.1': {
+      audioInput: 0.000032,
+      cachedAudioInput: 0.0000004,
+      textInput: 0.000004,
+      cachedTextInput: 0.0000004,
+      audioOutput: 0.000064,
+      textOutput: 0.000024
+    },
+    'gpt-realtime-2.1-mini': {
+      audioInput: 0.00001,
+      cachedAudioInput: 0.0000003,
+      textInput: 0.0000006,
+      cachedTextInput: 0.00000006,
+      audioOutput: 0.000020,
+      textOutput: 0.0000024
+    },
     'gpt-realtime-2': {
       audioInput: 0.000032,
       cachedAudioInput: 0.0000004,
       textInput: 0.000004,
       cachedTextInput: 0.0000004,
       audioOutput: 0.000064,
-      textOutput: 0.000016
+      textOutput: 0.000024
     },
     'gpt-realtime-1.5': {
       audioInput: 0.000032,
@@ -625,7 +649,7 @@ function addEventToLog(eventData) {
       }
 
       const savedModel = localStorage.getItem('openai_realtime_model')
-      if (savedModel) {
+      if (savedModel && Array.from(modelSelect.options).some(option => option.value === savedModel)) {
         modelSelect.value = savedModel
       }
     })
