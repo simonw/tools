@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Stitcher</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f5f5f5;
+  color: #333;
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+h1 { margin-bottom: 4px; }
+.subtitle { color: #666; margin-bottom: 16px; }
+
+/* Drop zone */
+#drop-zone {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 2px dashed #bbb;
+  border-radius: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: #fff;
+  transition: background 0.2s, border-color 0.2s;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+#drop-zone.dragover { background: #e8f0fe; border-color: #4285f4; }
+#drop-zone p { font-size: 16px; color: #666; }
+#drop-zone .hint { font-size: 13px; color: #999; margin-top: 6px; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-bottom: 16px; padding: 12px; background: #fff;
+  border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.toolbar button, .toolbar select {
+  padding: 6px 14px; border: 1px solid #ccc; border-radius: 6px;
+  background: #fff; cursor: pointer; font-size: 14px;
+}
+.toolbar button:hover { background: #f0f0f0; }
+.toolbar button.primary {
+  background: #4285f4; color: #fff; border-color: #4285f4;
+}
+.toolbar button.primary:hover { background: #3367d6; }
+.toolbar button.active {
+  background: #e8f0fe; border-color: #4285f4; color: #4285f4;
+}
+.toolbar button.danger { color: #d93025; border-color: #d93025; }
+.toolbar button.danger:hover { background: #fce8e6; }
+.toolbar .sep {
+  width: 1px; height: 24px; background: #ddd; margin: 0 4px;
+}
+
+/* Image strips area */
+#editor { display: none; }
+
+#strips-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  overflow: auto;
+  padding: 20px;
+  background: repeating-conic-gradient(#e0e0e0 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  min-height: 200px;
+  position: relative;
+}
+#strips-container.vertical {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.strip-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+.strip-wrapper.selected { outline: 3px solid #4285f4; outline-offset: -3px; z-index: 2; }
+.strip-wrapper.dragging { cursor: grabbing; opacity: 0.9; }
+.strip-wrapper img {
+  display: block;
+  pointer-events: none;
+}
+.strip-label {
+  position: absolute; top: 4px; left: 4px;
+  background: rgba(0,0,0,0.6); color: #fff;
+  font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  pointer-events: none;
+}
+.strip-reorder {
+  position: absolute; top: 4px; right: 4px;
+  display: flex; gap: 2px;
+}
+.strip-reorder button {
+  background: rgba(0,0,0,0.6); color: #fff; border: none;
+  width: 24px; height: 24px; border-radius: 4px; cursor: pointer;
+  font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+.strip-reorder button:hover { background: rgba(0,0,0,0.8); }
+
+/* Nudge controls */
+#nudge-controls {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-bottom: 16px; padding: 10px 12px;
+  background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+#nudge-controls span { font-size: 14px; color: #555; }
+#nudge-controls button {
+  padding: 6px 12px; border: 1px solid #ccc; border-radius: 6px;
+  background: #fff; cursor: pointer; font-size: 14px;
+}
+#nudge-controls button:hover { background: #f0f0f0; }
+#selected-name { font-weight: 600; color: #333; }
+
+/* Overlap zoom */
+#overlap-section { display: none; margin-bottom: 20px; }
+#overlap-section h3 { margin-bottom: 8px; font-size: 15px; color: #555; }
+#overlap-panels {
+  display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px;
+}
+.overlap-panel {
+  flex-shrink: 0;
+  background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  padding: 8px; min-width: 200px;
+}
+.overlap-panel .label {
+  font-size: 12px; color: #666; margin-bottom: 6px; text-align: center;
+}
+.overlap-canvas-wrap {
+  overflow: hidden;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: repeating-conic-gradient(#e0e0e0 0% 25%, #fff 0% 50%) 50% / 10px 10px;
+  max-height: 500px;
+  max-width: 100%;
+}
+.overlap-canvas-wrap canvas { display: block; max-width: 100%; height: auto; }
+
+/* Result */
+#result-section {
+  display: none;
+  margin-top: 24px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+#result-section h3 { margin-bottom: 12px; }
+#result-container {
+  overflow: auto;
+  background: repeating-conic-gradient(#e0e0e0 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px;
+  max-height: 80vh;
+}
+#result-canvas { max-width: 100%; height: auto; }
+#result-info { font-size: 13px; color: #666; margin-top: 8px; }
+
+.export-row {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px;
+}
+.export-row button {
+  padding: 8px 16px; border: 1px solid #ccc; border-radius: 6px;
+  background: #fff; cursor: pointer; font-size: 14px;
+}
+.export-row button:hover { background: #f0f0f0; }
+.export-row button.primary { background: #4285f4; color: #fff; border-color: #4285f4; }
+.export-row button.primary:hover { background: #3367d6; }
+.export-row label { font-size: 14px; }
+.export-row input[type=range] { width: 100px; }
+#quality-val { font-size: 13px; color: #666; }
+
+@media (max-width: 600px) {
+  body { padding: 10px; }
+  .toolbar, #nudge-controls { gap: 4px; padding: 8px; }
+  .toolbar button, .toolbar select, #nudge-controls button { padding: 6px 8px; font-size: 13px; }
+  #overlap-panels { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<h1>Image Stitcher</h1>
+<p class="subtitle">Stitch multiple images with adjustable alignment</p>
+
+<label id="drop-zone" for="file-input">
+  <div>
+    <p>Drop images here or click to select</p>
+    <p class="hint">Supports PNG, JPEG, WebP, GIF &mdash; drag to adjust, arrow keys to nudge</p>
+  </div>
+  <input id="file-input" class="visually-hidden" type="file" multiple accept="image/*">
+</label>
+
+<div id="editor">
+  <div class="toolbar">
+    <button id="btn-horizontal" class="active" title="Stitch side by side">Horizontal</button>
+    <button id="btn-vertical" title="Stack top to bottom">Vertical</button>
+    <div class="sep"></div>
+    <button id="btn-add" title="Add more images">+ Add Images</button>
+    <button id="btn-auto-align">Auto Align</button>
+    <button id="btn-reset-offsets">Reset Offsets</button>
+    <button class="danger" id="btn-remove-selected">Remove Selected</button>
+    <button class="danger" id="btn-clear-all">Clear All</button>
+  </div>
+
+  <div id="nudge-controls">
+    <span>Selected: <strong id="selected-name">None</strong></span>
+    <button id="btn-neg1" title="Nudge -1px">&#9650; Up</button>
+    <button id="btn-pos1" title="Nudge +1px">&#9660; Down</button>
+    <button id="btn-neg10" title="Nudge -10px">&#9650;&#9650; Up 10</button>
+    <button id="btn-pos10" title="Nudge +10px">&#9660;&#9660; Down 10</button>
+  </div>
+
+  <div id="strips-container"></div>
+
+  <div id="overlap-section">
+    <h3>Overlap Previews (seam areas between adjacent images)</h3>
+    <div id="overlap-panels"></div>
+  </div>
+
+  <div id="result-section">
+    <h3>Stitched Result</h3>
+    <div id="result-container">
+      <canvas id="result-canvas"></canvas>
+    </div>
+    <div id="result-info"></div>
+    <div class="export-row">
+      <button class="primary" id="btn-export-png">Export PNG</button>
+      <button id="btn-export-jpeg">Export JPEG</button>
+      <label>Quality: <input type="range" id="jpeg-quality" min="10" max="100" value="92" step="1"></label>
+      <span id="quality-val">92%</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // State
+  const images = []; // {id, name, img, offset, naturalW, naturalH}
+  // offset = cross-axis offset: offsetY when horizontal, offsetX when vertical
+  let selectedId = null;
+  let idCounter = 0;
+  let mode = 'horizontal'; // 'horizontal' or 'vertical'
+  const OVERLAP_PX = 60;
+  const ZOOM_FACTOR = 3;
+
+  // DOM refs
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const editor = document.getElementById('editor');
+  const stripsContainer = document.getElementById('strips-container');
+  const overlapSection = document.getElementById('overlap-section');
+  const overlapPanels = document.getElementById('overlap-panels');
+  const resultSection = document.getElementById('result-section');
+  const resultCanvas = document.getElementById('result-canvas');
+  const resultInfo = document.getElementById('result-info');
+  const selectedNameEl = document.getElementById('selected-name');
+  const qualitySlider = document.getElementById('jpeg-quality');
+  const qualityVal = document.getElementById('quality-val');
+  const btnHoriz = document.getElementById('btn-horizontal');
+  const btnVert = document.getElementById('btn-vertical');
+  const btnNeg1 = document.getElementById('btn-neg1');
+  const btnPos1 = document.getElementById('btn-pos1');
+  const btnNeg10 = document.getElementById('btn-neg10');
+  const btnPos10 = document.getElementById('btn-pos10');
+
+  // Helpers: orientation-aware accessors
+  function mainSize(im) { return mode === 'horizontal' ? im.naturalW : im.naturalH; }
+  function crossSize(im) { return mode === 'horizontal' ? im.naturalH : im.naturalW; }
+
+  // --- Event listeners ---
+
+  fileInput.addEventListener('change', e => { loadFiles(e.target.files); e.target.value = ''; });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    loadFiles(e.dataTransfer.files);
+  });
+
+  document.getElementById('btn-add').addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.multiple = true; input.accept = 'image/*';
+    input.addEventListener('change', e => loadFiles(e.target.files));
+    input.click();
+  });
+
+  btnHoriz.addEventListener('click', () => setMode('horizontal'));
+  btnVert.addEventListener('click', () => setMode('vertical'));
+
+  document.getElementById('btn-auto-align').addEventListener('click', autoAlign);
+  document.getElementById('btn-reset-offsets').addEventListener('click', () => {
+    images.forEach(im => im.offset = 0);
+    render();
+  });
+  document.getElementById('btn-remove-selected').addEventListener('click', () => {
+    if (selectedId == null) return;
+    const idx = images.findIndex(im => im.id === selectedId);
+    if (idx >= 0) images.splice(idx, 1);
+    selectedId = images.length > 0 ? images[0].id : null;
+    render();
+    if (images.length === 0) editor.style.display = 'none';
+  });
+  document.getElementById('btn-clear-all').addEventListener('click', () => {
+    images.length = 0;
+    selectedId = null;
+    editor.style.display = 'none';
+    render();
+  });
+
+  btnNeg1.addEventListener('click', () => nudge(-1));
+  btnPos1.addEventListener('click', () => nudge(1));
+  btnNeg10.addEventListener('click', () => nudge(-10));
+  btnPos10.addEventListener('click', () => nudge(10));
+
+  qualitySlider.addEventListener('input', () => {
+    qualityVal.textContent = qualitySlider.value + '%';
+  });
+
+  document.getElementById('btn-export-png').addEventListener('click', () => doExport('png'));
+  document.getElementById('btn-export-jpeg').addEventListener('click', () => doExport('jpeg'));
+
+  // Keyboard nudge
+  document.addEventListener('keydown', e => {
+    if (selectedId == null) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    const amount = e.shiftKey ? 10 : 1;
+    if (mode === 'horizontal') {
+      if (e.key === 'ArrowUp') { e.preventDefault(); nudge(-amount); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); nudge(amount); }
+    } else {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-amount); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); nudge(amount); }
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      document.getElementById('btn-remove-selected').click();
+    }
+  });
+
+  // --- Mode switching ---
+
+  function setMode(newMode) {
+    if (newMode === mode) return;
+    mode = newMode;
+    images.forEach(im => im.offset = 0);
+    btnHoriz.classList.toggle('active', mode === 'horizontal');
+    btnVert.classList.toggle('active', mode === 'vertical');
+    stripsContainer.classList.toggle('vertical', mode === 'vertical');
+    updateNudgeLabels();
+    if (images.length > 1) autoAlign();
+    else render();
+  }
+
+  function updateNudgeLabels() {
+    if (mode === 'horizontal') {
+      btnNeg1.innerHTML = '&#9650; Up';   btnNeg1.title = 'Move up 1px';
+      btnPos1.innerHTML = '&#9660; Down';  btnPos1.title = 'Move down 1px';
+      btnNeg10.innerHTML = '&#9650;&#9650; Up 10';  btnNeg10.title = 'Move up 10px';
+      btnPos10.innerHTML = '&#9660;&#9660; Down 10'; btnPos10.title = 'Move down 10px';
+    } else {
+      btnNeg1.innerHTML = '&#9664; Left';   btnNeg1.title = 'Move left 1px';
+      btnPos1.innerHTML = '&#9654; Right';  btnPos1.title = 'Move right 1px';
+      btnNeg10.innerHTML = '&#9664;&#9664; Left 10';  btnNeg10.title = 'Move left 10px';
+      btnPos10.innerHTML = '&#9654;&#9654; Right 10'; btnPos10.title = 'Move right 10px';
+    }
+  }
+
+  // --- Core functions ---
+
+  function nudge(d) {
+    const im = images.find(im => im.id === selectedId);
+    if (!im) return;
+    im.offset += d;
+    render();
+  }
+
+  function loadFiles(files) {
+    if (!files || files.length === 0) return;
+    let loaded = 0;
+    const toLoad = Array.from(files).filter(f => f.type.startsWith('image/')).length;
+    if (toLoad === 0) return;
+
+    Array.from(files).forEach(file => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          images.push({
+            id: idCounter++,
+            name: file.name,
+            img,
+            offset: 0,
+            naturalW: img.naturalWidth,
+            naturalH: img.naturalHeight,
+          });
+          loaded++;
+          if (loaded === toLoad) {
+            if (selectedId == null && images.length > 0) selectedId = images[0].id;
+            if (images.length > 1) autoAlign();
+            else render();
+          }
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+    editor.style.display = 'block';
+  }
+
+  // --- Auto-align using edge luminance cross-correlation ---
+
+  function autoAlign() {
+    if (images.length < 2) { render(); return; }
+    images[0].offset = 0;
+
+    for (let i = 1; i < images.length; i++) {
+      const prev = images[i - 1];
+      const curr = images[i];
+      const bestShift = findBestOffset(prev, curr);
+      curr.offset = prev.offset + bestShift;
+    }
+
+    const minOff = Math.min(...images.map(im => im.offset));
+    images.forEach(im => im.offset -= minOff);
+    render();
+  }
+
+  function findBestOffset(imgA, imgB) {
+    const samplePx = 8; // strip thickness to sample
+
+    if (mode === 'horizontal') {
+      // Compare right edge of A with left edge of B (vertical cross-correlation)
+      return crossCorrelateEdges(
+        imgA.img, imgA.naturalW, imgA.naturalH,
+        imgB.img, imgB.naturalW, imgB.naturalH,
+        'right-left'
+      );
+    } else {
+      // Compare bottom edge of A with top edge of B (horizontal cross-correlation)
+      return crossCorrelateEdges(
+        imgA.img, imgA.naturalW, imgA.naturalH,
+        imgB.img, imgB.naturalW, imgB.naturalH,
+        'bottom-top'
+      );
+    }
+  }
+
+  function crossCorrelateEdges(imgA, wA, hA, imgB, wB, hB, edgeType) {
+    const samplePx = 8;
+
+    let cA, cB, crossA, crossB, sizeA, sizeB;
+
+    if (edgeType === 'right-left') {
+      // Sample right edge of A (samplePx wide, hA tall)
+      cA = document.createElement('canvas');
+      cA.width = samplePx; cA.height = hA;
+      const ctxA = cA.getContext('2d', { willReadFrequently: true });
+      ctxA.drawImage(imgA, wA - samplePx, 0, samplePx, hA, 0, 0, samplePx, hA);
+      const dataA = ctxA.getImageData(0, 0, samplePx, hA).data;
+
+      // Sample left edge of B
+      cB = document.createElement('canvas');
+      cB.width = samplePx; cB.height = hB;
+      const ctxB = cB.getContext('2d', { willReadFrequently: true });
+      ctxB.drawImage(imgB, 0, 0, samplePx, hB, 0, 0, samplePx, hB);
+      const dataB = ctxB.getImageData(0, 0, samplePx, hB).data;
+
+      // Row luminance (cross-axis = vertical)
+      crossA = rowLuminance(dataA, samplePx, hA);
+      crossB = rowLuminance(dataB, samplePx, hB);
+      sizeA = hA; sizeB = hB;
+    } else {
+      // Sample bottom edge of A (wA wide, samplePx tall)
+      cA = document.createElement('canvas');
+      cA.width = wA; cA.height = samplePx;
+      const ctxA = cA.getContext('2d', { willReadFrequently: true });
+      ctxA.drawImage(imgA, 0, hA - samplePx, wA, samplePx, 0, 0, wA, samplePx);
+      const dataA = ctxA.getImageData(0, 0, wA, samplePx).data;
+
+      // Sample top edge of B
+      cB = document.createElement('canvas');
+      cB.width = wB; cB.height = samplePx;
+      const ctxB = cB.getContext('2d', { willReadFrequently: true });
+      ctxB.drawImage(imgB, 0, 0, wB, samplePx, 0, 0, wB, samplePx);
+      const dataB = ctxB.getImageData(0, 0, wB, samplePx).data;
+
+      // Column luminance (cross-axis = horizontal)
+      crossA = colLuminance(dataA, wA, samplePx);
+      crossB = colLuminance(dataB, wB, samplePx);
+      sizeA = wA; sizeB = wB;
+    }
+
+    // Cross-correlate
+    const maxShift = Math.max(Math.floor(Math.max(sizeA, sizeB) * 0.5), 50);
+    let bestScore = Infinity;
+    let bestShift = 0;
+    const minOverlap = Math.min(sizeA, sizeB) * 0.2;
+
+    for (let shift = -maxShift; shift <= maxShift; shift++) {
+      let sse = 0, count = 0;
+      for (let i = 0; i < sizeA; i++) {
+        const j = i - shift;
+        if (j < 0 || j >= sizeB) continue;
+        const d = crossA[i] - crossB[j];
+        sse += d * d;
+        count++;
+      }
+      if (count < minOverlap) continue;
+      const mse = sse / count;
+      if (mse < bestScore) { bestScore = mse; bestShift = shift; }
+    }
+
+    return bestShift;
+  }
+
+  function rowLuminance(data, w, h) {
+    const out = new Float32Array(h);
+    for (let y = 0; y < h; y++) {
+      let sum = 0;
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        sum += data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+      }
+      out[y] = sum / w;
+    }
+    return out;
+  }
+
+  function colLuminance(data, w, h) {
+    const out = new Float32Array(w);
+    for (let x = 0; x < w; x++) {
+      let sum = 0;
+      for (let y = 0; y < h; y++) {
+        const i = (y * w + x) * 4;
+        sum += data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+      }
+      out[x] = sum / h;
+    }
+    return out;
+  }
+
+  // --- Rendering ---
+
+  function render() {
+    renderStrips();
+    renderOverlaps();
+    renderResult();
+    updateSelectionLabel();
+  }
+
+  function updateSelectionLabel() {
+    const im = images.find(im => im.id === selectedId);
+    const axis = mode === 'horizontal' ? 'y' : 'x';
+    selectedNameEl.textContent = im ? im.name + ' (' + axis + ': ' + im.offset + ')' : 'None';
+  }
+
+  function getDisplayScale() {
+    if (images.length === 0) return 1;
+    if (mode === 'horizontal') {
+      const maxH = Math.max(...images.map(im => im.naturalH));
+      const targetH = Math.min(400, window.innerHeight * 0.4);
+      return Math.min(1, targetH / maxH);
+    } else {
+      const maxW = Math.max(...images.map(im => im.naturalW));
+      const targetW = Math.min(600, window.innerWidth * 0.6);
+      return Math.min(1, targetW / maxW);
+    }
+  }
+
+  function renderStrips() {
+    stripsContainer.innerHTML = '';
+    if (images.length === 0) return;
+
+    const scale = getDisplayScale();
+    const isH = mode === 'horizontal';
+
+    // Cross-axis range
+    let minOff = Infinity, maxOff = -Infinity;
+    images.forEach(im => {
+      minOff = Math.min(minOff, im.offset);
+      maxOff = Math.max(maxOff, im.offset + crossSize(im));
+    });
+
+    images.forEach((im, idx) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'strip-wrapper' + (im.id === selectedId ? ' selected' : '');
+      wrapper.dataset.id = im.id;
+
+      const crossOffset = (im.offset - minOff) * scale;
+      if (isH) {
+        wrapper.style.marginTop = crossOffset + 'px';
+        wrapper.style.marginLeft = '';
+      } else {
+        wrapper.style.marginLeft = crossOffset + 'px';
+        wrapper.style.marginTop = '';
+      }
+
+      const imgEl = document.createElement('img');
+      imgEl.src = im.img.src;
+      imgEl.style.height = (im.naturalH * scale) + 'px';
+      imgEl.style.width = (im.naturalW * scale) + 'px';
+      imgEl.draggable = false;
+
+      const label = document.createElement('div');
+      label.className = 'strip-label';
+      const axis = isH ? 'y' : 'x';
+      label.textContent = im.name + ' (' + axis + ': ' + im.offset + ')';
+
+      // Reorder buttons
+      const reorderDiv = document.createElement('div');
+      reorderDiv.className = 'strip-reorder';
+      if (idx > 0) {
+        const btn = document.createElement('button');
+        btn.textContent = isH ? '\u25C0' : '\u25B2';
+        btn.title = isH ? 'Move left' : 'Move up';
+        btn.addEventListener('click', e => { e.stopPropagation(); swapImages(idx, idx - 1); });
+        reorderDiv.appendChild(btn);
+      }
+      if (idx < images.length - 1) {
+        const btn = document.createElement('button');
+        btn.textContent = isH ? '\u25B6' : '\u25BC';
+        btn.title = isH ? 'Move right' : 'Move down';
+        btn.addEventListener('click', e => { e.stopPropagation(); swapImages(idx, idx + 1); });
+        reorderDiv.appendChild(btn);
+      }
+
+      wrapper.appendChild(imgEl);
+      wrapper.appendChild(label);
+      wrapper.appendChild(reorderDiv);
+      stripsContainer.appendChild(wrapper);
+
+      // Pointer events for selection + drag
+      wrapper.addEventListener('pointerdown', e => {
+        if (e.target.tagName === 'BUTTON') return;
+        selectedId = im.id;
+        startDrag(e, im, scale, wrapper);
+      });
+    });
+  }
+
+  function swapImages(i, j) {
+    [images[i], images[j]] = [images[j], images[i]];
+    render();
+  }
+
+  function startDrag(e, im, scale, wrapper) {
+    e.preventDefault();
+    wrapper.setPointerCapture(e.pointerId);
+    wrapper.classList.add('dragging');
+
+    document.querySelectorAll('.strip-wrapper').forEach(w => w.classList.remove('selected'));
+    wrapper.classList.add('selected');
+    updateSelectionLabel();
+
+    const isH = mode === 'horizontal';
+    const startPos = isH ? e.clientY : e.clientX;
+    const startOffset = im.offset;
+
+    function onMove(ev) {
+      const pos = isH ? ev.clientY : ev.clientX;
+      const d = pos - startPos;
+      im.offset = startOffset + Math.round(d / scale);
+      renderThrottled();
+    }
+
+    function onUp(ev) {
+      wrapper.releasePointerCapture(ev.pointerId);
+      wrapper.classList.remove('dragging');
+      wrapper.removeEventListener('pointermove', onMove);
+      wrapper.removeEventListener('pointerup', onUp);
+      wrapper.removeEventListener('pointercancel', onUp);
+      render();
+    }
+
+    wrapper.addEventListener('pointermove', onMove);
+    wrapper.addEventListener('pointerup', onUp);
+    wrapper.addEventListener('pointercancel', onUp);
+  }
+
+  let rafId = null;
+  function renderThrottled() {
+    if (rafId) return;
+    rafId = requestAnimationFrame(() => { rafId = null; render(); });
+  }
+
+  // --- Overlap zoom previews ---
+
+  function renderOverlaps() {
+    overlapPanels.innerHTML = '';
+    if (images.length < 2) {
+      overlapSection.style.display = 'none';
+      return;
+    }
+    overlapSection.style.display = 'block';
+
+    const isH = mode === 'horizontal';
+
+    for (let i = 0; i < images.length - 1; i++) {
+      const a = images[i];
+      const b = images[i + 1];
+
+      const panel = document.createElement('div');
+      panel.className = 'overlap-panel';
+
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = (i + 1) + ' \u2194 ' + (i + 2) + ': ' + a.name + ' | ' + b.name;
+      panel.appendChild(label);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'overlap-canvas-wrap';
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+
+      if (isH) {
+        // Horizontal: show right edge of a, left edge of b, stacked by offsetY
+        const aSrcX = Math.max(0, a.naturalW - OVERLAP_PX);
+        const aSrcW = a.naturalW - aSrcX;
+        const bSrcW = Math.min(OVERLAP_PX, b.naturalW);
+
+        const minY = Math.min(a.offset, b.offset);
+        const maxY = Math.max(a.offset + a.naturalH, b.offset + b.naturalH);
+        const totalH = maxY - minY;
+
+        const canvasW = (aSrcW + bSrcW) * ZOOM_FACTOR;
+        const canvasH = Math.min(totalH * ZOOM_FACTOR, 500);
+        const scaleY = canvasH / totalH;
+
+        canvas.width = canvasW; canvas.height = canvasH;
+        canvas.style.width = canvasW + 'px'; canvas.style.height = canvasH + 'px';
+
+        ctx.drawImage(a.img, aSrcX, 0, aSrcW, a.naturalH,
+          0, (a.offset - minY) * scaleY, aSrcW * ZOOM_FACTOR, a.naturalH * scaleY);
+
+        const seamX = aSrcW * ZOOM_FACTOR;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,0,0,0.6)'; ctx.lineWidth = 2; ctx.setLineDash([6,4]);
+        ctx.beginPath(); ctx.moveTo(seamX, 0); ctx.lineTo(seamX, canvasH); ctx.stroke();
+        ctx.restore();
+
+        ctx.drawImage(b.img, 0, 0, bSrcW, b.naturalH,
+          seamX, (b.offset - minY) * scaleY, bSrcW * ZOOM_FACTOR, b.naturalH * scaleY);
+      } else {
+        // Vertical: show bottom edge of a, top edge of b, shifted by offsetX
+        const aSrcY = Math.max(0, a.naturalH - OVERLAP_PX);
+        const aSrcH = a.naturalH - aSrcY;
+        const bSrcH = Math.min(OVERLAP_PX, b.naturalH);
+
+        const minX = Math.min(a.offset, b.offset);
+        const maxX = Math.max(a.offset + a.naturalW, b.offset + b.naturalW);
+        const totalW = maxX - minX;
+
+        const canvasH = (aSrcH + bSrcH) * ZOOM_FACTOR;
+        const canvasW = Math.min(totalW * ZOOM_FACTOR, 800);
+        const scaleX = canvasW / totalW;
+
+        canvas.width = canvasW; canvas.height = canvasH;
+        canvas.style.width = canvasW + 'px'; canvas.style.height = canvasH + 'px';
+
+        ctx.drawImage(a.img, 0, aSrcY, a.naturalW, aSrcH,
+          (a.offset - minX) * scaleX, 0, a.naturalW * scaleX, aSrcH * ZOOM_FACTOR);
+
+        const seamY = aSrcH * ZOOM_FACTOR;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,0,0,0.6)'; ctx.lineWidth = 2; ctx.setLineDash([6,4]);
+        ctx.beginPath(); ctx.moveTo(0, seamY); ctx.lineTo(canvasW, seamY); ctx.stroke();
+        ctx.restore();
+
+        ctx.drawImage(b.img, 0, 0, b.naturalW, bSrcH,
+          (b.offset - minX) * scaleX, seamY, b.naturalW * scaleX, bSrcH * ZOOM_FACTOR);
+      }
+
+      wrap.appendChild(canvas);
+      panel.appendChild(wrap);
+      overlapPanels.appendChild(panel);
+    }
+  }
+
+  // --- Stitched result ---
+
+  function renderResult() {
+    if (images.length === 0) {
+      resultSection.style.display = 'none';
+      return;
+    }
+    resultSection.style.display = 'block';
+
+    const isH = mode === 'horizontal';
+
+    if (isH) {
+      // Horizontal: sum widths, cross-axis = Y offset
+      let totalW = 0;
+      let minY = Infinity, maxY = -Infinity;
+      images.forEach(im => {
+        totalW += im.naturalW;
+        minY = Math.min(minY, im.offset);
+        maxY = Math.max(maxY, im.offset + im.naturalH);
+      });
+      const totalH = maxY - minY;
+
+      resultCanvas.width = totalW;
+      resultCanvas.height = totalH;
+      const ctx = resultCanvas.getContext('2d');
+      ctx.clearRect(0, 0, totalW, totalH);
+
+      let x = 0;
+      images.forEach(im => {
+        ctx.drawImage(im.img, x, im.offset - minY);
+        x += im.naturalW;
+      });
+      resultInfo.textContent = totalW + ' \u00D7 ' + totalH + 'px \u2014 ' + images.length + ' image(s)';
+    } else {
+      // Vertical: sum heights, cross-axis = X offset
+      let totalH = 0;
+      let minX = Infinity, maxX = -Infinity;
+      images.forEach(im => {
+        totalH += im.naturalH;
+        minX = Math.min(minX, im.offset);
+        maxX = Math.max(maxX, im.offset + im.naturalW);
+      });
+      const totalW = maxX - minX;
+
+      resultCanvas.width = totalW;
+      resultCanvas.height = totalH;
+      const ctx = resultCanvas.getContext('2d');
+      ctx.clearRect(0, 0, totalW, totalH);
+
+      let y = 0;
+      images.forEach(im => {
+        ctx.drawImage(im.img, im.offset - minX, y);
+        y += im.naturalH;
+      });
+      resultInfo.textContent = totalW + ' \u00D7 ' + totalH + 'px \u2014 ' + images.length + ' image(s)';
+    }
+  }
+
+  // --- Export ---
+
+  function doExport(format) {
+    if (images.length === 0) return;
+    const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const quality = format === 'jpeg' ? parseInt(qualitySlider.value) / 100 : undefined;
+    const ext = format === 'jpeg' ? 'jpg' : 'png';
+
+    resultCanvas.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'stitched.' + ext;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    }, mime, quality);
+  }
+
+})();
+</script>
+</body>
+</html>
