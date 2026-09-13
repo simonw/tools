@@ -35,7 +35,7 @@ def get_file_commit_details(file_path):
             if first_pipe == -1:
                 continue
 
-            commit_hash = raw_commit[:first_pipe]
+            commit_hash = raw_commit[:first_pipe].strip()
 
             # Find the second pipe to extract date
             second_pipe = raw_commit.find("|", first_pipe + 1)
