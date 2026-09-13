@@ -12,7 +12,25 @@ import sys
 
 
 def extract_issue_numbers(range_spec: str) -> str:
-    """Return a comma-separated list of unique issue numbers (e.g., '#1234')."""
+    """Return a comma-separated list of unique issue numbers (e.g., '#1234').
+
+    Raises:
+        ValueError: If range_spec contains invalid characters or produces no results.
+        RuntimeError: If git log fails.
+    """
+    # Validate input - reject null bytes and other problematic characters
+    if "\x00" in range_spec:
+        raise ValueError("Input contains null bytes")
+
+    # Validate range format: must contain only valid characters for a git ref
+    if ".." in range_spec:
+        parts = range_spec.split("..", 1)
+        if not all(part.strip() for part in parts):
+            raise ValueError(f"Invalid range format: {range_spec}")
+    else:
+        if not range_spec.strip():
+            raise ValueError("Empty range specification")
+
     # Allow either a single tag (interpreted as TAG..HEAD) or an explicit range A..B
     git_range = range_spec if ".." in range_spec else f"{range_spec}..HEAD"
 
@@ -26,14 +44,16 @@ def extract_issue_numbers(range_spec: str) -> str:
         )
     except subprocess.CalledProcessError as e:
         err = e.stderr.strip() if e.stderr else "git log failed"
-        print(f"Error: {err}", file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError(f"git log failed: {err}") from e
 
     commit_messages = result.stdout
 
     # Find all issue numbers of the form #1234 anywhere in the message bodies
     issue_pattern = re.compile(r"#(\d+)")
     issue_numbers = issue_pattern.findall(commit_messages)
+
+    if not issue_numbers:
+        return ""
 
     # Remove duplicates and sort numerically
     unique_issues = sorted(set(issue_numbers), key=int)
@@ -47,5 +67,13 @@ if __name__ == "__main__":
         print("Usage: python extract_issues.py <tag> | <range A..B>", file=sys.stderr)
         sys.exit(2)
 
-    range_input = sys.argv[1].strip()
-    print(extract_issue_numbers(range_input))
+    try:
+        range_input = sys.argv[1].strip()
+        result = extract_issue_numbers(range_input)
+        print(result)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except RuntimeError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
