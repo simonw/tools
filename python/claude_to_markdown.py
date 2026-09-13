@@ -14,7 +14,7 @@ def format_timestamp(ts):
     try:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return dt.strftime("%Y-%m-%d %H:%M:%S")
-    except:
+    except (ValueError, TypeError):
         return ts
 
 
