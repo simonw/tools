@@ -70,7 +70,13 @@ def extract_har(harzip, mimetypes, output, paths, pretty_json):
     output_dir = Path(output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with zipfile.ZipFile(harzip) as zf:
+    try:
+        zf = zipfile.ZipFile(harzip)
+    except zipfile.BadZipFile:
+        click.echo(f"Error: {harzip} is not a valid zip file", err=True)
+        return
+
+    with zf:
         # Read the HAR JSON file
         try:
             har_content = json.loads(zf.read("har.har"))
