@@ -246,6 +246,15 @@ def main():
             print(f"[!] Invalid URL structure: '{url_to_test}'", file=sys.stderr)
             sys.exit(1)
 
+    # Validate URL scheme - only allow http and https
+    final_parsed = urllib.parse.urlparse(url_to_test)
+    if final_parsed.scheme and final_parsed.scheme.lower() not in ("http", "https"):
+        print(
+            f"[!] Error: Only http:// and https:// URLs are supported. Got scheme '{final_parsed.scheme}': '{url_to_test}'",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     check_url_features(url_to_test)
 
 
