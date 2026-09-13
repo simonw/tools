@@ -42,7 +42,23 @@ def extract_path_from_url(url):
     # Remove trailing slashes
     path = path.rstrip("/")
 
+    # Prevent path traversal
+    path = path.lstrip("./")
+    # Remove any remaining .. components for safety
+    parts = [p for p in path.split("/") if p not in ("..", "")]
+    path = "/".join(parts)
+
     return path
+
+
+def is_safe_path(base_dir, target_path):
+    """Check that target_path resolves within base_dir (prevents path traversal)."""
+    try:
+        resolved_target = target_path.resolve()
+        resolved_base = base_dir.resolve()
+        return resolved_target == resolved_base or resolved_base in resolved_target.parents
+    except (ValueError, OSError):
+        return False
 
 
 @click.command()
@@ -111,6 +127,14 @@ def extract_har(harzip, mimetypes, output, paths, pretty_json):
                 else:
                     # Use original filename
                     outpath = output_dir / file_ref
+
+                # Security: verify the output path is within the output directory
+                if not is_safe_path(output_dir, outpath):
+                    click.echo(
+                        f"Warning: Skipping unsafe path {file_ref or path}",
+                        err=True,
+                    )
+                    continue
 
                 # Ensure parent directories exist
                 outpath.parent.mkdir(parents=True, exist_ok=True)
