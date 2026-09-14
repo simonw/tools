@@ -1,5 +1,3 @@
-# Blog to Newsletter Documentation
+View Mozilla Bugzilla bug reports and manage newsletter content generation from a blog backup. This tool pulls entries, links, quotes, and other items from a Datasette backup of simonwillison.net, allowing users to filter by date range (1-60 days), exclude previously featured content, reorder stories with drag-and-drop, and customize sponsor messages before copying formatted HTML directly to Substack. Additional features include URL length warnings for email compatibility, previous newsletter link tracking, and support for editing long URLs.
 
-This tool generates formatted HTML newsletter content from blog entries, links, quotes, and other content sourced from a Datasette backup of simonwillison.net. Users can customize the newsletter by filtering content from the past 1-60 days, optionally excluding items already featured in previous newsletters, and reordering blog entries through an intuitive drag-and-drop interface. The generated HTML can be copied directly into Substack, with additional features including sponsor message customization, URL length warnings for email compatibility, and integration with previous newsletter archives to prevent duplicate content.
-
-<!-- Generated from commit: 75a1f212df34d91eb25249426318ab5cdb8d49e4 -->
+<!-- Generated from commit: bcde418bf8e492faad19a91bff1fc0d63e170767 -->
