@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Live audio</title>
+  <meta name="description" content="Talk to Gemini 3.8 Live and Gemini 3.8 Live Extended Thinking with live audio, transcripts, and optional document context.">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px; background: #f5f5f5; color: #202124; font: 16px/1.5 Helvetica, Arial, sans-serif; }
+    main { max-width: 960px; margin: auto; }
+    h1 { margin: 0 0 4px; font-size: 2rem; letter-spacing: -.04em; }
+    h2 { margin: 0; font-size: 1.15rem; }
+    p { margin: 8px 0 16px; }
+    a { color: #155ac3; }
+    .muted, .hint { color: #5f6368; }
+    .hint { font-size: .875rem; margin: 6px 0 0; }
+    .panel { background: #fff; border: 1px solid #dadce0; border-radius: 8px; padding: 20px; margin: 18px 0; }
+    fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; }
+    input, select, textarea, button { font: inherit; }
+    input[type=password], input[type=text], select, textarea { width: 100%; padding: 9px 10px; border: 1px solid #aeb4bc; border-radius: 4px; color: inherit; background: #fff; }
+    textarea { resize: vertical; min-height: 100px; }
+    .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-top: 18px; }
+    .check { display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: .875rem; margin: 8px 0 0; }
+    .check input { margin: 0; width: 16px; height: 16px; }
+    details { margin-top: 16px; }
+    summary { cursor: pointer; font-weight: 600; }
+    details label { margin-top: 14px; }
+    button { border: 1px solid #b9bec6; background: #fff; color: #202124; border-radius: 5px; padding: 9px 16px; cursor: pointer; font-weight: 600; }
+    button.primary { background: #1967d2; color: white; border-color: #1967d2; }
+    button.danger { color: #a32920; }
+    button:disabled { opacity: .5; cursor: default; }
+    :focus-visible { outline: 3px solid #8ab4f8; outline-offset: 3px; }
+    .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .session-bar { padding-bottom: 18px; border-bottom: 1px solid #e8eaed; }
+    #status { display: block; margin-top: 14px; font-weight: 600; }
+    #status[data-state=error] { color: #a32920; }
+    #status[data-state=live] { color: #137333; }
+    .meter { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: .875rem; color: #5f6368; }
+    meter { width: 80px; height: 14px; }
+    #notice { padding: 10px 12px; background: #fef7e0; border-radius: 4px; margin: 12px 0 0; }
+    .conversation-heading { justify-content: space-between; margin: 20px 0 10px; }
+    .small { padding: 5px 10px; font-size: .875rem; }
+    #transcript { min-height: 180px; max-height: 480px; overflow-y: auto; overflow-wrap: anywhere; }
+    #empty { padding: 38px 10px; text-align: center; }
+    .message { border-left: 3px solid #dadce0; padding: 8px 12px; margin: 14px 0; }
+    .message[data-role=model] { border-color: #1967d2; background: #f8faff; }
+    .message strong { font-size: .875rem; }
+    .message p { white-space: pre-wrap; margin: 4px 0; }
+    .message small { color: #5f6368; }
+    #text-form { display: flex; gap: 10px; margin-top: 18px; }
+    #text-form input { min-width: 0; }
+    .stats { display: flex; flex-wrap: wrap; gap: 16px; font-size: .875rem; margin: 10px 0; }
+    #events { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8125rem; max-height: 250px; overflow-y: auto; background: #f5f5f5; padding: 12px; }
+    footer { font-size: .875rem; color: #5f6368; margin: 20px 0; }
+    [hidden] { display: none !important; }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } .panel { padding: 16px; } .meter { margin-left: 0; } h1 { font-size: 1.75rem; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Gemini Live audio</h1>
+  <p class="muted">Talk to Gemini. Interrupt naturally, follow the transcript, or try a problem that needs more thinking.</p>
+  <section class="panel" aria-label="Session settings">
+    <fieldset id="settings">
+      <label for="api-key">Gemini API key</label>
+      <input type="password" id="api-key" autocomplete="off" spellcheck="false" aria-describedby="key-hint">
+      <p class="hint" id="key-hint">Audio and text go directly to Google. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get an API key</a>.</p>
+      <label class="check"><input id="remember-key" type="checkbox">Remember the key in this browser</label>
+      <div class="grid">
+        <div>
+          <label for="model">Model</label>
+          <select id="model">
+            <option value="gemini-3.8-live">Gemini 3.8 Live</option>
+            <option value="gemini-3.8-live-extended-thinking">Gemini 3.8 Live Extended Thinking</option>
+          </select>
+          <p class="hint" id="model-hint">Fast, conversational responses.</p>
+        </div>
+        <div>
+          <label for="voice">Voice</label>
+          <select id="voice">
+            <option>Puck</option><option>Kore</option><option>Aoede</option><option>Charon</option><option>Fenrir</option><option>Leda</option><option>Orus</option><option>Zephyr</option>
+          </select>
+        </div>
+      </div>
+      <div id="thinking-options" hidden style="margin-top:16px">
+        <label for="thinking-level">Thinking level</label>
+        <select id="thinking-level" disabled><option value="LOW">Low</option><option value="MEDIUM" selected>Medium</option><option value="HIGH">High</option></select>
+        <p class="hint">Gemini can speak while it continues reasoning in the background.</p>
+      </div>
+      <details>
+        <summary>Instructions and document context</summary>
+        <label for="instructions">System instructions</label>
+        <textarea id="instructions">You are a helpful conversational assistant. Keep replies concise unless asked for more detail.</textarea>
+        <label for="document">Document to discuss</label>
+        <textarea id="document" placeholder="Paste text to discuss during this session…"></textarea>
+        <p class="hint">Sent when the session starts. The document and transcript are kept only in this page.</p>
+      </details>
+    </fieldset>
+  </section>
+  <section class="panel" aria-label="Live conversation">
+    <div class="bar session-bar">
+      <button id="start" class="primary">Start session</button>
+      <button id="stop" class="danger" disabled>End session</button>
+      <button id="mute" aria-pressed="false" disabled>Mute mic</button>
+      <div class="meter"><label for="mic-level" style="margin:0;font-weight:normal">Mic</label><meter id="mic-level" min="0" max="1" value="0"></meter><span id="duration">0:00</span></div>
+    </div>
+    <output id="status" role="status" aria-live="polite">Ready to connect</output>
+    <p class="hint">Use headphones to reduce echo. Starting a session asks for microphone access.</p>
+    <p id="notice" role="alert" hidden></p>
+    <div class="bar conversation-heading">
+      <h2>Transcript</h2>
+      <div class="bar"><button id="download" class="small" disabled>Download transcript</button><button id="clear" class="small" disabled>Clear</button></div>
+    </div>
+    <div id="transcript" role="log" aria-label="Conversation transcript" aria-live="polite" aria-relevant="additions text"><p id="empty" class="muted">Your conversation will appear here.</p></div>
+    <form id="text-form">
+      <input type="text" id="text-input" aria-label="Message to Gemini" placeholder="Or type a message…" autocomplete="off" disabled>
+      <button id="send" disabled>Send</button>
+    </form>
+    <p class="hint">Sending a message interrupts the current response. Transcripts may include speech interrupted before playback.</p>
+    <details>
+      <summary>Connection details and usage</summary>
+      <p class="hint">Latest usage reported by Google; counts are not added across messages.</p>
+      <div class="stats"><span>Input: <b id="input-tokens">—</b></span><span>Output: <b id="output-tokens">—</b></span><span>Thinking: <b id="thinking-tokens">—</b></span><span>Total: <b id="total-tokens">—</b></span></div>
+      <pre id="events">No events yet.</pre>
+    </details>
+  </section>
+  <footer>
+    <a href="https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-8-live-gemini-3-8-live-extended-thinking/">Announcement</a> ·
+    <a href="https://ai.google.dev/gemini-api/docs/live-api">Live API docs</a> ·
+    <a href="https://ai.google.dev/gemini-api/docs/live-api/thinking">Extended Thinking guide</a>
+  </footer>
+</main>
+<script type="module">
+// Protocol checked against Google's Live API and Thinking guides, 2026-09-15.
+// The Thinking guide specifies v1alpha for both 3.8 models. No SDK is required.
+const ENDPOINT = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent';
+const $ = id => document.getElementById(id);
+let session = null;
+const messages = [];
+const activeMessages = { user: null, model: null };
+let eventLines = [];
+
+function storage(action, key, value) {
+  try { return localStorage[action](key, value); }
+  catch { return null; }
+}
+const savedKey = storage('getItem', 'GEMINI_API_KEY');
+if (savedKey) { $('api-key').value = savedKey; $('remember-key').checked = true; }
+$('remember-key').onchange = () => {
+  if (!$('remember-key').checked) storage('removeItem', 'GEMINI_API_KEY');
+};
+function updateModel() {
+  const extended = $('model').value.endsWith('extended-thinking');
+  $('thinking-options').hidden = !extended;
+  $('thinking-level').disabled = !extended;
+  $('model-hint').textContent = extended ? 'Deeper reasoning for complex questions and multi-step problems.' : 'Fast, conversational responses.';
+}
+$('model').onchange = updateModel;
+updateModel();
+
+function status(text, state = '') { $('status').textContent = text; $('status').dataset.state = state; }
+function notice(text = '') { $('notice').textContent = text; $('notice').hidden = !text; }
+function log(text) {
+  // Deliberately log summaries, never credentials, session handles or PCM payloads.
+  const redacted = session?.key ? String(text).split(session.key).join('[redacted]') : String(text);
+  eventLines.push(`${new Date().toLocaleTimeString()}  ${redacted}`);
+  eventLines = eventLines.slice(-100);
+  $('events').textContent = eventLines.join('\n');
+}
+function controls() {
+  const connected = !!session?.ready;
+  $('settings').disabled = !!session;
+  $('start').disabled = !!session;
+  $('stop').disabled = !session;
+  $('mute').disabled = !connected;
+  $('text-input').disabled = !connected;
+  $('send').disabled = !connected;
+  $('mute').textContent = session?.muted ? 'Unmute mic' : 'Mute mic';
+  $('mute').setAttribute('aria-pressed', String(!!session?.muted));
+  $('download').disabled = !messages.length;
+  $('clear').disabled = !!session || !messages.length;
+}
+function updateStatus(s) {
+  if (session !== s || !s.ready) return;
+  const speaking = s.sources.size > 0;
+  const activity = speaking ? 'Gemini speaking' : s.interaction === 'IN_PROGRESS' ? 'Gemini thinking' : 'Listening';
+  status(`${activity}${s.muted ? ' · Mic muted' : ''}`, 'live');
+}
+function finishMessage(role, interrupted = false) {
+  const message = activeMessages[role];
+  if (message && interrupted) {
+    message.interrupted = true;
+    const note = document.createElement('small');
+    note.textContent = 'Interrupted';
+    message.element.append(note);
+  }
+  activeMessages[role] = null;
+}
+function transcript(role, text) {
+  if (!text) return;
+  const area = $('transcript');
+  const follow = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
+  if (role === 'model') finishMessage('user');
+  let message = activeMessages[role];
+  if (!message) {
+    $('empty').hidden = true;
+    const element = document.createElement('div');
+    element.className = 'message'; element.dataset.role = role;
+    const heading = document.createElement('strong');
+    heading.textContent = role === 'user' ? 'You' : 'Gemini';
+    const content = document.createElement('p');
+    element.append(heading, content); area.append(element);
+    message = { role, text: '', at: new Date().toISOString(), element, content };
+    activeMessages[role] = message; messages.push(message);
+  }
+  message.text += text;
+  message.content.textContent = message.text;
+  if (follow) area.scrollTop = area.scrollHeight;
+  controls();
+}
+function send(s, message) {
+  if (session !== s || !s.ready || s.socket?.readyState !== WebSocket.OPEN) return false;
+  s.socket.send(JSON.stringify(message));
+  return true;
+}
+function clearAudio(s) {
+  for (const source of s.sources) { source.onended = null; try { source.stop(); } catch {} source.disconnect(); }
+  s.sources.clear(); s.nextAudioTime = 0;
+}
+function playAudio(s, data, mimeType) {
+  if (!data || !mimeType?.startsWith('audio/pcm')) return;
+  const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+  if (bytes.length % 2) throw new Error('Received an incomplete PCM sample.');
+  const rate = Number(mimeType.match(/rate=(\d+)/)?.[1] || 24000);
+  const buffer = s.audio.createBuffer(1, bytes.length / 2, rate);
+  const samples = buffer.getChannelData(0);
+  const view = new DataView(bytes.buffer);
+  for (let i = 0; i < samples.length; i++) samples[i] = view.getInt16(i * 2, true) / 32768;
+  const source = s.audio.createBufferSource();
+  source.buffer = buffer; source.connect(s.audio.destination);
+  // Schedule contiguous chunks on the audio clock, not with JS timers.
+  s.nextAudioTime = Math.max(s.nextAudioTime, s.audio.currentTime + .03);
+  s.sources.add(source);
+  source.onended = () => { s.sources.delete(source); source.disconnect(); updateStatus(s); };
+  source.start(s.nextAudioTime); s.nextAudioTime += buffer.duration;
+}
+
+// Average samples over exact 16 kHz intervals, preserving fractional position
+// between render quanta (including 44.1 kHz microphones). Output 40 ms chunks.
+const workletSource = `
+class PCMRecorder extends AudioWorkletProcessor {
+  constructor() {
+    super(); this.ratio = sampleRate / 16000; this.remaining = this.ratio;
+    this.sum = 0; this.index = 0; this.energy = 0; this.buffer = new ArrayBuffer(1280);
+    this.view = new DataView(this.buffer);
+  }
+  process(inputs) {
+    const input = inputs[0]?.[0];
+    if (!input) return true;
+    for (const sample of input) {
+      let available = 1;
+      while (available > 1e-8) {
+        const weight = Math.min(available, this.remaining);
+        this.sum += sample * weight; this.remaining -= weight; available -= weight;
+        if (this.remaining < 1e-8) {
+          const value = Math.max(-1, Math.min(1, this.sum / this.ratio));
+          this.view.setInt16(this.index * 2, Math.round(value * (value < 0 ? 32768 : 32767)), true);
+          this.energy += value * value; this.index++;
+          this.remaining = this.ratio; this.sum = 0;
+          if (this.index === 640) {
+            this.port.postMessage({ pcm: this.buffer, level: Math.sqrt(this.energy / 640) }, [this.buffer]);
+            this.buffer = new ArrayBuffer(1280); this.view = new DataView(this.buffer);
+            this.index = 0; this.energy = 0;
+          }
+        }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-recorder', PCMRecorder);
+`;
+
+function setupMessage(s, handle) {
+  const generationConfig = {
+    responseModalities: ['AUDIO'],
+    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: s.voice } } }
+  };
+  // Standard 3.8 Live rejects thinkingConfig, even a minimal level.
+  if (s.extended) generationConfig.thinkingConfig = { thinkingLevel: s.thinkingLevel };
+  const setup = {
+    model: `models/${s.model}`, generationConfig,
+    inputAudioTranscription: {}, outputAudioTranscription: {},
+    contextWindowCompression: { slidingWindow: {} },
+    sessionResumption: handle ? { handle } : {}
+  };
+  if (s.instructions) setup.systemInstruction = { parts: [{ text: s.instructions }] };
+  // Proactive audio is always enabled for these models. Affective dialog is removed.
+  return { setup };
+}
+
+function receive(s, message) {
+  if (session !== s) return;
+  if (message.error) throw new Error(message.error.message || 'Google returned an API error.');
+  if (message.setupComplete) {
+    clearTimeout(s.connectTimer); s.ready = true;
+    if (!s.startedAt) {
+      s.startedAt = Date.now();
+      if (s.document) send(s, { clientContent: { turns: [{ role: 'user', parts: [{ text: `Document for our conversation:\n\n${s.document}` }] }], turnComplete: false } });
+    }
+    notice(); log('Session ready'); controls(); updateStatus(s);
+  }
+  if (message.sessionResumptionUpdate) {
+    const update = message.sessionResumptionUpdate;
+    s.resumeHandle = update.resumable ? update.newHandle : null;
+  }
+  const content = message.serverContent || {};
+  if (content.interrupted) {
+    clearAudio(s); finishMessage('model', true); finishMessage('user');
+    log('Response interrupted');
+    if (!s.extended) s.interaction = 'IDLE';
+  }
+  if (content.inputTranscription?.text) transcript('user', content.inputTranscription.text);
+  if (content.outputTranscription?.text) transcript('model', content.outputTranscription.text);
+  for (const part of content.modelTurn?.parts || []) {
+    if (part.inlineData) playAudio(s, part.inlineData.data, part.inlineData.mimeType);
+  }
+  if (content.turnComplete) {
+    finishMessage('user'); finishMessage('model');
+    if (!s.extended) s.interaction = 'IDLE';
+    log(s.extended ? 'Utterance complete' : 'Turn complete');
+  }
+  // The Thinking guide shows status at both envelope and serverContent levels.
+  const interaction = message.interactionStatus || content.interactionStatus;
+  if (interaction === 'IDLE' || interaction === 'IN_PROGRESS') {
+    s.interaction = interaction;
+    log(`Interaction: ${interaction}`);
+  }
+  if (message.usageMetadata) {
+    const usage = message.usageMetadata;
+    for (const [id, key] of [['input', 'promptTokenCount'], ['output', 'responseTokenCount'], ['thinking', 'thoughtsTokenCount'], ['total', 'totalTokenCount']]) {
+      $(id + '-tokens').textContent = usage[key] == null ? '—' : Number(usage[key]).toLocaleString();
+    }
+    log(`Usage: ${usage.totalTokenCount ?? 'unknown'} total tokens`);
+  }
+  if (message.goAway) {
+    s.goAway = true;
+    notice('Google is refreshing this connection. The session will resume when a saved state is available.');
+    log(`Connection refresh requested (${message.goAway.timeLeft || 'soon'})`);
+  }
+  if (s.goAway && s.resumeHandle && s.interaction !== 'IN_PROGRESS' && !s.sources.size) reconnect(s);
+  updateStatus(s);
+}
+
+function connect(s, handle) {
+  s.ready = false;
+  const socket = new WebSocket(`${ENDPOINT}?key=${encodeURIComponent(s.key)}`);
+  socket.binaryType = 'arraybuffer'; s.socket = socket;
+  let queue = Promise.resolve();
+  s.connectTimer = setTimeout(() => fail(s, 'Connection timed out. Check your API key, model access, and network.'), 20000);
+  socket.onopen = () => {
+    if (session !== s || s.socket !== socket) return;
+    socket.send(JSON.stringify(setupMessage(s, handle)));
+    log(`Connected · ${s.model} · ${s.voice}`);
+  };
+  socket.onmessage = event => {
+    // Preserve arrival order even when a browser delivers asynchronous Blobs.
+    queue = queue.then(async () => {
+      if (session !== s || s.socket !== socket) return;
+      const data = typeof event.data === 'string' ? event.data : event.data instanceof Blob ? await event.data.text() : new TextDecoder().decode(event.data);
+      if (session === s && s.socket === socket) receive(s, JSON.parse(data));
+    }).catch(error => { if (session === s && s.socket === socket) fail(s, error.message); });
+  };
+  socket.onerror = () => log('WebSocket transport error');
+  socket.onclose = event => {
+    if (session !== s || s.socket !== socket) return;
+    clearTimeout(s.connectTimer);
+    if (s.ready && s.resumeHandle && [1000, 1001, 1006, 1011, 1012, 1013].includes(event.code) && s.reconnects < 3) {
+      reconnect(s);
+    } else {
+      fail(s, `Connection closed (${event.code})${event.reason ? ': ' + event.reason : '. Check your API key, model access, and network; then start a new session.'}`);
+    }
+  };
+}
+function reconnect(s) {
+  if (session !== s || !s.ready || !s.resumeHandle) return;
+  if (s.reconnects >= 3) { fail(s, 'Connection refresh limit reached. Start a new session.'); return; }
+  const handle = s.resumeHandle;
+  s.ready = false; s.goAway = false; s.resumeHandle = null; s.reconnects++;
+  clearTimeout(s.connectTimer); clearAudio(s);
+  const socket = s.socket; s.socket = null;
+  socket.close(); controls(); status('Reconnecting…'); log('Resuming saved session');
+  connect(s, handle);
+}
+function end(s, message = 'Session ended', error = false) {
+  if (session !== s) return;
+  clearTimeout(s.connectTimer); clearInterval(s.timer);
+  s.ready = false; clearAudio(s);
+  s.recorder?.disconnect(); s.input?.disconnect(); s.silent?.disconnect();
+  if (s.recorder) s.recorder.port.onmessage = null;
+  s.stream?.getTracks().forEach(track => track.stop());
+  if (s.socket) { s.socket.onclose = null; s.socket.close(); }
+  if (s.audio && s.audio.state !== 'closed') s.audio.close().catch(() => {});
+  finishMessage('user'); finishMessage('model');
+  log(message); session = null;
+  $('mic-level').value = 0;
+  notice(); controls(); status(message, error ? 'error' : '');
+}
+function fail(s, message) {
+  const redacted = String(message).split(s.key).join('[redacted]');
+  end(s, redacted, true);
+}
+
+$('start').onclick = async () => {
+  if (session) return;
+  const key = $('api-key').value.trim();
+  if (!key) { status('Enter your Gemini API key first.', 'error'); $('api-key').focus(); return; }
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) {
+    status('Microphone streaming needs a browser with AudioWorklet support, on HTTPS or localhost.', 'error'); return;
+  }
+  if ($('remember-key').checked) storage('setItem', 'GEMINI_API_KEY', key);
+  else storage('removeItem', 'GEMINI_API_KEY');
+  const s = {
+    key, model: $('model').value, voice: $('voice').value,
+    extended: $('model').value.endsWith('extended-thinking'), thinkingLevel: $('thinking-level').value,
+    instructions: $('instructions').value.trim(), document: $('document').value.trim(),
+    ready: false, muted: false, interaction: 'IDLE', sources: new Set(), nextAudioTime: 0, reconnects: 0
+  };
+  session = s; controls(); notice(); status('Requesting microphone…');
+  eventLines = []; $('events').textContent = 'Starting session…'; $('duration').textContent = '0:00';
+  for (const id of ['input', 'output', 'thinking', 'total']) $(id + '-tokens').textContent = '—';
+  try {
+    // Create and resume under the click gesture, before permission/network waits.
+    s.audio = new AudioContext();
+    await s.audio.resume();
+    if (session !== s) return;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    if (session !== s) { stream.getTracks().forEach(track => track.stop()); return; }
+    s.stream = stream;
+    stream.getAudioTracks()[0].onended = () => fail(s, 'Microphone disconnected. Start a new session to choose an available microphone.');
+    const workletURL = URL.createObjectURL(new Blob([workletSource], { type: 'text/javascript' }));
+    try { await s.audio.audioWorklet.addModule(workletURL); }
+    finally { URL.revokeObjectURL(workletURL); }
+    if (session !== s) return;
+    s.input = s.audio.createMediaStreamSource(stream);
+    s.recorder = new AudioWorkletNode(s.audio, 'pcm-recorder');
+    s.silent = s.audio.createGain(); s.silent.gain.value = 0;
+    s.input.connect(s.recorder); s.recorder.connect(s.silent); s.silent.connect(s.audio.destination);
+    s.recorder.port.onmessage = event => {
+      if (session !== s || !s.ready || s.muted) return;
+      $('mic-level').value = Math.min(1, event.data.level * 5);
+      if (s.socket.bufferedAmount > 128000) { fail(s, 'The network cannot keep up with live audio. Please reconnect.'); return; }
+      const bytes = new Uint8Array(event.data.pcm);
+      const data = btoa(String.fromCharCode(...bytes));
+      send(s, { realtimeInput: { audio: { data, mimeType: 'audio/pcm;rate=16000' } } });
+    };
+    s.timer = setInterval(() => {
+      if (!s.startedAt) return;
+      const seconds = Math.floor((Date.now() - s.startedAt) / 1000);
+      $('duration').textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+      if (s.goAway && s.resumeHandle && s.interaction !== 'IN_PROGRESS' && !s.sources.size) reconnect(s);
+    }, 1000);
+    status('Connecting to Gemini…'); connect(s);
+  } catch (error) {
+    if (session === s) fail(s, error.name === 'NotAllowedError' ? 'Microphone permission was denied. Allow microphone access and start again.' : error.message);
+  }
+};
+$('stop').onclick = () => { if (session) end(session); };
+$('mute').onclick = () => {
+  const s = session; if (!s?.ready) return;
+  s.muted = !s.muted;
+  s.stream.getAudioTracks().forEach(track => { track.enabled = !s.muted; });
+  if (s.muted) { send(s, { realtimeInput: { audioStreamEnd: true } }); $('mic-level').value = 0; }
+  log(s.muted ? 'Microphone muted' : 'Microphone unmuted'); controls(); updateStatus(s);
+};
+$('text-form').onsubmit = event => {
+  event.preventDefault();
+  const s = session, text = $('text-input').value.trim();
+  if (!s?.ready || !text) return;
+  if (!send(s, { clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } })) return;
+  clearAudio(s); finishMessage('model', true); finishMessage('user');
+  transcript('user', text); finishMessage('user');
+  s.interaction = 'IN_PROGRESS'; updateStatus(s); $('text-input').value = '';
+};
+$('clear').onclick = () => {
+  if (session) return;
+  for (const message of messages) message.element.remove();
+  messages.length = 0; $('empty').hidden = false; controls();
+};
+$('download').onclick = () => {
+  const text = messages.map(m => `${m.role === 'user' ? 'You' : 'Gemini'} (${m.at})${m.interrupted ? ' [interrupted]' : ''}\n${m.text}`).join('\n\n');
+  const url = URL.createObjectURL(new Blob([text + '\n'], { type: 'text/plain;charset=utf-8' }));
+  const link = document.createElement('a'); link.href = url; link.download = 'gemini-live-transcript.txt';
+  link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+window.addEventListener('pagehide', () => { if (session) end(session); });
+</script>
+</body>
+</html>
