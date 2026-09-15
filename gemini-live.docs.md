@@ -1,0 +1,3 @@
+Talk to Gemini 3.8 Live and Gemini 3.8 Live Extended Thinking with live audio conversations. The interface captures real-time speech input, displays transcripts of your conversation, and allows you to interrupt responses naturally or send text messages. Extended Thinking models support configurable reasoning levels while processing conversations that can include optional document context for reference.
+
+<!-- Generated from commit: 01a1df4e3e7cfae4a7b091b5f1f31b2bbb84d382 -->
