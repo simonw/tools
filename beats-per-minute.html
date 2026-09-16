@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BPM Detector - Beats Per Minute Analyzer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e8e8e8;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: clamp(28px, 5vw, 42px);
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #8892b0;
+            font-size: 16px;
+            font-weight: 300;
+        }
+
+        .main-display {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .waveform-container {
+            position: relative;
+            margin-bottom: 25px;
+        }
+
+        #waveformCanvas {
+            width: 100%;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            display: block;
+        }
+
+        .waveform-label {
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            font-size: 12px;
+            color: #64ffda;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 14px 32px;
+            font-size: 16px;
+            font-weight: 500;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #startBtn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #startBtn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        #startBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #startBtn.listening {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4); }
+            50% { box-shadow: 0 4px 25px rgba(240, 147, 251, 0.7); }
+        }
+
+        #stopBtn {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e8e8e8;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #stopBtn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #stopBtn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .status {
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .status.ready {
+            background: rgba(100, 255, 218, 0.1);
+            color: #64ffda;
+            border: 1px solid rgba(100, 255, 218, 0.2);
+        }
+
+        .status.listening {
+            background: rgba(240, 147, 251, 0.1);
+            color: #f093fb;
+            border: 1px solid rgba(240, 147, 251, 0.2);
+        }
+
+        .status.error {
+            background: rgba(255, 107, 107, 0.1);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 107, 107, 0.2);
+        }
+
+        .bpm-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .bpm-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            padding: 25px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .bpm-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            transform: translateY(-3px);
+        }
+
+        .bpm-card.primary {
+            border-color: rgba(100, 255, 218, 0.3);
+            background: rgba(100, 255, 218, 0.05);
+        }
+
+        .bpm-method {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #8892b0;
+            margin-bottom: 10px;
+        }
+
+        .bpm-value {
+            font-size: 48px;
+            font-weight: 200;
+            color: #fff;
+            line-height: 1;
+            margin-bottom: 5px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .bpm-card.primary .bpm-value {
+            color: #64ffda;
+        }
+
+        .bpm-unit {
+            font-size: 14px;
+            color: #8892b0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .bpm-confidence {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .confidence-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .explanations {
+            margin-top: 50px;
+        }
+
+        .explanations h2 {
+            font-size: 24px;
+            font-weight: 400;
+            margin-bottom: 30px;
+            color: #fff;
+            text-align: center;
+        }
+
+        .algorithm-section {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .algorithm-section h3 {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #64ffda;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .algorithm-section h3::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #64ffda;
+            border-radius: 50%;
+        }
+
+        .algorithm-section p {
+            color: #a8b2c1;
+            margin-bottom: 15px;
+        }
+
+        .algorithm-section ul {
+            color: #8892b0;
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        .algorithm-section li {
+            margin-bottom: 8px;
+        }
+
+        .algorithm-section code {
+            background: rgba(100, 255, 218, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 14px;
+            color: #64ffda;
+        }
+
+        .tech-note {
+            background: rgba(102, 126, 234, 0.1);
+            border-left: 3px solid #667eea;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            font-size: 14px;
+            color: #a8b2c1;
+        }
+
+        .accuracy-note {
+            text-align: center;
+            padding: 20px;
+            margin-top: 30px;
+            background: rgba(254, 202, 87, 0.1);
+            border-radius: 12px;
+            border: 1px solid rgba(254, 202, 87, 0.2);
+            color: #feca57;
+            font-size: 14px;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        footer a {
+            color: #64ffda;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px 15px;
+            }
+
+            .main-display {
+                padding: 20px;
+            }
+
+            .bpm-value {
+                font-size: 36px;
+            }
+
+            .algorithm-section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BPM Detector</h1>
+            <p class="subtitle">Real-time beats per minute analysis using multiple algorithms</p>
+        </header>
+
+        <div class="main-display">
+            <div class="waveform-container">
+                <span class="waveform-label">Live Waveform</span>
+                <canvas id="waveformCanvas"></canvas>
+            </div>
+
+            <div class="controls">
+                <button id="startBtn">Start Listening</button>
+                <button id="stopBtn" disabled>Stop</button>
+            </div>
+
+            <div id="status" class="status ready">
+                Click "Start Listening" to begin analyzing audio from your microphone
+            </div>
+
+            <div class="bpm-results">
+                <div class="bpm-card primary">
+                    <div class="bpm-method">Combined Estimate</div>
+                    <div class="bpm-value" id="bpmCombined">--</div>
+                    <div class="bpm-unit">BPM</div>
+                    <div class="bpm-confidence">
+                        Confidence
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="confidenceCombined" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bpm-card">
+                    <div class="bpm-method">Peak Detection</div>
+                    <div class="bpm-value" id="bpmPeak">--</div>
+                    <div class="bpm-unit">BPM</div>
+                    <div class="bpm-confidence">
+                        Confidence
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="confidencePeak" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bpm-card">
+                    <div class="bpm-method">Autocorrelation</div>
+                    <div class="bpm-value" id="bpmAutocorr">--</div>
+                    <div class="bpm-unit">BPM</div>
+                    <div class="bpm-confidence">
+                        Confidence
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="confidenceAutocorr" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bpm-card">
+                    <div class="bpm-method">Spectral Flux</div>
+                    <div class="bpm-value" id="bpmSpectral">--</div>
+                    <div class="bpm-unit">BPM</div>
+                    <div class="bpm-confidence">
+                        Confidence
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="confidenceSpectral" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accuracy-note">
+            For best results, play music with a clear, steady beat. Detection accuracy improves after 5-10 seconds of listening.
+        </div>
+
+        <div class="explanations">
+            <h2>How It Works</h2>
+
+            <div class="algorithm-section">
+                <h3>Combined Estimate (Primary)</h3>
+                <p>
+                    The combined estimate uses a weighted average of all three detection methods, with weights
+                    dynamically adjusted based on each algorithm's confidence level. This ensemble approach
+                    provides more robust results than any single method alone.
+                </p>
+                <p>
+                    When algorithms agree closely (within 5 BPM), confidence is high. When they disagree
+                    significantly, the system weights more reliable methods higher and reduces overall confidence.
+                </p>
+                <div class="tech-note">
+                    <strong>Formula:</strong> BPM = (w₁ × BPM₁ + w₂ × BPM₂ + w₃ × BPM₃) / (w₁ + w₂ + w₃),
+                    where weights are derived from individual confidence scores.
+                </div>
+            </div>
+
+            <div class="algorithm-section">
+                <h3>Peak Detection</h3>
+                <p>
+                    This method analyzes the audio signal's energy envelope to find "peaks" — moments where
+                    the sound intensity suddenly increases, typically corresponding to drum hits or strong
+                    musical accents.
+                </p>
+                <ul>
+                    <li>Calculates the <code>RMS</code> (Root Mean Square) energy of sliding windows</li>
+                    <li>Applies a low-pass filter to create a smooth energy envelope</li>
+                    <li>Detects peaks that exceed a dynamic threshold based on recent audio levels</li>
+                    <li>Measures time intervals between consecutive peaks</li>
+                    <li>Converts the median interval to BPM: <code>BPM = 60 / interval</code></li>
+                </ul>
+                <div class="tech-note">
+                    <strong>Best for:</strong> Music with prominent drum patterns and clear transients.
+                    Works well with rock, pop, electronic, and hip-hop genres.
+                </div>
+            </div>
+
+            <div class="algorithm-section">
+                <h3>Autocorrelation</h3>
+                <p>
+                    Autocorrelation finds repeating patterns in the audio by comparing the signal with
+                    time-shifted versions of itself. When the signal correlates strongly with a delayed
+                    copy, that delay corresponds to the beat period.
+                </p>
+                <ul>
+                    <li>Computes the audio's energy envelope to reduce noise</li>
+                    <li>Calculates <code>R(τ) = Σ x(t) × x(t + τ)</code> for various time lags τ</li>
+                    <li>Searches for peaks in the correlation function within the 40-200 BPM range</li>
+                    <li>The lag with the highest correlation indicates the beat period</li>
+                    <li>Converts lag to BPM: <code>BPM = 60 × sampleRate / lagSamples</code></li>
+                </ul>
+                <div class="tech-note">
+                    <strong>Best for:</strong> Music with consistent, repetitive rhythmic patterns.
+                    Particularly effective for electronic music, dance tracks, and songs with steady tempos.
+                </div>
+            </div>
+
+            <div class="algorithm-section">
+                <h3>Spectral Flux</h3>
+                <p>
+                    Spectral flux measures how the frequency content of the audio changes over time.
+                    Musical beats typically cause sudden changes in the spectrum, especially in the
+                    low-frequency (bass) range.
+                </p>
+                <ul>
+                    <li>Performs FFT (Fast Fourier Transform) to get frequency spectrum</li>
+                    <li>Calculates the difference between consecutive spectral frames</li>
+                    <li>Uses <code>half-wave rectification</code> to emphasize increases in energy</li>
+                    <li>Applies onset detection to find beat positions</li>
+                    <li>Analyzes inter-onset intervals to determine tempo</li>
+                </ul>
+                <div class="tech-note">
+                    <strong>Best for:</strong> Complex music with layered instrumentation.
+                    Handles tempo variations better than peak detection and works well with
+                    jazz, classical, and progressive genres.
+                </div>
+            </div>
+
+            <div class="algorithm-section">
+                <h3>Technical Considerations</h3>
+                <p>
+                    BPM detection from live audio is challenging due to several factors:
+                </p>
+                <ul>
+                    <li><strong>Octave ambiguity:</strong> Algorithms may detect half or double the actual tempo (55 vs 110 vs 220 BPM)</li>
+                    <li><strong>Background noise:</strong> Environmental sounds can interfere with beat detection</li>
+                    <li><strong>Complex rhythms:</strong> Syncopation and off-beat patterns can confuse peak detection</li>
+                    <li><strong>Tempo changes:</strong> Songs that speed up or slow down require adaptive algorithms</li>
+                    <li><strong>Audio quality:</strong> Microphone frequency response and room acoustics affect accuracy</li>
+                </ul>
+                <p>
+                    This tool attempts to mitigate these issues by using multiple algorithms and
+                    continuously refining estimates as more audio is analyzed. The confidence indicators
+                    help you understand how reliable each measurement is.
+                </p>
+            </div>
+        </div>
+
+        <footer>
+            Part of <a href="https://tools.simonwillison.net/">tools.simonwillison.net</a>
+            · <a href="https://github.com/simonw/tools">View source</a>
+        </footer>
+    </div>
+
+    <script>
+        // Audio context and nodes
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let isListening = false;
+        let animationId = null;
+
+        // Audio buffer for analysis
+        const BUFFER_SIZE = 2048;
+        const SAMPLE_RATE = 44100;
+        let audioBuffer = [];
+        let energyHistory = [];
+        let spectralHistory = [];
+        let peakTimes = [];
+        let lastSpectrum = null;
+
+        // BPM tracking
+        let bpmEstimates = {
+            peak: { value: 0, confidence: 0, history: [] },
+            autocorr: { value: 0, confidence: 0, history: [] },
+            spectral: { value: 0, confidence: 0, history: [] }
+        };
+
+        // DOM elements
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusEl = document.getElementById('status');
+        const canvas = document.getElementById('waveformCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas size
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Start listening
+        startBtn.addEventListener('click', async () => {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
+                });
+
+                microphone = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = BUFFER_SIZE;
+                analyser.smoothingTimeConstant = 0.3;
+
+                microphone.connect(analyser);
+
+                isListening = true;
+                startBtn.disabled = true;
+                startBtn.classList.add('listening');
+                startBtn.textContent = 'Listening...';
+                stopBtn.disabled = false;
+
+                statusEl.className = 'status listening';
+                statusEl.textContent = 'Analyzing audio... Results will stabilize after a few seconds';
+
+                // Reset buffers
+                audioBuffer = [];
+                energyHistory = [];
+                spectralHistory = [];
+                peakTimes = [];
+                lastSpectrum = null;
+                bpmEstimates = {
+                    peak: { value: 0, confidence: 0, history: [] },
+                    autocorr: { value: 0, confidence: 0, history: [] },
+                    spectral: { value: 0, confidence: 0, history: [] }
+                };
+
+                analyze();
+
+            } catch (err) {
+                console.error('Microphone access error:', err);
+                statusEl.className = 'status error';
+                statusEl.textContent = 'Could not access microphone. Please allow microphone permissions and try again.';
+            }
+        });
+
+        // Stop listening
+        stopBtn.addEventListener('click', () => {
+            stopListening();
+        });
+
+        function stopListening() {
+            isListening = false;
+
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+
+            if (microphone) {
+                microphone.disconnect();
+                microphone = null;
+            }
+
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+
+            startBtn.disabled = false;
+            startBtn.classList.remove('listening');
+            startBtn.textContent = 'Start Listening';
+            stopBtn.disabled = true;
+
+            statusEl.className = 'status ready';
+            statusEl.textContent = 'Analysis stopped. Click "Start Listening" to begin again.';
+        }
+
+        // Main analysis loop
+        function analyze() {
+            if (!isListening) return;
+
+            const timeDomainData = new Float32Array(analyser.fftSize);
+            const frequencyData = new Uint8Array(analyser.frequencyBinCount);
+
+            analyser.getFloatTimeDomainData(timeDomainData);
+            analyser.getByteFrequencyData(frequencyData);
+
+            // Store audio data
+            audioBuffer.push(...timeDomainData);
+            if (audioBuffer.length > SAMPLE_RATE * 10) { // Keep 10 seconds max
+                audioBuffer = audioBuffer.slice(-SAMPLE_RATE * 10);
+            }
+
+            // Calculate energy
+            const energy = calculateRMS(timeDomainData);
+            energyHistory.push({ time: audioContext.currentTime, energy });
+            if (energyHistory.length > 500) {
+                energyHistory.shift();
+            }
+
+            // Spectral flux
+            if (lastSpectrum) {
+                const flux = calculateSpectralFlux(frequencyData, lastSpectrum);
+                spectralHistory.push({ time: audioContext.currentTime, flux });
+                if (spectralHistory.length > 500) {
+                    spectralHistory.shift();
+                }
+            }
+            lastSpectrum = new Uint8Array(frequencyData);
+
+            // Detect peaks
+            detectPeaks(energy, audioContext.currentTime);
+
+            // Run BPM algorithms periodically
+            if (energyHistory.length >= 100 && energyHistory.length % 10 === 0) {
+                calculatePeakBPM();
+                calculateAutocorrelationBPM();
+                calculateSpectralFluxBPM();
+                updateCombinedBPM();
+                updateDisplay();
+            }
+
+            // Draw waveform
+            drawWaveform(timeDomainData, frequencyData);
+
+            animationId = requestAnimationFrame(analyze);
+        }
+
+        // Calculate RMS energy
+        function calculateRMS(data) {
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) {
+                sum += data[i] * data[i];
+            }
+            return Math.sqrt(sum / data.length);
+        }
+
+        // Calculate spectral flux
+        function calculateSpectralFlux(current, previous) {
+            let flux = 0;
+            for (let i = 0; i < current.length; i++) {
+                const diff = current[i] - previous[i];
+                if (diff > 0) flux += diff; // Half-wave rectification
+            }
+            return flux / current.length;
+        }
+
+        // Peak detection
+        function detectPeaks(energy, time) {
+            if (energyHistory.length < 20) return;
+
+            const recentEnergies = energyHistory.slice(-20).map(e => e.energy);
+            const avgEnergy = recentEnergies.reduce((a, b) => a + b, 0) / recentEnergies.length;
+            const threshold = avgEnergy * 1.3;
+
+            const lastPeakTime = peakTimes.length > 0 ? peakTimes[peakTimes.length - 1] : 0;
+            const minInterval = 0.2; // Minimum 200ms between peaks (300 BPM max)
+
+            if (energy > threshold && time - lastPeakTime > minInterval) {
+                peakTimes.push(time);
+                if (peakTimes.length > 100) {
+                    peakTimes.shift();
+                }
+            }
+        }
+
+        // Peak-based BPM calculation
+        function calculatePeakBPM() {
+            if (peakTimes.length < 4) {
+                bpmEstimates.peak = { value: 0, confidence: 0, history: [] };
+                return;
+            }
+
+            const intervals = [];
+            for (let i = 1; i < peakTimes.length; i++) {
+                intervals.push(peakTimes[i] - peakTimes[i - 1]);
+            }
+
+            // Filter outliers
+            intervals.sort((a, b) => a - b);
+            const q1 = intervals[Math.floor(intervals.length * 0.25)];
+            const q3 = intervals[Math.floor(intervals.length * 0.75)];
+            const iqr = q3 - q1;
+            const filtered = intervals.filter(i => i >= q1 - 1.5 * iqr && i <= q3 + 1.5 * iqr);
+
+            if (filtered.length < 3) {
+                bpmEstimates.peak = { value: 0, confidence: 0, history: [] };
+                return;
+            }
+
+            // Use median interval
+            const medianInterval = filtered[Math.floor(filtered.length / 2)];
+            let bpm = 60 / medianInterval;
+
+            // Normalize to reasonable range
+            while (bpm < 60) bpm *= 2;
+            while (bpm > 180) bpm /= 2;
+
+            // Calculate confidence based on consistency
+            const variance = filtered.reduce((sum, i) => sum + Math.pow(i - medianInterval, 2), 0) / filtered.length;
+            const stdDev = Math.sqrt(variance);
+            const cv = stdDev / medianInterval; // Coefficient of variation
+            const confidence = Math.max(0, Math.min(100, (1 - cv * 2) * 100));
+
+            bpmEstimates.peak.history.push(bpm);
+            if (bpmEstimates.peak.history.length > 10) {
+                bpmEstimates.peak.history.shift();
+            }
+
+            // Smooth BPM
+            const avgBpm = bpmEstimates.peak.history.reduce((a, b) => a + b, 0) / bpmEstimates.peak.history.length;
+            bpmEstimates.peak.value = avgBpm;
+            bpmEstimates.peak.confidence = confidence;
+        }
+
+        // Autocorrelation-based BPM calculation
+        function calculateAutocorrelationBPM() {
+            if (audioBuffer.length < SAMPLE_RATE * 2) {
+                bpmEstimates.autocorr = { value: 0, confidence: 0, history: [] };
+                return;
+            }
+
+            // Use recent audio (last 4 seconds)
+            const recentAudio = audioBuffer.slice(-SAMPLE_RATE * 4);
+
+            // Downsample for faster processing
+            const downsampleFactor = 4;
+            const downsampled = [];
+            for (let i = 0; i < recentAudio.length; i += downsampleFactor) {
+                let sum = 0;
+                for (let j = 0; j < downsampleFactor && i + j < recentAudio.length; j++) {
+                    sum += Math.abs(recentAudio[i + j]);
+                }
+                downsampled.push(sum / downsampleFactor);
+            }
+
+            const downsampledRate = SAMPLE_RATE / downsampleFactor;
+
+            // Calculate autocorrelation
+            const minLag = Math.floor(downsampledRate * 60 / 200); // 200 BPM max
+            const maxLag = Math.floor(downsampledRate * 60 / 40);  // 40 BPM min
+
+            let maxCorr = 0;
+            let bestLag = 0;
+            const correlations = [];
+
+            for (let lag = minLag; lag < Math.min(maxLag, downsampled.length / 2); lag++) {
+                let corr = 0;
+                let count = 0;
+                for (let i = 0; i < downsampled.length - lag; i++) {
+                    corr += downsampled[i] * downsampled[i + lag];
+                    count++;
+                }
+                corr /= count;
+                correlations.push({ lag, corr });
+
+                if (corr > maxCorr) {
+                    maxCorr = corr;
+                    bestLag = lag;
+                }
+            }
+
+            if (bestLag === 0) {
+                bpmEstimates.autocorr = { value: 0, confidence: 0, history: [] };
+                return;
+            }
+
+            let bpm = (downsampledRate * 60) / bestLag;
+
+            // Normalize to reasonable range
+            while (bpm < 60) bpm *= 2;
+            while (bpm > 180) bpm /= 2;
+
+            // Calculate confidence
+            const sortedCorrs = correlations.map(c => c.corr).sort((a, b) => b - a);
+            const peakRatio = sortedCorrs[0] / (sortedCorrs[5] || sortedCorrs[sortedCorrs.length - 1] || 1);
+            const confidence = Math.min(100, Math.max(0, (peakRatio - 1) * 50));
+
+            bpmEstimates.autocorr.history.push(bpm);
+            if (bpmEstimates.autocorr.history.length > 10) {
+                bpmEstimates.autocorr.history.shift();
+            }
+
+            const avgBpm = bpmEstimates.autocorr.history.reduce((a, b) => a + b, 0) / bpmEstimates.autocorr.history.length;
+            bpmEstimates.autocorr.value = avgBpm;
+            bpmEstimates.autocorr.confidence = confidence;
+        }
+
+        // Spectral flux-based BPM calculation
+        function calculateSpectralFluxBPM() {
+            if (spectralHistory.length < 50) {
+                bpmEstimates.spectral = { value: 0, confidence: 0, history: [] };
+                return;
+            }
+
+            // Find onsets from spectral flux peaks
+            const fluxValues = spectralHistory.map(s => s.flux);
+            const times = spectralHistory.map(s => s.time);
+
+            const avgFlux = fluxValues.reduce((a, b) => a + b, 0) / fluxValues.length;
+            const threshold = avgFlux * 1.5;
+
+            const onsetTimes = [];
+            let lastOnset = 0;
+
+            for (let i = 1; i < fluxValues.length - 1; i++) {
+                if (fluxValues[i] > threshold &&
+                    fluxValues[i] > fluxValues[i-1] &&
+                    fluxValues[i] > fluxValues[i+1] &&
+                    times[i] - lastOnset > 0.15) {
+                    onsetTimes.push(times[i]);
+                    lastOnset = times[i];
+                }
+            }
+
+            if (onsetTimes.length < 4) {
+                bpmEstimates.spectral = { value: 0, confidence: 0, history: [] };
+                return;
+            }
+
+            // Calculate intervals
+            const intervals = [];
+            for (let i = 1; i < onsetTimes.length; i++) {
+                intervals.push(onsetTimes[i] - onsetTimes[i - 1]);
+            }
+
+            // Histogram approach for robustness
+            const bpmCounts = {};
+            for (const interval of intervals) {
+                let bpm = Math.round(60 / interval);
+
+                // Check harmonics
+                for (const mult of [0.5, 1, 2]) {
+                    const adjustedBpm = Math.round(bpm * mult);
+                    if (adjustedBpm >= 60 && adjustedBpm <= 180) {
+                        bpmCounts[adjustedBpm] = (bpmCounts[adjustedBpm] || 0) + 1;
+                    }
+                }
+            }
+
+            // Find most common BPM
+            let bestBpm = 0;
+            let maxCount = 0;
+            for (const [bpm, count] of Object.entries(bpmCounts)) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    bestBpm = parseFloat(bpm);
+                }
+            }
+
+            if (bestBpm === 0) {
+                bpmEstimates.spectral = { value: 0, confidence: 0, history: [] };
+                return;
+            }
+
+            // Refine with exact calculation
+            const targetInterval = 60 / bestBpm;
+            const matchingIntervals = intervals.filter(i => Math.abs(i - targetInterval) < targetInterval * 0.2);
+
+            if (matchingIntervals.length > 0) {
+                const avgInterval = matchingIntervals.reduce((a, b) => a + b, 0) / matchingIntervals.length;
+                bestBpm = 60 / avgInterval;
+            }
+
+            const confidence = Math.min(100, (maxCount / intervals.length) * 150);
+
+            bpmEstimates.spectral.history.push(bestBpm);
+            if (bpmEstimates.spectral.history.length > 10) {
+                bpmEstimates.spectral.history.shift();
+            }
+
+            const avgBpm = bpmEstimates.spectral.history.reduce((a, b) => a + b, 0) / bpmEstimates.spectral.history.length;
+            bpmEstimates.spectral.value = avgBpm;
+            bpmEstimates.spectral.confidence = confidence;
+        }
+
+        // Combine all BPM estimates
+        function updateCombinedBPM() {
+            const estimates = [
+                bpmEstimates.peak,
+                bpmEstimates.autocorr,
+                bpmEstimates.spectral
+            ].filter(e => e.value > 0 && e.confidence > 10);
+
+            if (estimates.length === 0) {
+                document.getElementById('bpmCombined').textContent = '--';
+                document.getElementById('confidenceCombined').style.width = '0%';
+                return;
+            }
+
+            // Weighted average based on confidence
+            let totalWeight = 0;
+            let weightedSum = 0;
+
+            for (const est of estimates) {
+                weightedSum += est.value * est.confidence;
+                totalWeight += est.confidence;
+            }
+
+            const combinedBpm = weightedSum / totalWeight;
+
+            // Combined confidence: higher if estimates agree
+            const bpmValues = estimates.map(e => e.value);
+            const maxDiff = Math.max(...bpmValues) - Math.min(...bpmValues);
+            const agreementBonus = Math.max(0, 30 - maxDiff * 2);
+
+            const avgConfidence = estimates.reduce((sum, e) => sum + e.confidence, 0) / estimates.length;
+            const combinedConfidence = Math.min(100, avgConfidence + agreementBonus);
+
+            document.getElementById('bpmCombined').textContent = combinedBpm.toFixed(2);
+            document.getElementById('confidenceCombined').style.width = combinedConfidence + '%';
+        }
+
+        // Update display
+        function updateDisplay() {
+            // Peak
+            if (bpmEstimates.peak.value > 0) {
+                document.getElementById('bpmPeak').textContent = bpmEstimates.peak.value.toFixed(2);
+                document.getElementById('confidencePeak').style.width = bpmEstimates.peak.confidence + '%';
+            } else {
+                document.getElementById('bpmPeak').textContent = '--';
+                document.getElementById('confidencePeak').style.width = '0%';
+            }
+
+            // Autocorrelation
+            if (bpmEstimates.autocorr.value > 0) {
+                document.getElementById('bpmAutocorr').textContent = bpmEstimates.autocorr.value.toFixed(2);
+                document.getElementById('confidenceAutocorr').style.width = bpmEstimates.autocorr.confidence + '%';
+            } else {
+                document.getElementById('bpmAutocorr').textContent = '--';
+                document.getElementById('confidenceAutocorr').style.width = '0%';
+            }
+
+            // Spectral Flux
+            if (bpmEstimates.spectral.value > 0) {
+                document.getElementById('bpmSpectral').textContent = bpmEstimates.spectral.value.toFixed(2);
+                document.getElementById('confidenceSpectral').style.width = bpmEstimates.spectral.confidence + '%';
+            } else {
+                document.getElementById('bpmSpectral').textContent = '--';
+                document.getElementById('confidenceSpectral').style.width = '0%';
+            }
+        }
+
+        // Draw waveform visualization
+        function drawWaveform(timeDomainData, frequencyData) {
+            const width = canvas.width / window.devicePixelRatio;
+            const height = canvas.height / window.devicePixelRatio;
+
+            // Clear canvas
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw frequency bars in background
+            const barCount = 64;
+            const barWidth = width / barCount;
+            const step = Math.floor(frequencyData.length / barCount);
+
+            for (let i = 0; i < barCount; i++) {
+                const value = frequencyData[i * step];
+                const barHeight = (value / 255) * height * 0.8;
+
+                const hue = 200 + (i / barCount) * 60; // Blue to purple gradient
+                ctx.fillStyle = `hsla(${hue}, 70%, 50%, 0.3)`;
+                ctx.fillRect(i * barWidth, height - barHeight, barWidth - 1, barHeight);
+            }
+
+            // Draw waveform
+            ctx.beginPath();
+            ctx.strokeStyle = '#64ffda';
+            ctx.lineWidth = 2;
+
+            const sliceWidth = width / timeDomainData.length;
+            let x = 0;
+
+            for (let i = 0; i < timeDomainData.length; i++) {
+                const v = timeDomainData[i];
+                const y = (v + 1) / 2 * height;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+
+                x += sliceWidth;
+            }
+
+            ctx.stroke();
+
+            // Draw center line
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(100, 255, 218, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+
+            // Draw peak indicators
+            if (peakTimes.length > 0) {
+                const now = audioContext ? audioContext.currentTime : 0;
+                for (const peakTime of peakTimes.slice(-5)) {
+                    const age = now - peakTime;
+                    if (age < 0.3) {
+                        const alpha = 1 - age / 0.3;
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(240, 147, 251, ${alpha})`;
+                        ctx.lineWidth = 2;
+                        ctx.moveTo(width - age * 200, 0);
+                        ctx.lineTo(width - age * 200, height);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        // Initial draw
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = 'rgba(100, 255, 218, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const centerY = canvas.height / window.devicePixelRatio / 2;
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(canvas.width / window.devicePixelRatio, centerY);
+        ctx.stroke();
+    </script>
+</body>
+</html>
