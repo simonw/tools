@@ -532,6 +532,94 @@ function snapshotSvgAtTime(code, t) {
   return new XMLSerializer().serializeToString(svg);
 }
 
+// ---- WebP encoding ----
+// Chrome and Firefox can encode WebP straight from a canvas, but Safari
+// (desktop and iOS) silently falls back to PNG when asked for image/webp.
+// Feature-detect that once, and only when the browser cannot do it natively
+// load the @jsquash/webp wasm encoder (Squoosh's libwebp build) from jsdelivr.
+const JSQUASH_WEBP_ENCODE_URL =
+  "https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/encode.js/+esm";
+
+let nativeWebpSupportPromise = null;
+function canvasSupportsWebp() {
+  if (!nativeWebpSupportPromise) {
+    nativeWebpSupportPromise = new Promise((resolve) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      if (!canvas.toBlob) return resolve(false);
+      try {
+        canvas.toBlob(
+          (blob) => resolve(Boolean(blob && blob.type === "image/webp")),
+          "image/webp"
+        );
+      } catch (err) {
+        resolve(false);
+      }
+    });
+  }
+  return nativeWebpSupportPromise;
+}
+
+let jsquashWebpPromise = null;
+function loadJsquashWebpEncoder() {
+  if (!jsquashWebpPromise) {
+    // Call init() explicitly: encode() would otherwise cache a failed wasm
+    // load for the lifetime of the page, so a flaky connection could never
+    // be retried.
+    jsquashWebpPromise = import(JSQUASH_WEBP_ENCODE_URL).then(async (mod) => {
+      await mod.init();
+      return mod.default;
+    });
+    jsquashWebpPromise.catch(() => {
+      jsquashWebpPromise = null;
+    });
+  }
+  return jsquashWebpPromise;
+}
+
+// Encode a canvas as a WebP Blob. `quality` is 0..1 as for canvas.toBlob.
+async function canvasToWebpBlob(canvas, quality = 0.9) {
+  if (await canvasSupportsWebp()) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob && blob.type === "image/webp") resolve(blob);
+          else reject(new Error("Browser could not encode WebP"));
+        },
+        "image/webp",
+        quality
+      );
+    });
+  }
+  // Grab the pixels before awaiting anything so later canvas drawing cannot
+  // change what gets encoded.
+  const ctx = canvas.getContext("2d");
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const encode = await loadJsquashWebpEncoder();
+  const buffer = await encode(imageData, {
+    quality: Math.round(Math.max(0, Math.min(1, quality)) * 100),
+  });
+  return new Blob([buffer], { type: "image/webp" });
+}
+
+// Encode a canvas as a Blob of the given raster type, routing WebP through
+// the feature-detected path above.
+function canvasToBlob(canvas, mimeType, quality = 0.9) {
+  if (mimeType === "image/webp") return canvasToWebpBlob(canvas, quality);
+  return new Promise((resolve, reject) => {
+    if (!canvas.toBlob) return reject(new Error("canvas.toBlob is unavailable"));
+    canvas.toBlob(
+      (blob) => {
+        if (blob && blob.type === mimeType) resolve(blob);
+        else reject(new Error(`Browser could not encode ${mimeType}`));
+      },
+      mimeType,
+      quality
+    );
+  });
+}
+
 // ---- ffmpeg.wasm (lazy singleton, loaded from jsdelivr on first use) ----
 // The @ffmpeg/ffmpeg wrapper's UMD build cannot start its worker from a CDN
 // (cross-origin worker restrictions), so this drives @ffmpeg/core directly
@@ -887,6 +975,7 @@ class SvgBlock extends HTMLElement {
         <button class="active" data-tab="render">Rendered</button>
         <button data-tab="png">PNG</button>
         <button data-tab="jpeg">JPEG</button>
+        <button data-tab="webp">WEBP</button>
         ${mp4Tab}
         <button data-tab="code">Code</button>
       </div>
@@ -912,6 +1001,15 @@ class SvgBlock extends HTMLElement {
         </div>
         <div class="image-actions" hidden>
           <button type="button">Download JPEG</button>
+        </div>
+      </div>
+      <div class="panel" data-panel="webp">
+        <div class="image-status">Rendering WEBP…</div>
+        <div class="image-wrap" hidden>
+          <img alt="SVG rendered as WEBP">
+        </div>
+        <div class="image-actions" hidden>
+          <button type="button">Download WEBP</button>
         </div>
       </div>
       ${mp4Panel}
@@ -940,7 +1038,9 @@ class SvgBlock extends HTMLElement {
         panels.forEach((p) =>
           p.classList.toggle("active", p.dataset.panel === tab)
         );
-        if (tab === "png" || tab === "jpeg") this.renderImage(tab);
+        if (tab === "png" || tab === "jpeg" || tab === "webp") {
+          this.renderImage(tab);
+        }
         if (tab === "mp4") this.prefetchFfmpeg();
       });
     });
@@ -1132,9 +1232,10 @@ class SvgBlock extends HTMLElement {
     }
   }
 
-  // Rasterize the SVG to PNG/JPEG at the size the SVG preview is displayed,
-  // by drawing it onto a canvas via a blob URL (same approach as
-  // svg-render.html). Runs lazily on first visit to the tab.
+  // Rasterize the SVG to PNG/JPEG/WebP at the size the SVG preview is
+  // displayed, by drawing it onto a canvas via a blob URL (same approach as
+  // svg-render.html). Runs lazily on first visit to the tab. WebP goes
+  // through canvasToWebpBlob so it also works in Safari.
   renderImage(format) {
     this._rendered = this._rendered || {};
     if (this._rendered[format]) return;
@@ -1166,7 +1267,12 @@ class SvgBlock extends HTMLElement {
     const width = Math.max(1, Math.round(this.clientWidth));
     const height = Math.max(1, Math.round((width * ratioH) / ratioW));
 
-    const mimeType = format === "png" ? "image/png" : "image/jpeg";
+    const RASTER_FORMATS = {
+      png: { mimeType: "image/png", extension: "png" },
+      jpeg: { mimeType: "image/jpeg", extension: "jpg" },
+      webp: { mimeType: "image/webp", extension: "webp" },
+    };
+    const { mimeType, extension } = RASTER_FORMATS[format];
     const svgBlob = new Blob([code], { type: "image/svg+xml;charset=utf-8" });
     const svgUrl = URL.createObjectURL(svgBlob);
 
@@ -1181,31 +1287,34 @@ class SvgBlock extends HTMLElement {
       ctx.drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(svgUrl);
 
-      let dataUrl;
-      try {
-        dataUrl = canvas.toDataURL(mimeType, 0.9);
-      } catch (err) {
-        fail(`Could not render ${format.toUpperCase()}: ${err.message}`);
-        return;
-      }
+      canvasToBlob(canvas, mimeType, 0.9).then(
+        (blob) => {
+          if (this._imageUrls && this._imageUrls[format]) {
+            URL.revokeObjectURL(this._imageUrls[format]);
+          }
+          const url = URL.createObjectURL(blob);
+          this._imageUrls = this._imageUrls || {};
+          this._imageUrls[format] = url;
 
-      status.hidden = true;
-      imageEl.src = dataUrl;
-      imageWrap.hidden = false;
-      actions.hidden = false;
+          status.hidden = true;
+          imageEl.src = url;
+          imageWrap.hidden = false;
+          actions.hidden = false;
 
-      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-      const padding = (base64.match(/=+$/) || [""])[0].length;
-      const bytes = (base64.length * 3) / 4 - padding;
-      const sizeKB = (bytes / 1024).toFixed(2);
-      downloadBtn.textContent = `Download ${format.toUpperCase()} (${sizeKB} KB)`;
+          const sizeKB = (blob.size / 1024).toFixed(2);
+          downloadBtn.textContent = `Download ${format.toUpperCase()} (${sizeKB} KB)`;
 
-      downloadBtn.onclick = () => {
-        const link = document.createElement("a");
-        link.href = dataUrl;
-        link.download = format === "png" ? "image.png" : "image.jpg";
-        link.click();
-      };
+          downloadBtn.onclick = () => {
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `image.${extension}`;
+            link.click();
+          };
+        },
+        (err) => {
+          fail(`Could not render ${format.toUpperCase()}: ${err.message}`);
+        }
+      );
     };
     img.onerror = () => {
       URL.revokeObjectURL(svgUrl);

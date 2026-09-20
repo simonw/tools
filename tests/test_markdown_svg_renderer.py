@@ -280,3 +280,98 @@ def test_svg_code_tab_has_copy_button(page: Page, unused_port_server):
     expect(copy_button.locator('svg.check-icon')).to_be_visible()
 
 
+
+
+# Safari (desktop and iOS) cannot encode WebP from a canvas: toBlob silently
+# hands back a PNG instead. Emulate that so the @jsquash/webp fallback path
+# runs in Chromium.
+SAFARI_NO_WEBP_INIT_SCRIPT = """
+(() => {
+  const original = HTMLCanvasElement.prototype.toBlob;
+  HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+    if (type === "image/webp") type = "image/png";
+    return original.call(this, callback, type, quality);
+  };
+})();
+"""
+
+
+def read_rendered_image_bytes(page, panel):
+    """Fetch the rendered <img> blob from the given tab panel."""
+    return bytes(
+        page.evaluate(
+            """(panel) => {
+      const img = document.querySelector("svg-block").shadowRoot
+        .querySelector(`.panel[data-panel="${panel}"] img`);
+      return fetch(img.src)
+        .then((r) => r.arrayBuffer())
+        .then((buf) => Array.from(new Uint8Array(buf)));
+    }""",
+            panel,
+        )
+    )
+
+
+def track_jsquash_requests(page):
+    requests = []
+    page.on(
+        "request",
+        lambda request: "/@jsquash/webp" in request.url
+        and requests.append(request.url),
+    )
+    return requests
+
+
+def test_webp_tab_uses_native_encoder_when_available(page: Page, unused_port_server):
+    unused_port_server.start(root)
+    jsquash_requests = track_jsquash_requests(page)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    block = fill_svg_block(page, STATIC_SVG)
+    block.locator('button[data-tab="webp"]').click()
+
+    panel = block.locator('.panel[data-panel="webp"]')
+    download_button = panel.locator(".image-actions button")
+    expect(download_button).to_be_visible()
+    assert "Download WEBP (" in download_button.text_content()
+
+    data = read_rendered_image_bytes(page, "webp")
+    assert data[:4] == b"RIFF"
+    assert data[8:12] == b"WEBP"
+
+    # Chromium encodes WebP natively so the wasm encoder must not be fetched.
+    page.wait_for_timeout(200)
+    assert jsquash_requests == []
+
+
+def test_webp_tab_falls_back_to_jsquash_without_native_support(
+    page: Page, unused_port_server
+):
+    """Loads @jsquash/webp from jsdelivr, so this test needs network access."""
+    unused_port_server.start(root)
+    jsquash_requests = track_jsquash_requests(page)
+    page.add_init_script(SAFARI_NO_WEBP_INIT_SCRIPT)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    block = fill_svg_block(page, STATIC_SVG)
+
+    # PNG rendering must not trigger the encoder download.
+    block.locator('button[data-tab="png"]').click()
+    expect(
+        block.locator('.panel[data-panel="png"] .image-actions button')
+    ).to_be_visible()
+    assert jsquash_requests == []
+
+    with page.expect_request("**/@jsquash/webp@*/encode.js/+esm"):
+        block.locator('button[data-tab="webp"]').click()
+
+    panel = block.locator('.panel[data-panel="webp"]')
+    download_button = panel.locator(".image-actions button")
+    expect(download_button).to_be_visible(timeout=60_000)
+    assert "Download WEBP (" in download_button.text_content()
+
+    data = read_rendered_image_bytes(page, "webp")
+    assert data[:4] == b"RIFF"
+    assert data[8:12] == b"WEBP"
