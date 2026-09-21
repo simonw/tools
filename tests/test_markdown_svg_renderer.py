@@ -103,6 +103,84 @@ def fill_svg_block(page, svg):
     return page.locator("svg-block")
 
 
+def test_details_toggle_with_markdown_and_svg(page: Page, unused_port_server):
+    unused_port_server.start(root)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    page.locator("#input").fill(f"""## Reasoning
+
+<details><summary>Reasoning</summary>
+
+Some **formatted** text.
+
+1. First step
+2. Second step
+
+```svg
+{STATIC_SVG}
+```
+
+</details>
+
+## Response
+
+Outside the disclosure.
+""")
+    details = page.locator("#output details")
+    expect(details).to_have_count(1)
+    expect(details.locator("summary")).to_have_text("Reasoning")
+    expect(details.locator("strong")).to_be_hidden()
+    expect(page.get_by_text("Outside the disclosure.", exact=True)).to_be_visible()
+
+    details.locator("summary").click()
+    expect(details).to_have_attribute("open", "")
+    expect(details.locator("strong")).to_be_visible()
+    expect(details.locator("li")).to_have_text(["First step", "Second step"])
+    expect(details.locator("svg-block iframe")).to_be_visible()
+    assert details.locator("svg-block").get_attribute("data-svg") == STATIC_SVG + "\n"
+
+    details.locator("summary").press("Enter")
+    expect(details.locator("strong")).to_be_hidden()
+    expect(details.locator("svg-block iframe")).to_be_hidden()
+
+
+def test_details_open_nested_and_literal_code(page: Page, unused_port_server):
+    unused_port_server.start(root)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    literal = "<details><summary>Example</summary></details>"
+    page.locator("#input").fill(f"""<details open><summary>Outer</summary>
+
+Outer content.
+
+<details><summary>Inner</summary>
+
+Inner content.
+
+</details>
+
+</details>
+
+`{literal}`
+
+```text
+{literal}
+```
+""")
+    outer = page.locator("#output > details")
+    inner = outer.locator("details")
+    expect(page.locator("#output details")).to_have_count(2)
+    expect(outer).to_have_attribute("open", "")
+    expect(outer.locator("p").first).to_be_visible()
+    expect(inner.locator("p")).to_be_hidden()
+    inner.locator("summary").click()
+    expect(inner.locator("p")).to_be_visible()
+    expect(page.locator("#output > p > code")).to_have_text(literal)
+    expect(page.locator("#output pre code")).to_have_text(literal + "\n")
+
+
 def test_static_svg_has_no_mp4_tab(page: Page, unused_port_server):
     unused_port_server.start(root)
     page.goto(
@@ -278,5 +356,4 @@ def test_svg_code_tab_has_copy_button(page: Page, unused_port_server):
     copy_button.click()
     expect(copy_button).to_have_text("Copied!")
     expect(copy_button.locator('svg.check-icon')).to_be_visible()
-
 
