@@ -1,3 +1,10 @@
+<meta charset="utf-8">
+<script>
+// Choose the initial layout before any app markup or external scripts can paint.
+if ((new URLSearchParams(location.search).get("url") || "").trim() || /^#url=.+/.test(location.hash)) {
+  document.documentElement.classList.add("url-startup");
+}
+</script>
 <style>
 * {
   box-sizing: border-box;
@@ -16,11 +23,13 @@ body {
   height: 100vh;
 }
 
-.app.viewer-mode {
+.app.viewer-mode,
+.url-startup .app {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.app.viewer-mode .editor-pane {
+.app.viewer-mode .editor-pane,
+.url-startup .editor-pane {
   display: none;
 }
 
@@ -86,10 +95,53 @@ body {
   opacity: 0.72;
 }
 
-.app.viewer-mode #output {
+.app.viewer-mode #output,
+.url-startup #output {
   max-width: 980px;
   width: 100%;
   margin: 0 auto;
+}
+
+#preview-status {
+  display: none;
+  max-width: 980px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 32px;
+  color: #888;
+}
+
+.url-startup #preview-status,
+.app.viewer-mode #preview-status.active {
+  display: block;
+}
+
+.url-startup #preview-status,
+.app.viewer-mode #preview-status.active:not(.error) {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.url-startup #output,
+.app.viewer-mode #preview-status.active:not(.error) + #output {
+  display: none;
+}
+
+#preview-status.error { color: #dc2626; }
+#preview-status p { margin: 0; }
+#preview-status-actions { margin-top: 12px; }
+#preview-status-actions button {
+  font: inherit;
+  padding: 6px 12px;
+  margin-right: 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #2563eb;
+  cursor: pointer;
 }
 
 .source-tabs {
@@ -258,7 +310,7 @@ body {
 
 @media (max-width: 700px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
-  .app.viewer-mode { grid-template-rows: 1fr; }
+  .app.viewer-mode, .url-startup .app { grid-template-rows: 1fr; }
   .editor-pane { border-right: none; border-bottom: 1px solid #e2e2e2; }
 }
 </style>
@@ -291,6 +343,13 @@ body {
           <path d="m14 9 3 3-3 3"></path>
         </svg>
       </button>
+    </div>
+    <div id="preview-status">
+      <p id="preview-status-message" role="status">Loading document&hellip;</p>
+      <div id="preview-status-actions" hidden>
+        <button id="url-retry" type="button">Retry</button>
+        <button id="url-edit" type="button">Edit URL</button>
+      </div>
     </div>
     <div id="output"></div>
   </div>
@@ -1449,6 +1508,9 @@ const urlBar = document.getElementById("url-bar");
 const urlInput = document.getElementById("url-input");
 const urlLoad = document.getElementById("url-load");
 const urlStatus = document.getElementById("url-status");
+const previewStatus = document.getElementById("preview-status");
+const previewStatusMessage = document.getElementById("preview-status-message");
+const previewStatusActions = document.getElementById("preview-status-actions");
 const sourceToggle = document.getElementById("source-toggle");
 
 // Give every heading a GitHub-style id (derived from its text) plus a small
@@ -1505,6 +1567,7 @@ input.addEventListener("input", update);
 
 function setViewerMode(enabled) {
   app.classList.toggle("viewer-mode", enabled);
+  document.documentElement.classList.remove("url-startup");
   sourceToggle.setAttribute("aria-pressed", enabled ? "true" : "false");
   sourceToggle.setAttribute("aria-label", enabled ? "Show source" : "Hide source");
   sourceToggle.title = enabled ? "Show source" : "Hide source";
@@ -1540,6 +1603,10 @@ tabPaste.addEventListener("click", () => {
 tabUrl.addEventListener("click", () => setMode("url"));
 
 function setStatus(msg, isError) {
+  previewStatus.classList.toggle("active", !!msg);
+  previewStatus.classList.toggle("error", !!isError);
+  previewStatusMessage.textContent = msg;
+  previewStatusActions.hidden = !isError;
   if (!msg) {
     urlStatus.classList.remove("active", "error");
     urlStatus.textContent = "";
@@ -1595,7 +1662,8 @@ async function fetchSource(url) {
 async function loadFromUrl(url, recordUrl) {
   setMode("url");
   urlInput.value = url;
-  setStatus("Loading…");
+  setStatus(gistRe.test(url) ? "Loading Gist…" : "Loading document…");
+  setViewerMode(true);
   try {
     const text = await fetchSource(url);
     input.value = text;
@@ -1618,6 +1686,13 @@ async function loadFromUrl(url, recordUrl) {
 urlLoad.addEventListener("click", () => {
   const url = urlInput.value.trim();
   if (url) loadFromUrl(url, true);
+});
+
+document.getElementById("url-retry").addEventListener("click", () => urlLoad.click());
+document.getElementById("url-edit").addEventListener("click", () => {
+  setViewerMode(false);
+  urlInput.focus();
+  urlInput.select();
 });
 
 urlInput.addEventListener("keydown", (e) => {
