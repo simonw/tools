@@ -284,6 +284,10 @@
                             <input type="radio" name="outputFormat" value="webp"> WebP
                         </label>
                     </div>
+                    <div style="margin-top: 12px;">
+                        <label for="quality">Quality (0–100):</label>
+                        <input type="number" id="quality" min="0" max="100" step="1" value="90" style="width: 70px; margin-left: 6px;">
+                    </div>
                     <div id="webpNote" class="help-text" hidden>This browser cannot encode WebP itself, so the @jsquash/webp encoder is loaded from jsdelivr the first time a WebP card is generated.</div>
                 </div>
             </div>
@@ -353,6 +357,7 @@
         const preview = document.getElementById('preview');
         const previewContainer = document.getElementById('previewContainer');
         const downloadBtn = document.getElementById('downloadBtn');
+        const qualityInput = document.getElementById('quality');
 
         // --- Drag mode toggle ---
         // Cropper.js stacks .cropper-crop-box on top of .cropper-drag-box.
@@ -823,6 +828,21 @@
             radio.addEventListener('change', updatePreview);
         });
 
+        // Encoder quality as 0..1, from the 0-100 input. Applies to both JPEG
+        // and WebP; the preview re-renders live as the value is edited.
+        function selectedQuality() {
+            const value = parseInt(qualityInput.value, 10);
+            if (Number.isNaN(value)) return 0.9;
+            return Math.max(0, Math.min(100, value)) / 100;
+        }
+
+        qualityInput.addEventListener('input', updatePreview);
+        qualityInput.addEventListener('change', () => {
+            // Normalise out-of-range or blank values once editing finishes.
+            qualityInput.value = Math.round(selectedQuality() * 100);
+            updatePreview();
+        });
+
         // The download file is encoded asynchronously (WebP in Safari goes
         // through wasm), debounced so dragging the crop box does not queue up
         // a full-size encode for every intermediate position.
@@ -830,7 +850,7 @@
         let downloadTimer = null;
         let downloadUrl = null;
 
-        function scheduleDownloadEncode(canvas, format, filename) {
+        function scheduleDownloadEncode(canvas, format, quality, filename) {
             const generation = ++downloadGeneration;
             clearTimeout(downloadTimer);
             downloadBtn.classList.add('pending');
@@ -839,7 +859,7 @@
             downloadBtn.removeAttribute('download');
 
             downloadTimer = setTimeout(() => {
-                canvasToBlob(canvas, format.mime, 0.9).then(blob => {
+                canvasToBlob(canvas, format.mime, quality).then(blob => {
                     if (generation !== downloadGeneration) return;
                     if (downloadUrl) URL.revokeObjectURL(downloadUrl);
                     downloadUrl = URL.createObjectURL(blob);
@@ -847,7 +867,7 @@
                     downloadBtn.href = downloadUrl;
                     downloadBtn.download = filename;
                     downloadBtn.classList.remove('pending');
-                    downloadBtn.textContent = `Download Social Media Card (${format.label}, ${(blob.size / 1024).toFixed(0)} KB)`;
+                    downloadBtn.textContent = `Download Social Media Card (${format.label} q${Math.round(quality * 100)}, ${(blob.size / 1024).toFixed(0)} KB)`;
                 }, err => {
                     if (generation !== downloadGeneration) return;
                     console.error(`${format.label} encoding failed`, err);
@@ -903,14 +923,15 @@
 
             // Show a quick JPEG preview straight away; it is replaced by the
             // actual encoded output once that is ready.
-            preview.src = canvas.toDataURL('image/jpeg', 0.9);
+            const quality = selectedQuality();
+            preview.src = canvas.toDataURL('image/jpeg', quality);
             previewContainer.classList.remove('hidden');
 
             const dimensionsInfo = document.getElementById('dimensionsInfo');
             dimensionsInfo.textContent = `Dimensions: ${canvas.width} × ${canvas.height} pixels`;
 
             const format = selectedOutputFormat();
-            scheduleDownloadEncode(canvas, format, `social-card-${aspectRatioValue.replace('.', '_')}.${format.extension}`);
+            scheduleDownloadEncode(canvas, format, quality, `social-card-${aspectRatioValue.replace('.', '_')}.${format.extension}`);
         }
     </script>
 </body>

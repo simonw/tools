@@ -60,6 +60,44 @@ def test_defaults_to_jpeg_download(page: Page, unused_port_server):
     assert download_bytes(page)[:3] == b"\xff\xd8\xff"
 
 
+def download_size_kb(page):
+    return page.evaluate(
+        """() => fetch(document.getElementById("downloadBtn").href)
+      .then((r) => r.arrayBuffer()).then((buf) => buf.byteLength)"""
+    )
+
+
+def test_quality_input_updates_preview_live(page: Page, unused_port_server):
+    unused_port_server.start(root)
+    load_page_with_image(page, unused_port_server.port)
+    download = page.locator("#downloadBtn")
+    expect(download).to_contain_text("(JPEG q90,")
+    high_quality_size = download_size_kb(page)
+    high_quality_preview = page.locator("#preview").get_attribute("src")
+
+    # Typing into the box (input event, no blur) re-renders immediately.
+    quality = page.locator("#quality")
+    quality.fill("10")
+    expect(download).to_contain_text("(JPEG q10,")
+    low_quality_size = download_size_kb(page)
+    assert low_quality_size < high_quality_size
+    assert page.locator("#preview").get_attribute("src") != high_quality_preview
+
+    # Quality also applies to WebP.
+    page.locator('input[name="outputFormat"][value="webp"]').check()
+    expect(download).to_contain_text("(WebP q10,")
+    webp_low = download_size_kb(page)
+    quality.fill("95")
+    expect(download).to_contain_text("(WebP q95,")
+    assert download_size_kb(page) > webp_low
+
+    # Out-of-range values are clamped when editing finishes.
+    quality.fill("250")
+    quality.dispatch_event("change")
+    expect(quality).to_have_value("100")
+    expect(download).to_contain_text("(WebP q100,")
+
+
 def test_webp_download_uses_native_encoder_when_available(
     page: Page, unused_port_server
 ):
