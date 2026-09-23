@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shadow roots, explained with live examples</title>
+<style>
+* {
+  box-sizing: border-box;
+}
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --ink: #14141f;
+  --muted: #5c5c70;
+  --rule: #dcdce6;
+  --panel: #f3f3f9;
+  --shadow: #5b3fd6;
+  --light: #0a7d6c;
+  --stage: #f6f6fb;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #15151d;
+    --ink: #ececf4;
+    --muted: #a2a2b6;
+    --rule: #33334a;
+    --panel: #1e1e2a;
+    --shadow: #a594ff;
+    --light: #4fd1b8;
+    --stage: #e4e4ee;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #15151d;
+  --ink: #ececf4;
+  --muted: #a2a2b6;
+  --rule: #33334a;
+  --panel: #1e1e2a;
+  --shadow: #a594ff;
+  --light: #4fd1b8;
+  --stage: #e4e4ee;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.55;
+}
+main {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 56px 24px 96px;
+}
+h1 {
+  font-size: clamp(44px, 9vw, 92px);
+  line-height: 1;
+  letter-spacing: -0.035em;
+  margin: 0 0 28px;
+}
+h2 {
+  font-size: clamp(26px, 4vw, 34px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+  max-width: 24ch;
+}
+h3 {
+  font-size: 16px;
+  margin: 0 0 6px;
+}
+p {
+  margin: 0 0 14px;
+  max-width: 68ch;
+}
+.lede {
+  font-size: 21px;
+  line-height: 1.45;
+  max-width: 56ch;
+}
+.aside {
+  color: var(--muted);
+  font-size: 15px;
+}
+section {
+  margin-top: 88px;
+}
+code, pre, textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+code {
+  font-size: 0.9em;
+  background: var(--panel);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+pre {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 14px 16px;
+  margin: 0 0 14px;
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+input, textarea, select {
+  font-size: 16px;
+}
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 150px;
+  padding: 10px 12px;
+  line-height: 1.4;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  resize: vertical;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+textarea.tall {
+  min-height: 250px;
+}
+label.field {
+  display: block;
+  font-weight: bold;
+  font-size: 15px;
+  margin: 0 0 6px;
+}
+.swatch-page, .swatch-shadow {
+  display: inline-block;
+  width: 18px;
+  vertical-align: middle;
+  margin-right: 6px;
+  border-top: 2px solid var(--light);
+}
+.swatch-shadow {
+  border-top: 2px dashed var(--shadow);
+}
+:focus-visible {
+  outline: 3px solid var(--shadow);
+  outline-offset: 2px;
+}
+input[type="radio"], input[type="checkbox"], input[type="range"] {
+  accent-color: var(--shadow);
+}
+
+/* Demo layout */
+.demo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  margin: 24px 0 14px;
+  align-items: start;
+}
+.demo > .controls > * + * {
+  margin-top: 16px;
+}
+@media (max-width: 760px) {
+  .demo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  section {
+    margin-top: 64px;
+  }
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.chips button, .plain-button {
+  font: 14px Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.chips button code {
+  background: none;
+  padding: 0;
+}
+.chips button:hover, .plain-button:hover {
+  border-color: var(--ink);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  align-items: center;
+}
+.row label {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 15px;
+}
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+legend {
+  font-weight: bold;
+  font-size: 15px;
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+/* The stage is a fixed light surface, like a preview of a page */
+.stage {
+  color-scheme: light;
+  background: var(--stage);
+  color: #14141f;
+  border-radius: 6px;
+  padding: 26px 18px 18px;
+  position: sticky;
+  top: 16px;
+  font-size: 16px;
+}
+@media (max-width: 760px) {
+  .stage {
+    position: static;
+  }
+}
+.zone {
+  position: relative;
+  border: 2px solid #0a7d6c;
+  border-radius: 4px;
+  padding: 18px 14px 12px;
+}
+.zone + .zone, .zone .zone {
+  margin-top: 22px;
+}
+.zone.shadow {
+  border: 2px dashed #5b3fd6;
+}
+.zone::before {
+  content: attr(data-label);
+  position: absolute;
+  top: -10px;
+  left: 10px;
+  padding: 0 6px;
+  background: var(--stage);
+  color: #0a7d6c;
+  font: 13px/18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-style: normal;
+  text-decoration: none;
+}
+.zone.shadow::before {
+  color: #5b3fd6;
+}
+.stage p {
+  margin: 0 0 10px;
+}
+
+.console {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  min-height: 120px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.console .in {
+  color: var(--muted);
+}
+.console .out {
+  color: var(--shadow);
+  margin-bottom: 6px;
+}
+.snippets {
+  display: grid;
+  gap: 6px;
+}
+.snippets button {
+  text-align: left;
+  font: 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 8px 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.snippets button:hover {
+  border-color: var(--ink);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin-top: 20px;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 620px;
+  font-size: 16px;
+}
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 14px 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+th {
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: normal;
+}
+td.yes {
+  color: var(--light);
+  font-weight: bold;
+}
+td.no {
+  color: var(--muted);
+  font-weight: bold;
+}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1 id="title">Shadow roots</h1>
+  <p class="lede">A shadow root is a second, private DOM tree attached to an element. Selectors written for the page stop at its edge, and selectors written inside it never get out.</p>
+  <p class="aside">The heading above is a shadow host. Its dashed frame and label are drawn by a stylesheet inside its shadow root, and the words "Shadow roots" are ordinary page text shown through a slot. Throughout this page, <span class="swatch-page"></span>solid frames mark the page's own DOM and <span class="swatch-shadow"></span>dashed frames mark a shadow tree.</p>
+</header>
+
+<section aria-labelledby="h-attach">
+  <h2 id="h-attach">Attaching one takes a single call</h2>
+  <p>The element you call <code>attachShadow()</code> on becomes the <em>shadow host</em>. Whatever you put in the returned root is rendered in place of the host's own children.</p>
+<pre><code>const host = document.querySelector('#host');
+const root = host.attachShadow({ mode: 'open' });
+
+root.innerHTML = `
+  &lt;style&gt;p { color: rebeccapurple; }&lt;/style&gt;
+  &lt;p&gt;Hello from the shadow tree&lt;/p&gt;
+`;</code></pre>
+  <p>That <code>p</code> rule looks dangerously broad, but it only applies inside this root. The first example shows why.</p>
+</section>
+
+<section aria-labelledby="h-encap">
+  <h2 id="h-encap">Styles stop at the boundary</h2>
+  <p>Both stylesheets below are live. Write the broadest selector you can think of in either one and watch where it lands.</p>
+  <div class="demo">
+    <div class="controls">
+      <div>
+        <label class="field" for="css-page-1">Page stylesheet</label>
+        <textarea id="css-page-1" spellcheck="false"></textarea>
+        <div class="chips">
+          <button type="button" data-target="css-page-1" data-add="button {&#10;  background: gold;&#10;}">Add <code>button { … }</code></button>
+          <button type="button" data-target="css-page-1" data-add="* {&#10;  outline: 1px solid red;&#10;}">Add <code>* { … }</code></button>
+        </div>
+      </div>
+      <div>
+        <label class="field" for="css-shadow-1">Stylesheet inside the shadow root</label>
+        <textarea id="css-shadow-1" spellcheck="false"></textarea>
+        <div class="chips">
+          <button type="button" data-target="css-shadow-1" data-add="button {&#10;  border-radius: 99px;&#10;  padding: 6px 16px;&#10;}">Add <code>button { … }</code></button>
+          <button type="button" data-target="css-shadow-1" data-add="* {&#10;  outline: 1px solid blue;&#10;}">Add <code>* { … }</code></button>
+        </div>
+      </div>
+      <button type="button" class="plain-button" data-reset="css-page-1 css-shadow-1">Reset both stylesheets</button>
+    </div>
+    <div class="stage" id="stage-1">
+      <div class="zone" data-label="page DOM">
+        <p>Paragraph in the page</p>
+        <button type="button">Page button</button>
+      </div>
+      <div class="zone shadow" data-label="#shadow-root (open)">
+        <div id="host-1"></div>
+      </div>
+    </div>
+  </div>
+  <p class="aside">The markup on both sides is identical: one <code>&lt;p&gt;</code> and one <code>&lt;button&gt;</code>. Only the tree they live in differs.</p>
+</section>
+
+<section aria-labelledby="h-inherit">
+  <h2 id="h-inherit">Inherited values and custom properties pass through</h2>
+  <p>The boundary blocks <em>selectors</em>, not inheritance. A shadow tree's content is still a descendant of its host, so <code>color</code>, <code>font</code> and every custom property flow in. That makes custom properties the standard way to theme a component from outside.</p>
+  <div class="demo">
+    <div class="controls">
+      <div class="row">
+        <label>color <input type="color" id="d2-color" value="#14141f"></label>
+        <label>--accent <input type="color" id="d2-accent" value="#5b3fd6"></label>
+      </div>
+      <div class="row">
+        <label>font-size <input type="range" id="d2-size" min="12" max="28" value="16"> <span id="d2-size-out">16px</span></label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="d2-reset"> Add <code>:host { all: initial; }</code> inside the shadow root</label>
+      </div>
+      <pre><code id="d2-code"></code></pre>
+      <p class="aside">With <code>all: initial</code> the component stops inheriting colour and font, but <code>--accent</code> still gets in. The <code>all</code> shorthand does not touch custom properties.</p>
+    </div>
+    <div class="stage" id="stage-2">
+      <div class="zone" data-label="div.wrapper" id="wrap-2">
+        <p>Paragraph in the page</p>
+        <div class="zone shadow" data-label="#shadow-root (open)">
+          <div id="host-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-slots">
+  <h2 id="h-slots">Slots show the host's children inside the shadow tree</h2>
+  <p>Once a host has a shadow root, its own children are no longer rendered unless the shadow tree contains a <code>&lt;slot&gt;</code>. Slotted nodes are displayed at the slot's position but never move: they stay in the page DOM, so page CSS still styles them. From inside, <code>::slotted()</code> can style them too, and <code>:host</code> styles the host element itself.</p>
+  <div class="demo">
+    <div class="controls">
+      <div>
+        <label class="field" for="d3-light">Children of <code>&lt;user-card&gt;</code>, in the page</label>
+        <textarea id="d3-light" spellcheck="false"></textarea>
+        <div class="chips">
+          <button type="button" id="d3-clear">Remove all children</button>
+        </div>
+      </div>
+      <div>
+        <label class="field" for="d3-shadow">Contents of its shadow root</label>
+        <textarea id="d3-shadow" class="tall" spellcheck="false"></textarea>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="d3-page"> Page CSS: <code>span { text-decoration: underline wavy; }</code></label>
+      </div>
+      <button type="button" class="plain-button" data-reset="d3-light d3-shadow">Reset both</button>
+    </div>
+    <div class="stage" id="stage-3">
+      <div class="zone" data-label="page DOM">
+        <div id="mount-3"></div>
+      </div>
+      <p class="aside" style="margin: 14px 0 0; color: #5c5c70;">Remove the children to see each slot's fallback content. Delete the unnamed <code style="background: none;">&lt;slot&gt;</code> and the paragraph disappears from view while remaining in the DOM.</p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-part">
+  <h2 id="h-part">Parts let the page style chosen elements</h2>
+  <p>A component can opt specific elements into outside styling by giving them a <code>part</code> attribute. The page then reaches them with <code>::part()</code>. Anything without a part name stays private.</p>
+  <div class="demo">
+    <div class="controls">
+      <div>
+        <label class="field" for="d4-css">Page stylesheet</label>
+        <textarea id="d4-css" class="tall" spellcheck="false"></textarea>
+      </div>
+      <button type="button" class="plain-button" data-reset="d4-css">Reset stylesheet</button>
+      <div>
+        <h3>Inside the shadow root of <code>&lt;fave-button&gt;</code></h3>
+<pre><code>&lt;button part="button"&gt;
+  &lt;span part="icon"&gt;★&lt;/span&gt;
+  &lt;span part="label"&gt;Favourite&lt;/span&gt;
+&lt;/button&gt;
+&lt;p class="hint"&gt;I have no part attribute.&lt;/p&gt;</code></pre>
+      </div>
+    </div>
+    <div class="stage" id="stage-4">
+      <div class="zone shadow" data-label="#shadow-root (open)">
+        <fave-button id="host-4"></fave-button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-js">
+  <h2 id="h-js">What JavaScript can see</h2>
+  <p>DOM queries stop at the boundary just as selectors do. With <code>mode: 'open'</code> you can step inside through <code>host.shadowRoot</code>. With <code>'closed'</code> that property is <code>null</code>, and only code that kept the return value of <code>attachShadow()</code> can get in. Events that leave a shadow tree are <em>retargeted</em> so outside listeners see the host as the target.</p>
+  <div class="demo">
+    <div class="controls">
+      <fieldset>
+        <legend>Shadow root mode</legend>
+        <div class="row">
+          <label><input type="radio" name="d5-mode" value="open" checked> open</label>
+          <label><input type="radio" name="d5-mode" value="closed"> closed</label>
+        </div>
+      </fieldset>
+      <div>
+        <h3>Run from the page</h3>
+        <div class="snippets" id="d5-snippets"></div>
+      </div>
+      <div>
+        <h3>Output</h3>
+        <div class="console" id="d5-console" aria-live="polite"></div>
+      </div>
+    </div>
+    <div class="stage" id="stage-5">
+      <div class="zone" data-label="page DOM">
+        <button type="button">Page button</button>
+      </div>
+      <div class="zone shadow" id="zone-5" data-label="#shadow-root (open)">
+        <div id="mount-5"></div>
+      </div>
+      <p class="aside" style="margin: 14px 0 0; color: #5c5c70;">Click either button. A listener on the page logs what it receives.</p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-dsd">
+  <h2 id="h-dsd">Shadow roots without JavaScript</h2>
+  <p>A <code>&lt;template shadowrootmode="open"&gt;</code> placed directly inside an element tells the HTML parser to attach a shadow root as it reads the page. This is declarative shadow DOM, and it lets servers send components that render before any script runs.</p>
+  <p>It only works where the parser is told to allow it: the initial page load, or <code>setHTMLUnsafe()</code>. Plain <code>innerHTML</code> leaves the template inert. Switch between the two below.</p>
+  <div class="demo">
+    <div class="controls">
+      <fieldset>
+        <legend>Insert this HTML using</legend>
+        <div class="row">
+          <label><input type="radio" name="d6-mode" value="unsafe" checked> <code>setHTMLUnsafe()</code></label>
+          <label><input type="radio" name="d6-mode" value="inner"> <code>innerHTML</code></label>
+        </div>
+      </fieldset>
+      <div>
+        <label class="field" for="d6-html">HTML</label>
+        <textarea id="d6-html" class="tall" spellcheck="false"></textarea>
+      </div>
+      <button type="button" class="plain-button" data-reset="d6-html">Reset HTML</button>
+    </div>
+    <div class="stage" id="stage-6">
+      <div class="zone" data-label="page DOM">
+        <div id="mount-6"></div>
+      </div>
+      <p class="aside" id="d6-status" style="margin: 14px 0 0; color: #5c5c70;"></p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-recap">
+  <h2 id="h-recap">What crosses the boundary</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Mechanism</th><th>Crosses?</th><th>Detail</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Page selectors such as <code>button</code> or <code>*</code></td><td class="no">No</td><td>They never match elements in a shadow tree.</td></tr>
+        <tr><td>Selectors inside the shadow root</td><td class="no">No</td><td>They never match elements in the page.</td></tr>
+        <tr><td>Inherited properties</td><td class="yes">Yes</td><td>Block them with <code>:host { all: initial; }</code> if needed.</td></tr>
+        <tr><td>Custom properties</td><td class="yes">Yes</td><td>The usual theming hook. Not reset by <code>all</code>.</td></tr>
+        <tr><td><code>::part(name)</code></td><td class="yes">Opt-in</td><td>Only for elements the component marks with <code>part</code>.</td></tr>
+        <tr><td><code>::slotted(sel)</code></td><td class="yes">Inward only</td><td>Styles top-level slotted nodes, not their descendants. Page rules win ties.</td></tr>
+        <tr><td><code>document.querySelector()</code></td><td class="no">No</td><td>Go through <code>host.shadowRoot</code> when the mode is open.</td></tr>
+        <tr><td>Events</td><td class="yes">Most</td><td>Composed events bubble out with <code>target</code> retargeted to the host.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<script type="module">
+const $ = (sel, root = document) => root.querySelector(sel);
+
+// A page-level stylesheet whose rules are nested under one selector,
+// so rules typed into a demo only ever apply to that demo's stage.
+function scopedSheet(scope) {
+  const sheet = new CSSStyleSheet();
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  return (css) => {
+    try {
+      sheet.replaceSync(`${scope} {\n${css}\n}`);
+    } catch (err) {
+      sheet.replaceSync('');
+    }
+  };
+}
+
+// Defaults are set from here so they can be restored later
+const defaults = {
+  'css-page-1': `p {
+  color: crimson;
+  font-style: italic;
+}`,
+  'css-shadow-1': `p {
+  color: rebeccapurple;
+  font-weight: bold;
+}`,
+  'd3-light': `<span slot="name">Ada Lovelace</span>
+<span slot="role">Mathematician</span>
+<p>Wrote the first published program.</p>`,
+  'd3-shadow': `<style>
+  :host {
+    display: block;
+    padding: 12px;
+    border-left: 6px solid #5b3fd6;
+    background: white;
+  }
+  ::slotted([slot="name"]) {
+    display: block;
+    font-size: 22px;
+    font-weight: bold;
+  }
+  ::slotted(p) {
+    margin: 8px 0 0;
+  }
+  .role {
+    color: #5c5c70;
+  }
+</style>
+<slot name="name">Unnamed person</slot>
+<div class="role">
+  <slot name="role">No role given</slot>
+</div>
+<slot></slot>`,
+  'd4-css': `fave-button::part(button) {
+  background: #5b3fd6;
+  color: white;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 16px;
+}
+fave-button::part(icon) {
+  color: gold;
+}
+
+/* No effect: .hint is not a part */
+fave-button .hint {
+  color: red;
+}`,
+  'd6-html': `<article-teaser>
+  <template shadowrootmode="open">
+    <style>
+      :host {
+        display: block;
+        padding: 12px;
+        background: white;
+        border-left: 6px solid #5b3fd6;
+      }
+      h3 {
+        margin: 0 0 4px;
+        color: #5b3fd6;
+      }
+    </style>
+    <h3><slot name="title">Untitled</slot></h3>
+    <slot></slot>
+  </template>
+  <span slot="title">No script needed</span>
+  The parser attached this shadow root.
+</article-teaser>`
+};
+
+for (const [id, value] of Object.entries(defaults)) {
+  $('#' + id).value = value;
+}
+
+function fire(el) {
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+document.addEventListener('click', (event) => {
+  const chip = event.target.closest('[data-add]');
+  if (chip) {
+    const ta = $('#' + chip.dataset.target);
+    ta.value = (ta.value.trimEnd() + '\n\n' + chip.dataset.add).trimStart();
+    fire(ta);
+    return;
+  }
+  const reset = event.target.closest('[data-reset]');
+  if (reset) {
+    for (const id of reset.dataset.reset.split(' ')) {
+      const ta = $('#' + id);
+      ta.value = defaults[id];
+      fire(ta);
+    }
+  }
+});
+
+// Heading: a real shadow host with a slot
+{
+  const root = $('#title').attachShadow({ mode: 'open' });
+  root.innerHTML = `
+    <style>
+      :host {
+        display: inline-block;
+        position: relative;
+        padding: 0.18em 0.28em 0.12em;
+        border: 3px dashed var(--shadow);
+        border-radius: 6px;
+      }
+      .tag {
+        position: absolute;
+        top: -11px;
+        left: 14px;
+        padding: 0 8px;
+        background: var(--bg);
+        color: var(--shadow);
+        font: 14px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        letter-spacing: 0;
+      }
+    </style>
+    <span class="tag" aria-hidden="true">#shadow-root (open)</span>
+    <slot></slot>
+  `;
+}
+
+// 1. Encapsulation
+{
+  const root = $('#host-1').attachShadow({ mode: 'open' });
+  root.innerHTML = `
+    <style></style>
+    <p>Paragraph in the shadow tree</p>
+    <button type="button">Shadow button</button>
+  `;
+  const base = 'p { margin: 0 0 10px; }\n';
+  const applyPage = scopedSheet('#stage-1 .zone');
+  const pageTa = $('#css-page-1');
+  const shadowTa = $('#css-shadow-1');
+  const update = () => {
+    applyPage(pageTa.value);
+    $('style', root).textContent = base + shadowTa.value;
+  };
+  pageTa.addEventListener('input', update);
+  shadowTa.addEventListener('input', update);
+  update();
+}
+
+// 2. Inheritance and custom properties
+{
+  const wrap = $('#wrap-2');
+  const root = $('#host-2').attachShadow({ mode: 'open' });
+  root.innerHTML = `
+    <style></style>
+    <p class="note">Paragraph in the shadow tree. My text colour and size are inherited. My left bar uses var(--accent).</p>
+  `;
+  const color = $('#d2-color');
+  const accent = $('#d2-accent');
+  const size = $('#d2-size');
+  const reset = $('#d2-reset');
+  const update = () => {
+    wrap.style.color = color.value;
+    wrap.style.fontSize = size.value + 'px';
+    wrap.style.setProperty('--accent', accent.value);
+    $('#d2-size-out').textContent = size.value + 'px';
+    const hostRule = reset.checked
+      ? ':host {\n  all: initial;\n  display: block;\n}\n'
+      : '';
+    const shadowCss = `${hostRule}.note {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 6px solid var(--accent, gray);
+}`;
+    $('style', root).textContent = shadowCss;
+    $('#d2-code').textContent = `/* Page */
+.wrapper {
+  color: ${color.value};
+  font-size: ${size.value}px;
+  --accent: ${accent.value};
+}
+
+/* Inside the shadow root */
+${shadowCss}`;
+  };
+  for (const el of [color, accent, size, reset]) {
+    el.addEventListener('input', update);
+  }
+  update();
+}
+
+// 3. Slots
+{
+  const mount = $('#mount-3');
+  const lightTa = $('#d3-light');
+  const shadowTa = $('#d3-shadow');
+  const pageToggle = $('#d3-page');
+  const applyPage = scopedSheet('#stage-3 .zone');
+  const update = () => {
+    const host = document.createElement('user-card');
+    host.innerHTML = lightTa.value;
+    host.attachShadow({ mode: 'open' }).innerHTML = shadowTa.value;
+    mount.replaceChildren(host);
+    applyPage(pageToggle.checked ? 'span { text-decoration: underline wavy crimson; }' : '');
+  };
+  lightTa.addEventListener('input', update);
+  shadowTa.addEventListener('input', update);
+  pageToggle.addEventListener('input', update);
+  $('#d3-clear').addEventListener('click', () => {
+    lightTa.value = '';
+    update();
+  });
+  update();
+}
+
+// 4. Parts
+{
+  const root = $('#host-4').attachShadow({ mode: 'open' });
+  root.innerHTML = `
+    <style>
+      :host { display: block; }
+      .hint { margin: 12px 0 0; font-size: 14px; }
+    </style>
+    <button part="button" type="button">
+      <span part="icon">★</span>
+      <span part="label">Favourite</span>
+    </button>
+    <p class="hint">I have no part attribute, so page CSS cannot reach me.</p>
+  `;
+  const ta = $('#d4-css');
+  const applyPage = scopedSheet('#stage-4');
+  const update = () => applyPage(ta.value);
+  ta.addEventListener('input', update);
+  update();
+}
+
+// 5. JavaScript access and event retargeting
+{
+  const mount = $('#mount-5');
+  const zone = $('#zone-5');
+  const out = $('#d5-console');
+  let host;
+
+  const describe = (v) => {
+    if (v === null) return 'null';
+    if (v === undefined) return 'undefined';
+    if (v instanceof ShadowRoot) return `#shadow-root (${v.mode})`;
+    if (v instanceof Element) return `<${v.localName}${v.id ? ' id="' + v.id + '"' : ''}>`;
+    return String(v);
+  };
+
+  const log = (input, output) => {
+    const a = document.createElement('div');
+    a.className = 'in';
+    a.textContent = '> ' + input;
+    const b = document.createElement('div');
+    b.className = 'out';
+    b.textContent = output;
+    out.append(a, b);
+    while (out.children.length > 16) {
+      out.firstChild.remove();
+    }
+    out.scrollTop = out.scrollHeight;
+  };
+
+  const build = (mode) => {
+    host = document.createElement('div');
+    host.id = 'host';
+    // A component author would keep this reference. We throw it away,
+    // so in closed mode nothing on the page can get back in.
+    host.attachShadow({ mode }).innerHTML = '<button type="button">Shadow button</button>';
+    mount.replaceChildren(host);
+    zone.dataset.label = `#shadow-root (${mode})`;
+    out.replaceChildren();
+  };
+
+  const snippets = [
+    ["stage.querySelectorAll('button').length", () => $('#stage-5').querySelectorAll('button').length],
+    ['host.shadowRoot', () => host.shadowRoot],
+    ["host.shadowRoot?.querySelector('button')", () => host.shadowRoot?.querySelector('button')],
+    ['host.children.length', () => host.children.length]
+  ];
+  for (const [label, fn] of snippets) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('click', () => log(label, describe(fn())));
+    $('#d5-snippets').append(button);
+  }
+
+  $('#stage-5').addEventListener('click', (event) => {
+    if (!event.target.closest('button, #host')) return;
+    log('click: event.target', describe(event.target));
+    log('click: event.composedPath()[0]', describe(event.composedPath()[0]));
+  });
+
+  for (const radio of document.querySelectorAll('[name="d5-mode"]')) {
+    radio.addEventListener('change', () => build(radio.value));
+  }
+  build('open');
+}
+
+// 6. Declarative shadow DOM
+{
+  const mount = $('#mount-6');
+  const ta = $('#d6-html');
+  const status = $('#d6-status');
+  const supported = 'setHTMLUnsafe' in Element.prototype;
+  const update = () => {
+    const mode = $('[name="d6-mode"]:checked').value;
+    mount.replaceChildren();
+    if (mode === 'unsafe' && supported) {
+      mount.setHTMLUnsafe(ta.value);
+    } else {
+      mount.innerHTML = ta.value;
+    }
+    const roots = [...mount.querySelectorAll('*')].filter((el) => el.shadowRoot).length;
+    const templates = mount.querySelectorAll('template').length;
+    if (mode === 'unsafe' && !supported) {
+      status.textContent = 'This browser does not support setHTMLUnsafe(), so innerHTML was used instead.';
+    } else {
+      status.textContent = `Shadow roots attached: ${roots}. Inert <template> elements left in the page: ${templates}.`;
+    }
+  };
+  ta.addEventListener('input', update);
+  for (const radio of document.querySelectorAll('[name="d6-mode"]')) {
+    radio.addEventListener('change', update);
+  }
+  update();
+}
+</script>
+</body>
+</html>
