@@ -1,3 +1,3 @@
 View Blender .blend files directly in your browser by pasting a URL to a CORS-accessible file or GitHub repository link. The viewer renders mesh geometry, curves, and text with materials, lighting, and optional saved camera positions from Blender 5.x files, providing interactive orbit controls, wireframe mode, and model fitting capabilities.
 
-<!-- Generated from commit: 78f27bb3c168abaebf1ba3bb5fe4909d6ab7b77b -->
+<!-- Generated from commit: d27cc3d1f6cc6ac9cd3510b75b1b34116d1db5df -->
