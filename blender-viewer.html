@@ -590,6 +590,131 @@ async function textGeometry(curve) {
   return g;
 }
 
+// jsblender exposes Object.data but not collection instances. Expand those
+// references before rendering, using the file's SDNA rather than fixed offsets.
+function expandCollectionInstances(blend, objects) {
+  const r = blend.reader;
+  const field = (type, name) => blend.sdna.structIndexByType.has(type)
+    ? r.layoutOf(type).fieldByName.get(name) : undefined;
+  const number = (type, base, name) => {
+    const f = field(type, name);
+    return f ? Number(r.readPrimitive(f.typeName, base + f.offset)) : 0;
+  };
+  const pointer = (type, base, name) => {
+    const f = field(type, name);
+    return f ? r.followPointer(base + f.offset, base)?.dataOffset : undefined;
+  };
+  const list = (type, base, name, itemType) => {
+    const f = field(type, name);
+    const out = [], seen = new Set();
+    let item = f ? pointer("ListBase", base + f.offset, "first") : undefined;
+    while (item !== undefined && !seen.has(item)) {
+      seen.add(item);
+      out.push(item);
+      item = pointer(itemType, item, "next");
+    }
+    return out;
+  };
+  const objectAt = new Map();
+  // extractObjects returns one record per OB block, in file order. Match by
+  // position because its shortened ID names can collide for long object names.
+  for (const [index, block] of blend.blocks.filter(b => b.code === "OB").entries()) {
+    const base = block.dataOffset;
+    const object = objects[index];
+    if (!object) continue;
+    const instanceField = field("Object", "instance_collection") ? "instance_collection" : "dup_group";
+    const visibilityField = field("Object", "visibility_flag") ? "visibility_flag" : "restrictflag";
+    objectAt.set(base, {
+      object,
+      hidden: Boolean(number("Object", base, visibilityField) & 1),
+      // OB_DUPLICOLLECTION: a saved collection pointer alone does not enable instancing.
+      instance: number("Object", base, "transflag") & 256 ? pointer("Object", base, instanceField) : undefined
+    });
+  }
+
+  const collections = new Map();
+  const collectionAt = base => {
+    if (!collections.has(base)) {
+      const offsetField = field("Collection", "instance_offset") || field("Collection", "dupli_ofs");
+      collections.set(base, {
+        hidden: Boolean(number("Collection", base, "flag") & 1),
+        offset: offsetField ? Array.from(r.readFloatArray(base + offsetField.offset, 3)) : [0, 0, 0],
+        objects: list("Collection", base, "gobject", "CollectionObject")
+          .map(item => pointer("CollectionObject", item, "ob")).filter(o => o !== undefined),
+        children: list("Collection", base, "children", "CollectionChild")
+          .map(item => pointer("CollectionChild", item, "collection")).filter(c => c !== undefined)
+      });
+    }
+    return collections.get(base);
+  };
+  // An object can belong to several child collections. Draw it once per instance.
+  const members = root => {
+    const result = new Set(), seen = new Set();
+    const walk = base => {
+      if (seen.has(base)) return;
+      seen.add(base);
+      const collection = collectionAt(base);
+      if (collection.hidden) return;
+      collection.objects.forEach(o => result.add(o));
+      collection.children.forEach(walk);
+    };
+    walk(root);
+    return result;
+  };
+
+  // Direct display follows the first scene/view layer, like the saved camera.
+  // Layer exclusions hide template originals without hiding their instances.
+  const visible = new Set(), hiddenBases = new Set();
+  const sceneBlock = blend.blocks.find(b => b.code === "SC");
+  const viewLayer = sceneBlock ? list("Scene", sceneBlock.dataOffset, "view_layers", "ViewLayer")[0] : undefined;
+  const layers = viewLayer !== undefined ? list("ViewLayer", viewLayer, "layer_collections", "LayerCollection") : [];
+  if (layers.length) {
+    const seen = new Set();
+    const walk = base => {
+      if (seen.has(base)) return;
+      seen.add(base);
+      // LAYER_COLLECTION_EXCLUDE and LAYER_COLLECTION_HIDE.
+      if (number("LayerCollection", base, "flag") & (16 | 128)) return;
+      const collection = pointer("LayerCollection", base, "collection");
+      if (collection !== undefined) {
+        const data = collectionAt(collection);
+        if (data.hidden) return;
+        data.objects.forEach(o => visible.add(o));
+      }
+      list("LayerCollection", base, "layer_collections", "LayerCollection").forEach(walk);
+    };
+    layers.forEach(walk);
+    for (const base of list("ViewLayer", viewLayer, "object_bases", "Base")) {
+      if (number("Base", base, "flag") & 256) hiddenBases.add(pointer("Base", base, "object"));
+    }
+  } else {
+    const root = sceneBlock ? pointer("Scene", sceneBlock.dataOffset, "master_collection") : undefined;
+    if (root !== undefined) members(root).forEach(o => visible.add(o));
+    else if (!sceneBlock) objectAt.forEach((_, base) => visible.add(base));
+  }
+
+  const expanded = [];
+  const emit = (base, transform, path, ancestors) => {
+    const info = objectAt.get(base);
+    if (!info || info.hidden) return;
+    const object = info.object;
+    const world = new THREE.Matrix4().fromArray(object.worldMatrix);
+    if (transform) world.premultiply(transform);
+    expanded.push({ ...object, name: path + object.name, worldMatrix: world.toArray() });
+    if (info.instance === undefined || ancestors.has(info.instance)) return;
+    const collection = collectionAt(info.instance);
+    const instanceWorld = world.clone().multiply(new THREE.Matrix4().makeTranslation(...collection.offset.map(v => -v)));
+    const next = new Set(ancestors).add(info.instance);
+    for (const member of members(info.instance)) {
+      emit(member, instanceWorld, path + object.name + "/", next);
+    }
+  };
+  for (const base of visible) {
+    if (!hiddenBases.has(base)) emit(base, null, "", new Set());
+  }
+  return expanded;
+}
+
 function applyBlenderWorldMatrix(obj3d, worldMatrix) {
   if (!worldMatrix || worldMatrix.length !== 16) return;
   // jsblender and Three.js store matrices in column-major order.
@@ -710,6 +835,7 @@ async function loadBlend(rawURL) {
     const blend = parseBlend(bytes);
     const meshes = extractMeshes(blend);
     const objects = extractObjects(blend);
+    const renderObjects = expandCollectionInstances(blend, objects);
     const materials = extractMaterials(blend);
     const curves = extractCurves(blend);
     readProceduralSettings(blend, materials);
@@ -724,15 +850,21 @@ async function loadBlend(rawURL) {
     let vertices = 0;
     const usedMeshNames = new Set();
 
-    // Prefer object instances so Blender transforms are preserved.
-    for (const obj of objects) {
+    const meshResources = new Map();
+    // Collection instances share geometry/materials but have their own transforms.
+    for (const obj of renderObjects) {
       if (!obj.dataName) continue;
       const bm = meshByName.get(obj.dataName);
       if (!bm || !bm.vertices?.length || !bm.triangles?.length) continue;
 
-      const geometry = geometryFromBlendMesh(bm);
-      const slotName = bm.materialSlotNames?.[0];
-      const material = makeMaterial(slotName ? materialByName.get(slotName) : null);
+      if (!meshResources.has(bm.name)) {
+        const slotName = bm.materialSlotNames?.[0];
+        meshResources.set(bm.name, {
+          geometry: geometryFromBlendMesh(bm),
+          material: makeMaterial(slotName ? materialByName.get(slotName) : null)
+        });
+      }
+      const { geometry, material } = meshResources.get(bm.name);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = obj.name || bm.name;
       applyBlenderWorldMatrix(mesh, obj.worldMatrix);
@@ -744,8 +876,9 @@ async function loadBlend(rawURL) {
       triangles += bm.triangles.length / 3;
     }
 
-    // Some files may have mesh datablocks that aren't represented by extractObjects().
-    for (const bm of meshes) {
+    // Only use raw datablocks for files with no objects. Otherwise this would
+    // resurrect excluded collection templates and hidden or unlinked geometry.
+    for (const bm of objects.length ? [] : meshes) {
       if (usedMeshNames.has(bm.name) || !bm.vertices?.length || !bm.triangles?.length) continue;
       const geometry = geometryFromBlendMesh(bm);
       const slotName = bm.materialSlotNames?.[0];
@@ -759,25 +892,31 @@ async function loadBlend(rawURL) {
     }
 
     let renderedCurves = 0, renderedText = 0, skippedCurves = 0;
-    for (const obj of objects) {
+    const curveGroups = new Map();
+    for (const obj of renderObjects) {
       if (![2, 4].includes(obj.type)) continue;
       const curve = curves.get(obj.dataName);
       if (!curve) { skippedCurves++; continue; }
-      const group = new THREE.Group();
-      group.name = obj.name;
-      if (obj.type === 4 && curve.text) {
-        try {
-          group.add(new THREE.Mesh(await textGeometry(curve), makeMaterial(materialByName.get(curve.materialNames[0]))));
-          renderedText++;
-        } catch (error) { console.warn("Text unavailable", obj.name, error); }
-      } else if (!curve.customProfile) {
-        for (const spline of curve.splines) {
-          const geometry = curveGeometry(curve, spline);
-          if (geometry) group.add(new THREE.Mesh(geometry, makeMaterial(materialByName.get(curve.materialNames[spline.material]))));
+      let template = curveGroups.get(obj.dataName);
+      if (!template) {
+        template = new THREE.Group();
+        if (obj.type === 4 && curve.text) {
+          try {
+            template.add(new THREE.Mesh(await textGeometry(curve), makeMaterial(materialByName.get(curve.materialNames[0]))));
+          } catch (error) { console.warn("Text unavailable", obj.name, error); }
+        } else if (!curve.customProfile) {
+          for (const spline of curve.splines) {
+            const geometry = curveGeometry(curve, spline);
+            if (geometry) template.add(new THREE.Mesh(geometry, makeMaterial(materialByName.get(curve.materialNames[spline.material]))));
+          }
         }
-        if (group.children.length) renderedCurves++;
+        curveGroups.set(obj.dataName, template);
       }
-      if (!group.children.length) { skippedCurves++; continue; }
+      if (!template.children.length) { skippedCurves++; continue; }
+      const group = template.clone();
+      group.name = obj.name;
+      if (obj.type === 4 && curve.text) renderedText++;
+      else renderedCurves++;
       applyBlenderWorldMatrix(group, obj.worldMatrix);
       group.traverse(child => {
         if (!child.geometry) return;
