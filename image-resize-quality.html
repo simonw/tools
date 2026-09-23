@@ -252,6 +252,9 @@
         tab.setAttribute('role', 'tab');
         tab.setAttribute('aria-selected', String(key === activeFormat));
         tab.textContent = format.label;
+        if (key === 'webp' && !nativeWebpSupported) {
+          tab.title = 'This browser cannot encode WebP itself, so the @jsquash/webp encoder is loaded from jsdelivr on first use.';
+        }
         tab.addEventListener('click', () => {
           if (activeFormat === key) return;
           const scrollState = captureScrollState();
@@ -269,10 +272,44 @@
       });
     }
 
+    /* ---------- WebP encoding ----------
+       Chrome and Firefox encode WebP natively from a canvas, but Safari
+       (desktop and iOS) silently returns a PNG when asked for image/webp.
+       Feature-detect that once, and only when native encoding is missing
+       load the @jsquash/webp wasm encoder (Squoosh's libwebp) from jsdelivr
+       the first time a WebP is actually requested. */
+    const JSQUASH_WEBP_ENCODE_URL = 'https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/encode.js/+esm';
+    let nativeWebpSupported = false;
+    let jsquashWebpPromise = null;
+
+    function loadJsquashWebpEncoder() {
+      if (!jsquashWebpPromise) {
+        // Call init() explicitly: encode() would otherwise cache a failed wasm
+        // load for the lifetime of the page, so a flaky connection could never
+        // be retried.
+        jsquashWebpPromise = import(JSQUASH_WEBP_ENCODE_URL).then(async mod => {
+          await mod.init();
+          return mod.default;
+        });
+        jsquashWebpPromise.catch(() => { jsquashWebpPromise = null; });
+      }
+      return jsquashWebpPromise;
+    }
+
+    function wasmWebpFallbackAvailable() {
+      return typeof WebAssembly !== 'undefined' && typeof WebAssembly.instantiate === 'function';
+    }
+
     function detectSupportedOutputFormats() {
       return Promise.all(
         Object.entries(OUTPUT_FORMATS).map(([key, format]) => {
-          return canExportMime(format.mime).then(isSupported => isSupported ? key : null);
+          return canExportMime(format.mime).then(isSupported => {
+            if (key === 'webp') {
+              nativeWebpSupported = isSupported;
+              return isSupported || wasmWebpFallbackAvailable() ? key : null;
+            }
+            return isSupported ? key : null;
+          });
         })
       ).then(keys => keys.filter(Boolean));
     }
@@ -751,6 +788,21 @@
     }
 
     function createOutputBlob(canvas, format, quality, callback) {
+      if (format.mime === 'image/webp' && !nativeWebpSupported) {
+        // Copy the pixels now: the caller reuses this canvas for the next
+        // quality level before the async encoder runs.
+        const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+        const webpQuality = Math.round(clamp(0, quality === null ? 0.75 : quality, 1) * 100);
+        loadJsquashWebpEncoder()
+          .then(encode => encode(imageData, { quality: webpQuality }))
+          .then(buffer => callback(new Blob([buffer], { type: 'image/webp' })))
+          .catch(err => {
+            console.error('WebP encoding failed', err);
+            callback(null);
+          });
+        return;
+      }
+
       if (!canvas.toBlob) {
         callback(null);
         return;

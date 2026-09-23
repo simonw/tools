@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="utf-8">
     <title>Social Media Card Cropper</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <style>
@@ -71,6 +72,10 @@
             font-weight: 500;
             border: none;
             cursor: pointer;
+        }
+        .download-btn.pending {
+            opacity: 0.6;
+            pointer-events: none;
         }
         .download-btn:hover {
             background: #0052a3;
@@ -268,6 +273,23 @@
                         <button id="resetBtn" class="control-btn">Reset Image</button>
                     </div>
                 </div>
+
+                <div class="option-group">
+                    <label>Output format:</label>
+                    <div class="aspect-controls">
+                        <label style="margin-right: 10px; display: block; margin-top: 8px;">
+                            <input type="radio" name="outputFormat" value="jpeg" checked> JPEG
+                        </label>
+                        <label style="display: block; margin-top: 8px;">
+                            <input type="radio" name="outputFormat" value="webp"> WebP
+                        </label>
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <label for="quality">Quality (0–100):</label>
+                        <input type="number" id="quality" min="0" max="100" step="1" value="90" style="width: 70px; margin-left: 6px;">
+                    </div>
+                    <div id="webpNote" class="help-text" hidden>This browser cannot encode WebP itself, so the @jsquash/webp encoder is loaded from jsdelivr the first time a WebP card is generated.</div>
+                </div>
             </div>
         </div>
         
@@ -335,6 +357,7 @@
         const preview = document.getElementById('preview');
         const previewContainer = document.getElementById('previewContainer');
         const downloadBtn = document.getElementById('downloadBtn');
+        const qualityInput = document.getElementById('quality');
 
         // --- Drag mode toggle ---
         // Cropper.js stacks .cropper-crop-box on top of .cropper-drag-box.
@@ -721,6 +744,139 @@
             }, { passive: true });
         }
 
+        // --- WebP encoding ---
+        // Chrome and Firefox encode WebP natively from a canvas, but Safari
+        // (desktop and iOS) silently returns a PNG when asked for image/webp.
+        // Feature-detect that once, and only when native encoding is missing
+        // load the @jsquash/webp wasm encoder (Squoosh's libwebp) from
+        // jsdelivr the first time a WebP is actually requested.
+        const JSQUASH_WEBP_ENCODE_URL = 'https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/encode.js/+esm';
+        const OUTPUT_FORMATS = {
+            jpeg: { mime: 'image/jpeg', extension: 'jpg', label: 'JPEG' },
+            webp: { mime: 'image/webp', extension: 'webp', label: 'WebP' },
+        };
+        let nativeWebpSupportPromise = null;
+        let jsquashWebpPromise = null;
+
+        function canvasSupportsWebp() {
+            if (!nativeWebpSupportPromise) {
+                nativeWebpSupportPromise = new Promise(resolve => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 1;
+                    canvas.height = 1;
+                    if (!canvas.toBlob) return resolve(false);
+                    try {
+                        canvas.toBlob(blob => resolve(Boolean(blob && blob.type === 'image/webp')), 'image/webp');
+                    } catch (err) {
+                        resolve(false);
+                    }
+                });
+            }
+            return nativeWebpSupportPromise;
+        }
+
+        function loadJsquashWebpEncoder() {
+            if (!jsquashWebpPromise) {
+                // Call init() explicitly: encode() would otherwise cache a failed
+                // wasm load for the lifetime of the page, so a flaky connection
+                // could never be retried.
+                jsquashWebpPromise = import(JSQUASH_WEBP_ENCODE_URL).then(async mod => {
+                    await mod.init();
+                    return mod.default;
+                });
+                jsquashWebpPromise.catch(() => { jsquashWebpPromise = null; });
+            }
+            return jsquashWebpPromise;
+        }
+
+        // Encode a canvas as a WebP Blob. `quality` is 0..1 as for canvas.toBlob.
+        async function canvasToWebpBlob(canvas, quality) {
+            if (await canvasSupportsWebp()) {
+                return new Promise((resolve, reject) => {
+                    canvas.toBlob(blob => {
+                        if (blob && blob.type === 'image/webp') resolve(blob);
+                        else reject(new Error('Browser could not encode WebP'));
+                    }, 'image/webp', quality);
+                });
+            }
+            const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+            const encode = await loadJsquashWebpEncoder();
+            const buffer = await encode(imageData, { quality: Math.round(quality * 100) });
+            return new Blob([buffer], { type: 'image/webp' });
+        }
+
+        function canvasToBlob(canvas, mime, quality) {
+            if (mime === 'image/webp') return canvasToWebpBlob(canvas, quality);
+            return new Promise((resolve, reject) => {
+                canvas.toBlob(blob => {
+                    if (blob && blob.type === mime) resolve(blob);
+                    else reject(new Error(`Browser could not encode ${mime}`));
+                }, mime, quality);
+            });
+        }
+
+        canvasSupportsWebp().then(supported => {
+            document.getElementById('webpNote').hidden = supported;
+        });
+
+        function selectedOutputFormat() {
+            const value = document.querySelector('input[name="outputFormat"]:checked').value;
+            return OUTPUT_FORMATS[value] || OUTPUT_FORMATS.jpeg;
+        }
+
+        document.querySelectorAll('input[name="outputFormat"]').forEach(radio => {
+            radio.addEventListener('change', updatePreview);
+        });
+
+        // Encoder quality as 0..1, from the 0-100 input. Applies to both JPEG
+        // and WebP; the preview re-renders live as the value is edited.
+        function selectedQuality() {
+            const value = parseInt(qualityInput.value, 10);
+            if (Number.isNaN(value)) return 0.9;
+            return Math.max(0, Math.min(100, value)) / 100;
+        }
+
+        qualityInput.addEventListener('input', updatePreview);
+        qualityInput.addEventListener('change', () => {
+            // Normalise out-of-range or blank values once editing finishes.
+            qualityInput.value = Math.round(selectedQuality() * 100);
+            updatePreview();
+        });
+
+        // The download file is encoded asynchronously (WebP in Safari goes
+        // through wasm), debounced so dragging the crop box does not queue up
+        // a full-size encode for every intermediate position.
+        let downloadGeneration = 0;
+        let downloadTimer = null;
+        let downloadUrl = null;
+
+        function scheduleDownloadEncode(canvas, format, quality, filename) {
+            const generation = ++downloadGeneration;
+            clearTimeout(downloadTimer);
+            downloadBtn.classList.add('pending');
+            downloadBtn.textContent = `Preparing ${format.label}…`;
+            downloadBtn.removeAttribute('href');
+            downloadBtn.removeAttribute('download');
+
+            downloadTimer = setTimeout(() => {
+                canvasToBlob(canvas, format.mime, quality).then(blob => {
+                    if (generation !== downloadGeneration) return;
+                    if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+                    downloadUrl = URL.createObjectURL(blob);
+                    preview.src = downloadUrl;
+                    downloadBtn.href = downloadUrl;
+                    downloadBtn.download = filename;
+                    downloadBtn.classList.remove('pending');
+                    downloadBtn.textContent = `Download Social Media Card (${format.label} q${Math.round(quality * 100)}, ${(blob.size / 1024).toFixed(0)} KB)`;
+                }, err => {
+                    if (generation !== downloadGeneration) return;
+                    console.error(`${format.label} encoding failed`, err);
+                    downloadBtn.classList.remove('pending');
+                    downloadBtn.textContent = `Could not create ${format.label}: ${err.message}`;
+                });
+            }, 150);
+        }
+
         function updatePreview() {
             if (!cropper) return;
 
@@ -765,15 +921,17 @@
 
             ctx.drawImage(croppedCanvas, x, y, scaledWidth, scaledHeight);
 
-            const previewUrl = canvas.toDataURL('image/jpeg', 0.9);
-            preview.src = previewUrl;
+            // Show a quick JPEG preview straight away; it is replaced by the
+            // actual encoded output once that is ready.
+            const quality = selectedQuality();
+            preview.src = canvas.toDataURL('image/jpeg', quality);
             previewContainer.classList.remove('hidden');
 
             const dimensionsInfo = document.getElementById('dimensionsInfo');
             dimensionsInfo.textContent = `Dimensions: ${canvas.width} × ${canvas.height} pixels`;
 
-            downloadBtn.href = previewUrl;
-            downloadBtn.download = `social-card-${aspectRatioValue.replace('.', '_')}.jpg`;
+            const format = selectedOutputFormat();
+            scheduleDownloadEncode(canvas, format, quality, `social-card-${aspectRatioValue.replace('.', '_')}.${format.extension}`);
         }
     </script>
 </body>
