@@ -1548,6 +1548,16 @@ const md = window.markdownit({
 const svgStore = new Map();
 const htmlStore = new Map();
 
+const defaultInlineCodeRenderer = md.renderer.rules.code_inline;
+md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
+  const token = tokens[idx];
+  const imageType = /^data:image\/(png|jpeg|gif|webp);base64,/i.exec(token.content);
+  if (token.markup === "`" && imageType) {
+    return `<img src="${escapeAttribute(token.content)}" alt="Embedded ${imageType[1].toUpperCase()} image">`;
+  }
+  return defaultInlineCodeRenderer(tokens, idx, options, env, self);
+};
+
 const defaultFenceRenderer = md.renderer.rules.fence;
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx];
