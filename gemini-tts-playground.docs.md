@@ -1,0 +1,3 @@
+Test and experiment with Google's Gemini 3.8 text-to-speech API through an interactive playground where you can compose single-voice narration or multi-speaker conversations, preview the generated audio, and explore request and response details. Save your compose settings to bookmarkable URLs for easy sharing, and generate high-quality speech synthesis powered by your Gemini API key.
+
+<!-- Generated from commit: 4bdde8eeb20afcb13584a9c8ea2676797be1aa5f -->
