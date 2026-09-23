@@ -129,6 +129,7 @@
       </div>
     </div>
     <div id="toolbar">
+      <button id="lights" title="Switch between the file's own lights and studio lighting" aria-pressed="true" hidden>Scene lights</button>
       <button id="fit" title="Fit model in view">Fit</button>
       <button id="wire" title="Toggle wireframe">Wireframe</button>
       <button id="reset" title="Reset viewer">Clear</button>
@@ -142,24 +143,30 @@ import { FontLoader } from "three/addons/loaders/FontLoader.js";
 import { NURBSCurve } from "three/addons/curves/NURBSCurve.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
 import {
   parseBlend,
   extractMeshes,
   extractObjects,
   extractMaterials,
   extractCameras,
-  extractScenes
+  extractScenes,
+  extractLights,
+  readMaterialShaderGraph,
+  readAttributeAsUint8
 } from "https://esm.sh/jsblender@0.0.4?bundle";
 
 const $ = (s) => document.querySelector(s);
 const urlInput = $("#url");
 const loadButton = $("#load");
+const lightsButton = $("#lights");
 const status = $("#status");
 const empty = $("#empty");
 const view = $("#view");
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x181818);
+const studioBackground = new THREE.Color(0x181818);
+scene.background = studioBackground;
 
 let camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100000);
 camera.up.set(0, 0, 1);
@@ -168,13 +175,87 @@ camera.position.set(4, -6, 4);
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.AgXToneMapping;
+renderer.toneMapping = THREE.NoToneMapping;
+RectAreaLightUniformsLib.init();
+
+// Scenes render into a linear HDR target, then a final pass applies the view
+// transform. Blender's AgX looks are grades in AgX's log space, which
+// Three.js's built-in tone mapping can't express.
+const hdrTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+const VIEW_TRANSFORMS = { "Standard": 0, "Raw": 0, "AgX": 1, "Filmic": 1, "Khronos PBR Neutral": 2 };
+// [contrast, saturation, power], from Blender's OCIO config.
+const AGX_LOOKS = {
+  "AgX - Very High Contrast": [1.57, 0.9, 1],
+  "AgX - High Contrast": [1.4, 0.95, 1],
+  "AgX - Medium High Contrast": [1.2, 1, 1],
+  "AgX - Medium Low Contrast": [0.9, 1.05, 1],
+  "AgX - Low Contrast": [0.8, 1.1, 1],
+  "AgX - Very Low Contrast": [0.7, 1.15, 1],
+  "AgX - Punchy": [1, 1.4, 1.0912],
+  "AgX - Greyscale": [1, 0, 1]
+};
+const viewTransform = new THREE.ShaderMaterial({
+  uniforms: {
+    image: { value: hdrTarget.texture },
+    exposure: { value: 1 },
+    transform: { value: 1 },
+    look: { value: new THREE.Vector3(1, 1, 1) }
+  },
+  vertexShader: "varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
+  fragmentShader: `
+    uniform sampler2D image;
+    uniform float exposure;
+    uniform int transform;
+    uniform vec3 look;
+    varying vec2 vUv;
+    const mat3 REC2020_TO_SRGB = mat3(vec3(1.6605, -0.1246, -0.0182), vec3(-0.5876, 1.1329, -0.1006), vec3(-0.0728, -0.0083, 1.1187));
+    const mat3 SRGB_TO_REC2020 = mat3(vec3(0.6274, 0.0691, 0.0164), vec3(0.3293, 0.9195, 0.0880), vec3(0.0433, 0.0113, 0.8956));
+    const mat3 AGX_INSET = mat3(
+      vec3(0.856627153315983, 0.137318972929847, 0.11189821299995),
+      vec3(0.0951212405381588, 0.761241990602591, 0.0767994186031903),
+      vec3(0.0482516061458583, 0.101439036467562, 0.811302368396859));
+    const mat3 AGX_OUTSET = mat3(
+      vec3(1.1271005818144368, -0.1413297634984383, -0.14132976349843826),
+      vec3(-0.11060664309660323, 1.157823702216272, -0.11060664309660294),
+      vec3(-0.016493938717834573, -0.016493938717834257, 1.2519364065950405));
+    // Three.js's AgX (after Blender's), with the look applied to the log encoding.
+    vec3 agx(vec3 color) {
+      color = AGX_INSET * (SRGB_TO_REC2020 * color);
+      color = clamp((log2(max(color, 1e-10)) + 12.47393) / 16.499999, 0.0, 1.0);
+      color = pow(color, vec3(look.z));
+      color = (color - 0.4) * look.x + 0.4;
+      color = clamp(mix(vec3(dot(color, vec3(0.2126, 0.7152, 0.0722))), color, look.y), 0.0, 1.0);
+      vec3 x2 = color * color, x4 = x2 * x2;
+      color = 15.5 * x4 * x2 - 40.14 * x4 * color + 31.96 * x4 - 6.868 * x2 * color + 0.4298 * x2 + 0.1191 * color - 0.00232;
+      color = pow(max(AGX_OUTSET * color, 0.0), vec3(2.2));
+      return REC2020_TO_SRGB * color;
+    }
+    vec3 neutral(vec3 color) {
+      float x = min(color.r, min(color.g, color.b));
+      color -= x < 0.08 ? x - 6.25 * x * x : 0.04;
+      float peak = max(color.r, max(color.g, color.b));
+      if (peak < 0.76) return color;
+      float newPeak = 1.0 - 0.0576 / (peak - 0.52);
+      color *= newPeak / peak;
+      return mix(color, vec3(newPeak), 1.0 - 1.0 / (0.15 * (peak - newPeak) + 1.0));
+    }
+    void main() {
+      vec3 color = texture2D(image, vUv).rgb * exposure;
+      color = clamp(transform == 1 ? agx(color) : transform == 2 ? neutral(color) : color, 0.0, 1.0);
+      gl_FragColor = vec4(mix(color * 12.92, 1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, color)), 1.0);
+    }`,
+  depthTest: false,
+  depthWrite: false
+});
+const viewQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), viewTransform);
+viewQuad.frustumCulled = false;
+const viewCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const pmrem = new THREE.PMREMGenerator(renderer);
 const studio = new RoomEnvironment();
-scene.environment = pmrem.fromScene(studio).texture;
+const studioEnvironment = pmrem.fromScene(studio).texture;
+scene.environment = studioEnvironment;
 scene.environmentIntensity = 0.6;
 studio.dispose();
-pmrem.dispose();
 view.prepend(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -182,10 +263,19 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.screenSpacePanning = true;
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x333344, 2.2));
+// The viewer's own lighting, used when a file has no lights of its own.
+const studioLights = new THREE.Group();
+studioLights.add(new THREE.HemisphereLight(0xffffff, 0x333344, 2.2));
 const key = new THREE.DirectionalLight(0xffffff, 2.4);
 key.position.set(4, -5, 8);
-scene.add(key);
+studioLights.add(key);
+scene.add(studioLights);
+
+// Lights, world and view transform saved in the .blend file.
+const fileLights = new THREE.Group();
+scene.add(fileLights);
+let fileLook = null;
+let useFileLighting = true;
 
 const grid = new THREE.GridHelper(20, 20, 0x666666, 0x333333);
 grid.rotation.x = Math.PI / 2; // XY plane, because Blender uses Z-up
@@ -198,6 +288,22 @@ scene.add(modelRoot);
 
 let wireframe = false;
 let loading = false;
+
+function applyLighting() {
+  const file = Boolean(useFileLighting && fileLook);
+  studioLights.visible = !file;
+  fileLights.visible = file;
+  grid.visible = !file;
+  scene.background = file ? fileLook.background : studioBackground;
+  scene.environment = file ? fileLook.environment : studioEnvironment;
+  scene.environmentIntensity = file ? fileLook.environmentIntensity : 0.6;
+  viewTransform.uniforms.transform.value = file ? fileLook.transform : 1;
+  viewTransform.uniforms.look.value.fromArray(file ? fileLook.look : [1, 1, 1]);
+  viewTransform.uniforms.exposure.value = file ? fileLook.exposure : 1;
+  lightsButton.hidden = !fileLook;
+  lightsButton.textContent = file ? "Scene lights" : "Studio lights";
+  lightsButton.setAttribute("aria-pressed", String(file));
+}
 
 function setStatus(text) {
   status.textContent = text;
@@ -240,129 +346,1054 @@ function clearModel() {
       else child.material?.dispose?.();
     });
   }
+  fileLights.clear();
+  fileLook?.environmentTarget?.dispose();
+  fileLook = null;
+  applyLighting();
   empty.style.display = "";
   setStatus("Ready.");
 }
 
-// Extra node storage not surfaced by jsblender's socket graph.
-function readProceduralSettings(blend, materials) {
+// jsblender exposes node sockets but not node settings (math operation, blend
+// mode, ramp stops...). Read those from the file's SDNA and attach them.
+function readNodeSettings(blend, materials) {
   const r = blend.reader;
+  const layout = type => blend.sdna.structIndexByType.has(type) ? r.layoutOf(type) : null;
   const offset = (type, base, name) => base + r.layoutOf(type).fieldByName.get(name).offset;
   const scalar = (type, base, name) => {
-    const f = r.layoutOf(type).fieldByName.get(name);
-    return Number(r.readPrimitive(f.typeName, base + f.offset));
+    const f = layout(type)?.fieldByName.get(name);
+    return f ? Number(r.readPrimitive(f.typeName, base + f.offset)) : 0;
   };
+  const storageFields = {
+    ShaderNodeMapRange: ["NodeMapRange", "data_type", "interpolation_type", "clamp"],
+    ShaderNodeMix: ["NodeShaderMix", "data_type", "factor_mode", "clamp_factor", "clamp_result", "blend_type"],
+    ShaderNodeTexNoise: ["NodeTexNoise", "dimensions", "type", "normalize"],
+    ShaderNodeTexWave: ["NodeTexWave", "wave_type", "bands_direction", "rings_direction", "wave_profile"],
+    ShaderNodeTexVoronoi: ["NodeTexVoronoi", "dimensions", "feature", "distance"],
+    ShaderNodeTexGradient: ["NodeTexGradient", "gradient_type"],
+    ShaderNodeSeparateColor: ["NodeCombSepColor", "mode"],
+    ShaderNodeCombineColor: ["NodeCombSepColor", "mode"]
+  };
+  const materialByName = new Map(materials.map(m => [m.name, m]));
   for (const block of blend.blocks.filter(b => b.code === "MA")) {
-    const name = r.readCString(offset("ID", block.dataOffset, "name"), 258).slice(2);
-    const mat = materials.find(m => m.name === name);
+    const mat = materialByName.get(r.readCString(offset("ID", block.dataOffset, "name"), 258).slice(2));
     if (!mat?.shader) continue;
     const tree = r.followPointer(offset("Material", block.dataOffset, "nodetree"), block.dataOffset);
     if (!tree) continue;
+    const parsedByName = new Map(mat.shader.nodes.map(n => [n.name, n]));
     let node = r.followPointer(offset("bNodeTree", tree.dataOffset, "nodes"), tree.dataOffset);
     const seen = new Set();
     while (node && !seen.has(node.dataOffset)) {
       seen.add(node.dataOffset);
       const o = node.dataOffset;
-      const nodeName = r.readCString(offset("bNode", o, "name"), 64);
-      const parsed = mat.shader.nodes.find(n => n.name === nodeName);
+      const parsed = parsedByName.get(r.readCString(offset("bNode", o, "name"), 64));
       const storage = r.followPointer(offset("bNode", o, "storage"), tree.dataOffset);
-      if (parsed?.idname === "ShaderNodeValToRGB" && storage) {
-        const count = Math.min(32, scalar("ColorBand", storage.dataOffset, "tot"));
-        parsed.ramp = Array.from({ length: count }, (_, i) => {
-          const c = offset("ColorBand", storage.dataOffset, "data") + i * r.layoutOf("CBData").size;
-          return { position: scalar("CBData", c, "pos"), color: ["r", "g", "b"].map(k => scalar("CBData", c, k)) };
-        }).sort((a, b) => a.position - b.position);
+      if (parsed) {
+        parsed.flag = scalar("bNode", o, "flag");
+        parsed.custom1 = scalar("bNode", o, "custom1");
+        parsed.custom2 = scalar("bNode", o, "custom2");
+        const spec = storageFields[parsed.idname];
+        if (storage && spec && layout(spec[0])) {
+          parsed.settings = Object.fromEntries(spec.slice(1).map(k => [k, scalar(spec[0], storage.dataOffset, k)]));
+        }
+        if (storage && parsed.idname === "ShaderNodeValToRGB") {
+          parsed.interpolation = scalar("ColorBand", storage.dataOffset, "ipotype");
+          const count = Math.min(32, scalar("ColorBand", storage.dataOffset, "tot"));
+          parsed.ramp = Array.from({ length: count }, (_, i) => {
+            const c = offset("ColorBand", storage.dataOffset, "data") + i * r.layoutOf("CBData").size;
+            return { position: scalar("CBData", c, "pos"), color: ["r", "g", "b"].map(k => scalar("CBData", c, k)), alpha: scalar("CBData", c, "a") };
+          }).sort((a, b) => a.position - b.position);
+        }
       }
-      if (parsed?.idname === "ShaderNodeTexVoronoi" && storage) parsed.feature = scalar("NodeTexVoronoi", storage.dataOffset, "feature");
       node = r.followPointer(offset("bNode", o, "next"), tree.dataOffset);
     }
   }
 }
 
-const proceduralGLSL = `
-float blendHash(vec3 p) { return fract(sin(dot(p, vec3(127.1,311.7,74.7))) * 43758.5453); }
-vec3 blendHash3(vec3 p) { return vec3(blendHash(p), blendHash(p+19.1), blendHash(p+47.7)); }
-float blendNoise(vec3 p) {
-  vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
-  return mix(mix(mix(blendHash(i),blendHash(i+vec3(1,0,0)),f.x),mix(blendHash(i+vec3(0,1,0)),blendHash(i+vec3(1,1,0)),f.x),f.y),
-    mix(mix(blendHash(i+vec3(0,0,1)),blendHash(i+vec3(1,0,1)),f.x),mix(blendHash(i+vec3(0,1,1)),blendHash(i+vec3(1,1,1)),f.x),f.y),f.z);
-}
-float blendFBM(vec3 p, float detail, float roughness, float lacunarity) {
-  float sum=0.0, weight=1.0, total=0.0;
-  for(int i=0;i<9;i++) { if(float(i)>detail) break; sum+=weight*blendNoise(p); total+=weight; weight*=roughness; p*=lacunarity; }
-  return sum/max(total,0.0001);
-}
-vec3 blendNoiseColor(vec3 p,float d,float r,float l) { return vec3(blendFBM(p,d,r,l),blendFBM(p+19.1,d,r,l),blendFBM(p+47.7,d,r,l)); }
-float blendVoronoi(vec3 p, float edge, float randomness) {
-  vec3 cell=floor(p), local=fract(p), nearest=vec3(0); float distance2=100.0;
-  for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) for(int z=-1;z<=1;z++) {
-    vec3 g=vec3(float(x),float(y),float(z)); vec3 v=g+blendHash3(cell+g)*randomness-local;
-    float d=dot(v,v); if(d<distance2) { distance2=d; nearest=v; }
+// The scene's world background and view transform.
+function readRenderSettings(blend) {
+  const r = blend.reader;
+  const field = (type, name) => blend.sdna.structIndexByType.has(type) ? r.layoutOf(type).fieldByName.get(name) : undefined;
+  const settings = { viewTransform: "AgX", look: "", exposure: 0, world: null };
+  const sceneBlock = blend.blocks.find(b => b.code === "SC");
+  if (!sceneBlock) return settings;
+  const base = sceneBlock.dataOffset;
+  const viewSettings = field("Scene", "view_settings");
+  if (viewSettings) {
+    const at = name => base + viewSettings.offset + field("ColorManagedViewSettings", name).offset;
+    settings.viewTransform = r.readCString(at("view_transform"), 64);
+    settings.look = r.readCString(at("look"), 64);
+    settings.exposure = r.readFloat32(at("exposure"));
   }
-  if(edge<0.5) return sqrt(distance2);
-  float result=100.0;
-  for(int x=-2;x<=2;x++) for(int y=-2;y<=2;y++) for(int z=-2;z<=2;z++) {
-    vec3 g=vec3(float(x),float(y),float(z)); vec3 v=g+blendHash3(cell+g)*randomness-local;
-    vec3 delta=v-nearest; if(dot(delta,delta)>0.00001) result=min(result,dot(0.5*(nearest+v),normalize(delta)));
+  const worldField = field("Scene", "world");
+  const world = worldField && r.followPointer(base + worldField.offset, base);
+  if (!world) return settings;
+  const w = world.dataOffset;
+  settings.world = { color: ["horr", "horg", "horb"].map(n => r.readFloat32(w + field("World", n).offset)), strength: 1, textured: false };
+  // readMaterialShaderGraph only knows Material's layout: shift the base so its
+  // nodetree read lands on World.nodetree instead.
+  const worldTree = field("World", "nodetree"), materialTree = field("Material", "nodetree");
+  const nodes = worldTree && materialTree
+    ? readMaterialShaderGraph(blend, w + worldTree.offset - materialTree.offset)?.nodes || [] : [];
+  const output = nodes.find(n => n.idname === "ShaderNodeOutputWorld");
+  const link = output?.inputs.find(s => s.name === "Surface")?.linkedFrom;
+  const background = link && nodes.find(n => n.name === link.nodeName);
+  if (background?.idname === "ShaderNodeBackground") {
+    const color = background.inputs.find(s => s.name === "Color");
+    const strength = background.inputs.find(s => s.name === "Strength");
+    if (typeof strength?.defaultValue === "number" && !strength.linkedFrom) settings.world.strength = strength.defaultValue;
+    if (color?.linkedFrom) settings.world.textured = true;
+    else if (color?.defaultValue) settings.world.color = Array.from(color.defaultValue).slice(0, 3);
+  } else if (link) {
+    settings.world.textured = true;
   }
-  return result;
-}`;
+  return settings;
+}
 
-function applyProceduralMaterial(material, blenderMat) {
-  const nodes = blenderMat.shader?.nodes || [];
-  const principled = nodes.find(n => n.name === blenderMat.shader?.principled?.nodeName);
-  if (!principled) return;
-  const socket = (node, name) => node?.inputs.find(s => s.name === name || s.identifier === name);
-  const num = x => Number.isFinite(Number(x)) ? Number(x).toFixed(8) : "0.0";
-  const value = (node, name, fallback) => num(socket(node, name)?.defaultValue ?? fallback);
-  const linked = s => nodes.find(n => n.name === s?.linkedFrom?.nodeName);
-  // Compile only the supported connected subgraph. Other materials keep their
-  // Principled fallback. Noise uses a WebGL approximation, not Cycles' kernel.
-  function expression(node, output = "Color", depth = 0) {
-    if (!node || depth > 12) return null;
-    const input = socket(node, "Vector");
-    const vector = input?.linkedFrom ? expression(linked(input), input.linkedFrom.socketName, depth + 1) : "vBlendGenerated";
-    if (node.idname === "ShaderNodeTexNoise" && vector) {
-      const p = `(${vector})*${value(node,"Scale",5)}`;
-      const args = `${p},${value(node,"Detail",2)},${value(node,"Roughness",0.5)},${value(node,"Lacunarity",2)}`;
-      return output === "Color" ? `blendNoiseColor(${args})` : `vec3(blendFBM(${args}))`;
-    }
-    if (node.idname === "ShaderNodeTexVoronoi" && vector && [0,3].includes(node.feature)) {
-      return `vec3(blendVoronoi((${vector})*${value(node,"Scale",5)},${node.feature === 3 ? "1.0" : "0.0"},${value(node,"Randomness",1)}))`;
-    }
-    if (node.idname === "ShaderNodeValToRGB" && node.ramp?.length) {
-      const fac = socket(node, "Fac");
-      const f = expression(linked(fac), fac?.linkedFrom?.socketName, depth + 1);
-      if (!f) return null;
-      const rgb = c => `vec3(${c.map(num).join(",")})`;
-      let result = rgb(node.ramp[0].color);
-      for (let i=1;i<node.ramp.length;i++) {
-        const a=node.ramp[i-1], b=node.ramp[i];
-        result = `mix(${result},${rgb(b.color)},clamp(((${f}).x-${num(a.position)})/${num(Math.max(0.000001,b.position-a.position))},0.0,1.0))`;
-      }
+// jsblender reads Lamp.energy, which Blender 4+ keeps only as a deprecated
+// copy; the current power is stored in energy_new.
+function readLightEnergies(blend) {
+  const r = blend.reader, energies = new Map();
+  if (!blend.sdna.structIndexByType.has("Lamp")) return energies;
+  const fields = r.layoutOf("Lamp").fieldByName;
+  const energy = fields.get("energy_new") ?? fields.get("energy");
+  const exposure = fields.get("exposure");
+  const name = r.layoutOf("ID").fieldByName.get("name");
+  for (const block of blend.blocks.filter(b => b.code === "LA")) {
+    const o = block.dataOffset;
+    energies.set(r.readCString(o + name.offset, name.size).slice(2),
+      r.readFloat32(o + energy.offset) * 2 ** (exposure ? r.readFloat32(o + exposure.offset) : 0));
+  }
+  return energies;
+}
+
+// Blender light units to Three.js: point and spot watts spread over 4π
+// steradians, area lights as radiance, suns as irradiance.
+function addFileLight(data, energy, worldMatrix) {
+  const position = new THREE.Vector3(), rotation = new THREE.Quaternion(), scale = new THREE.Vector3();
+  new THREE.Matrix4().fromArray(worldMatrix).decompose(position, rotation, scale);
+  const color = new THREE.Color(...data.color);
+  let light;
+  if (data.type === "sun") {
+    light = new THREE.DirectionalLight(color, energy);
+  } else if (data.type === "spot") {
+    light = new THREE.SpotLight(color, energy / (4 * Math.PI), 0, Math.min(data.spotSize ?? Math.PI / 4, Math.PI) / 2, data.spotBlend ?? 0.15, 2);
+  } else if (data.type === "area") {
+    const [sizeX, sizeY = sizeX] = data.areaSize ?? [1];
+    const round = data.areaShape === "disk" || data.areaShape === "ellipse";
+    const width = sizeX * scale.x;
+    const height = (data.areaShape === "rectangle" || data.areaShape === "ellipse" ? sizeY : sizeX) * scale.y;
+    const area = Math.max(round ? Math.PI * width * height / 4 : width * height, 1e-8);
+    // RectAreaLight is rectangular: give disks and ellipses the same emitting area.
+    const k = round ? Math.sqrt(Math.PI) / 2 : 1;
+    light = new THREE.RectAreaLight(color, energy / (Math.PI * area), width * k, height * k);
+  } else {
+    light = new THREE.PointLight(color, energy / (4 * Math.PI), 0, 2);
+  }
+  // Blender lights shine down their local -Z axis, as Three.js lights do.
+  light.name = data.name;
+  light.position.copy(position);
+  light.quaternion.copy(rotation);
+  if (light.target) {
+    light.target.position.copy(position).add(new THREE.Vector3(0, 0, -1).applyQuaternion(rotation));
+    fileLights.add(light.target);
+  }
+  fileLights.add(light);
+}
+
+function makeFileLook(settings) {
+  const world = settings.world;
+  const color = new THREE.Color(...(world?.color ?? [0, 0, 0])).multiplyScalar(world?.strength ?? 1);
+  const transform = VIEW_TRANSFORMS[settings.viewTransform] ?? 1;
+  const look = {
+    background: color,
+    environment: null,
+    environmentIntensity: 1,
+    transform,
+    look: transform === 1 ? AGX_LOOKS[settings.look] ?? [1, 1, 1] : [1, 1, 1],
+    exposure: 2 ** settings.exposure
+  };
+  if (world?.textured) {
+    // Image and sky worlds aren't evaluated: approximate them with the studio environment.
+    Object.assign(look, { background: studioBackground, environment: studioEnvironment, environmentIntensity: 0.6 * world.strength });
+  } else {
+    look.captureSurroundings = true;
+  }
+  return look;
+}
+
+// Reflections of the file's surroundings (backdrops, floors, the world):
+// render the lit scene from the model's centre, with the near plane clipping
+// away the model itself.
+function captureSurroundings() {
+  const box = modelBounds();
+  if (!fileLook?.captureSurroundings || box.isEmpty()) return;
+  const { center, radius } = box.getBoundingSphere(new THREE.Sphere());
+  const wasUsingFile = useFileLighting;
+  useFileLighting = true;
+  applyLighting();
+  // PMREM's own background box sits at the origin, so supply one around the probe.
+  const sky = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 500, 32, 16),
+    new THREE.MeshBasicMaterial({ color: fileLook.background, side: THREE.BackSide, depthWrite: false })
+  );
+  sky.position.copy(center);
+  sky.renderOrder = -Infinity;
+  scene.add(sky);
+  scene.background = null;
+  const target = pmrem.fromScene(scene, 0, radius, radius * 1000, { position: center });
+  scene.remove(sky);
+  sky.geometry.dispose();
+  sky.material.dispose();
+  fileLook.environmentTarget?.dispose();
+  Object.assign(fileLook, { environment: target.texture, environmentTarget: target });
+  useFileLighting = wasUsingFile;
+  applyLighting();
+}
+
+const glslNumber = x => {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return "0.0";
+  const s = String(parseFloat(n.toPrecision(8)));
+  return /[.e]/.test(s) ? s : s + ".0";
+};
+
+// Blender's Jenkins hash, as used by Cycles and EEVEE for texture offsets.
+const floatBits = (() => {
+  const f = new Float32Array(1), u = new Uint32Array(f.buffer);
+  return x => (f[0] = x, u[0]);
+})();
+function hashUint2(x, y) {
+  const rot = (v, k) => ((v << k) | (v >>> (32 - k))) >>> 0;
+  let a = (0xdeadbeef + 21 + x) >>> 0, b = (0xdeadbeef + 21 + y) >>> 0, c = (0xdeadbeef + 21) >>> 0;
+  c = ((c ^ b) - rot(b, 14)) >>> 0; a = ((a ^ c) - rot(c, 11)) >>> 0; b = ((b ^ a) - rot(a, 25)) >>> 0;
+  c = ((c ^ b) - rot(b, 16)) >>> 0; a = ((a ^ c) - rot(c, 4)) >>> 0; b = ((b ^ a) - rot(a, 14)) >>> 0;
+  return ((c ^ b) - rot(b, 24)) >>> 0;
+}
+const noiseOffset = seed => `vec3(${[0, 1, 2].map(i => glslNumber(100 + hashUint2(floatBits(seed), floatBits(i)) / 0xffffffff * 100)).join(", ")})`;
+
+// Ports of Blender's hash, Perlin noise and texture nodes, so procedural
+// materials reproduce the patterns Blender renders rather than lookalikes.
+const BLENDER_GLSL = `
+uint bRot(uint x, uint k) { return (x << k) | (x >> (32u - k)); }
+uint bFinal(uint a, uint b, uint c) {
+  c ^= b; c -= bRot(b, 14u); a ^= c; a -= bRot(c, 11u); b ^= a; b -= bRot(a, 25u);
+  c ^= b; c -= bRot(b, 16u); a ^= c; a -= bRot(c, 4u); b ^= a; b -= bRot(a, 14u);
+  c ^= b; c -= bRot(b, 24u);
+  return c;
+}
+uint bHash3(uint x, uint y, uint z) { uint s = 0xdeadbeefu + 25u; return bFinal(s + x, s + y, s + z); }
+uint bHash4(uint x, uint y, uint z, uint w) {
+  uint s = 0xdeadbeefu + 29u, a = s + x, b = s + y, c = s + z;
+  a -= c; a ^= bRot(c, 4u); c += b;
+  b -= a; b ^= bRot(a, 6u); a += c;
+  c -= b; c ^= bRot(b, 8u); b += a;
+  a -= c; a ^= bRot(c, 16u); c += b;
+  b -= a; b ^= bRot(a, 19u); a += c;
+  c -= b; c ^= bRot(b, 4u); b += a;
+  return bFinal(a + w, b, c);
+}
+vec3 bHashVec3(vec3 k) {
+  uvec3 u = floatBitsToUint(k);
+  return vec3(float(bHash3(u.x, u.y, u.z)), float(bHash4(u.x, u.y, u.z, 0x3f800000u)), float(bHash4(u.x, u.y, u.z, 0x40000000u))) / 4294967295.0;
+}
+float bFade(float t) { return t * t * t * (t * (t * 6.0 - 15.0) + 10.0); }
+float bGrad(uint h, vec3 f) {
+  h &= 15u;
+  float u = h < 8u ? f.x : f.y;
+  float v = h < 4u ? f.y : ((h == 12u || h == 14u) ? f.x : f.z);
+  return ((h & 1u) != 0u ? -u : u) + ((h & 2u) != 0u ? -v : v);
+}
+float bPerlin(vec3 p) {
+  vec3 cell = floor(p), f = p - cell;
+  uvec3 i = uvec3(ivec3(cell));
+  float u = bFade(f.x), v = bFade(f.y), w = bFade(f.z);
+  return mix(
+    mix(mix(bGrad(bHash3(i.x, i.y, i.z), f), bGrad(bHash3(i.x + 1u, i.y, i.z), f - vec3(1, 0, 0)), u),
+        mix(bGrad(bHash3(i.x, i.y + 1u, i.z), f - vec3(0, 1, 0)), bGrad(bHash3(i.x + 1u, i.y + 1u, i.z), f - vec3(1, 1, 0)), u), v),
+    mix(mix(bGrad(bHash3(i.x, i.y, i.z + 1u), f - vec3(0, 0, 1)), bGrad(bHash3(i.x + 1u, i.y, i.z + 1u), f - vec3(1, 0, 1)), u),
+        mix(bGrad(bHash3(i.x, i.y + 1u, i.z + 1u), f - vec3(0, 1, 1)), bGrad(bHash3(i.x + 1u, i.y + 1u, i.z + 1u), f - vec3(1, 1, 1)), u), v),
+    w);
+}
+float bSnoise(vec3 p) { return 0.982 * bPerlin(p); }
+float bFBM(vec3 p, float detail, float roughness, float lacunarity, bool normalize) {
+  detail = clamp(detail, 0.0, 15.0);
+  roughness = max(roughness, 0.0);
+  float scale = 1.0, amp = 1.0, maxamp = 0.0, sum = 0.0;
+  int octaves = int(detail);
+  for (int i = 0; i <= 15; i++) {
+    if (i > octaves) break;
+    sum += bSnoise(p * scale) * amp;
+    maxamp += amp;
+    amp *= roughness;
+    scale *= lacunarity;
+  }
+  float rmd = detail - floor(detail);
+  if (rmd != 0.0) {
+    float sum2 = sum + bSnoise(p * scale) * amp;
+    return normalize ? mix(0.5 * sum / maxamp + 0.5, 0.5 * sum2 / (maxamp + amp) + 0.5, rmd) : mix(sum, sum2, rmd);
+  }
+  return normalize ? 0.5 * sum / maxamp + 0.5 : sum;
+}
+const vec3 B_NOISE_OFFSET[5] = vec3[5](${[0, 1, 2, 3, 4].map(noiseOffset).join(", ")});
+vec3 bNoiseDistort(vec3 p, float distortion) {
+  if (distortion == 0.0) return p;
+  return p + vec3(bSnoise(p + B_NOISE_OFFSET[0]), bSnoise(p + B_NOISE_OFFSET[1]), bSnoise(p + B_NOISE_OFFSET[2])) * distortion;
+}
+float bNoiseFac(vec3 co, float scale, float detail, float roughness, float lacunarity, float distortion, bool normalize) {
+  return bFBM(bNoiseDistort(co * scale, distortion), detail, roughness, lacunarity, normalize);
+}
+vec3 bNoiseColor(vec3 co, float scale, float detail, float roughness, float lacunarity, float distortion, bool normalize) {
+  vec3 p = bNoiseDistort(co * scale, distortion);
+  return vec3(bFBM(p, detail, roughness, lacunarity, normalize),
+    bFBM(p + B_NOISE_OFFSET[3], detail, roughness, lacunarity, normalize),
+    bFBM(p + B_NOISE_OFFSET[4], detail, roughness, lacunarity, normalize));
+}
+float bVoronoiMetric(vec3 d, int metric, float exponent) {
+  d = abs(d);
+  if (metric == 1) return d.x + d.y + d.z;
+  if (metric == 2) return max(d.x, max(d.y, d.z));
+  if (metric == 3) return pow(pow(d.x, exponent) + pow(d.y, exponent) + pow(d.z, exponent), 1.0 / exponent);
+  return length(d);
+}
+void bVoronoiF1(vec3 coord, float randomness, int metric, float exponent, out float dist, out vec3 color, out vec3 position) {
+  vec3 cell = floor(coord), local = coord - cell, bestOffset = vec3(0.0), bestPoint = vec3(0.0);
+  dist = 1e30;
+  for (int k = -1; k <= 1; k++) for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec3 offset = vec3(float(i), float(j), float(k));
+    vec3 point = offset + bHashVec3(cell + offset) * randomness;
+    float d = bVoronoiMetric(point - local, metric, exponent);
+    if (d < dist) { dist = d; bestOffset = offset; bestPoint = point; }
+  }
+  color = bHashVec3(cell + bestOffset);
+  position = bestPoint + cell;
+}
+float bVoronoiEdge(vec3 coord, float randomness) {
+  vec3 cell = floor(coord), local = coord - cell, closest = vec3(0.0);
+  float best = 1e30;
+  for (int k = -1; k <= 1; k++) for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec3 offset = vec3(float(i), float(j), float(k));
+    vec3 toPoint = offset + bHashVec3(cell + offset) * randomness - local;
+    float d = dot(toPoint, toPoint);
+    if (d < best) { best = d; closest = toPoint; }
+  }
+  best = 1e30;
+  for (int k = -1; k <= 1; k++) for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec3 offset = vec3(float(i), float(j), float(k));
+    vec3 toPoint = offset + bHashVec3(cell + offset) * randomness - local;
+    vec3 perpendicular = toPoint - closest;
+    if (dot(perpendicular, perpendicular) > 0.0001) best = min(best, dot((closest + toPoint) * 0.5, normalize(perpendicular)));
+  }
+  return best;
+}
+float bWave(vec3 p, int type, int bands, int rings, int profile, float distortion, float detail, float detailScale, float detailRoughness, float phase) {
+  p = (p + 0.000001) * 0.999999;
+  float n;
+  if (type == 0) n = bands == 0 ? p.x * 20.0 : bands == 1 ? p.y * 20.0 : bands == 2 ? p.z * 20.0 : (p.x + p.y + p.z) * 10.0;
+  else n = length(rings == 0 ? p * vec3(0, 1, 1) : rings == 1 ? p * vec3(1, 0, 1) : rings == 2 ? p * vec3(1, 1, 0) : p) * 20.0;
+  n += phase;
+  if (distortion != 0.0) n += distortion * (bFBM(p * detailScale, detail, detailRoughness, 2.0, true) * 2.0 - 1.0);
+  if (profile == 0) return 0.5 + 0.5 * sin(n - 1.5707963);
+  n /= 6.2831853;
+  return profile == 1 ? n - floor(n) : abs(n - floor(n + 0.5)) * 2.0;
+}
+float bGradient(vec3 p, int type) {
+  if (type == 0) return p.x;
+  if (type == 1) { float r = max(p.x, 0.0); return r * r; }
+  if (type == 2) { float r = clamp(p.x, 0.0, 1.0); return r * r * (3.0 - 2.0 * r); }
+  if (type == 3) return (p.x + p.y) * 0.5;
+  if (type == 4) return atan(p.y, p.x) / 6.2831853 + 0.5;
+  float r = max(0.999999 - length(p), 0.0);
+  return type == 5 ? r * r : r;
+}
+float bChecker(vec3 p) {
+  ivec3 i = abs(ivec3(floor((p + 0.000001) * 0.999999)));
+  return ((i.x % 2 == i.y % 2) ? 1 : 0) == i.z % 2 ? 1.0 : 0.0;
+}
+float bSafeDiv(float a, float b) { return b != 0.0 ? a / b : 0.0; }
+vec3 bSafeDivide(vec3 a, vec3 b) { return vec3(bSafeDiv(a.x, b.x), bSafeDiv(a.y, b.y), bSafeDiv(a.z, b.z)); }
+float bMath(int op, float a, float b, float c) {
+  switch (op) {
+    case 0: return a + b;
+    case 1: return a - b;
+    case 2: return a * b;
+    case 3: return bSafeDiv(a, b);
+    case 4: return sin(a);
+    case 5: return cos(a);
+    case 6: return tan(a);
+    case 7: return asin(clamp(a, -1.0, 1.0));
+    case 8: return acos(clamp(a, -1.0, 1.0));
+    case 9: return atan(a);
+    case 10: if (a < 0.0) return b == floor(b) ? (mod(b, 2.0) == 0.0 ? 1.0 : -1.0) * pow(-a, b) : 0.0; return pow(a, b);
+    case 11: return (a <= 0.0 || b <= 0.0) ? 0.0 : bSafeDiv(log(a), log(b));
+    case 12: return min(a, b);
+    case 13: return max(a, b);
+    case 14: return floor(a + 0.5);
+    case 15: return a < b ? 1.0 : 0.0;
+    case 16: return a > b ? 1.0 : 0.0;
+    case 17: return b != 0.0 ? a - b * trunc(a / b) : 0.0;
+    case 18: return abs(a);
+    case 19: return atan(a, b);
+    case 20: return floor(a);
+    case 21: return ceil(a);
+    case 22: return a - floor(a);
+    case 23: return a > 0.0 ? sqrt(a) : 0.0;
+    case 24: return a > 0.0 ? inversesqrt(a) : 0.0;
+    case 25: return sign(a);
+    case 26: return exp(a);
+    case 27: return radians(a);
+    case 28: return degrees(a);
+    case 29: return sinh(a);
+    case 30: return cosh(a);
+    case 31: return tanh(a);
+    case 32: return trunc(a);
+    case 33: return floor(bSafeDiv(a, b)) * b;
+    case 34: { float range = b - c; return range != 0.0 ? a - range * floor((a - c) / range) : c; }
+    case 35: return abs(a - b) <= max(c, 1e-5) ? 1.0 : 0.0;
+    case 36: return a * b + c;
+    case 37: return b != 0.0 ? abs(fract((a - b) / (b * 2.0)) * b * 2.0 - b) : 0.0;
+    case 38: { float h = c != 0.0 ? max(c - abs(a - b), 0.0) / c : 0.0; return min(a, b) - h * h * h * c / 6.0; }
+    case 39: { float h = c != 0.0 ? max(c - abs(a - b), 0.0) / c : 0.0; return max(a, b) + h * h * h * c / 6.0; }
+    case 40: return b != 0.0 ? a - floor(a / b) * b : 0.0;
+  }
+  return 0.0;
+}
+vec4 bVectorMath(int op, vec3 a, vec3 b, vec3 c, float s) {
+  switch (op) {
+    case 0: return vec4(a + b, 0.0);
+    case 1: return vec4(a - b, 0.0);
+    case 2: return vec4(a * b, 0.0);
+    case 3: return vec4(bSafeDivide(a, b), 0.0);
+    case 4: return vec4(cross(a, b), 0.0);
+    case 5: { float l = dot(b, b); return vec4(l != 0.0 ? b * dot(a, b) / l : vec3(0.0), 0.0); }
+    case 6: return vec4(reflect(a, normalize(b)), 0.0);
+    case 7: return vec4(0.0, 0.0, 0.0, dot(a, b));
+    case 8: return vec4(0.0, 0.0, 0.0, distance(a, b));
+    case 9: return vec4(0.0, 0.0, 0.0, length(a));
+    case 10: return vec4(a * s, 0.0);
+    case 11: { float l = length(a); return vec4(l != 0.0 ? a / l : vec3(0.0), 0.0); }
+    case 12: return vec4(floor(bSafeDivide(a, b)) * b, 0.0);
+    case 13: return vec4(floor(a), 0.0);
+    case 14: return vec4(ceil(a), 0.0);
+    case 15: return vec4(bMath(17, a.x, b.x, 0.0), bMath(17, a.y, b.y, 0.0), bMath(17, a.z, b.z, 0.0), 0.0);
+    case 16: return vec4(a - floor(a), 0.0);
+    case 17: return vec4(abs(a), 0.0);
+    case 18: return vec4(min(a, b), 0.0);
+    case 19: return vec4(max(a, b), 0.0);
+    case 20: return vec4(bMath(34, a.x, b.x, c.x), bMath(34, a.y, b.y, c.y), bMath(34, a.z, b.z, c.z), 0.0);
+    case 21: return vec4(sin(a), 0.0);
+    case 22: return vec4(cos(a), 0.0);
+    case 23: return vec4(tan(a), 0.0);
+    case 24: return vec4(refract(a, normalize(b), s), 0.0);
+    case 25: return vec4(dot(c, b) < 0.0 ? a : -a, 0.0);
+    case 26: return vec4(a * b + c, 0.0);
+  }
+  return vec4(0.0);
+}
+float bMapRange(float value, float fromMin, float fromMax, float toMin, float toMax, float steps, int interpolation, bool clampResult) {
+  if (fromMax == fromMin) return 0.0;
+  float f = (value - fromMin) / (fromMax - fromMin);
+  if (interpolation == 1) f = steps > 0.0 ? floor(f * (steps + 1.0)) / steps : 0.0;
+  else if (interpolation == 2) f = fromMin > fromMax ? 1.0 - smoothstep(fromMax, fromMin, value) : smoothstep(fromMin, fromMax, value);
+  else if (interpolation == 3) {
+    float t = fromMin > fromMax ? 1.0 - clamp((value - fromMax) / (fromMin - fromMax), 0.0, 1.0) : clamp(f, 0.0, 1.0);
+    f = fromMin > fromMax ? 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t) * ((1.0 - t) * ((1.0 - t) * 6.0 - 15.0) + 10.0) : t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+  }
+  float result = toMin + f * (toMax - toMin);
+  if (clampResult && interpolation < 2) result = toMax > toMin ? clamp(result, toMin, toMax) : clamp(result, toMax, toMin);
+  return result;
+}
+vec3 bBlend(int mode, float f, vec3 a, vec3 b) {
+  float fm = 1.0 - f;
+  switch (mode) {
+    case 1: return a + f * b;
+    case 2: return mix(a, a * b, f);
+    case 3: return a - f * b;
+    case 4: return vec3(1.0) - (vec3(fm) + f * (vec3(1.0) - b)) * (vec3(1.0) - a);
+    case 5: return fm * a + f * bSafeDivide(a, b);
+    case 6: return mix(a, abs(a - b), f);
+    case 7: return mix(a, min(a, b), f);
+    case 8: return mix(a, max(a, b), f);
+    case 9: return mix(a * (fm + 2.0 * f * b), vec3(1.0) - (vec3(fm) + 2.0 * f * (vec3(1.0) - b)) * (vec3(1.0) - a), step(0.5, a));
+    case 16: { vec3 screen = vec3(1.0) - (vec3(1.0) - b) * (vec3(1.0) - a); return fm * a + f * ((vec3(1.0) - a) * b * a + a * screen); }
+    case 17: return a + f * (2.0 * b - vec3(1.0));
+    case 18: return max(mix(a, a + b - 2.0 * a * b, f), 0.0);
+  }
+  return mix(a, b, f);
+}
+vec3 bShadingNormal() { return (gl_FrontFacing ? 1.0 : -1.0) * normalize(vBlendWorldNormal); }
+vec3 bIncoming() { return normalize(cameraPosition - vBlendWorld); }
+float bFresnel(float eta, vec3 n, vec3 i) {
+  float c = abs(dot(i, n)), g = eta * eta - 1.0 + c * c;
+  if (g <= 0.0) return 1.0;
+  g = sqrt(g);
+  float a = (g - c) / (g + c), b = (c * (g + c) - 1.0) / (c * (g - c) + 1.0);
+  return 0.5 * a * a * (1.0 + b * b);
+}
+float bLayerFacing(float blend, vec3 n, vec3 i) {
+  float f = abs(dot(i, n));
+  if (blend != 0.5) {
+    blend = clamp(blend, 0.0, 1.0 - 1e-5);
+    f = pow(f, blend < 0.5 ? 2.0 * blend : 0.5 / (1.0 - blend));
+  }
+  return 1.0 - f;
+}
+`;
+
+const BLEND_VARYINGS = "varying vec3 vBlendGenerated, vBlendObject, vBlendObjectNormal, vBlendWorld, vBlendWorldNormal, vBlendView;\nvarying vec2 vBlendUV;\n";
+const BLEND_VERTEX = "attribute vec3 blendGenerated;\nattribute vec2 blendUV;\n" + BLEND_VARYINGS;
+const BLEND_VERTEX_MAIN = `vBlendGenerated = blendGenerated; vBlendUV = blendUV; vBlendObject = position; vBlendObjectNormal = normal;
+vBlendWorld = (modelMatrix * vec4(position, 1.0)).xyz; vBlendWorldNormal = mat3(modelMatrix) * normal;
+vBlendView = (modelViewMatrix * vec4(position, 1.0)).xyz;`;
+
+// Compiles the parts of a node graph that feed a shader input into GLSL
+// statements. Unsupported nodes return null so callers can fall back to the
+// socket's own value. Values are {type: "float" | "vec3", v, color}.
+function createGraphCompiler(nodes) {
+  const byName = new Map(nodes.map(n => [n.name, n]));
+  const statements = [], memo = new Map(), active = new Set(), uses = new Set();
+  let serial = 0;
+  const c = {
+    statements, uses,
+    node: name => byName.get(name),
+    float: v => ({ type: "float", v }),
+    vector: (v, color = false) => ({ type: "vec3", v, color }),
+    toFloat: x => x.type === "float" ? x.v : x.color ? `dot(${x.v}, vec3(0.2126, 0.7152, 0.0722))` : `dot(${x.v}, vec3(1.0 / 3.0))`,
+    toVec: x => x.type === "vec3" ? x.v : `vec3(${x.v})`,
+    fresh: () => `bv${serial++}`,
+    declare(type, expr) {
+      const id = c.fresh();
+      statements.push(`${type} ${id} = ${expr};`);
+      return id;
+    },
+    socketOf: (node, key) => node.inputs.find(s => s.identifier === key) ?? node.inputs.find(s => s.name === key),
+    constant(d, color = Array.isArray(d)) {
+      if (typeof d === "number") return c.float(glslNumber(d));
+      if (typeof d === "boolean") return c.float(d ? "1.0" : "0.0");
+      if (Array.isArray(d) || ArrayBuffer.isView(d)) return c.vector(`vec3(${[0, 1, 2].map(i => glslNumber(d[i] ?? 0)).join(", ")})`, color);
+      return null;
+    },
+    isConstant: x => x?.type === "float" && /^-?[\d.]+(e[-+]?\d+)?$/.test(x.v),
+    value(node, key) {
+      const socket = typeof key === "string" ? c.socketOf(node, key) : key;
+      if (!socket) return null;
+      if (!socket.linkedFrom) return c.constant(socket.defaultValue);
+      const from = byName.get(socket.linkedFrom.nodeName);
+      return from ? c.output(from, socket.linkedFrom.socketName) : null;
+    },
+    output(node, socketName) {
+      const id = `${node.name}\u0000${socketName}`;
+      if (memo.has(id)) return memo.get(id);
+      if (active.has(node.name) || active.size > 64) return null;
+      active.add(node.name);
+      let result = null;
+      try { result = compileNode(node, socketName, c); } finally { active.delete(node.name); }
+      memo.set(id, result);
       return result;
     }
-    return null;
-  }
-  const base = socket(principled, "Base Color"), normal = linked(socket(principled, "Normal"));
-  const color = expression(linked(base), base?.linkedFrom?.socketName);
-  const heightSocket = normal?.idname === "ShaderNodeBump" ? socket(normal, "Height") : null;
-  const height = expression(linked(heightSocket), heightSocket?.linkedFrom?.socketName);
-  if (!color && !height) return;
-  material.onBeforeCompile = shader => {
-    shader.vertexShader = "attribute vec3 blendGenerated; varying vec3 vBlendGenerated;\n" + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvBlendGenerated = blendGenerated;");
-    shader.fragmentShader = "varying vec3 vBlendGenerated;\n" + proceduralGLSL + "\n" + shader.fragmentShader;
-    if (color) shader.fragmentShader = shader.fragmentShader.replace("#include <color_fragment>", `#include <color_fragment>\ndiffuseColor.rgb = ${color};`);
-    if (height) shader.fragmentShader = shader.fragmentShader.replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
-      float bh=(${height}).x*${value(normal,"Distance",0.1)};
-      vec3 bx=dFdx(-vViewPosition), by=dFdy(-vViewPosition);
-      vec3 br1=cross(by,normal), br2=cross(normal,bx);
-      float bd=dot(bx,br1);
-      vec3 bn=normalize(abs(bd)*normal-sign(bd)*(dFdx(bh)*br1+dFdy(bh)*br2));
-      normal=normalize(mix(normal,bn,${value(normal,"Strength",1)}));`);
   };
-  material.customProgramCacheKey = () => JSON.stringify([color, height, normal?.inputs]);
+  return c;
+}
+
+function compileNode(node, out, c) {
+  const value = key => c.value(node, key);
+  const F = key => { const x = value(key); return x && c.toFloat(x); };
+  const V = key => { const x = value(key); return x && c.toVec(x); };
+  const all = (...xs) => xs.every(Boolean);
+  const settings = node.settings ?? {};
+  // Texture nodes default to generated coordinates when Vector is unlinked.
+  const coords = () => {
+    const socket = c.socketOf(node, "Vector");
+    const p = socket?.linkedFrom ? V(socket) : "vBlendGenerated";
+    return p && settings.dimensions === 2 ? `vec3((${p}).xy, 0.0)` : p;
+  };
+  const colorOrFactor = f => out === "Color" ? c.vector(`vec3(${f})`, true) : c.float(f);
+  switch (node.idname) {
+    case "NodeReroute":
+      return value(node.inputs[0]);
+    case "ShaderNodeTexCoord":
+    case "ShaderNodeUVMap": {
+      const key = node.idname === "ShaderNodeUVMap" ? "UV" : out;
+      const map = { Generated: "vBlendGenerated", Object: "vBlendObject", UV: "vec3(vBlendUV, 0.0)", Normal: "normalize(vBlendObjectNormal)", Camera: "vBlendView" };
+      if (key === "UV") c.uses.add("uv");
+      return map[key] ? c.vector(map[key]) : null;
+    }
+    case "ShaderNodeNewGeometry": {
+      if (out === "Backfacing") return c.float("(gl_FrontFacing ? 0.0 : 1.0)");
+      const map = { Position: "vBlendWorld", Normal: "bShadingNormal()", "True Normal": "bShadingNormal()", Incoming: "bIncoming()" };
+      return map[out] ? c.vector(map[out]) : null;
+    }
+    case "ShaderNodeLightPath":
+      // Evaluate as seen by camera rays.
+      return c.float(out === "Is Camera Ray" ? "1.0" : "0.0");
+    case "ShaderNodeValue":
+    case "ShaderNodeRGB":
+      return c.constant(node.outputs[0]?.defaultValue, node.idname === "ShaderNodeRGB");
+    case "ShaderNodeSeparateXYZ": {
+      const v = V("Vector");
+      return v && ["X", "Y", "Z"].includes(out) ? c.float(`(${v}).${out.toLowerCase()}`) : null;
+    }
+    case "ShaderNodeCombineXYZ": {
+      const xs = ["X", "Y", "Z"].map(F);
+      return all(...xs) ? c.vector(`vec3(${xs.join(", ")})`) : null;
+    }
+    case "ShaderNodeSeparateColor":
+    case "ShaderNodeSeparateRGB": {
+      const channel = { Red: "r", R: "r", Green: "g", G: "g", Blue: "b", B: "b" }[out];
+      const v = V(node.idname === "ShaderNodeSeparateRGB" ? "Image" : "Color");
+      return v && channel && !settings.mode ? c.float(`(${v}).${channel}`) : null;
+    }
+    case "ShaderNodeCombineColor":
+    case "ShaderNodeCombineRGB": {
+      const xs = (node.idname === "ShaderNodeCombineRGB" ? ["R", "G", "B"] : ["Red", "Green", "Blue"]).map(F);
+      return all(...xs) && !settings.mode ? c.vector(`vec3(${xs.join(", ")})`, true) : null;
+    }
+    case "ShaderNodeRGBToBW": {
+      const v = V("Color");
+      return v && c.float(`dot(${v}, vec3(0.2126, 0.7152, 0.0722))`);
+    }
+    case "ShaderNodeInvert": {
+      const f = F("Fac"), v = V("Color");
+      return all(f, v) ? c.vector(c.declare("vec3", `mix(${v}, vec3(1.0) - ${v}, ${f})`), true) : null;
+    }
+    case "ShaderNodeGamma": {
+      const v = V("Color"), g = F("Gamma");
+      return all(v, g) ? c.vector(c.declare("vec3", `pow(max(${v}, vec3(0.0)), vec3(${g}))`), true) : null;
+    }
+    case "ShaderNodeBrightContrast": {
+      const v = V("Color"), b = F("Bright"), k = F("Contrast");
+      return all(v, b, k) ? c.vector(c.declare("vec3", `max((1.0 + ${k}) * ${v} + (${b} - ${k} * 0.5), vec3(0.0))`), true) : null;
+    }
+    case "ShaderNodeClamp": {
+      const x = F("Value"), lo = F("Min"), hi = F("Max");
+      if (!all(x, lo, hi)) return null;
+      return c.float(c.declare("float", node.custom1 === 1 ? `clamp(${x}, min(${lo}, ${hi}), max(${lo}, ${hi}))` : `min(max(${x}, ${lo}), ${hi})`));
+    }
+    case "ShaderNodeMath": {
+      const xs = ["Value", "Value_001", "Value_002"].map(F);
+      if (!all(...xs)) return null;
+      const expr = `bMath(${node.custom1 ?? 0}, ${xs.join(", ")})`;
+      return c.float(c.declare("float", node.custom2 & 1 ? `clamp(${expr}, 0.0, 1.0)` : expr));
+    }
+    case "ShaderNodeVectorMath": {
+      const xs = ["Vector", "Vector_001", "Vector_002"].map(V), s = F("Scale");
+      if (!all(...xs, s)) return null;
+      const r = c.declare("vec4", `bVectorMath(${node.custom1 ?? 0}, ${xs.join(", ")}, ${s})`);
+      return out === "Value" ? c.float(`${r}.w`) : c.vector(`${r}.xyz`);
+    }
+    case "ShaderNodeMapRange": {
+      if ((settings.data_type ?? 10) !== 10) return null; // CD_PROP_FLOAT; vector ranges unsupported
+      const xs = ["Value", "From Min", "From Max", "To Min", "To Max", "Steps"].map(F);
+      if (!all(...xs)) return null;
+      return c.float(c.declare("float", `bMapRange(${xs.join(", ")}, ${settings.interpolation_type ?? 0}, ${settings.clamp ? "true" : "false"})`));
+    }
+    case "ShaderNodeMapping": {
+      const v = V("Vector"), location = V("Location"), scale = V("Scale"), rotation = c.socketOf(node, "Rotation");
+      if (!all(v, location, scale) || rotation?.linkedFrom) return null;
+      const [x = 0, y = 0, z = 0] = rotation?.defaultValue ?? [];
+      // Blender's XYZ Euler is Rz·Ry·Rx, which Three.js calls "ZYX".
+      const m = new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(x, y, z, "ZYX")));
+      const R = `mat3(${m.elements.map(glslNumber).join(", ")})`;
+      const type = node.custom1 ?? 0;
+      const expr = type === 1 ? `bSafeDivide(transpose(${R}) * (${v} - ${location}), ${scale})`
+        : type === 2 ? `${R} * (${v} * ${scale})`
+        : type === 3 ? `normalize(${R} * bSafeDivide(${v}, ${scale}))`
+        : `${R} * (${v} * ${scale}) + ${location}`;
+      return c.vector(c.declare("vec3", expr));
+    }
+    case "ShaderNodeMix": {
+      const type = settings.data_type ?? 2; // SOCK_FLOAT, SOCK_VECTOR, SOCK_RGBA
+      const suffix = ["Float", "Vector", "Color"][type];
+      if (!suffix) return null;
+      const perComponent = type === 1 && settings.factor_mode;
+      let f = perComponent ? V("Factor_Vector") : F("Factor_Float");
+      const read = type === 0 ? F : V;
+      const a = read(`A_${suffix}`), b = read(`B_${suffix}`);
+      if (!all(f, a, b)) return null;
+      if (settings.clamp_factor) f = `clamp(${f}, 0.0, 1.0)`;
+      if (type === 0) return c.float(c.declare("float", `mix(${a}, ${b}, ${f})`));
+      if (type === 1) return c.vector(c.declare("vec3", `mix(${a}, ${b}, ${f})`));
+      const blended = `bBlend(${settings.blend_type ?? 0}, ${f}, ${a}, ${b})`;
+      return c.vector(c.declare("vec3", settings.clamp_result ? `clamp(${blended}, 0.0, 1.0)` : blended), true);
+    }
+    case "ShaderNodeMixRGB": {
+      const f = F("Fac"), a = V("Color1"), b = V("Color2");
+      if (!all(f, a, b)) return null;
+      const blended = `bBlend(${node.custom1 ?? 0}, clamp(${f}, 0.0, 1.0), ${a}, ${b})`;
+      return c.vector(c.declare("vec3", node.custom2 & 2 ? `clamp(${blended}, 0.0, 1.0)` : blended), true);
+    }
+    case "ShaderNodeValToRGB": {
+      const f = F("Fac");
+      if (!f || !node.ramp?.length) return null;
+      const t = c.declare("float", f);
+      const stop = s => `vec4(${[...s.color, s.alpha ?? 1].map(glslNumber).join(", ")})`;
+      let result = stop(node.ramp[0]);
+      for (let i = 1; i < node.ramp.length; i++) {
+        const a = node.ramp[i - 1], b = node.ramp[i];
+        // COLBAND_INTERP_CONSTANT = 4, EASE = 1; B-spline and cardinal fall back to linear.
+        let w = node.interpolation === 4 ? `step(${glslNumber(b.position)}, ${t})`
+          : `clamp((${t} - ${glslNumber(a.position)}) / ${glslNumber(Math.max(1e-6, b.position - a.position))}, 0.0, 1.0)`;
+        if (node.interpolation === 1) w = `smoothstep(0.0, 1.0, ${w})`;
+        result = c.declare("vec4", `mix(${result}, ${stop(b)}, ${w})`);
+      }
+      return out === "Alpha" ? c.float(`(${result}).a`) : c.vector(`(${result}).rgb`, true);
+    }
+    case "ShaderNodeTexNoise": {
+      const p = coords(), xs = ["Scale", "Detail", "Roughness", "Lacunarity", "Distortion"].map(F);
+      if (!all(p, ...xs)) return null;
+      const args = `${p}, ${xs.join(", ")}, ${settings.normalize === 0 ? "false" : "true"}`;
+      return out === "Color" ? c.vector(c.declare("vec3", `bNoiseColor(${args})`), true) : c.float(c.declare("float", `bNoiseFac(${args})`));
+    }
+    case "ShaderNodeTexVoronoi": {
+      const p = coords(), scale = F("Scale"), randomness = F("Randomness"), exponent = F("Exponent") ?? "1.0";
+      if (!all(p, scale, randomness)) return null;
+      const co = `(${p}) * ${scale}`, rand = `clamp(${randomness}, 0.0, 1.0)`;
+      if (settings.feature === 3) return out === "Distance" ? c.float(c.declare("float", `bVoronoiEdge(${co}, ${rand})`)) : null;
+      // F1; other features are approximated by it.
+      const d = c.fresh(), color = c.fresh(), position = c.fresh();
+      c.statements.push(`float ${d}; vec3 ${color}, ${position}; bVoronoiF1(${co}, ${rand}, ${settings.distance ?? 0}, ${exponent}, ${d}, ${color}, ${position});`);
+      return { Distance: c.float(d), Color: c.vector(color, true), Position: c.vector(position) }[out] ?? null;
+    }
+    case "ShaderNodeTexWave": {
+      const p = coords(), xs = ["Scale", "Distortion", "Detail", "Detail Scale", "Detail Roughness", "Phase Offset"].map(F);
+      if (!all(p, ...xs)) return null;
+      const [scale, ...rest] = xs;
+      return colorOrFactor(c.declare("float", `bWave((${p}) * ${scale}, ${settings.wave_type ?? 0}, ${settings.bands_direction ?? 0}, ${settings.rings_direction ?? 0}, ${settings.wave_profile ?? 0}, ${rest.join(", ")})`));
+    }
+    case "ShaderNodeTexGradient": {
+      const p = coords();
+      return p && colorOrFactor(c.declare("float", `clamp(bGradient(${p}, ${settings.gradient_type ?? 0}), 0.0, 1.0)`));
+    }
+    case "ShaderNodeTexChecker": {
+      const p = coords(), a = V("Color1"), b = V("Color2"), scale = F("Scale");
+      if (!all(p, a, b, scale)) return null;
+      const f = c.declare("float", `bChecker((${p}) * ${scale})`);
+      return out === "Color" ? c.vector(c.declare("vec3", `mix(${b}, ${a}, ${f})`), true) : c.float(f);
+    }
+    case "ShaderNodeFresnel": {
+      const ior = F("IOR");
+      return ior && c.float(c.declare("float", `bFresnel(gl_FrontFacing ? max(${ior}, 1e-5) : 1.0 / max(${ior}, 1e-5), bShadingNormal(), bIncoming())`));
+    }
+    case "ShaderNodeLayerWeight": {
+      const blend = F("Blend");
+      if (!blend) return null;
+      if (out === "Facing") return c.float(c.declare("float", `bLayerFacing(${blend}, bShadingNormal(), bIncoming())`));
+      return c.float(c.declare("float", `bFresnel(gl_FrontFacing ? 1.0 / max(1.0 - ${blend}, 1e-5) : max(1.0 - ${blend}, 1e-5), bShadingNormal(), bIncoming())`));
+    }
+  }
+  return null;
+}
+
+const CLOSURES = (() => {
+  const diffuse = { kind: "bsdf", sockets: { color: "Color", normal: "Normal" }, fixed: { metallic: 0, roughness: 1, specular: 0 } };
+  const glossy = { kind: "bsdf", sockets: { color: "Color", roughness: "Roughness", normal: "Normal" }, fixed: { metallic: 1 } };
+  const glass = { kind: "glass", sockets: { color: "Color", roughness: "Roughness", ior: "IOR", normal: "Normal" } };
+  const transparent = { kind: "transparent", sockets: { color: "Color" } };
+  return {
+    ShaderNodeBsdfPrincipled: { kind: "bsdf", sockets: {
+      color: "Base Color", metallic: "Metallic", roughness: "Roughness", ior: "IOR", alpha: "Alpha", normal: "Normal",
+      emission: "Emission Color", strength: "Emission Strength", coat: "Coat Weight", coatRoughness: "Coat Roughness",
+      sheen: "Sheen Weight", sheenTint: "Sheen Tint", sheenRoughness: "Sheen Roughness", specular: "Specular IOR Level"
+    } },
+    ShaderNodeBsdfDiffuse: diffuse, ShaderNodeBsdfTranslucent: diffuse, ShaderNodeSubsurfaceScattering: diffuse,
+    ShaderNodeBsdfSheen: diffuse, ShaderNodeBsdfToon: diffuse, ShaderNodeBsdfHair: diffuse, ShaderNodeBsdfHairPrincipled: diffuse,
+    ShaderNodeBsdfGlossy: glossy, ShaderNodeBsdfAnisotropic: glossy,
+    ShaderNodeBsdfMetallic: { ...glossy, sockets: { ...glossy.sockets, color: "Base Color" } },
+    ShaderNodeEeveeSpecular: { kind: "bsdf", sockets: { color: "Base Color", roughness: "Roughness", normal: "Normal", emission: "Emissive Color" }, fixed: { metallic: 0 } },
+    ShaderNodeBsdfGlass: glass, ShaderNodeBsdfRefraction: glass,
+    ShaderNodeBsdfTransparent: transparent, ShaderNodeHoldout: transparent, ShaderNodeBsdfRayPortal: transparent,
+    ShaderNodeEmission: { kind: "emission", sockets: { emission: "Color", strength: "Strength" } }
+  };
+})();
+
+// Reduces a surface shader tree to the single closure a raster material can
+// show, keeping transparency mixes as coverage and added emission.
+function resolveClosure(node, c, depth = 0) {
+  if (!node || depth > 32) return null;
+  const linked = socket => socket?.linkedFrom ? c.node(socket.linkedFrom.nodeName) : null;
+  if (node.idname === "NodeReroute") return resolveClosure(linked(node.inputs[0]), c, depth + 1);
+  const spec = CLOSURES[node.idname];
+  if (spec) {
+    const constant = key => { const d = c.socketOf(node, key)?.defaultValue; return typeof d === "number" ? d : 0; };
+    if (node.idname === "ShaderNodeBsdfPrincipled" && constant("Transmission Weight") >= 0.5 && constant("Metallic") < 0.5) {
+      return { kind: "glass", node, sockets: { color: "Base Color", roughness: "Roughness", ior: "IOR", normal: "Normal" }, fixed: {} };
+    }
+    return { kind: spec.kind, node, sockets: spec.sockets, fixed: spec.fixed ?? {} };
+  }
+  const [a, b] = node.inputs.filter(s => s.name === "Shader").map(s => resolveClosure(linked(s), c, depth + 1));
+  if (!a || !b) return a || b || null;
+  if (node.idname === "ShaderNodeAddShader") {
+    if (a.kind === "emission" && b.kind !== "emission") return { ...b, extraEmission: a };
+    return b.kind === "emission" && a.kind !== "emission" ? { ...a, extraEmission: b } : a;
+  }
+  if (node.idname !== "ShaderNodeMixShader") return null;
+  const fac = c.value(node, node.inputs.find(s => s.name !== "Shader"));
+  const constant = c.isConstant(fac) ? Number(fac.v) : null;
+  if (constant !== null && constant <= 0.001) return a;
+  if (constant !== null && constant >= 0.999) return b;
+  if (fac && b.kind === "transparent" && a.kind !== "transparent") return { ...a, coverage: { value: fac, invert: true } };
+  if (fac && a.kind === "transparent" && b.kind !== "transparent") return { ...b, coverage: { value: fac, invert: false } };
+  return (constant ?? 0.5) < 0.5 ? a : b;
+}
+
+// Volume shaders reduced to absorption and scattering coefficients per channel.
+function resolveVolume(node, c, weight = 1, depth = 0) {
+  if (!node || depth > 32 || weight <= 0) return null;
+  const number = (key, fallback) => { const d = c.socketOf(node, key)?.defaultValue; return typeof d === "number" ? d : fallback; };
+  const color = (key, fallback) => { const d = c.socketOf(node, key)?.defaultValue; return d?.length >= 3 ? [d[0], d[1], d[2]] : fallback; };
+  const children = w => node.inputs.filter(s => s.name === "Shader")
+    .map((s, i) => resolveVolume(s.linkedFrom && c.node(s.linkedFrom.nodeName), c, w[i], depth + 1));
+  const sum = volumes => {
+    const out = { absorb: [0, 0, 0], scatter: [0, 0, 0] };
+    for (const v of volumes.filter(Boolean)) for (let i = 0; i < 3; i++) {
+      out.absorb[i] += v.absorb[i];
+      out.scatter[i] += v.scatter[i];
+    }
+    return volumes.some(Boolean) ? out : null;
+  };
+  const density = number("Density", 1) * weight;
+  switch (node.idname) {
+    case "ShaderNodeVolumeAbsorption":
+      return { absorb: color("Color", [0.8, 0.8, 0.8]).map(x => density * Math.max(1 - x, 0)), scatter: [0, 0, 0] };
+    case "ShaderNodeVolumeScatter":
+      return { absorb: [0, 0, 0], scatter: color("Color", [0.8, 0.8, 0.8]).map(x => density * x) };
+    case "ShaderNodeVolumePrincipled": {
+      const scatter = color("Color", [0.5, 0.5, 0.5]), absorption = color("Absorption Color", [0, 0, 0]);
+      return { scatter: scatter.map(x => density * x), absorb: scatter.map((x, i) => density * Math.max(1 - x, 0) * Math.max(1 - absorption[i], 0)) };
+    }
+    case "ShaderNodeAddShader":
+      return sum(children([weight, weight]));
+    case "ShaderNodeMixShader": {
+      const f = Math.min(Math.max(number("Fac", 0.5), 0), 1);
+      return sum(children([weight * (1 - f), weight * f]));
+    }
+  }
+  return null;
+}
+
+// Filter blending: result = shaded color + background × tint. This gives
+// glass its reflections without hiding what is behind it, and tints the view
+// through volumes.
+const filterBlending = tint => ({
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.CustomBlending,
+  blendEquation: THREE.AddEquation,
+  blendSrc: THREE.OneFactor,
+  blendDst: THREE.ConstantColorFactor,
+  blendColor: new THREE.Color(...tint),
+  blendSrcAlpha: THREE.ZeroFactor,
+  blendDstAlpha: THREE.OneFactor
+});
+
+const bumpGLSL = ({ height, distance, strength }) => `{
+  float bumpHeight = (${height}) * ${distance};
+  vec3 bumpDx = dFdx(-vViewPosition), bumpDy = dFdy(-vViewPosition);
+  vec3 bumpR1 = cross(bumpDy, normal), bumpR2 = cross(normal, bumpDx);
+  float bumpDet = dot(bumpDx, bumpR1);
+  vec3 bumpGradient = dFdx(bumpHeight) * bumpR1 + dFdy(bumpHeight) * bumpR2;
+  normal = normalize(mix(normal, normalize(abs(bumpDet) * normal - sign(bumpDet) * bumpGradient), max(${strength}, 0.0)));
+}`;
+
+function applyGraph(material, c, parts) {
+  const statements = c.statements.join("\n");
+  if (!statements && !Object.values(parts).some(Boolean)) return;
+  const inject = [
+    ["#include <color_fragment>", [statements, parts.color && `diffuseColor.rgb = ${parts.color};`, parts.alpha && `diffuseColor.a *= ${parts.alpha};`]],
+    ["#include <roughnessmap_fragment>", [parts.roughness && `roughnessFactor = ${parts.roughness};`]],
+    ["#include <metalnessmap_fragment>", [parts.metalness && `metalnessFactor = ${parts.metalness};`]],
+    ["#include <normal_fragment_maps>", [parts.bump && bumpGLSL(parts.bump)]],
+    ["#include <emissivemap_fragment>", [parts.emission && `totalEmissiveRadiance = ${parts.emission};`]]
+  ];
+  material.onBeforeCompile = shader => {
+    shader.vertexShader = BLEND_VERTEX + shader.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>\n${BLEND_VERTEX_MAIN}`);
+    let fragment = BLEND_VARYINGS + BLENDER_GLSL + shader.fragmentShader;
+    for (const [anchor, lines] of inject) {
+      const snippet = lines.filter(Boolean).join("\n");
+      if (snippet) fragment = fragment.replace(anchor, `${anchor}\n${snippet}`);
+    }
+    shader.fragmentShader = fragment;
+  };
+  const cacheKey = JSON.stringify([statements, parts]);
+  material.customProgramCacheKey = () => cacheKey;
+}
+
+function activeOutput(nodes, idname) {
+  const outputs = nodes.filter(n => n.idname === idname);
+  // NODE_DO_OUTPUT marks the active output; custom1 is its target (1 = EEVEE only).
+  return outputs.find(n => n.flag & 2 && n.custom1 !== 1) ?? outputs.find(n => n.custom1 !== 1) ?? outputs[0];
+}
+
+// Returns {material, uses, volume, tint, renderOrder}. Volume materials are
+// completed per mesh by finishVolume(), since they depend on its thickness.
+function buildMaterial(blenderMat) {
+  const base = { side: THREE.DoubleSide, wireframe };
+  const info = { material: null, uses: new Set(), volume: null, tint: null, renderOrder: 0 };
+  if (!blenderMat) {
+    info.material = new THREE.MeshStandardMaterial({ color: 0xb9bcc4, metalness: 0, roughness: 0.72, ...base });
+    return info;
+  }
+  const nodes = blenderMat.shader?.nodes || [];
+  const output = activeOutput(nodes, "ShaderNodeOutputMaterial");
+  if (!output) {
+    const [r, g, b, a = 1] = blenderMat.diffuse || [0.7, 0.7, 0.7, 1];
+    info.material = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(r, g, b), opacity: a, transparent: a < 0.999,
+      metalness: THREE.MathUtils.clamp(blenderMat.metallic ?? 0, 0, 1),
+      roughness: THREE.MathUtils.clamp(blenderMat.roughness ?? 0.7, 0.02, 1), ...base
+    });
+    return info;
+  }
+  const c = createGraphCompiler(nodes);
+  info.uses = c.uses;
+  const linkedTo = key => { const s = c.socketOf(output, key); return s?.linkedFrom ? c.node(s.linkedFrom.nodeName) : null; };
+  const surface = resolveClosure(linkedTo("Surface"), c);
+  info.volume = resolveVolume(linkedTo("Volume"), c);
+
+  // A closure parameter: a GLSL value when its socket is linked to something
+  // compilable, otherwise the socket's own constant.
+  const param = (closure, name, fallback) => {
+    if (closure.fixed && name in closure.fixed) return { constant: closure.fixed[name] };
+    const socket = closure.sockets[name] && c.socketOf(closure.node, closure.sockets[name]);
+    if (!socket) return { constant: fallback };
+    const expr = socket.linkedFrom ? c.value(closure.node, socket) : null;
+    return { expr, constant: socket.defaultValue ?? fallback };
+  };
+  const scalar = p => Number.isFinite(Number(p.constant)) ? Number(p.constant) : 0;
+  const rgb = p => {
+    const v = p.constant;
+    return v?.length >= 3 ? [v[0], v[1], v[2]] : [scalar(p), scalar(p), scalar(p)];
+  };
+  const floatOf = p => p.expr ? c.toFloat(p.expr) : glslNumber(scalar(p));
+  const vecOf = p => p.expr ? c.toVec(p.expr) : `vec3(${rgb(p).map(glslNumber).join(", ")})`;
+  const coverage = closure => {
+    if (!closure?.coverage) return { constant: 1, expr: null };
+    const { value, invert } = closure.coverage;
+    if (c.isConstant(value)) return { constant: invert ? 1 - Number(value.v) : Number(value.v), expr: null };
+    return { constant: 1, expr: invert ? `(1.0 - ${c.toFloat(value)})` : c.toFloat(value) };
+  };
+
+  if (!surface) {
+    if (info.volume) {
+      info.material = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.FrontSide, wireframe, ...filterBlending([1, 1, 1]) });
+      info.tint = [1, 1, 1];
+      info.renderOrder = 1;
+    } else {
+      // An output with no shader renders black in Blender.
+      info.material = new THREE.MeshBasicMaterial({ color: 0x000000, ...base });
+    }
+    return info;
+  }
+
+  if (surface.kind === "transparent" || surface.kind === "glass") {
+    const tint = rgb(param(surface, "color", [1, 1, 1]));
+    if (surface.kind === "transparent" && tint.every(x => x >= 0.999) && !info.volume) {
+      info.material = new THREE.MeshBasicMaterial({ visible: false });
+      return info;
+    }
+    const reflective = surface.kind === "glass";
+    info.material = reflective
+      ? new THREE.MeshPhysicalMaterial({
+          color: 0x000000, metalness: 0, specularColor: new THREE.Color(...tint),
+          roughness: THREE.MathUtils.clamp(scalar(param(surface, "roughness", 0)), 0.02, 1),
+          ior: THREE.MathUtils.clamp(scalar(param(surface, "ior", 1.5)), 1, 2.333), ...base, ...filterBlending(tint)
+        })
+      : new THREE.MeshBasicMaterial({ color: 0x000000, ...base, ...filterBlending(tint) });
+    info.tint = tint;
+    info.renderOrder = 2;
+    return info;
+  }
+
+  const cover = coverage(surface);
+  if (surface.kind === "emission") {
+    const color = param(surface, "emission", [1, 1, 1]), strength = param(surface, "strength", 1);
+    info.material = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(...rgb(color)).multiplyScalar(scalar(strength)),
+      opacity: cover.constant, transparent: cover.constant < 0.999, alphaHash: Boolean(cover.expr), ...base
+    });
+    applyGraph(info.material, c, {
+      color: (color.expr || strength.expr) && `${vecOf(color)} * ${floatOf(strength)}`,
+      alpha: cover.expr
+    });
+    return info;
+  }
+
+  const color = param(surface, "color", [0.8, 0.8, 0.8]);
+  const metallic = param(surface, "metallic", 0);
+  const roughness = param(surface, "roughness", 0.5);
+  const alpha = param(surface, "alpha", 1);
+  const opacity = (alpha.expr ? 1 : scalar(alpha)) * cover.constant;
+  const alphaExpr = [alpha.expr && c.toFloat(alpha.expr), cover.expr].filter(Boolean).join(" * ");
+
+  // Emission from the BSDF itself plus any Emission shader added to it.
+  const emitters = [[param(surface, "emission", [0, 0, 0]), param(surface, "strength", 1)]];
+  if (surface.extraEmission) emitters.push([param(surface.extraEmission, "emission", [1, 1, 1]), param(surface.extraEmission, "strength", 1)]);
+  const emissionIsProcedural = emitters.some(([col, s]) => col.expr || s.expr);
+  const emissive = emitters.reduce((sum, [col, s]) => sum.add(new THREE.Color(...rgb(col)).multiplyScalar(scalar(s))), new THREE.Color(0, 0, 0));
+
+  let bump = null;
+  const normal = surface.sockets.normal && c.socketOf(surface.node, surface.sockets.normal);
+  const bumpNode = normal?.linkedFrom && c.node(normal.linkedFrom.nodeName);
+  if (bumpNode?.idname === "ShaderNodeBump") {
+    const height = c.value(bumpNode, "Height");
+    const number = (key, fallback) => { const d = c.socketOf(bumpNode, key)?.defaultValue; return typeof d === "number" ? d : fallback; };
+    if (height) bump = { height: c.toFloat(height), distance: glslNumber(number("Distance", 1) * (bumpNode.custom1 ? -1 : 1)), strength: glslNumber(number("Strength", 1)) };
+  }
+
+  info.material = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(...rgb(color)),
+    metalness: THREE.MathUtils.clamp(scalar(metallic), 0, 1),
+    roughness: THREE.MathUtils.clamp(scalar(roughness), 0.02, 1),
+    ior: THREE.MathUtils.clamp(scalar(param(surface, "ior", 1.5)), 1, 2.333),
+    specularIntensity: THREE.MathUtils.clamp(scalar(param(surface, "specular", 0.5)) * 2, 0, 1),
+    clearcoat: scalar(param(surface, "coat", 0)),
+    clearcoatRoughness: scalar(param(surface, "coatRoughness", 0.03)),
+    sheen: scalar(param(surface, "sheen", 0)),
+    sheenColor: new THREE.Color(...rgb(param(surface, "sheenTint", [1, 1, 1]))),
+    sheenRoughness: scalar(param(surface, "sheenRoughness", 0.5)),
+    emissive: emissionIsProcedural ? new THREE.Color(0, 0, 0) : emissive,
+    opacity,
+    transparent: opacity < 0.999,
+    alphaHash: Boolean(alphaExpr),
+    ...base
+  });
+  applyGraph(info.material, c, {
+    color: color.expr && c.toVec(color.expr),
+    roughness: roughness.expr && `clamp(${c.toFloat(roughness.expr)}, 0.0, 1.0)`,
+    metalness: metallic.expr && `clamp(${c.toFloat(metallic.expr)}, 0.0, 1.0)`,
+    alpha: alphaExpr,
+    emission: emissionIsProcedural && emitters.map(([col, s]) => `${vecOf(col)} * ${floatOf(s)}`).join(" + "),
+    bump
+  });
+  return info;
+}
+
+// Rough in-scattered light for volumes, as a fraction of a mid-grey surface.
+const VOLUME_LIGHT = 0.3;
+
+// Beer–Lambert transmittance through half the mesh's mean extent, applied as
+// a filter over whatever is behind it.
+function finishVolume(info, geometry) {
+  const material = info.material.clone();
+  const size = geometry.boundingBox.getSize(new THREE.Vector3());
+  const depth = (size.x + size.y + size.z) / 6;
+  const { absorb, scatter } = info.volume;
+  const transmittance = absorb.map((a, i) => Math.exp(-(a + scatter[i]) * depth));
+  material.blendColor.setRGB(...transmittance.map((t, i) => t * info.tint[i]));
+  if (material.isMeshBasicMaterial) {
+    material.color.setRGB(...scatter.map((s, i) => {
+      const extinction = absorb[i] + s;
+      return extinction > 0 ? s / extinction * (1 - transmittance[i]) * VOLUME_LIGHT : 0;
+    }));
+  }
+  return material;
+}
+
+function finishGeometry(g) {
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  addGeneratedCoordinates(g);
+  return g;
 }
 
 function addGeneratedCoordinates(g) {
@@ -377,56 +1408,132 @@ function addGeneratedCoordinates(g) {
   g.setAttribute("blendGenerated",new THREE.BufferAttribute(generated,3));
 }
 
-function makeMaterial(blenderMat) {
-  if (!blenderMat) {
-    return new THREE.MeshStandardMaterial({
-      color: 0xb9bcc4,
-      metalness: 0,
-      roughness: 0.72,
-      side: THREE.DoubleSide,
-      wireframe
-    });
-  }
-  const p = blenderMat.shader?.principled;
-  const rgba = p?.baseColor || blenderMat.diffuse || [0.7, 0.7, 0.7, 1];
-  const alpha = p?.alpha ?? rgba[3] ?? 1;
-  const node = blenderMat.shader?.nodes.find(n => n.name === p?.nodeName);
-  const value = (name, fallback) => node?.inputs.find(s => s.name === name)?.defaultValue ?? fallback;
-  const material = new THREE.MeshPhysicalMaterial({
-    clearcoat: value("Coat Weight", 0),
-    clearcoatRoughness: value("Coat Roughness", 0.03),
-    transmission: value("Transmission Weight", 0),
-    ior: p?.ior || 1.5,
-    emissive: new THREE.Color(...(p?.emissionColor || [0, 0, 0]).slice(0, 3)),
-    emissiveIntensity: p?.emissionStrength || 0,
-    color: new THREE.Color(rgba[0], rgba[1], rgba[2]),
-    metalness: THREE.MathUtils.clamp(p?.metallic ?? blenderMat.metallic ?? 0, 0, 1),
-    roughness: THREE.MathUtils.clamp(p?.roughness ?? blenderMat.roughness ?? 0.7, 0.02, 1),
-    opacity: alpha,
-    transparent: alpha < 0.999,
-    side: THREE.DoubleSide,
-    wireframe
-  });
-  applyProceduralMaterial(material, blenderMat);
-  return material;
-}
-
-function geometryFromBlendMesh(m) {
+// Builds render geometry from Blender's face corners. Normals are split the
+// way Blender splits them (flat faces, sharp edges); UVs and per-face
+// material slots are carried through when present.
+function geometryFromBlendMesh(m, blend, needsUV = false) {
   const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.BufferAttribute(m.vertices, 3));
+  const bools = name => { const a = m.attributes?.[name]; return a ? readAttributeAsUint8(blend.reader, a) : null; };
+  const sharpFace = bools("sharp_face"), sharpEdge = bools("sharp_edge");
+  const split = Boolean(sharpFace?.some(Boolean) || sharpEdge?.some(Boolean));
+  const uvs = needsUV ? Object.values(m.uvMaps || {})[0] : null;
+  const slots = Math.max(1, m.materialSlotNames?.length || 0);
+  const materialIndex = slots > 1 && m.materialIndices?.some(Boolean) ? m.materialIndices : null;
+  const P = m.vertices;
+  const smoothNormals = m.vertexNormals?.length === P.length ? m.vertexNormals : null;
 
-  g.setIndex(new THREE.BufferAttribute(m.triangles, 1));
-
-  if (m.vertexNormals?.length === m.vertices.length) {
-    g.setAttribute("normal", new THREE.BufferAttribute(m.vertexNormals, 3));
-  } else {
-    g.computeVertexNormals();
+  if (!split && !uvs && !materialIndex) {
+    g.setAttribute("position", new THREE.BufferAttribute(P, 3));
+    g.setIndex(new THREE.BufferAttribute(m.triangles, 1));
+    if (smoothNormals) g.setAttribute("normal", new THREE.BufferAttribute(smoothNormals, 3));
+    else g.computeVertexNormals();
+    return finishGeometry(g);
   }
 
-  g.computeBoundingBox();
-  g.computeBoundingSphere();
-  addGeneratedCoordinates(g);
-  return g;
+  const offsets = m.faceOffsets, corners = m.cornerVertices, cornerEdges = m.cornerEdges;
+  const faceCount = offsets.length - 1, cornerCount = corners.length, vertexCount = P.length / 3;
+
+  // Union corners into smooth fans that share a normal.
+  let fan = null, fanNormals = null;
+  const find = i => { while (fan[i] !== i) i = fan[i] = fan[fan[i]]; return i; };
+  if (split || !smoothNormals) {
+    fan = new Int32Array(cornerCount);
+    for (let i = 0; i < cornerCount; i++) fan[i] = i;
+    let smoothEdge = null;
+    if (cornerEdges) {
+      const uses = new Uint8Array(m.edgeCount), touchesFlat = new Uint8Array(m.edgeCount);
+      for (let f = 0; f < faceCount; f++) {
+        for (let c = offsets[f]; c < offsets[f + 1]; c++) {
+          const e = cornerEdges[c];
+          if (uses[e] < 3) uses[e]++;
+          if (sharpFace?.[f]) touchesFlat[e] = 1;
+        }
+      }
+      // Only manifold edges between two smooth faces, not marked sharp, join fans.
+      smoothEdge = e => uses[e] === 2 && !touchesFlat[e] && !sharpEdge?.[e];
+    }
+    const first = new Map();
+    const join = (key, c) => {
+      const other = first.get(key);
+      if (other === undefined) first.set(key, c);
+      else { const a = find(c), b = find(other); if (a !== b) fan[a] = b; }
+    };
+    for (let f = 0; f < faceCount; f++) {
+      if (sharpFace?.[f]) continue;
+      const start = offsets[f], n = offsets[f + 1] - start;
+      for (let k = 0; k < n; k++) {
+        const c = start + k, v = corners[c];
+        if (!smoothEdge) { join(v, c); continue; }
+        const next = cornerEdges[c], previous = cornerEdges[start + (k + n - 1) % n];
+        if (smoothEdge(next)) join(next * vertexCount + v, c);
+        if (smoothEdge(previous)) join(previous * vertexCount + v, c);
+      }
+    }
+    // Sum corner-angle-weighted face normals per fan, as Blender does.
+    fanNormals = new Float32Array(cornerCount * 3);
+    const o = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3();
+    for (let f = 0; f < faceCount; f++) {
+      const start = offsets[f], n = offsets[f + 1] - start;
+      for (let k = 0; k < n; k++) {
+        const c = start + k;
+        o.fromArray(P, corners[c] * 3);
+        a.fromArray(P, corners[start + (k + n - 1) % n] * 3).sub(o);
+        b.fromArray(P, corners[start + (k + 1) % n] * 3).sub(o);
+        const angle = a.angleTo(b), root = find(c) * 3;
+        for (let i = 0; i < 3; i++) fanNormals[root + i] += m.faceNormals[f * 3 + i] * angle;
+      }
+    }
+    for (let c = 0; c < cornerCount; c++) {
+      if (fan[c] !== c) continue;
+      const l = Math.hypot(fanNormals[c * 3], fanNormals[c * 3 + 1], fanNormals[c * 3 + 2]) || 1;
+      for (let i = 0; i < 3; i++) fanNormals[c * 3 + i] /= l;
+    }
+  }
+
+  // One output vertex per distinct (fan, UV) pair.
+  const position = new Float32Array(cornerCount * 3), normal = new Float32Array(cornerCount * 3);
+  const uv = uvs ? new Float32Array(cornerCount * 2) : null;
+  const byGroup = new Int32Array(fan ? cornerCount : vertexCount).fill(-1), byKey = new Map();
+  const cornerOut = new Uint32Array(cornerCount);
+  let count = 0;
+  for (let c = 0; c < cornerCount; c++) {
+    const v = corners[c], group = fan ? find(c) : v;
+    const key = uvs && `${group} ${uvs[c * 2]} ${uvs[c * 2 + 1]}`;
+    let index = uvs ? byKey.get(key) : byGroup[group];
+    if (index === undefined || index < 0) {
+      index = count++;
+      if (uvs) byKey.set(key, index);
+      else byGroup[group] = index;
+      position.set(P.subarray(v * 3, v * 3 + 3), index * 3);
+      normal.set(fan ? fanNormals.subarray(group * 3, group * 3 + 3) : smoothNormals.subarray(v * 3, v * 3 + 3), index * 3);
+      if (uv) uv.set(uvs.subarray(c * 2, c * 2 + 2), index * 2);
+    }
+    cornerOut[c] = index;
+  }
+
+  // Fan-triangulate each face (as jsblender does), grouped by material slot.
+  const slotOf = f => materialIndex ? Math.min(materialIndex[f], slots - 1) : 0;
+  const counts = new Array(slots).fill(0);
+  for (let f = 0; f < faceCount; f++) {
+    const n = offsets[f + 1] - offsets[f];
+    if (n >= 3) counts[slotOf(f)] += (n - 2) * 3;
+  }
+  const starts = counts.map((_, s) => counts.slice(0, s).reduce((a, b) => a + b, 0));
+  const index = new Uint32Array(counts.reduce((a, b) => a + b, 0)), cursor = starts.slice();
+  for (let f = 0; f < faceCount; f++) {
+    const start = offsets[f], n = offsets[f + 1] - start, s = slotOf(f);
+    for (let k = 1; k < n - 1; k++) {
+      index[cursor[s]++] = cornerOut[start];
+      index[cursor[s]++] = cornerOut[start + k];
+      index[cursor[s]++] = cornerOut[start + k + 1];
+    }
+  }
+  g.setAttribute("position", new THREE.BufferAttribute(position.slice(0, count * 3), 3));
+  g.setAttribute("normal", new THREE.BufferAttribute(normal.slice(0, count * 3), 3));
+  if (uv) g.setAttribute("blendUV", new THREE.BufferAttribute(uv.slice(0, count * 2), 2));
+  g.setIndex(new THREE.BufferAttribute(index, 1));
+  if (materialIndex) counts.forEach((n, s) => { if (n) g.addGroup(starts[s], n, s); });
+  return finishGeometry(g);
 }
 
 // Read legacy Curve datablocks using the file's own SDNA offsets (not a
@@ -518,7 +1625,7 @@ function curveGeometry(curve, spline) {
       radii.push(THREE.MathUtils.lerp(controls[a].radius, controls[(a + 1) % controls.length].radius, t - a));
     }
   } else return null;
-  if (points.length < 2 || curve.depth <= 0) return null;
+  if (points.length < 2 || (curve.depth <= 0 && curve.extrusion <= 0)) return null;
   // Preserve polyline corners and per-point radii; TubeGeometry's arc-length
   // sampling would otherwise move vertices away from the saved control points.
   const path = new THREE.Curve();
@@ -533,20 +1640,33 @@ function curveGeometry(curve, spline) {
     return after.clone().sub(before).normalize();
   };
   const frames = path.computeFrenetFrames(points.length - 1, spline.cyclic);
-  const sides = Math.min(32, Math.max(8, 4 + curve.bevelResolution * 2));
+  // Cross-section: a round bevel stretched by any extrusion, or a flat ribbon
+  // for curves that are only extruded.
+  const profile = [];
+  const closed = curve.depth > 0;
+  if (closed) {
+    const count = Math.min(32, Math.max(8, 4 + curve.bevelResolution * 2));
+    for (let j = 0; j < count; j++) {
+      const a = j / count * Math.PI * 2, s = Math.sin(a);
+      profile.push([Math.cos(a) * curve.depth, s * curve.depth + (Math.abs(s) > 1e-6 ? Math.sign(s) * curve.extrusion : 0)]);
+    }
+  } else {
+    profile.push([0, -curve.extrusion], [0, curve.extrusion]);
+  }
+  const sides = profile.length;
   const positions = [], indices = [];
   for (let i = 0; i < points.length; i++) {
     for (let j = 0; j < sides; j++) {
-      const a = j / sides * Math.PI * 2;
-      const v = points[i].clone().addScaledVector(frames.normals[i], Math.cos(a) * curve.depth * radii[i]).addScaledVector(frames.binormals[i], Math.sin(a) * curve.depth * radii[i]);
+      const [x, y] = profile[j];
+      const v = points[i].clone().addScaledVector(frames.normals[i], x * radii[i]).addScaledVector(frames.binormals[i], y * radii[i]);
       positions.push(v.x, v.y, v.z);
-      if (i) {
+      if (i && (closed || j + 1 < sides)) {
         const b = i * sides + j, c = i * sides + (j + 1) % sides;
         indices.push(b - sides, c - sides, b, c - sides, c, b);
       }
     }
   }
-  if (curve.caps && !spline.cyclic) {
+  if (closed && curve.caps && !spline.cyclic) {
     for (const end of [0, points.length - 1]) {
       const center = positions.length / 3;
       positions.push(...points[end].toArray());
@@ -739,8 +1859,10 @@ function useSavedCamera(blend, objects) {
     camera = new THREE.OrthographicCamera(-halfHeight * aspect, halfHeight * aspect, halfHeight, -halfHeight, near, far);
     camera.userData.savedFrame = {width, height};
   } else {
+    // Auto fit applies the sensor width to whichever render dimension is larger.
     const vertical = data.sensorFit === "vertical" || (data.sensorFit === "auto" && renderAspect < 1);
-    const height = vertical ? data.sensorHeight : data.sensorWidth / renderAspect;
+    const sensor = data.sensorFit === "vertical" ? data.sensorHeight : data.sensorWidth;
+    const height = vertical ? sensor : sensor / renderAspect;
     const fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.max(height, height * renderAspect / aspect) / (2 * data.lens)));
     camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
   }
@@ -755,12 +1877,7 @@ function useSavedCamera(blend, objects) {
   return true;
 }
 
-function fitCamera() {
-  if (camera.isOrthographicCamera) {
-    camera = new THREE.PerspectiveCamera(45, view.clientWidth / Math.max(view.clientHeight, 1), 0.01, 100000);
-    camera.up.set(0, 0, 1);
-    controls.object = camera;
-  }
+function modelBounds() {
   modelRoot.updateMatrixWorld(true);
   const bounds = [];
   modelRoot.traverse(obj => {
@@ -779,6 +1896,16 @@ function fitCamera() {
     if (solidExtent && b.flat && b.extent > solidExtent * 10) continue;
     box.union(b.box);
   }
+  return box;
+}
+
+function fitCamera() {
+  if (camera.isOrthographicCamera) {
+    camera = new THREE.PerspectiveCamera(45, view.clientWidth / Math.max(view.clientHeight, 1), 0.01, 100000);
+    camera.up.set(0, 0, 1);
+    controls.object = camera;
+  }
+  const box = modelBounds();
   if (box.isEmpty()) return;
 
   const sphere = box.getBoundingSphere(new THREE.Sphere());
@@ -838,10 +1965,15 @@ async function loadBlend(rawURL) {
     const renderObjects = expandCollectionInstances(blend, objects);
     const materials = extractMaterials(blend);
     const curves = extractCurves(blend);
-    readProceduralSettings(blend, materials);
+    readNodeSettings(blend, materials);
 
     const meshByName = new Map(meshes.map(m => [m.name, m]));
     const materialByName = new Map(materials.map(m => [m.name, m]));
+    const materialInfos = new Map();
+    const materialInfo = name => {
+      if (!materialInfos.has(name)) materialInfos.set(name, buildMaterial(name ? materialByName.get(name) : null));
+      return materialInfos.get(name);
+    };
 
     clearModel();
 
@@ -851,44 +1983,45 @@ async function loadBlend(rawURL) {
     const usedMeshNames = new Set();
 
     const meshResources = new Map();
+    const meshResource = bm => {
+      if (!meshResources.has(bm.name)) {
+        const infos = (bm.materialSlotNames?.length ? bm.materialSlotNames : [null]).map(materialInfo);
+        const geometry = geometryFromBlendMesh(bm, blend, infos.some(info => info.uses.has("uv")));
+        const materials = infos.map(info => info.volume ? finishVolume(info, geometry) : info.material);
+        meshResources.set(bm.name, {
+          geometry,
+          material: geometry.groups.length ? materials : materials[0],
+          renderOrder: Math.max(...infos.map(info => info.renderOrder))
+        });
+      }
+      return meshResources.get(bm.name);
+    };
+    const addMesh = (bm, name, worldMatrix) => {
+      const { geometry, material, renderOrder } = meshResource(bm);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = name;
+      mesh.renderOrder = renderOrder;
+      applyBlenderWorldMatrix(mesh, worldMatrix);
+      modelRoot.add(mesh);
+      usedMeshNames.add(bm.name);
+      renderedObjects++;
+      vertices += bm.vertexCount || bm.vertices.length / 3;
+      triangles += bm.triangles.length / 3;
+    };
+
     // Collection instances share geometry/materials but have their own transforms.
     for (const obj of renderObjects) {
       if (!obj.dataName) continue;
       const bm = meshByName.get(obj.dataName);
       if (!bm || !bm.vertices?.length || !bm.triangles?.length) continue;
-
-      if (!meshResources.has(bm.name)) {
-        const slotName = bm.materialSlotNames?.[0];
-        meshResources.set(bm.name, {
-          geometry: geometryFromBlendMesh(bm),
-          material: makeMaterial(slotName ? materialByName.get(slotName) : null)
-        });
-      }
-      const { geometry, material } = meshResources.get(bm.name);
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.name = obj.name || bm.name;
-      applyBlenderWorldMatrix(mesh, obj.worldMatrix);
-      modelRoot.add(mesh);
-
-      usedMeshNames.add(bm.name);
-      renderedObjects++;
-      vertices += bm.vertexCount || bm.vertices.length / 3;
-      triangles += bm.triangles.length / 3;
+      addMesh(bm, obj.name || bm.name, obj.worldMatrix);
     }
 
     // Only use raw datablocks for files with no objects. Otherwise this would
     // resurrect excluded collection templates and hidden or unlinked geometry.
     for (const bm of objects.length ? [] : meshes) {
       if (usedMeshNames.has(bm.name) || !bm.vertices?.length || !bm.triangles?.length) continue;
-      const geometry = geometryFromBlendMesh(bm);
-      const slotName = bm.materialSlotNames?.[0];
-      const material = makeMaterial(slotName ? materialByName.get(slotName) : null);
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.name = bm.name;
-      modelRoot.add(mesh);
-      renderedObjects++;
-      vertices += bm.vertexCount || bm.vertices.length / 3;
-      triangles += bm.triangles.length / 3;
+      addMesh(bm, bm.name, null);
     }
 
     let renderedCurves = 0, renderedText = 0, skippedCurves = 0;
@@ -902,12 +2035,12 @@ async function loadBlend(rawURL) {
         template = new THREE.Group();
         if (obj.type === 4 && curve.text) {
           try {
-            template.add(new THREE.Mesh(await textGeometry(curve), makeMaterial(materialByName.get(curve.materialNames[0]))));
+            template.add(new THREE.Mesh(await textGeometry(curve), materialInfo(curve.materialNames[0]).material));
           } catch (error) { console.warn("Text unavailable", obj.name, error); }
         } else if (!curve.customProfile) {
           for (const spline of curve.splines) {
             const geometry = curveGeometry(curve, spline);
-            if (geometry) template.add(new THREE.Mesh(geometry, makeMaterial(materialByName.get(curve.materialNames[spline.material]))));
+            if (geometry) template.add(new THREE.Mesh(geometry, materialInfo(curve.materialNames[spline.material]).material));
           }
         }
         curveGroups.set(obj.dataName, template);
@@ -930,6 +2063,17 @@ async function loadBlend(rawURL) {
       throw new Error(`Parsed successfully, but found no renderable mesh geometry (${meshes.length} mesh datablocks, ${objects.length} objects).`);
     }
 
+    const lightData = new Map(extractLights(blend).map(l => [l.name, l]));
+    const energies = readLightEnergies(blend);
+    for (const obj of renderObjects) {
+      const data = obj.type === 10 && lightData.get(obj.dataName);
+      if (data) addFileLight(data, energies.get(data.name) ?? data.energy, obj.worldMatrix);
+    }
+    const lightCount = fileLights.children.filter(l => l.isLight).length;
+    fileLook = lightCount ? makeFileLook(readRenderSettings(blend)) : null;
+    applyLighting();
+    captureSurroundings();
+
     empty.style.display = "none";
     fitCamera();
     try { useSavedCamera(blend, objects); } catch (error) { console.warn("Saved camera unavailable", error); }
@@ -940,7 +2084,7 @@ async function loadBlend(rawURL) {
 
     setStatus(
       `Loaded Blender ${version} · ${formatBytes(bytes.byteLength)}\n` +
-      `${renderedObjects} meshes · ${renderedCurves} curves · ${renderedText} text · ${vertices.toLocaleString()} vertices · ${Math.round(triangles).toLocaleString()} triangles · ${materials.length} materials` +
+      `${renderedObjects} meshes · ${renderedCurves} curves · ${renderedText} text · ${vertices.toLocaleString()} vertices · ${Math.round(triangles).toLocaleString()} triangles · ${materials.length} materials · ${lightCount} lights` +
       (skippedCurves ? `\n${skippedCurves} unsupported curve/text objects` : "") +
       `\nPreview: approximate materials and text; unapplied modifiers are omitted.` +
       (normalized !== rawURL.trim() ? `\nGitHub URL resolved through jsDelivr` : "")
@@ -961,6 +2105,7 @@ function resize() {
   const w = view.clientWidth;
   const h = view.clientHeight;
   renderer.setSize(w, h, false);
+  hdrTarget.setSize(Math.max(1, Math.round(w * renderer.getPixelRatio())), Math.max(1, Math.round(h * renderer.getPixelRatio())));
   camera.aspect = w / Math.max(h, 1);
   if (camera.isOrthographicCamera) {
     const frame = camera.userData.savedFrame;
@@ -977,7 +2122,10 @@ resize();
 
 function animate() {
   controls.update();
+  renderer.setRenderTarget(hdrTarget);
   renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+  renderer.render(viewQuad, viewCamera);
   requestAnimationFrame(animate);
 }
 animate();
@@ -989,6 +2137,10 @@ urlInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && urlInput.value.trim()) loadBlend(urlInput.value);
 });
 $("#fit").addEventListener("click", fitCamera);
+lightsButton.addEventListener("click", () => {
+  useFileLighting = !useFileLighting;
+  applyLighting();
+});
 $("#wire").addEventListener("click", () => {
   wireframe = !wireframe;
   modelRoot.traverse((obj) => {
