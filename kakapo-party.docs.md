@@ -1,0 +1,3 @@
+Experience an interactive pixel-art celebration featuring kākāpō (New Zealand's flightless parrots) jumping and dancing to music. Click, tap, or press Space to trigger confetti bursts, balloons, streamers, and festive effects while the birds party under a disco ball with choreographed dance moves that sync to an upbeat rhythm.
+
+<!-- Generated from commit: 235717a9d2426d574da2437f2851d121da794f17 -->
