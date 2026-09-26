@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kākāpō Party</title>
+<style>
+  :root {
+    --night: #0b0620;
+    --focus: #ffd23f;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--night);
+  }
+  /* The party is always at night (kākāpō are nocturnal), so both themes share the same tokens. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --night: #0b0620; --focus: #ffd23f; }
+  }
+  :root[data-theme="dark"] { --night: #0b0620; --focus: #ffd23f; }
+  html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body { margin: 0; height: 100%; overflow: hidden; background: var(--night); }
+  #stage { position: relative; width: 100%; height: 100%; overflow: hidden; }
+  #party {
+    position: absolute; left: 0; top: 0; display: block;
+    image-rendering: pixelated;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #party:focus { outline: none; }
+  #party:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="party" tabindex="0" role="img"
+    aria-label="Pixel-art party of kākāpō jumping up and down under confetti, balloons and a disco ball. Click, tap or press Space for more confetti."></canvas>
+</div>
+<script>
+(() => {
+'use strict';
+
+const stage = document.getElementById('stage');
+const cvs = document.getElementById('party');
+const ctx = cvs.getContext('2d', { alpha: false });
+const CALM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+const BPM = 124, BEAT = 60 / BPM;
+
+/* ------------------------------------------------------------------ helpers */
+const rand = (a, b) => a + Math.random() * (b - a);
+const randi = (a, b) => Math.floor(a + Math.random() * (b - a + 1));
+const pick = a => a[(Math.random() * a.length) | 0];
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+function hash(a, b, c) {
+  let h = Math.imul(a | 0, 0x27d4eb2d) ^ Math.imul(b | 0, 0x165667b1) ^ Math.imul(c | 0, 0x9e3779b1);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+const rgbOf = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const toHex = a => '#' + a.map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+const shade = (h, k) => toHex(rgbOf(h).map(v => v * k));
+const mix = (h1, h2, k) => { const b = rgbOf(h2); return toHex(rgbOf(h1).map((v, i) => v + (b[i] - v) * k)); };
+const u32 = h => { const [r, g, b] = rgbOf(h); return ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0; };
+function mkCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function paintGrid(g, rows, map, ox, oy) {
+  for (let y = 0; y < rows.length; y++) {
+    const r = rows[y];
+    for (let x = 0; x < r.length; x++) {
+      const ch = r[x];
+      if (ch !== '.') { g.fillStyle = map[ch]; g.fillRect(ox + x, oy + y, 1, 1); }
+    }
+  }
+}
+
+/* ------------------------------------------------------------ the kākāpō */
+// Front-on bird, 18 px wide.
+// K outline · G D L H Y moss-green plumage · F f S facial disc · C B b beak · E W eyes · P p feet
+const BODY = [
+  '......KKKKKK......',
+  '....KKGHGGHGKK....',
+  '...KGDGHGGHGDGK...',
+  '..KGDGFFFFFFGDGK..',
+  '..KGFFFffffFFFGK..',
+  '.KGFWEFCCCCFWEFGK.',
+  '.KGFEEFbBBbFEEFGK.',
+  '.KGFSffbBBbffSFGK.',
+  '.KGFFSffBbffSFFGK.',
+  'KGDGFFfFbbFfFFGDGK',
+  'KGGDGFFfSSfFFGDGGK',
+  'KGLGDGFFFFFFGDGLGK',
+  'KDGDGLGYGGYGLGDGDK',
+  'KGDGDGYGLLGYGDGDGK',
+  'KDGDGYGLYYLGYGDGDK',
+  'KGDGDLGYGGYGLDGDGK',
+  '.KDGDGLGYYGLGDGDK.',
+  '..KGDGGLGGLGGDGK..',
+  '...KKPPKKKKPPKK...',
+  '..KPpPpPKKPpPpPK..',
+  '...KKKKK..KKKKK...',
+];
+const AIR_LEGS = [
+  '...KKPPKKKKPPKK...',
+  '....KPPK..KPPK....',
+  '...KPpPK..KPpPK...',
+  '....KKK....KKK....',
+];
+// Left wings; the right wing is mirrored. Kākāpō can't fly, but they flap to parachute down.
+const WING_UP  = ['..KK...', '.KLGK..', 'KLLDGK.', 'KLGLDGK', '.KLGDGK', '..KGLDK', '...KGGK', '....KKK'];
+const WING_OUT = ['...KKKK.', '.KKGDGGK', 'KLGLGDGK', 'KLDLDLK.', '.KKKKK..'];
+
+const GREENS = [
+  { K: '#1f2a0f', G: '#6f8f2a', D: '#435e1a', L: '#a3b43f', H: '#86a532', Y: '#b3b54f' },
+  { K: '#242b0e', G: '#7e962c', D: '#4f6319', L: '#b6c048', H: '#95ae39', Y: '#c4c05a' },
+  { K: '#1a240c', G: '#5f7e25', D: '#3a5217', L: '#93a83a', H: '#779a2e', Y: '#a4aa4a' },
+];
+const FACES = [
+  { F: '#a88b58', f: '#cdb37e', S: '#735f39' },
+  { F: '#a0754e', f: '#c69c6f', S: '#6a4a30' },
+];
+const COMMON = { C: '#8a867b', B: '#ebe5cf', b: '#b2ab98', E: '#120d0a', W: '#ffffff', P: '#c7a3a0', p: '#8e6c6a' };
+const VARIANTS = [];
+for (const g of GREENS) for (const f of FACES) VARIANTS.push(Object.assign({}, COMMON, g, f));
+
+const OX = 7, FW = 32;           // body sits 7 px in from the left of each frame canvas
+function widen(rows, a, b) {     // chubbier rows for squash and the chest-puffed "boom"
+  return rows.map((r, i) => {
+    if (i < a || i >= b) return [0, r];
+    let L = 0, R = r.length - 1;
+    while (r[L] === '.') L++;
+    while (r[R] === '.') R--;
+    return [-1, r.slice(0, L + 1) + r[L + 1] + r.slice(L + 1, R) + r[R - 1] + r.slice(R)];
+  });
+}
+function buildFrames(pal) {
+  const plain = rows => rows.map(r => [0, r]);
+  const defs = {
+    STAND:  [plain(BODY)],
+    SQUASH: [widen(BODY.slice(0, 13).concat([BODY[14]], BODY.slice(16)), 9, 16)],
+    UP:     [plain(BODY.slice(0, 14).concat([BODY[13]], BODY.slice(14, 18), AIR_LEGS)), WING_UP, -6, 2],
+    DOWN:   [plain(BODY.slice(0, 18).concat(AIR_LEGS)), WING_OUT, -7, 8],
+    PUFF:   [widen(BODY, 9, 18)],
+  };
+  const out = {};
+  for (const k in defs) {
+    const [rows, wing, wx, wy] = defs[k];
+    const c = mkCanvas(FW, rows.length), g = c.getContext('2d');
+    rows.forEach(([dx, r], y) => paintGrid(g, [r], pal, OX + dx, y));
+    if (wing) {
+      paintGrid(g, wing, pal, OX + wx, wy);
+      const mirrored = wing.map(r => r.split('').reverse().join(''));
+      paintGrid(g, mirrored, pal, OX + 17 - wx - (wing[0].length - 1), wy);
+    }
+    out[k] = { c, h: rows.length };
+  }
+  return out;
+}
+const FRAMES = VARIANTS.map(buildFrames);
+
+/* ------------------------------------------------------------ party gear */
+const HAT = ['...oo...', '..oooo..', '...oo...', '...aa...', '...bb...', '..aaaa..', '..bbbb..', '.aaaaaa.', '.bbbbbb.', 'aaaaaaaa'];
+const HAT_COLORS = [
+  ['#ff3f7f', '#ffd23f', '#ffffff'],
+  ['#3fd0ff', '#fff4d6', '#ff3f7f'],
+  ['#b86bff', '#ffd23f', '#7dffb0'],
+  ['#ffd23f', '#ff3f7f', '#3fd0ff'],
+  ['#7dffb0', '#b86bff', '#ffd23f'],
+  ['#ff8a2e', '#3fd0ff', '#fff4d6'],
+];
+function buildHat(colors, dir) {
+  const [a, b, o] = colors, map = { a, b, o };
+  const c = mkCanvas(12, 10), g = c.getContext('2d');
+  HAT.forEach((row, ry) => {
+    const sh = dir * Math.floor((9 - Math.max(ry, 3)) * 0.45);   // lean the cone, pompom follows the tip
+    let R = -1;
+    for (let i = 0; i < row.length; i++) if (row[i] !== '.') R = i;
+    for (let i = 0; i < row.length; i++) {
+      const ch = row[i];
+      if (ch === '.') continue;
+      g.fillStyle = i === R ? shade(map[ch], ch === 'o' ? 0.82 : 0.7) : map[ch];
+      g.fillRect(2 + i + sh, ry, 1, 1);
+    }
+  });
+  return c;
+}
+const HATS = HAT_COLORS.map(hc => [-1, 0, 1].map(d => buildHat(hc, d)));
+const SHADES = [['#0c0a14', '#241c4a', '#8fe3ff'], ['#0c0a14', '#4a1238', '#ff9ad0'], ['#2a1a04', '#1c1236', '#ffd23f']];
+const BOWS = [['#ff3f5a', '#a01c34', '#ff9aa8'], ['#2ee6ff', '#1b7fa0', '#b0f6ff'], ['#ffd23f', '#b8861a', '#fff0a8'], ['#b86bff', '#6a2fb0', '#e0c8ff']];
+
+function drawShades(x0, y0, s) {
+  ctx.fillStyle = s[0];
+  ctx.fillRect(x0 + 2, y0 + 4, 14, 1);
+  for (const x of [3, 6, 11, 14]) ctx.fillRect(x0 + x, y0 + 5, 1, 2);
+  ctx.fillStyle = s[1];
+  ctx.fillRect(x0 + 4, y0 + 6, 2, 1); ctx.fillRect(x0 + 12, y0 + 6, 2, 1);
+  ctx.fillRect(x0 + 5, y0 + 5, 1, 1); ctx.fillRect(x0 + 13, y0 + 5, 1, 1);
+  ctx.fillStyle = s[2];
+  ctx.fillRect(x0 + 4, y0 + 5, 1, 1); ctx.fillRect(x0 + 12, y0 + 5, 1, 1);
+}
+function drawBow(x0, y0, b) {
+  ctx.fillStyle = b[0];
+  ctx.fillRect(x0 + 6, y0 + 12, 2, 3); ctx.fillRect(x0 + 10, y0 + 12, 2, 3);
+  ctx.fillStyle = b[1]; ctx.fillRect(x0 + 8, y0 + 13, 2, 1);
+  ctx.fillStyle = b[2]; ctx.fillRect(x0 + 6, y0 + 12, 1, 1); ctx.fillRect(x0 + 10, y0 + 12, 1, 1);
+}
+function drawEyes(x0, y0, mode, face) {
+  ctx.fillStyle = face;
+  ctx.fillRect(x0 + 4, y0 + 5, 2, 2); ctx.fillRect(x0 + 12, y0 + 5, 2, 2);
+  ctx.fillStyle = '#120d0a';
+  if (mode === 'blink') {
+    ctx.fillRect(x0 + 4, y0 + 6, 2, 1); ctx.fillRect(x0 + 12, y0 + 6, 2, 1);
+  } else {                         // happy ^ ^
+    ctx.fillRect(x0 + 3, y0 + 6, 1, 1); ctx.fillRect(x0 + 4, y0 + 5, 2, 1); ctx.fillRect(x0 + 6, y0 + 6, 1, 1);
+    ctx.fillRect(x0 + 11, y0 + 6, 1, 1); ctx.fillRect(x0 + 12, y0 + 5, 2, 1); ctx.fillRect(x0 + 14, y0 + 6, 1, 1);
+  }
+}
+
+const BALLOON = ['..kkk..', '.kccck.', 'kchccck', 'khcccdk', 'kccccdk', '.kccdk.', '..kdk..', '...k...', '..kck..'];
+const BALLOON_COLS = ['#ff3f7f', '#ffd23f', '#3fd0ff', '#b86bff', '#ff8a2e', '#7dffb0'];
+const BALLOONS = BALLOON_COLS.map(col => {
+  const c = mkCanvas(7, 9);
+  paintGrid(c.getContext('2d'), BALLOON, { k: shade(col, 0.42), c: col, h: mix(col, '#ffffff', 0.6), d: shade(col, 0.72) }, 0, 0);
+  return c;
+});
+
+const CONF = ['#ff3f7f', '#ffd23f', '#3fd0ff', '#7dffb0', '#ff8a2e', '#b86bff', '#ffffff', '#ff7ae0'];
+const CONF_DARK = CONF.map(c => shade(c, 0.58));
+const CONF_FLOOR = CONF.map(c => shade(c, 0.82));
+const FLAG = ['#####', '#####', '.###.', '.###.', '..#..'];
+const FLAG_COLS = ['#ff3f7f', '#ffd23f', '#3fd0ff', '#b86bff', '#ff8a2e', '#7dffb0'];
+const FLAG_DARK = FLAG_COLS.map(c => shade(c, 0.72));
+const BULBS = ['#ff4f6d', '#ffd23f', '#6dff8a', '#4fb4ff', '#e36bff'];
+const BULBS_HI = BULBS.map(c => mix(c, '#ffffff', 0.6));
+const DISCO = ['#3c3a58', '#6e6c94', '#a9a7cf', '#e9e7ff'];
+const BEAM_COLS = ['#ff4fd8', '#4fd8ff', '#ffe14f', '#9d6bff'];
+const LITS = ['#ff3f9e', '#3fd4ff', '#ffd23f', '#b86bff', '#ff8a3f', '#5d7bff']
+  .map(h => ({ f: u32(mix(h, '#ffffff', 0.35)), n: u32(shade(h, 0.78)), d: u32(shade(h, 0.42)) }));
+const FL_BASE = [u32('#1b1433'), u32('#211940')];
+const FL_GROUT = u32('#0d0a1b'), FL_EDGE = u32('#3a2d5c');
+
+/* ------------------------------------------------------------ pixel fonts */
+const BIG = {
+  K: ['##..##', '##.##.', '####..', '###...', '####..', '##.##.', '##..##'],
+  A: ['.####.', '##..##', '##..##', '######', '##..##', '##..##', '##..##'],
+  P: ['#####.', '##..##', '##..##', '#####.', '##....', '##....', '##....'],
+  O: ['.####.', '##..##', '##..##', '##..##', '##..##', '##..##', '.####.'],
+  R: ['#####.', '##..##', '##..##', '#####.', '####..', '##.##.', '##..##'],
+  T: ['######', '..##..', '..##..', '..##..', '..##..', '..##..', '..##..'],
+  Y: ['##..##', '##..##', '.####.', '..##..', '..##..', '..##..', '..##..'],
+  '!': ['##', '##', '##', '##', '##', '..', '##'],
+  ' ': ['...', '...', '...', '...', '...', '...', '...'],
+};
+const SMALL = {
+  A: ['.#.', '#.#', '###', '#.#', '#.#'],
+  B: ['##.', '#.#', '##.', '#.#', '##.'],
+  C: ['.##', '#..', '#..', '#..', '.##'],
+  E: ['###', '#..', '##.', '#..', '###'],
+  F: ['###', '#..', '##.', '#..', '#..'],
+  G: ['.##', '#..', '#.#', '#.#', '.##'],
+  H: ['#.#', '#.#', '###', '#.#', '#.#'],
+  I: ['###', '.#.', '.#.', '.#.', '###'],
+  K: ['#.#', '#.#', '##.', '#.#', '#.#'],
+  L: ['#..', '#..', '#..', '#..', '###'],
+  M: ['#...#', '##.##', '#.#.#', '#...#', '#...#'],
+  N: ['#..#', '##.#', '#.##', '#..#', '#..#'],
+  O: ['###', '#.#', '#.#', '#.#', '###'],
+  P: ['##.', '#.#', '##.', '#..', '#..'],
+  R: ['##.', '#.#', '##.', '#.#', '#.#'],
+  S: ['.##', '#..', '.#.', '..#', '##.'],
+  T: ['###', '.#.', '.#.', '.#.', '.#.'],
+  '!': ['#', '#', '#', '.', '#'],
+  ' ': ['..', '..', '..', '..', '..'],
+};
+const MACRON = { 'Ā': 'A', 'Ō': 'O' };
+const glyph = (font, ch) => font[MACRON[ch] || ch] || font[' '];
+function textWidth(str, font) { let w = -1; for (const ch of str) w += glyph(font, ch)[0].length + 1; return w; }
+function drawText(g, str, x, y, font, col) {
+  g.fillStyle = col;
+  for (const ch of str) {
+    const gl = glyph(font, ch);
+    for (let r = 0; r < gl.length; r++) for (let i = 0; i < gl[r].length; i++) if (gl[r][i] === '#') g.fillRect(x + i, y + r, 1, 1);
+    x += gl[0].length + 1;
+  }
+}
+
+/* ------------------------------------------------------------ banner */
+const BANNER_TEXT = 'KĀKĀPŌ PARTY!';
+const BANNER_TAIL = 6, BANNER_H = 15;
+const BANNER_CLOTH = textWidth(BANNER_TEXT, BIG) + 12;
+const banner = (() => {
+  const CW = BANNER_CLOTH + BANNER_TAIL * 2, CH = BANNER_H + 4;
+  const c = mkCanvas(CW, CH), g = c.getContext('2d');
+  const m = new Uint8Array(CW * CH);            // 1 = ribbon tail, 2 = main cloth
+  const mid = (BANNER_H - 1) / 2;
+  for (let r = 0; r < BANNER_H; r++) {
+    const depth = Math.round(3.4 * (1 - Math.abs(r - mid) / mid));
+    for (let x = depth; x < BANNER_TAIL + 3; x++) { m[(r + 4) * CW + x] = 1; m[(r + 4) * CW + (CW - 1 - x)] = 1; }
+  }
+  for (let y = 0; y < BANNER_H; y++) for (let x = BANNER_TAIL; x < BANNER_TAIL + BANNER_CLOTH; x++) m[y * CW + x] = 2;
+  const at = (x, y) => (x < 0 || y < 0 || x >= CW || y >= CH) ? 0 : m[y * CW + x];
+  for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+    const v = at(x, y);
+    if (!v) continue;
+    const edge = v === 1
+      ? !at(x - 1, y) || !at(x + 1, y) || !at(x, y - 1) || !at(x, y + 1)
+      : at(x - 1, y) !== 2 || at(x + 1, y) !== 2 || at(x, y - 1) !== 2 || at(x, y + 1) !== 2;
+    g.fillStyle = edge ? '#5e0c30' : v === 1 ? '#c8235f' : y === 1 ? '#ff86b0' : '#ff3f7f';
+    g.fillRect(x, y, 1, 1);
+  }
+  let x = BANNER_TAIL + 6;
+  for (const ch of BANNER_TEXT) {
+    const gl = glyph(BIG, ch), w = gl[0].length;
+    drawText(g, ch, x + 1, 5, BIG, '#8c1447');
+    drawText(g, ch, x, 4, BIG, '#fff4d6');
+    if (MACRON[ch]) {
+      g.fillStyle = '#8c1447'; g.fillRect(x + 2, 3, 4, 1);
+      g.fillStyle = '#fff4d6'; g.fillRect(x + 1, 2, 4, 1);
+    }
+    x += w + 1;
+  }
+  return c;
+})();
+
+/* ------------------------------------------------------------ world state */
+let W = 0, H = 0, S = 2, floorTop = 0, portrait = false;
+let bg = null, skyMask = null;
+let birds = [], stars = [], specks = [], swags = [], bunting = null, ferns = [];
+let bannerX = 0, bannerY = 0, discoX = 0, discoY = 0, discoR = 6;
+let floorC, floorCtx, floorImg, floorBuf, floorTile, floorGrout, tileColor, tileCols = 1, colMin = 0, rowMin = 0, rowMid = 0;
+let conf = [], settled = [], streamers = [], balloons = [], pops = [], glints = [];
+let tNow = 0, beatIdx = -1, beatFrac = 0, mode = 0, floorPattern = 0;
+let dropT = -99, flashT = 0, confAcc = 0, nextBalloon = 0.6, nextCall = 2.2, popSide = 0, hintUntil = 10;
+const HINT = (('ontouchstart' in window) || navigator.maxTouchPoints > 0) ? 'TAP FOR CONFETTI' : 'CLICK FOR CONFETTI';
+
+// Choreography: each 8-beat phrase picks how the crowd's jumps are offset within the beat.
+const MODES = [
+  k => 0,                                           // everyone together
+  k => k.xn,                                        // Mexican wave
+  k => (k.idx & 1) * 0.5,                           // every other bird
+  k => k.rnd,                                       // free-for-all
+  k => Math.min(0.95, Math.abs(k.xn - 0.5) * 1.8),  // ripple out from the middle
+  k => (k.row & 1) * 0.5,                           // rows take turns
+];
+const CALLS = ['BOOM!', 'BOOM!', 'CHING!', 'SKRAARK!'];
+const CALL_INK = { 'BOOM!': '#c81e62', 'CHING!': '#17709a', 'SKRAARK!': '#7a4c0e' };
+
+class Kakapo {
+  constructor(x, gy, row, idx) {
+    this.x = x; this.gy = gy; this.row = row; this.idx = idx;
+    this.xn = clamp(x / W, 0, 0.999);
+    this.rnd = Math.random();
+    this.v = randi(0, VARIANTS.length - 1);
+    this.face = VARIANTS[this.v].F;
+    this.hat = Math.random() < 0.55 ? HATS[randi(0, HATS.length - 1)][pick([0, 1, 1, 2])] : null;
+    this.shades = Math.random() < 0.18 ? pick(SHADES) : null;
+    this.bow = Math.random() < 0.24 ? pick(BOWS) : null;
+    this.baseH = rand(8, 13);
+    this.lazy = Math.random() < 0.14;             // skips every other beat
+    this.y = 0; this.air = false; this.rising = false; this.top = gy - 20;
+    this.launchT = 0; this.airT = BEAT; this.peakH = 10; this.landT = -9;
+    this.jt0 = 0; this.jy0 = 0; this.jv0 = 1; this.jg = 1;
+    this.nextBlink = rand(0.3, 4); this.blinkEnd = 0;
+    this.call = null; this.wantCall = null; this.boost = false;
+    this.schedule(tNow + rand(0, 0.3));
+  }
+  schedule(now) {
+    const off = MODES[mode](this);
+    let n = Math.ceil((now + 0.1) / BEAT - off);
+    if (this.lazy && (n & 1)) n++;
+    let beats = 1, h = this.baseH * rand(0.85, 1.15);
+    if (n % 16 === 0) { beats = 2; h = this.baseH * 2.1; }       // the drop: everyone goes big
+    if (this.boost) { beats = 2; h = this.baseH * 2.5; this.boost = false; }
+    this.launchT = (n + off) * BEAT;
+    this.airT = beats * BEAT - 0.13;
+    this.peakH = h;
+  }
+  launch(t0, y0, v0, g) {         // a ballistic hop: y = y0 + v0·τ − ½gτ²
+    this.air = true; this.rising = true;
+    this.jt0 = t0; this.jy0 = y0; this.jv0 = v0; this.jg = g;
+  }
+  kick(t) {
+    if (this.call) { this.boost = true; return; }
+    if (this.air) {                // already airborne: a second wind, straight up from here
+      const R = Math.min(this.baseH * 2.2, 42 - this.y), Tu = 0.42;
+      this.launch(t, this.y, 2 * R / Tu, 2 * R / (Tu * Tu));
+      return;
+    }
+    this.launchT = t + rand(0.03, 0.11);
+    this.airT = 2 * BEAT - 0.13;
+    this.peakH = this.baseH * 2.5;
+  }
+  update(t) {
+    if (t > this.nextBlink) { this.blinkEnd = t + 0.13; this.nextBlink = t + rand(1.5, 5); }
+    if (this.air) {
+      const tau = t - this.jt0, y = this.jy0 + this.jv0 * tau - 0.5 * this.jg * tau * tau;
+      this.rising = tau < this.jv0 / this.jg;
+      if (!this.rising && y <= 0) {
+        this.air = false; this.y = 0; this.landT = t;
+        if (this.wantCall) {
+          this.call = { word: this.wantCall, until: t + (this.wantCall === 'BOOM!' ? 2.2 : 1.6) * BEAT };
+          this.wantCall = null;
+        } else this.schedule(t);
+      } else this.y = Math.max(0, y);
+    } else if (this.call) {
+      if (t >= this.call.until) { this.call = null; this.schedule(t); }
+    } else if (t >= this.launchT) {
+      const T = this.airT, h = this.peakH;
+      this.launch(this.launchT, 0, 4 * h / T, 8 * h / (T * T));
+    }
+  }
+  drawShadow() {
+    const w = Math.max(3, Math.round(7 - this.y * 0.2)), x = Math.round(this.x), y = this.gy;
+    ctx.fillRect(x - w + 1, y - 1, 2 * w - 2, 1);
+    ctx.fillRect(x - w - 1, y, 2 * w + 2, 1);
+    ctx.fillRect(x - w + 1, y + 1, 2 * w - 2, 1);
+  }
+  draw(t) {
+    let fk = 'STAND', eyes = null;
+    if (this.air) fk = this.rising ? 'UP' : 'DOWN';
+    else if (this.call) { if (this.call.word === 'BOOM!') { fk = 'PUFF'; eyes = 'happy'; } }
+    else if (t - this.landT < 0.09 || this.launchT - t < 0.1) { fk = 'SQUASH'; eyes = 'happy'; }
+    if (!eyes && t < this.blinkEnd) eyes = 'blink';
+    const f = FRAMES[this.v][fk];
+    const left = Math.round(this.x) - OX - 9;
+    const top = this.gy - Math.round(this.y) - f.h + 1;
+    ctx.drawImage(f.c, left, top);
+    const x0 = left + OX;
+    if (this.shades) drawShades(x0, top, this.shades);
+    else if (eyes) drawEyes(x0, top, eyes, this.face);
+    if (this.bow) drawBow(x0, top, this.bow);
+    if (this.hat) ctx.drawImage(this.hat, x0 + 3, top - 8 + (this.air && !this.rising ? -1 : 0));
+    this.top = top;
+  }
+}
+
+/* ------------------------------------------------------------ scene building */
+const SKY = ['#0a0520', '#0f0a2b', '#150e37', '#1c1243', '#23164f', '#2c1a5a', '#361f64', '#41246e'].map(u32);
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const FAR = '#1d1446', NEAR = '#110b2b';
+
+function buildScene() {
+  const r = stage.getBoundingClientRect();
+  const vw = Math.max(64, r.width), vh = Math.max(64, r.height);
+  S = Math.max(2, Math.round(Math.min(Math.max(vw, vh) / 320, Math.min(vw, vh) / 180)));   // ~320×180 art pixels either way round
+  W = Math.ceil(vw / S); H = Math.ceil(vh / S);
+  cvs.width = W; cvs.height = H;
+  cvs.style.width = W * S + 'px'; cvs.style.height = H * S + 'px';
+  ctx.imageSmoothingEnabled = false;
+  portrait = H > W * 1.1;
+  floorTop = Math.round(H * (portrait ? 0.5 : 0.52));
+  discoR = 7;
+  discoX = Math.round(W / 2);
+  discoY = Math.round(Math.max(14, floorTop * 0.22));
+  bannerX = Math.round(W / 2 - banner.width / 2);
+  bannerY = Math.round(floorTop * 0.5 - BANNER_H / 2);
+  buildBackground();
+  buildFloor();
+  buildDecor();
+  buildBirds();
+  conf = []; settled = []; streamers = []; balloons = []; pops = []; glints = [];
+  cvs.dataset.kakapo = birds.length;
+  cvs.setAttribute('aria-label', `Pixel-art party of ${birds.length} kākāpō jumping up and down under confetti, balloons and a disco ball. Click, tap or press Space for more confetti.`);
+}
+
+function buildBackground() {
+  bg = mkCanvas(W, H);
+  const g = bg.getContext('2d');
+  skyMask = new Uint8Array(W * H);
+  const img = g.createImageData(W, H), buf = new Uint32Array(img.data.buffer);
+  for (let y = 0; y < H; y++) {
+    const v = clamp(y / floorTop, 0, 1) * (SKY.length - 1), i0 = Math.floor(v), fr = v - i0;
+    for (let x = 0; x < W; x++) {
+      const th = (BAYER[((y & 3) << 2) | (x & 3)] + 0.5) / 16;
+      buf[y * W + x] = SKY[Math.min(SKY.length - 1, i0 + (fr > th ? 1 : 0))];
+      skyMask[y * W + x] = y < floorTop - 2 ? 1 : 0;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const put = (x, y, w, h, col) => {
+    g.fillStyle = col; g.fillRect(x, y, w, h);
+    for (let yy = Math.max(0, y - 1); yy < Math.min(H, y + h + 1); yy++)
+      for (let xx = Math.max(0, x - 1); xx < Math.min(W, x + w + 1); xx++) skyMask[yy * W + xx] = 0;
+  };
+
+  // moon with a dithered halo
+  const mx = Math.round(W * (portrait ? 0.8 : 0.85)), my = Math.round(Math.max(13, floorTop * (portrait ? 0.13 : 0.2))), mr = 7;
+  for (let dy = -mr - 4; dy <= mr + 4; dy++) for (let dx = -mr - 4; dx <= mr + 4; dx++) {
+    const d = Math.hypot(dx, dy), x = mx + dx, y = my + dy;
+    if (x < 0 || y < 0 || x >= W || y >= H) continue;
+    if (d <= mr + 0.3) put(x, y, 1, 1, Math.hypot(dx + 2.5, dy + 2.5) > mr + 0.5 ? '#e8d196' : '#fff1c2');
+    else if (d <= mr + 3.6) {
+      const th = (BAYER[((y & 3) << 2) | (x & 3)] + 0.5) / 16;
+      if (th < (mr + 3.6 - d) / 3.6 * 0.6) put(x, y, 1, 1, '#4b3383');
+    }
+  }
+  for (const [cx, cy] of [[-2, -2], [-1, -2], [-2, -1], [2, 1], [3, 1], [2, 2], [-3, 3], [1, -4]]) put(mx + cx, my + cy, 1, 1, '#e3cd92');
+
+  // far hills with rounded rimu crowns
+  const hFar = new Float32Array(W), s1 = rand(0, 6), s2 = rand(0, 6);
+  for (let x = 0; x < W; x++) hFar[x] = 9 + 4 * Math.sin(x * 0.04 + s1) + 3 * Math.sin(x * 0.11 + s2);
+  const nT = Math.max(3, Math.round(W / 34));
+  for (let i = 0; i < nT; i++) {
+    const tx = (i + rand(0.15, 0.85)) * W / nT, th = rand(18, 32) * (portrait ? 1.35 : 1), tw = rand(6, 11);
+    for (let x = Math.floor(tx - tw); x <= Math.ceil(tx + tw); x++) {
+      if (x < 0 || x >= W) continue;
+      const u = (x - tx) / tw;
+      if (Math.abs(u) > 1) continue;
+      const hh = th * Math.pow(1 - u * u, 0.6) + (hash(x, i, 7) < 0.35 ? 1 : 0);
+      if (hh > hFar[x]) hFar[x] = hh;
+    }
+  }
+  for (let x = 0; x < W; x++) { const top = Math.round(floorTop - hFar[x]); put(x, top, 1, floorTop - top, FAR); }
+  const nSmall = Math.max(2, Math.round(W / 110));
+  for (let i = 0; i < nSmall; i++) {
+    const fx = Math.round((i + 0.5) * W / nSmall + rand(-12, 12));
+    drawTreeFern(put, fx, floorTop - 2, Math.round(floorTop - rand(20, 28) * (portrait ? 1.2 : 1)), 0.62, FAR);
+  }
+  // near scrub along the edge of the dance floor
+  const s3 = rand(0, 6);
+  for (let x = 0; x < W; x++) {
+    const h = 3 + 2.5 * Math.sin(x * 0.07 + s3) + 1.5 * Math.sin(x * 0.19 + s3 * 2) + (hash(x, 3, 9) < 0.3 ? 1 : 0);
+    const top = Math.round(floorTop - Math.max(1, h));
+    put(x, top, 1, floorTop - top, NEAR);
+  }
+  // two big tree ferns hold up the banner
+  ferns = [];
+  const crownY = bannerY - 4, inset = Math.round(W * (portrait ? 0.08 : 0.07));
+  for (const fx of [inset, W - 1 - inset]) {
+    drawTreeFern(put, fx, floorTop, crownY, 1, NEAR);
+    ferns.push({ x: fx, y: crownY });
+  }
+
+  stars = [];
+  const want = Math.round(W * floorTop / 420);
+  for (let tries = 0; stars.length < want && tries < want * 30; tries++) {
+    const x = randi(1, W - 2), y = randi(1, floorTop - 4);
+    if (!skyMask[y * W + x]) continue;
+    stars.push({ x, y, ph: rand(0, 6.28), sp: rand(0.8, 3), big: Math.random() < 0.14 });
+  }
+}
+
+function drawTreeFern(put, x0, baseY, topY, k, col) {
+  const thick = k > 0.8 ? 3 : 2;
+  for (let y = topY; y < baseY; y++) {
+    const wob = Math.round(Math.sin(y * 0.15 + x0) * 0.6);
+    put(x0 - 1 + wob, y, thick, 1, col);
+    if (hash(y, x0, 1) < 0.22) put(x0 - 2 + wob + (hash(x0, y, 2) < 0.5 ? thick + 1 : 0), y, 1, 1, col);
+  }
+  // skirt of old fronds hanging down the trunk, the tell-tale of a ponga or mamaku
+  for (let i = 0; i < 7; i++) {
+    const sx = x0 - 3 + i, len = Math.round((7 + 5 * Math.sin(i * 2.3 + x0)) * k);
+    for (let j = 0; j < len; j++) put(sx + Math.round(Math.sin(j * 0.5 + i) * 0.6), topY + 1 + j, 1, 1, col);
+  }
+  put(x0 - 3, topY - 1, 7, 3, col);
+  const n = 12;
+  for (let i = 0; i < n; i++) {
+    const a = (-178 + i * (176 / (n - 1)) + Math.sin(i * 3.1 + x0) * 5) * Math.PI / 180;
+    const L = (21 + 8 * Math.sin(i * 1.7 + x0)) * k;
+    const vx = Math.cos(a), vy = Math.sin(a);
+    for (let s = 0; s <= L; s += 0.5) {
+      const u = s / L;
+      const fx = x0 + vx * s, fy = topY + vy * s + u * u * L * 1.05;
+      put(Math.round(fx), Math.round(fy), 1, 1, col);
+      if (s > 1.5 && Math.round(s * 2) % 3 === 0) {
+        const tx = vx, ty = vy + 2.1 * u, tl = Math.hypot(tx, ty) || 1;
+        const nx = -ty / tl, ny = tx / tl, ll = Math.round((1 - u * 0.8) * 3.2 * k + 0.6);
+        for (let q = 1; q <= ll; q++) {
+          const ax = tx / tl * q * 0.35, ay = ty / tl * q * 0.35 + q * 0.55;
+          put(Math.round(fx + nx * q + ax), Math.round(fy + ny * q + ay), 1, 1, col);
+          put(Math.round(fx - nx * q + ax), Math.round(fy - ny * q + ay), 1, 1, col);
+        }
+      }
+    }
+  }
+}
+
+function buildFloor() {
+  const fh = H - floorTop, vpY = floorTop - 2 * fh, dyF = H - 1 - vpY, cx = W / 2;
+  const TW = portrait ? 20 : 24, TH = portrait ? 12 : 10;
+  const N = W * fh, cols = new Int32Array(N), rows = new Int32Array(N);
+  let cMin = 1e9, cMax = -1e9, rMin = 1e9, rMax = -1e9;
+  for (let y = 0; y < fh; y++) {
+    const dy = floorTop + y - vpY, row = Math.floor(dyF * dyF / (TH * dy));
+    for (let x = 0; x < W; x++) {
+      const col = Math.floor((x + 0.5 - cx) / dy * dyF / TW + 0.5), i = y * W + x;
+      cols[i] = col; rows[i] = row;
+      if (col < cMin) cMin = col; if (col > cMax) cMax = col;
+      if (row < rMin) rMin = row; if (row > rMax) rMax = row;
+    }
+  }
+  tileCols = cMax - cMin + 1; colMin = cMin; rowMin = rMin;
+  rowMid = Math.floor(dyF * dyF / (TH * (2.5 * fh)));
+  floorTile = new Int32Array(N); floorGrout = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    const x = i % W, y = (i / W) | 0;
+    floorTile[i] = (rows[i] - rMin) * tileCols + (cols[i] - cMin);
+    floorGrout[i] = (y === 0 || (x > 0 && cols[i] !== cols[i - 1]) || (y > 0 && rows[i] !== rows[i - W])) ? 1 : 0;
+  }
+  tileColor = new Uint32Array(tileCols * (rMax - rMin + 1));
+  floorC = mkCanvas(W, fh); floorCtx = floorC.getContext('2d');
+  floorImg = floorCtx.createImageData(W, fh);
+  floorBuf = new Uint32Array(floorImg.data.buffer);
+}
+
+function buildDecor() {
+  swags = [];
+  const n = W > 250 ? 3 : 2;
+  for (let i = 0; i < n; i++) {
+    const xa = Math.round(i * W / n) - 1, xb = Math.round((i + 1) * W / n) + 1;
+    swags.push({ xa, xb, y: 2, sag: Math.round(Math.min(12, (xb - xa) * 0.1 + 3)) });
+  }
+  bunting = { xa: -3, xb: W + 3, y: -1, sag: Math.round(Math.max(10, floorTop * 0.19)) };
+  specks = [];
+  const ns = Math.round(W * H / 2200);
+  for (let i = 0; i < ns; i++) specks.push({
+    x0: rand(0, W + 10), y: randi(0, H - 1), c: pick(['#ffffff', '#ffe1f6', '#dff6ff', '#fff4c8']),
+    w: Math.random() < 0.3 ? 2 : 1, ph: rand(0, 6.28), tw: rand(2, 5),
+  });
+}
+
+function buildBirds() {
+  birds = [];
+  const backY = floorTop + 14, frontY = H - 5, sx = 27;
+  const perRow = Math.max(4, Math.floor((W - 10) / sx));
+  let rows = clamp(Math.round((frontY - backY) / 30) + 1, 2, 6);
+  const count = rs => { let t = 0; for (let r = 0; r < rs; r++) t += perRow - (r & 1); return t; };
+  while (count(rows) < 22 && rows < 10) rows++;
+  let idx = 0;
+  for (let r = 0; r < rows; r++) {
+    const gy = Math.round(backY + (frontY - backY) * r / (rows - 1));
+    const n = perRow - (r & 1), x0 = W / 2 - (n - 1) * sx / 2;
+    for (let i = 0; i < n; i++) birds.push(new Kakapo(Math.round(x0 + i * sx + rand(-2.5, 2.5)), gy + randi(-1, 1), r, idx++));
+  }
+  birds.sort((a, b) => a.gy - b.gy || a.x - b.x);
+}
+
+/* ------------------------------------------------------------ particles */
+function addConf(x, y, vx, vy, front) {
+  conf.push({
+    x, y, vx, vy, c: (Math.random() * CONF.length) | 0,
+    ang: rand(0, 4), spin: rand(5, 13) * (Math.random() < 0.5 ? -1 : 1),
+    ph: rand(0, 6.28), sw: rand(5, 15), sf: rand(2, 5),
+    front: front == null ? Math.random() < 0.6 : front,
+    big: Math.random() < 0.3,
+    landY: rand(floorTop + 1, H - 1),
+  });
+}
+function burst(x, y, n, spd, angle, spread, front) {
+  for (let i = 0; i < n; i++) {
+    const a = angle + rand(-spread, spread), v = rand(spd * 0.35, spd);
+    addConf(x, y, Math.cos(a) * v, Math.sin(a) * v, front);
+  }
+}
+function addStreamer(x, y, vx, vy) {
+  streamers.push({
+    x, y, vx, vy, len: randi(10, 18), c: randi(0, 5), ph: rand(0, 6.28),
+    front: Math.random() < 0.5, landY: rand(floorTop + 3, H - 2), settled: false, die: 0,
+  });
+}
+function addBalloon() {
+  balloons.push({
+    x: rand(8, W - 8), y: H + 12, vy: -rand(14, 24), c: randi(0, BALLOONS.length - 1), ph: rand(0, 6.28),
+    popY: Math.random() < 0.6 ? rand(8, floorTop * 0.75) : -999,
+  });
+}
+function drop() {
+  dropT = tNow;
+  if (!CALM) flashT = 0.14;
+  const n = Math.round(110 * W / 320);
+  for (let i = 0; i < n; i++) addConf(rand(-10, W + 10), rand(-26, -2), rand(-35, 35), rand(10, 70));
+  for (let i = 0; i < 6; i++) addStreamer(rand(0, W), rand(-20, -4), rand(-10, 10), rand(10, 30));
+}
+function popper(side) {
+  const x = side ? W + 2 : -2, y = H - 14, ang = side ? -Math.PI * 0.68 : -Math.PI * 0.32;
+  const spd = 200 * Math.sqrt(H / 180);
+  burst(x, y, 70, spd, ang, 0.26, null);
+  for (let i = 0; i < 3; i++) {
+    const a = ang + rand(-0.2, 0.2), v = rand(0.5, 0.9) * spd;
+    addStreamer(x, y, Math.cos(a) * v, Math.sin(a) * v);
+  }
+}
+function popBalloon(i) {
+  const bl = balloons[i];
+  burst(bl.x, bl.y, 26, 90, -Math.PI / 2, Math.PI, true);
+  pops.push({ x: bl.x, y: bl.y, t0: tNow, big: false });
+  balloons.splice(i, 1);
+}
+function celebrate(x, y) {
+  for (let i = balloons.length - 1; i >= 0; i--) if (Math.hypot(balloons[i].x - x, balloons[i].y - y) < 9) popBalloon(i);
+  burst(x, y, 90, 190, -Math.PI / 2, 1.5, null);
+  for (let i = 0; i < 4; i++) addStreamer(x, y, rand(-50, 50), rand(-100, -40));
+  pops.push({ x, y, t0: tNow, big: true });
+  for (const k of birds) if (Math.abs(k.x - x) < 46 && Math.abs(k.gy - 12 - y) < 56) k.kick(tNow);
+  hintUntil = Math.min(hintUntil, tNow);
+}
+
+/* ------------------------------------------------------------ update */
+function onBeat(b) {
+  if (b % 8 === 0) {
+    mode = b === 0 ? 0 : (mode + randi(1, MODES.length - 1)) % MODES.length;
+    floorPattern = (b / 8) % 4;
+  }
+  if (b % 16 === 0) drop();
+  if (b % 8 === 4) popper(popSide ^= 1);
+  if (b % 4 === 2) for (let i = 0; i < 2; i++) addStreamer(rand(0, W), -4, rand(-10, 10), rand(8, 20));
+}
+
+function update(dt) {
+  const t = tNow, b = Math.floor(t / BEAT);
+  beatFrac = t / BEAT - b;
+  while (beatIdx < b) onBeat(++beatIdx);
+
+  confAcc += dt * 34 * (W / 320);
+  while (confAcc >= 1) { confAcc -= 1; addConf(rand(-8, W + 8), -3, rand(-6, 6), rand(4, 16)); }
+  if ((nextBalloon -= dt) <= 0) { nextBalloon = rand(0.8, 2.2); if (balloons.length < 10) addBalloon(); }
+  if ((nextCall -= dt) <= 0) {
+    nextCall = rand(0.7, 1.6);
+    let busy = 0;
+    for (const k of birds) if (k.call || k.wantCall) busy++;
+    const k = pick(birds);
+    if (busy < 3 && !k.call && !k.wantCall) k.wantCall = pick(CALLS);
+  }
+  for (const k of birds) k.update(t);
+
+  const drag = Math.exp(-2.2 * dt);
+  for (let i = conf.length - 1; i >= 0; i--) {
+    const p = conf[i];
+    p.vy += 55 * dt; p.vx *= drag; p.vy *= drag;
+    p.x += (p.vx + Math.sin(t * p.sf + p.ph) * p.sw) * dt;
+    p.y += p.vy * dt;
+    p.ang += p.spin * dt;
+    let gone = p.x < -30 || p.x > W + 30 || p.y > H + 8;
+    if (!gone && p.vy > 0 && p.y >= p.landY) {
+      settled.push({ x: Math.round(p.x), y: Math.round(p.landY), c: p.c, wide: Math.random() < 0.5, die: t + rand(7, 12) });
+      gone = true;
+    }
+    if (gone) { conf[i] = conf[conf.length - 1]; conf.pop(); }
+  }
+  if (settled.length > 900) settled.splice(0, settled.length - 900);
+  if (settled.length && settled[0].die < t) settled = settled.filter(p => p.die > t);
+
+  const sdrag = Math.exp(-1.8 * dt);
+  for (let i = streamers.length - 1; i >= 0; i--) {
+    const s = streamers[i];
+    if (s.settled) { if (s.die < t) streamers.splice(i, 1); continue; }
+    s.vy += 40 * dt; s.vx *= sdrag; s.vy *= sdrag;
+    s.x += (s.vx + Math.sin(t * 1.7 + s.ph) * 8) * dt;
+    s.y += s.vy * dt;
+    if (s.vy > 0 && s.y >= s.landY) { s.settled = true; s.y = s.landY; s.die = t + rand(6, 10); }
+    else if (s.x < -40 || s.x > W + 40 || s.y > H + 30) streamers.splice(i, 1);
+  }
+
+  for (let i = balloons.length - 1; i >= 0; i--) {
+    const bl = balloons[i];
+    bl.y += bl.vy * dt;
+    bl.x += Math.sin(t * 1.1 + bl.ph) * 5 * dt;
+    if (bl.y <= bl.popY) popBalloon(i);
+    else if (bl.y < -24) balloons.splice(i, 1);
+  }
+  flashT = Math.max(0, flashT - dt);
+}
+
+/* ------------------------------------------------------------ drawing */
+const sagY = (s, x) => { const u = (x - s.xa) / (s.xb - s.xa); return s.y + s.sag * 4 * u * (1 - u); };
+
+function drawStars(t) {
+  for (const s of stars) {
+    const b = Math.sin(t * s.sp + s.ph);
+    if (s.big && b > 0.55) {
+      ctx.fillStyle = '#8f86d8';
+      ctx.fillRect(s.x - 1, s.y, 3, 1); ctx.fillRect(s.x, s.y - 1, 1, 3);
+      ctx.fillStyle = '#fff6d5'; ctx.fillRect(s.x, s.y, 1, 1);
+    } else {
+      ctx.fillStyle = b > 0.2 ? '#fff6d5' : b > -0.5 ? '#a99fe0' : '#5a4f96';
+      ctx.fillRect(s.x, s.y, 1, 1);
+    }
+  }
+}
+
+function drawBunting() {
+  const s = bunting;
+  ctx.fillStyle = '#3a2d52';
+  for (let x = 0; x < W; x++) ctx.fillRect(x, Math.round(sagY(s, x)), 1, 1);
+  let i = 0;
+  for (let x = 3; x < W - 3; x += 9, i++) {
+    const y = Math.round(sagY(s, x + 2)) + 1, ci = i % FLAG_COLS.length;
+    const sway = ((beatIdx + i) & 1) ? 1 : 0;
+    for (let r = 0; r < FLAG.length; r++) {
+      const off = r >= 3 ? sway : 0;
+      for (let c = 0; c < 5; c++) if (FLAG[r][c] === '#') {
+        ctx.fillStyle = c >= 3 ? FLAG_DARK[ci] : FLAG_COLS[ci];
+        ctx.fillRect(x + c + off, y + r, 1, 1);
+      }
+    }
+  }
+}
+
+function drawLights() {
+  ctx.fillStyle = '#2e2444';
+  for (const s of swags) for (let x = Math.max(0, s.xa); x <= Math.min(W - 1, s.xb); x++) ctx.fillRect(x, Math.round(sagY(s, x)), 1, 1);
+  const glow = [];
+  let i = 0;
+  for (const s of swags) for (let x = s.xa + 4; x < s.xb - 3; x += 7, i++) {
+    const y = Math.round(sagY(s, x)) + 1, ci = i % BULBS.length, on = ((i + beatIdx) % 3) === 0;
+    ctx.fillStyle = '#1a1426'; ctx.fillRect(x, y, 2, 1);
+    ctx.fillStyle = on ? BULBS_HI[ci] : BULBS[ci]; ctx.fillRect(x, y + 1, 2, 2);
+    if (on) glow.push(x, y + 1, ci);
+  }
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.26;
+  for (let j = 0; j < glow.length; j += 3) {
+    const x = glow[j], y = glow[j + 1];
+    ctx.fillStyle = BULBS[glow[j + 2]];
+    ctx.fillRect(x - 1, y - 1, 4, 4); ctx.fillRect(x, y - 2, 2, 6); ctx.fillRect(x - 2, y, 6, 2);
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+
+function drawDisco(t) {
+  const cx = discoX, cy = discoY, r = discoR;
+  for (let y = 0; y < cy - r - 1; y++) { ctx.fillStyle = (y & 1) ? '#5d587a' : '#9c97bd'; ctx.fillRect(cx, y, 1, 1); }
+  ctx.fillStyle = '#5d587a'; ctx.fillRect(cx - 1, cy - r - 1, 3, 1);
+  const rot = Math.floor(t * 5);
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    const d2 = dx * dx + dy * dy;
+    if (d2 > r * r + r * 0.6) continue;
+    const fc = (dx + r + rot) >> 1, fr = (dy + r) >> 1;
+    let lv = Math.floor(hash(fc % 11, fr, 3) * 2.99);
+    const l = (-dx * 0.8 - dy) / r;
+    if (l > 0.45) lv++; else if (l < -0.55) lv--;
+    if (d2 > (r - 1) * (r - 1)) lv--;
+    ctx.fillStyle = DISCO[clamp(lv, 0, 3)];
+    ctx.fillRect(cx + dx, cy + dy, 1, 1);
+  }
+  if (Math.random() < 0.07) glints.push({ dx: randi(-r + 2, 1), dy: randi(-r + 2, 1), t0: t });
+  glints = glints.filter(g => t - g.t0 < 0.25);
+  for (const g of glints) {
+    const x = cx + g.dx, y = cy + g.dy, a = t - g.t0 < 0.12 ? 2 : 1;
+    ctx.fillStyle = '#d8f2ff';
+    ctx.fillRect(x - a, y, a, 1); ctx.fillRect(x + 1, y, a, 1); ctx.fillRect(x, y - a, 1, a); ctx.fillRect(x, y + 1, 1, a);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, 1, 1);
+  }
+}
+
+function rope(x0, y0, x1, y1, sag) {
+  const a = Math.min(x0, x1), b = Math.max(x0, x1);
+  for (let x = a; x <= b; x++) {
+    const u = (x - x0) / ((x1 - x0) || 1);
+    ctx.fillRect(x, Math.round(y0 + (y1 - y0) * u + sag * 4 * u * (1 - u)), 1, 1);
+  }
+}
+function drawBanner() {
+  const y = bannerY + (beatFrac < 0.5 ? 0 : 1);
+  ctx.fillStyle = '#3a2d52';
+  rope(ferns[0].x, ferns[0].y, bannerX + BANNER_TAIL, y + 1, 3);
+  rope(ferns[1].x, ferns[1].y, bannerX + BANNER_TAIL + BANNER_CLOTH - 1, y + 1, 3);
+  ctx.drawImage(banner, bannerX, y);
+}
+function drawHint(t) {
+  if (t > hintUntil || (t % 1.2) > 0.85) return;
+  const tw = textWidth(HINT, SMALL), x = Math.round(W / 2 - tw / 2), y = bannerY + BANNER_H + 6;
+  drawText(ctx, HINT, x + 1, y + 1, SMALL, '#1a1026');
+  drawText(ctx, HINT, x, y, SMALL, '#fff4d6');
+}
+
+function paintFloor(t) {
+  const bi = Math.max(0, beatIdx), flash = !CALM && beatFrac < 0.16, dropping = t - dropT < BEAT * 0.9, nL = LITS.length;
+  for (let k = 0; k < tileColor.length; k++) {
+    const col = (k % tileCols) + colMin, row = ((k / tileCols) | 0) + rowMin;
+    let lit = -1, dim = false;
+    if (dropping) lit = (((col - row) % nL) + nL) % nL;
+    else switch (floorPattern) {
+      case 0: if (((col + row + bi) & 1) === 0) lit = (bi >> 1) % nL; break;
+      case 1: { const d = Math.abs(col) + Math.abs(row - rowMid); if ((((d - bi) % 4) + 4) % 4 === 0) lit = d % nL; break; }
+      case 2: lit = (((col - row + bi) % nL) + nL) % nL; dim = true; break;
+      default: if (hash(col, row, bi) < 0.34) lit = (hash(row, col, bi + 99) * nL) | 0;
+    }
+    if (lit < 0) tileColor[k] = FL_BASE[(col + row) & 1];
+    else {
+      const L = LITS[lit];
+      tileColor[k] = dim ? (flash ? L.n : L.d) : (flash || dropping ? L.f : L.n);
+    }
+  }
+  for (let i = 0, n = floorBuf.length; i < n; i++) floorBuf[i] = floorGrout[i] ? (i < W ? FL_EDGE : FL_GROUT) : tileColor[floorTile[i]];
+  floorCtx.putImageData(floorImg, 0, 0);
+  ctx.drawImage(floorC, 0, floorTop);
+}
+
+function drawSettled(t) {
+  for (const p of settled) {
+    const life = p.die - t;
+    ctx.globalAlpha = life < 1 ? Math.max(0, life) : 1;
+    ctx.fillStyle = CONF_FLOOR[p.c];
+    ctx.fillRect(p.x, p.y, p.wide ? 2 : 1, 1);
+  }
+  for (const s of streamers) {
+    if (!s.settled) continue;
+    ctx.globalAlpha = clamp(s.die - t, 0, 1);
+    const x0 = Math.round(s.x) - (s.len >> 1), y0 = Math.round(s.y);
+    for (let i = 0; i < s.len; i++) {
+      ctx.fillStyle = (i >> 1) & 1 ? CONF_DARK[s.c] : CONF_FLOOR[s.c];
+      ctx.fillRect(x0 + i, y0 + (Math.sin(i * 0.9 + s.ph) > 0.3 ? 1 : 0), 1, 1);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawBalloons(t) {
+  for (const b of balloons) {
+    const x = Math.round(b.x), y = Math.round(b.y);
+    ctx.fillStyle = '#b9b0dc';
+    for (let i = 0; i < 12; i++) ctx.fillRect(x + Math.round(Math.sin(t * 3 + b.ph + i * 0.45) * i * 0.18), y + 5 + i, 1, 1);
+    ctx.drawImage(BALLOONS[b.c], x - 3, y - 4);
+  }
+}
+
+function drawConf(front) {
+  for (const p of conf) {
+    if (p.front !== front) continue;
+    const s = ((Math.floor(p.ang) % 4) + 4) % 4, x = Math.round(p.x), y = Math.round(p.y);
+    if (p.big) {                 // chunky piece: face-on square, edge-on sliver in its darker back colour
+      ctx.fillStyle = s & 1 ? CONF_DARK[p.c] : CONF[p.c];
+      if (s & 1) ctx.fillRect(x, y, s === 1 ? 2 : 1, s === 1 ? 1 : 2); else ctx.fillRect(x, y, 2, 2);
+    } else if (s === 0) { ctx.fillStyle = CONF[p.c]; ctx.fillRect(x, y, 2, 1); }
+    else if (s === 2) { ctx.fillStyle = CONF[p.c]; ctx.fillRect(x, y, 1, 2); }
+    else { ctx.fillStyle = CONF_DARK[p.c]; ctx.fillRect(x, y, 1, 1); }
+  }
+}
+function drawStreamers(front, t) {
+  for (const s of streamers) {
+    if (s.settled || s.front !== front) continue;
+    const dir = s.vy < 0 ? 1 : -1, x = s.x, y = Math.round(s.y), spin = Math.floor(t * 14);
+    for (let i = 0; i < s.len; i++) {
+      ctx.fillStyle = ((i + spin) >> 1) & 1 ? CONF_DARK[s.c] : CONF[s.c];
+      ctx.fillRect(Math.round(x + Math.sin(s.ph + i * 0.55 + t * 5) * 2), y + dir * i, 1, 1);
+    }
+  }
+}
+
+function drawBeams(t) {
+  ctx.globalCompositeOperation = 'lighter';
+  for (let b = 0; b < 2; b++) {
+    const ax = b ? W + 6 : -6, ay = -6;
+    const tx = W * 0.5 + Math.sin(t * 0.6 + b * 2.1) * W * 0.36;
+    const ty = floorTop + (H - floorTop) * (0.45 + 0.3 * Math.sin(t * 0.9 + b * 1.3));
+    ctx.fillStyle = BEAM_COLS[(Math.floor(Math.max(0, beatIdx) / 4) + b * 2) % BEAM_COLS.length];
+    ctx.globalAlpha = 0.085;
+    for (let y = 0; y <= ty; y++) {
+      const s = (y - ay) / (ty - ay), cxb = ax + (tx - ax) * s, hw = 1 + 13 * s;
+      ctx.fillRect(Math.round(cxb - hw), y, Math.round(hw * 2), 1);
+    }
+    ctx.globalAlpha = 0.14;
+    for (let dy = -3; dy <= 3; dy++) {
+      const hw = Math.round(17 * Math.sqrt(1 - (dy / 3.6) ** 2));
+      ctx.fillRect(Math.round(tx) - hw, Math.round(ty) + dy, hw * 2, 1);
+    }
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+
+function drawSpecks(t) {
+  ctx.globalCompositeOperation = 'lighter';
+  for (const s of specks) {
+    const x = (((s.x0 - t * 12) % (W + 10)) + (W + 10)) % (W + 10) - 5;
+    ctx.globalAlpha = 0.22 + 0.22 * Math.sin(t * s.tw + s.ph);
+    ctx.fillStyle = s.c;
+    ctx.fillRect(Math.round(x), s.y, s.w, 1);
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+
+const TAIL = ['KWWK', 'KWK.', 'KK..'];
+function drawBubble(cx, bottom, word) {
+  const tw = textWidth(word, SMALL), bw = tw + 6, bh = 11;
+  const x = clamp(Math.round(cx - bw / 2), 1, W - bw - 1), y = bottom - bh - 3;
+  ctx.fillStyle = '#1a1026';
+  ctx.fillRect(x + 1, y, bw - 2, bh); ctx.fillRect(x, y + 1, bw, bh - 2);
+  ctx.fillStyle = '#fff8ec';
+  ctx.fillRect(x + 1, y + 1, bw - 2, bh - 2);
+  const tx = clamp(Math.round(cx) - 1, x + 2, x + bw - 5);
+  paintGrid(ctx, TAIL, { K: '#1a1026', W: '#fff8ec' }, tx, y + bh - 1);
+  drawText(ctx, word, x + 3, y + 3, SMALL, CALL_INK[word]);
+}
+function drawBubbles() {
+  for (const k of birds) if (k.call) drawBubble(Math.round(k.x), k.top - (k.hat ? 9 : 1), k.call.word);
+}
+
+function drawPops(t) {
+  for (const p of pops) {
+    const a = t - p.t0;
+    if (a > 0.22) continue;
+    const r = (2 + a * 28) * (p.big ? 1.6 : 1);
+    ctx.fillStyle = a < 0.08 ? '#ffffff' : '#ffd23f';
+    for (let i = 0; i < 8; i++) {
+      const ang = i * Math.PI / 4, cx = Math.cos(ang), cy = Math.sin(ang);
+      ctx.fillRect(Math.round(p.x + cx * r), Math.round(p.y + cy * r), 1, 1);
+      ctx.fillRect(Math.round(p.x + cx * (r + 1.5)), Math.round(p.y + cy * (r + 1.5)), 1, 1);
+    }
+  }
+  pops = pops.filter(p => t - p.t0 < 0.22);
+}
+
+function render() {
+  const t = tNow;
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(bg, 0, 0);
+  drawStars(t);
+  drawBunting();
+  drawLights();
+  drawDisco(t);
+  drawBanner();
+  drawHint(t);
+  paintFloor(t);
+  drawSettled(t);
+  drawBalloons(t);
+  drawConf(false);
+  drawStreamers(false, t);
+  ctx.fillStyle = 'rgba(6,3,16,0.45)';
+  for (const k of birds) k.drawShadow();
+  for (const k of birds) k.draw(t);
+  drawBeams(t);
+  drawSpecks(t);
+  drawConf(true);
+  drawStreamers(true, t);
+  drawBubbles();
+  drawPops(t);
+  if (flashT > 0) {
+    ctx.globalAlpha = flashT;
+    ctx.fillStyle = '#fff4f9';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ------------------------------------------------------------ run */
+let last = performance.now();
+function loop(ms) {
+  let dt = (ms - last) / 1000;
+  last = ms;
+  if (!(dt > 0)) dt = 0;
+  if (dt > 0.05) dt = 0.05;
+  tNow += dt;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+function toCanvas(e) {
+  const r = cvs.getBoundingClientRect();
+  return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height];
+}
+cvs.addEventListener('pointerdown', e => { const [x, y] = toCanvas(e); celebrate(x, y); });
+window.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    celebrate(rand(W * 0.15, W * 0.85), rand(H * 0.15, floorTop));
+  }
+});
+
+let resizeTimer = 0;
+new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(buildScene, 120); }).observe(stage);
+buildScene();
+requestAnimationFrame(ms => { last = ms; requestAnimationFrame(loop); });
+})();
+</script>
+</body>
+</html>
