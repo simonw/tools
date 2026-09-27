@@ -1,0 +1,1963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bluesky reply bot checker</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f5f4;
+      --surface: #fcfcfb;
+      --surface-2: #f0efec;
+      --border: #e2e1dc;
+      --text: #0b0b0b;
+      --text-2: #52514e;
+      --muted: #6f6e69;
+      --accent: #0062d9;
+      --on-accent: #ffffff;
+      --series: #2a78d6;
+      --good: #0ca30c;
+      --warning: #fab219;
+      --serious: #ec835a;
+      --critical: #d03b3b;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --bg: #111110;
+        --surface: #1a1a19;
+        --surface-2: #242423;
+        --border: #34342f;
+        --text: #ffffff;
+        --text-2: #c3c2b7;
+        --muted: #9a998f;
+        --accent: #6aa8ff;
+        --on-accent: #0b0b0b;
+        --series: #3987e5;
+      }
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 1em;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    a {
+      color: var(--accent);
+    }
+    h1 {
+      margin: 0.2em 0 0.2em;
+      font-size: 1.8rem;
+    }
+    h2 {
+      font-size: 1.35rem;
+      margin: 0 0 0.5em;
+    }
+    h3 {
+      font-size: 1.05rem;
+      margin: 1.2em 0 0.4em;
+    }
+    .intro {
+      color: var(--text-2);
+      margin: 0 0 1.2em;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2em;
+      margin-bottom: 1.2em;
+    }
+    form {
+      display: flex;
+      gap: 0.5em;
+    }
+    input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      font-size: 1rem;
+      padding: 0.7em;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+    }
+    input[type="text"]:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+    }
+    button {
+      background: var(--accent);
+      color: var(--on-accent);
+      border: none;
+      padding: 0.7em 1.3em;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    button.secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .status {
+      margin-top: 0.8em;
+      color: var(--text-2);
+      font-size: 0.95rem;
+    }
+    .status.error {
+      color: var(--critical);
+      font-weight: 600;
+    }
+    .status:empty {
+      display: none;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .small {
+      font-size: 0.85rem;
+    }
+
+    /* Profile + headline stats */
+    .profile {
+      display: flex;
+      gap: 1em;
+      align-items: flex-start;
+    }
+    .profile img {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: var(--surface-2);
+    }
+    .profile .name {
+      font-weight: 700;
+      font-size: 1.15rem;
+    }
+    .profile .bio {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text-2);
+      font-size: 0.92rem;
+      margin-top: 0.3em;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 0.6em;
+      margin-top: 1em;
+    }
+    .stat {
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 0.6em 0.8em;
+    }
+    .stat .value {
+      font-size: 1.3rem;
+      font-weight: 700;
+    }
+    .stat .label {
+      font-size: 0.8rem;
+      color: var(--text-2);
+    }
+    .stat .sub {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .scan-note {
+      margin-top: 0.8em;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    /* Verdict */
+    .verdict-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45em;
+      font-weight: 700;
+      font-size: 1.1rem;
+      padding: 0.35em 0.8em;
+      border-radius: 999px;
+      margin-bottom: 0.7em;
+      border: 2px solid var(--level-color, var(--muted));
+      background: color-mix(in srgb, var(--level-color, var(--muted)) 12%, transparent);
+    }
+    .verdict-badge .icon {
+      color: var(--level-color, var(--muted));
+    }
+    .level-high {
+      --level-color: var(--critical);
+    }
+    .level-medium {
+      --level-color: var(--serious);
+    }
+    .level-low {
+      --level-color: var(--good);
+    }
+    .level-insufficient {
+      --level-color: var(--muted);
+    }
+    .verdict-text {
+      font-size: 1.02rem;
+      margin: 0;
+    }
+    .score-line {
+      margin-top: 0.7em;
+      font-size: 0.88rem;
+      color: var(--text-2);
+    }
+
+    /* Replies (examples, recent list) */
+    .reply-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.8em;
+      margin-bottom: 0.8em;
+      background: var(--surface);
+    }
+    .parent-post {
+      border-left: 3px solid var(--border);
+      padding-left: 0.7em;
+      color: var(--text-2);
+      font-size: 0.9rem;
+      margin-bottom: 0.6em;
+    }
+    .post-meta {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .post-meta a {
+      color: var(--muted);
+    }
+    .post-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0.2em 0;
+    }
+    .parent-post .post-text {
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .facts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35em 0.9em;
+      font-size: 0.85rem;
+      color: var(--text-2);
+      margin-top: 0.4em;
+    }
+    .facts b {
+      color: var(--text);
+    }
+    .flags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35em;
+      margin-top: 0.5em;
+    }
+    .flag {
+      font-size: 0.78rem;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border-radius: 999px;
+      padding: 0.1em 0.6em;
+      color: var(--text);
+    }
+    .flag .dot {
+      display: inline-block;
+      width: 0.55em;
+      height: 0.55em;
+      border-radius: 50%;
+      margin-right: 0.35em;
+      background: var(--flag-color, var(--muted));
+      vertical-align: 0.05em;
+    }
+    .flag.w3 {
+      --flag-color: var(--critical);
+    }
+    .flag.w2 {
+      --flag-color: var(--serious);
+    }
+    .flag.w1 {
+      --flag-color: var(--warning);
+    }
+    ul.flag-explain {
+      margin: 0.4em 0 0;
+      padding-left: 1.2em;
+      font-size: 0.85rem;
+      color: var(--text-2);
+    }
+
+    /* Indicator pill */
+    .indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35em;
+      font-size: 0.76rem;
+      font-weight: 600;
+      white-space: nowrap;
+      border-radius: 999px;
+      padding: 0.1em 0.6em;
+      border: 1px solid var(--ind-color, var(--border));
+      background: color-mix(in srgb, var(--ind-color, var(--border)) 12%, transparent);
+    }
+    .indicator .icon {
+      color: var(--ind-color, var(--muted));
+    }
+    .ind-none {
+      --ind-color: var(--border);
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .ind-na {
+      --ind-color: var(--border);
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .ind-weak {
+      --ind-color: var(--warning);
+    }
+    .ind-some {
+      --ind-color: var(--serious);
+    }
+    .ind-strong {
+      --ind-color: var(--critical);
+    }
+
+    /* Signals */
+    .signal {
+      border: 1px solid var(--border);
+      border-left: 5px solid var(--sig-color, var(--border));
+      border-radius: 8px;
+      padding: 0.7em 0.9em;
+      margin-bottom: 0.7em;
+      background: var(--surface);
+    }
+    .signal.flag-status {
+      --sig-color: var(--critical);
+    }
+    .signal.clear-status {
+      --sig-color: var(--good);
+    }
+    .signal.na-status {
+      --sig-color: var(--border);
+    }
+    .signal-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.3em 0.7em;
+    }
+    .signal-name {
+      font-weight: 700;
+    }
+    .signal-status {
+      font-size: 0.8rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .signal-status .icon {
+      color: var(--sig-color);
+    }
+    .signal-weight {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .signal dl {
+      margin: 0.4em 0 0;
+      display: grid;
+      grid-template-columns: 7.5em 1fr;
+      gap: 0.2em 0.8em;
+      font-size: 0.88rem;
+    }
+    .signal dt {
+      color: var(--muted);
+    }
+    .signal dd {
+      margin: 0;
+    }
+
+    /* Charts */
+    .chart-caption {
+      font-size: 0.85rem;
+      color: var(--text-2);
+      margin: 0.2em 0 0.6em;
+    }
+    .col-chart {
+      display: grid;
+      grid-template-columns: repeat(24, 1fr);
+      gap: 2px;
+      align-items: end;
+      height: 140px;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .col-chart .col {
+      height: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      position: relative;
+    }
+    .col-chart .col.quiet {
+      background: var(--surface-2);
+    }
+    .col-chart .bar {
+      width: 100%;
+      max-width: 24px;
+      background: var(--series);
+      border-radius: 4px 4px 0 0;
+      min-height: 0;
+    }
+    .col-labels {
+      display: grid;
+      grid-template-columns: repeat(24, 1fr);
+      gap: 2px;
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      margin-top: 2px;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4em 1em;
+      font-size: 0.8rem;
+      color: var(--text-2);
+      margin-top: 0.4em;
+      align-items: center;
+    }
+    .swatch {
+      display: inline-block;
+      width: 0.9em;
+      height: 0.9em;
+      border-radius: 3px;
+      vertical-align: -0.1em;
+      margin-right: 0.3em;
+      border: 1px solid var(--border);
+    }
+    .heatmap {
+      display: grid;
+      grid-template-columns: 5.6em repeat(24, 1fr);
+      gap: 2px;
+      font-size: 0.68rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .heatmap .day {
+      color: var(--muted);
+      white-space: nowrap;
+      line-height: 12px;
+    }
+    .heatmap .cell {
+      height: 12px;
+      border-radius: 2px;
+    }
+    .heatmap .day .short {
+      display: none;
+    }
+    .heatmap .gap-row {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-align: center;
+      line-height: 14px;
+    }
+    .heatmap .hour {
+      color: var(--muted);
+      text-align: center;
+    }
+    .l0 {
+      background: var(--surface-2);
+    }
+    .l1 {
+      background: color-mix(in oklab, var(--series) 30%, var(--surface));
+    }
+    .l2 {
+      background: color-mix(in oklab, var(--series) 55%, var(--surface));
+    }
+    .l3 {
+      background: color-mix(in oklab, var(--series) 78%, var(--surface));
+    }
+    .l4 {
+      background: color-mix(in oklab, var(--series) 100%, #000 18%);
+    }
+    .hbar-chart {
+      display: grid;
+      grid-template-columns: minmax(6.5em, auto) 1fr auto;
+      gap: 4px 0.7em;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+    .hbar-chart .label {
+      color: var(--text-2);
+      white-space: nowrap;
+    }
+    .hbar-chart .track {
+      height: 18px;
+      display: flex;
+      align-items: center;
+    }
+    .hbar-chart .bar {
+      height: 18px;
+      background: var(--series);
+      border-radius: 0 4px 4px 0;
+      min-width: 0;
+    }
+    .hbar-chart .val {
+      font-variant-numeric: tabular-nums;
+      color: var(--text-2);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.2em 2em;
+    }
+    table.simple {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.9rem;
+    }
+    table.simple td,
+    table.simple th {
+      padding: 0.3em 0.5em;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    table.simple td.num,
+    table.simple th.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    /* All posts list */
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4em;
+      margin-bottom: 0.8em;
+    }
+    .filters button {
+      font-size: 0.85rem;
+      padding: 0.35em 0.8em;
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .filters button.active {
+      background: var(--accent);
+      color: var(--on-accent);
+      border-color: var(--accent);
+    }
+    .post-row {
+      display: grid;
+      grid-template-columns: 7.5em 1fr;
+      gap: 0.3em 0.8em;
+      padding: 0.6em 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .post-row .post-text {
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .post-row .flags {
+      margin-top: 0.25em;
+    }
+    .kind {
+      font-size: 0.75rem;
+      color: var(--text-2);
+      background: var(--surface-2);
+      border-radius: 4px;
+      padding: 0 0.4em;
+    }
+    details.method summary {
+      cursor: pointer;
+      font-weight: 700;
+    }
+    details.method {
+      font-size: 0.92rem;
+    }
+    details.method li {
+      margin-bottom: 0.3em;
+    }
+    .center {
+      text-align: center;
+    }
+    @media (max-width: 640px) {
+      body {
+        padding: 0.6em;
+      }
+      form {
+        flex-direction: column;
+      }
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+      .post-row {
+        grid-template-columns: 1fr;
+      }
+      .signal dl {
+        grid-template-columns: 1fr;
+      }
+      .signal dt {
+        margin-top: 0.2em;
+      }
+      .col-labels span:nth-child(odd) {
+        visibility: hidden;
+      }
+      .heatmap {
+        grid-template-columns: 3.2em repeat(24, 1fr);
+        gap: 1px;
+      }
+      .heatmap .day .full {
+        display: none;
+      }
+      .heatmap .day .short {
+        display: inline;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Bluesky reply bot checker</h1>
+    <p class="intro">
+      Looks at a Bluesky account's recent posts for patterns common to automated (often AI-generated) reply
+      accounts: how fast it replies, whether it ever sleeps, how uniform its replies are and who it replies to.
+      Every signal, threshold and piece of evidence is shown, so you can check the reasoning yourself.
+      These are patterns, not proof.
+    </p>
+
+    <div class="card">
+      <form id="form">
+        <input type="text" id="userInput" placeholder="Handle, profile URL, post URL or DID (e.g. @simonwillison.net)" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+        <button type="submit" id="submitBtn">Check account</button>
+      </form>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div id="results" hidden>
+      <section class="card" id="overview"></section>
+      <section class="card" id="verdict"></section>
+      <section class="card" id="examples"></section>
+      <section class="card" id="signals"></section>
+      <section class="card" id="activity"></section>
+      <section class="card" id="replyStats"></section>
+      <section class="card" id="recentReplies"></section>
+      <section class="card" id="method"></section>
+      <section class="card" id="allPosts"></section>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const API = 'https://public.api.bsky.app/xrpc/';
+      const SCAN_LIMIT = 1000; // own posts to analyze
+      const MAX_FEED_PAGES = 30; // reposts also count against pages
+      const FAST_MS = 2 * 60 * 1000; // "fast" reply threshold
+      const TYPING_CPS = 10; // characters per second - faster than this is not humanly typed
+      const TYPING_MIN_LENGTH = 30;
+      const BIG_ACCOUNT = 10000;
+      const BREAK_MS = 4 * 60 * 60 * 1000; // a person sleeps at least this long in any 24 hours
+      const RECENT_REPLIES = 50;
+      const EXAMPLES = 5;
+      const PAGE_SIZE = 100;
+      const DAY = 24 * 60 * 60 * 1000;
+      const HOUR = 60 * 60 * 1000;
+
+      const $ = (id) => document.getElementById(id);
+      const form = $('form');
+      const input = $('userInput');
+      const statusEl = $('status');
+      const submitBtn = $('submitBtn');
+      const results = $('results');
+
+      let apiCalls = 0;
+
+      // ---------- Formatting helpers ----------
+
+      function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+      }
+      const nf = new Intl.NumberFormat('en-US');
+      const fmtNum = (n) => nf.format(Math.round(n));
+      const fmt1 = (n) => (Math.round(n * 10) / 10).toLocaleString('en-US');
+      const fmtPct = (x) => (x * 100 < 10 && x > 0 ? (Math.round(x * 1000) / 10).toString() : Math.round(x * 100).toString()) + '%';
+      function fmtCompact(n) {
+        if (n >= 1e6) return fmt1(n / 1e6) + 'M';
+        if (n >= 1e4) return Math.round(n / 1e3) + 'k';
+        if (n >= 1e3) return fmt1(n / 1e3) + 'k';
+        return String(n);
+      }
+      const fmtUTC = (ms) => new Date(ms).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+      const fmtDate = (ms) => new Date(ms).toISOString().slice(0, 10);
+      const fmtHour = (h) => String(h % 24).padStart(2, '0') + ':00';
+      function fmtDelay(ms) {
+        const s = Math.max(0, Math.round(ms / 1000));
+        if (s < 60) return s + 's';
+        const m = Math.floor(s / 60);
+        if (m < 60) return m + 'm ' + String(s % 60).padStart(2, '0') + 's';
+        const h = Math.floor(m / 60);
+        if (h < 48) return h + 'h ' + String(m % 60).padStart(2, '0') + 'm';
+        return Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
+      }
+      function plural(n, word, pluralWord) {
+        return fmtNum(n) + ' ' + (n === 1 ? word : pluralWord || word + 's');
+      }
+      function joinList(items) {
+        if (items.length <= 1) return items.join('');
+        return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+      }
+
+      // ---------- Stats helpers ----------
+
+      const sum = (a) => a.reduce((x, y) => x + y, 0);
+      const mean = (a) => (a.length ? sum(a) / a.length : 0);
+      function quantile(a, q) {
+        if (!a.length) return NaN;
+        const s = [...a].sort((x, y) => x - y);
+        const pos = (s.length - 1) * q;
+        const lo = Math.floor(pos);
+        const hi = Math.ceil(pos);
+        return s[lo] + (s[hi] - s[lo]) * (pos - lo);
+      }
+      const median = (a) => quantile(a, 0.5);
+      function stdev(a) {
+        if (a.length < 2) return 0;
+        const m = mean(a);
+        return Math.sqrt(sum(a.map((x) => (x - m) ** 2)) / (a.length - 1));
+      }
+
+      // ---------- Text helpers ----------
+
+      const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
+      function graphemeLength(s) {
+        if (!s) return 0;
+        if (!segmenter) return [...s].length;
+        let n = 0;
+        for (const _ of segmenter.segment(s)) n++;
+        return n;
+      }
+      const URL_RE = /https?:\/\/\S+/g;
+      // Remove link text (using the post's link facets, which are UTF-8 byte ranges)
+      function textWithoutLinks(record) {
+        const text = record.text || '';
+        const links = (record.facets || [])
+          .filter((f) => f.index && (f.features || []).some((x) => x.$type === 'app.bsky.richtext.facet#link'))
+          .map((f) => f.index)
+          .sort((a, b) => a.byteStart - b.byteStart);
+        if (!links.length) return text.replace(URL_RE, '').trim();
+        const bytes = new TextEncoder().encode(text);
+        const dec = new TextDecoder();
+        let out = '';
+        let pos = 0;
+        for (const { byteStart, byteEnd } of links) {
+          if (byteStart < pos) continue;
+          out += dec.decode(bytes.slice(pos, byteStart));
+          pos = byteEnd;
+        }
+        out += dec.decode(bytes.slice(pos));
+        return out.replace(URL_RE, '').trim();
+      }
+
+      // ---------- API ----------
+
+      async function xrpc(method, params) {
+        const url = new URL(API + method);
+        for (const [k, v] of Object.entries(params)) {
+          if (Array.isArray(v)) v.forEach((x) => url.searchParams.append(k, x));
+          else if (v !== undefined && v !== null) url.searchParams.set(k, v);
+        }
+        for (let attempt = 0; ; attempt++) {
+          apiCalls++;
+          let res;
+          try {
+            res = await fetch(url);
+          } catch (e) {
+            if (attempt < 2) {
+              await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+              continue;
+            }
+            throw e;
+          }
+          if ((res.status === 429 || res.status >= 500) && attempt < 2) {
+            await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+            continue;
+          }
+          if (!res.ok) {
+            let msg = '';
+            try {
+              const j = await res.json();
+              msg = j.message || j.error || '';
+            } catch (e) {}
+            throw new Error(`${method} failed (HTTP ${res.status})${msg ? ': ' + msg : ''}`);
+          }
+          return res.json();
+        }
+      }
+
+      function parseActor(raw) {
+        let s = raw.trim();
+        const m = s.match(/bsky\.app\/profile\/([^/?#\s]+)/);
+        if (m) return decodeURIComponent(m[1]);
+        const at = s.match(/^at:\/\/([^/]+)/);
+        if (at) return at[1];
+        if (s.startsWith('did:')) return s;
+        s = s.replace(/^@/, '');
+        if (!s.includes('.')) s += '.bsky.social';
+        return s;
+      }
+
+      const didFromUri = (uri) => (uri || '').split('/')[2] || null;
+
+      function setStatus(msg, isError = false) {
+        statusEl.textContent = msg;
+        statusEl.className = 'status' + (isError ? ' error' : '');
+      }
+
+      async function fetchFeed(did) {
+        const own = [];
+        const reposts = [];
+        const seen = new Set();
+        let cursor;
+        let pages = 0;
+        let reachedEnd = false;
+        while (own.length < SCAN_LIMIT && pages < MAX_FEED_PAGES) {
+          const data = await xrpc('app.bsky.feed.getAuthorFeed', {
+            actor: did,
+            filter: 'posts_with_replies',
+            limit: 100,
+            cursor,
+          });
+          pages++;
+          for (const item of data.feed || []) {
+            if (item.reason && item.reason.$type === 'app.bsky.feed.defs#reasonRepost') {
+              reposts.push(item);
+              continue;
+            }
+            if (item.post.author.did !== did || seen.has(item.post.uri)) continue;
+            seen.add(item.post.uri);
+            own.push(item);
+          }
+          setStatus(`Fetching posts… ${fmtNum(Math.min(own.length, SCAN_LIMIT))} of up to ${fmtNum(SCAN_LIMIT)}`);
+          cursor = data.cursor;
+          if (!cursor || !(data.feed || []).length) {
+            reachedEnd = true;
+            break;
+          }
+        }
+        return { own: own.slice(0, SCAN_LIMIT), reposts, reachedEnd: reachedEnd && own.length <= SCAN_LIMIT, pages };
+      }
+
+      async function fetchProfiles(dids) {
+        const out = new Map();
+        const batches = [];
+        for (let i = 0; i < dids.length; i += 25) batches.push(dids.slice(i, i + 25));
+        let done = 0;
+        let next = 0;
+        async function worker() {
+          while (next < batches.length) {
+            const batch = batches[next++];
+            try {
+              const data = await xrpc('app.bsky.actor.getProfiles', { actors: batch });
+              for (const p of data.profiles || []) out.set(p.did, p);
+            } catch (e) {
+              console.warn('getProfiles failed', e);
+            }
+            done += batch.length;
+            setStatus(`Looking up follower counts for the accounts it replied to… ${fmtNum(done)} of ${fmtNum(dids.length)}`);
+          }
+        }
+        await Promise.all([worker(), worker(), worker(), worker()]);
+        return out;
+      }
+
+      // ---------- Per-post processing ----------
+
+      function mediaInfo(post, rec) {
+        const t = (post.embed && post.embed.$type) || (rec.embed && rec.embed.$type) || '';
+        const base = t.replace(/#view$/, '');
+        const info = { images: false, video: false, link: false, quote: false };
+        const media = base === 'app.bsky.embed.recordWithMedia' ? ((post.embed && post.embed.media && post.embed.media.$type) || (rec.embed && rec.embed.media && rec.embed.media.$type) || '').replace(/#view$/, '') : base;
+        if (base === 'app.bsky.embed.record' || base === 'app.bsky.embed.recordWithMedia') info.quote = true;
+        if (media === 'app.bsky.embed.images') info.images = true;
+        if (media === 'app.bsky.embed.video') info.video = true;
+        if (media === 'app.bsky.embed.external') info.link = true;
+        if ((rec.facets || []).some((f) => (f.features || []).some((x) => x.$type === 'app.bsky.richtext.facet#link'))) info.link = true;
+        return info;
+      }
+
+      // Server index time is used for delays unless a post looks like it was indexed long after it
+      // was written (e.g. a re-index), in which case both sides fall back to the app-reported time.
+      const liveIndexed = (createdMs, indexedMs) => isFinite(createdMs) && isFinite(indexedMs) && indexedMs - createdMs < HOUR && indexedMs - createdMs > -5 * 60 * 1000;
+
+      function processPost(item, profile) {
+        const did = profile.did;
+        const post = item.post;
+        const rec = post.record || {};
+        const createdMs = Date.parse(rec.createdAt);
+        const indexedMs = Date.parse(post.indexedAt);
+        const rkey = post.uri.split('/').pop();
+        const p = {
+          uri: post.uri,
+          url: `https://bsky.app/profile/${profile.handle}/post/${rkey}`,
+          text: rec.text || '',
+          time: isFinite(createdMs) ? createdMs : indexedMs,
+          createdMs,
+          indexedMs,
+          likes: post.likeCount || 0,
+          repostsReceived: post.repostCount || 0,
+          repliesReceived: post.replyCount || 0,
+          quotesReceived: post.quoteCount || 0,
+          hasQuestion: /[?？]/.test(rec.text || ''),
+          length: graphemeLength(textWithoutLinks(rec)),
+          media: mediaInfo(post, rec),
+          cat: 'top',
+          flags: [],
+        };
+        if (!rec.reply) return p;
+
+        const parentUri = rec.reply.parent && rec.reply.parent.uri;
+        const rootUri = rec.reply.root && rec.reply.root.uri;
+        const parentView = item.reply && item.reply.parent;
+        const rootView = item.reply && item.reply.root;
+        const parentDid = (parentView && parentView.author && parentView.author.did) || didFromUri(parentUri);
+        const rootDid = (rootView && rootView.author && rootView.author.did) || didFromUri(rootUri);
+        const grandparentDid = item.reply && item.reply.grandparentAuthor && item.reply.grandparentAuthor.did;
+        p.parentDid = parentDid;
+        p.parentUri = parentUri;
+
+        let mentioned = false;
+        if (parentView && parentView.$type === 'app.bsky.feed.defs#postView') {
+          const pr = parentView.record || {};
+          mentioned = (pr.facets || []).some((f) => (f.features || []).some((x) => x.$type === 'app.bsky.richtext.facet#mention' && x.did === did));
+          const pc = Date.parse(pr.createdAt);
+          const pi = Date.parse(parentView.indexedAt);
+          p.parent = {
+            handle: parentView.author.handle,
+            displayName: parentView.author.displayName || '',
+            text: pr.text || '',
+            time: isFinite(pc) ? pc : pi,
+            url: `https://bsky.app/profile/${parentView.author.handle}/post/${parentUri.split('/').pop()}`,
+            hasMedia: !!parentView.embed,
+          };
+          if (liveIndexed(createdMs, indexedMs) && liveIndexed(pc, pi)) {
+            p.delayMs = Math.max(0, indexedMs - pi);
+            p.delaySource = 'server';
+          } else if (isFinite(createdMs) && isFinite(pc)) {
+            p.delayMs = Math.max(0, createdMs - pc);
+            p.delaySource = 'app';
+          }
+        } else {
+          p.parentMissing = parentView && /blockedPost/.test(parentView.$type || '') ? 'blocked' : 'deleted or unavailable';
+        }
+
+        if (parentDid === did) p.cat = 'self';
+        else if (rootDid === did || grandparentDid === did) p.cat = 'conversation';
+        else if (mentioned) p.cat = 'mention';
+        else if (parentUri === rootUri) p.cat = 'driveby';
+        else p.cat = 'thread';
+        return p;
+      }
+
+      const CAT_LABELS = {
+        top: 'Top-level post',
+        self: 'Reply to own post',
+        conversation: 'Conversation reply',
+        mention: 'Reply to a mention',
+        driveby: 'Drive-by reply',
+        thread: 'Joins a thread',
+      };
+      function noTextLabel(p) {
+        const m = p.media;
+        const what = m.images ? 'images' : m.video ? 'video' : m.quote ? 'quote post' : m.link ? 'link' : '';
+        return what ? `no text, ${what} only` : 'no text';
+      }
+      const isToOther = (p) => p.cat === 'conversation' || p.cat === 'mention' || p.cat === 'driveby' || p.cat === 'thread';
+      const isUnprompted = (p) => p.cat === 'driveby' || p.cat === 'thread';
+
+      // Per-reply flags. Weights feed the per-post indicator only.
+      const FLAG_DEFS = {
+        typing: { label: 'Faster than typing', weight: 3 },
+        fast: { label: 'Fast reply', weight: 2 },
+        question: { label: 'Asks a question', weight: 1 },
+        driveby: { label: 'Drive-by', weight: 1 },
+        big: { label: 'Big account', weight: 1 },
+      };
+
+      function computeFlags(p) {
+        p.flags = [];
+        if (!isToOther(p)) return;
+        if (p.delaySource === 'server' && p.length >= TYPING_MIN_LENGTH && p.delayMs !== undefined) {
+          p.cps = p.length / Math.max(p.delayMs / 1000, 0.5);
+          if (p.cps > TYPING_CPS) p.flags.push('typing');
+        }
+        if (isUnprompted(p) && p.delayMs !== undefined && p.delayMs < FAST_MS) p.flags.push('fast');
+        if (p.hasQuestion) p.flags.push('question');
+        if (p.cat === 'driveby') p.flags.push('driveby');
+        if (p.parentFollowers !== undefined && p.parentFollowers >= BIG_ACCOUNT) p.flags.push('big');
+        p.score = sum(p.flags.map((f) => FLAG_DEFS[f].weight));
+      }
+
+      function flagExplanation(p, f) {
+        switch (f) {
+          case 'typing':
+            return `<b>Faster than typing:</b> ${fmtNum(p.length)} characters posted ${fmtDelay(p.delayMs)} after the post it replies to, which is ${fmt1(p.cps)} characters per second before even counting time to read the post. A fast typist manages about 6–8.`;
+          case 'fast':
+            return `<b>Fast reply:</b> posted ${fmtDelay(p.delayMs)} after the original post (threshold: under 2 minutes).`;
+          case 'question':
+            return `<b>Asks a question:</b> the reply contains a question mark.`;
+          case 'driveby':
+            return `<b>Drive-by:</b> a reply straight to someone else's top-level post, not part of an existing conversation with them.`;
+          case 'big':
+            return `<b>Big account:</b> replying to an account with ${fmtNum(p.parentFollowers)} followers (threshold: ${fmtNum(BIG_ACCOUNT)}).`;
+        }
+        return '';
+      }
+
+      function indicatorLevel(p) {
+        if (!isToOther(p)) return 'na';
+        if (!p.score) return 'none';
+        if (p.flags.includes('typing')) return 'strong';
+        if (p.score >= 3) return 'some';
+        return 'weak';
+      }
+
+      function indicatorHtml(p) {
+        const level = indicatorLevel(p);
+        if (level === 'na') return `<span class="indicator ind-na" title="Per-reply signals only apply to replies to other people">n/a</span>`;
+        if (level === 'none') return `<span class="indicator ind-none"><span class="icon">○</span>No signals</span>`;
+        const text = { weak: 'Weak', some: 'Some', strong: 'Strong' }[level];
+        const icon = { weak: '◔', some: '◑', strong: '●' }[level];
+        return `<span class="indicator ind-${level}" title="Per-reply signal score ${p.score} (${p.flags.map((f) => FLAG_DEFS[f].label).join(', ')})"><span class="icon">${icon}</span>${text} signals</span>`;
+      }
+
+      function flagChips(p) {
+        if (!p.flags.length) return '';
+        return `<div class="flags">${p.flags.map((f) => `<span class="flag w${FLAG_DEFS[f].weight}"><span class="dot"></span>${FLAG_DEFS[f].label}</span>`).join('')}</div>`;
+      }
+
+      // ---------- Analysis ----------
+
+      function hourCounts(posts) {
+        const counts = new Array(24).fill(0);
+        for (const p of posts) counts[new Date(p.time).getUTCHours()]++;
+        return counts;
+      }
+
+      // Longest circular run of "quiet" hours: hours with under a quarter of the average hourly count
+      function quietWindow(counts) {
+        const total = sum(counts);
+        const threshold = (total / 24) * 0.25;
+        const quiet = counts.map((c) => c < threshold);
+        if (quiet.every(Boolean)) return { length: 24, start: 0, quiet, threshold, share: 1 };
+        let best = { length: 0, start: 0 };
+        for (let start = 0; start < 24; start++) {
+          if (!quiet[start] || quiet[(start + 23) % 24]) continue; // only start at the beginning of a run
+          let len = 0;
+          while (len < 24 && quiet[(start + len) % 24]) len++;
+          if (len > best.length) best = { length: len, start };
+        }
+        let inWindow = 0;
+        for (let i = 0; i < best.length; i++) inWindow += counts[(best.start + i) % 24];
+        return { ...best, quiet, threshold, share: total ? inWindow / total : 0 };
+      }
+
+      // Slide a 24-hour window along the scanned period an hour at a time and check whether each
+      // window contains a gap of BREAK_MS or more with no posts. Doesn't depend on time zone, so
+      // it still works for people who travel.
+      function breakTest(posts) {
+        const times = posts.map((p) => p.time).sort((a, b) => a - b);
+        if (times.length < 2) return { total: 0, withBreak: 0, share: 0 };
+        const last = times[times.length - 1];
+        let total = 0;
+        let withBreak = 0;
+        let j = 0;
+        for (let start = times[0]; start + DAY <= last; start += HOUR) {
+          const end = start + DAY;
+          while (j < times.length && times[j] <= start) j++;
+          let prev = start;
+          let maxGap = 0;
+          for (let k = j; k < times.length && times[k] <= end; k++) {
+            maxGap = Math.max(maxGap, times[k] - prev);
+            prev = times[k];
+          }
+          maxGap = Math.max(maxGap, end - prev);
+          total++;
+          if (maxGap >= BREAK_MS) withBreak++;
+        }
+        return { total, withBreak, share: total ? withBreak / total : 0 };
+      }
+
+      function analyze(profile, feed, parentProfiles) {
+        const posts = feed.own.map((item) => processPost(item, profile)).sort((a, b) => b.time - a.time);
+        for (const p of posts) {
+          if (p.parentDid && parentProfiles.has(p.parentDid)) p.parentFollowers = parentProfiles.get(p.parentDid).followersCount || 0;
+          computeFlags(p);
+        }
+        const now = Date.now();
+        const n = posts.length;
+        const newest = n ? posts[0].time : now;
+        const oldest = n ? posts[n - 1].time : now;
+        const spanDays = Math.max((newest - oldest) / DAY, 1);
+        const toOther = posts.filter(isToOther);
+        const unprompted = posts.filter(isUnprompted);
+        const byCat = {};
+        for (const k of Object.keys(CAT_LABELS)) byCat[k] = posts.filter((p) => p.cat === k).length;
+        const repostsInWindow = feed.reposts.filter((r) => {
+          const t = Date.parse(r.reason.indexedAt);
+          return !n || !isFinite(t) || t >= oldest;
+        }).length;
+        const createdAt = profile.createdAt ? Date.parse(profile.createdAt) : NaN;
+        const ageDays = isFinite(createdAt) ? (now - createdAt) / DAY : NaN;
+
+        const ctx = {
+          profile,
+          posts,
+          n,
+          newest,
+          oldest,
+          spanDays,
+          toOther,
+          unprompted,
+          byCat,
+          repostsInWindow,
+          createdAt,
+          ageDays,
+          reachedEnd: feed.reachedEnd,
+          uniqueParentsLooked: parentProfiles.size,
+        };
+
+        // Posting mix
+        ctx.mix = {
+          images: posts.filter((p) => p.media.images).length,
+          video: posts.filter((p) => p.media.video).length,
+          link: posts.filter((p) => p.media.link).length,
+          quote: posts.filter((p) => p.media.quote).length,
+        };
+        // Engagement
+        ctx.totalLikes = sum(posts.map((p) => p.likes));
+        ctx.avgLikes = n ? ctx.totalLikes / n : 0;
+        const top = posts.filter((p) => p.cat === 'top');
+        ctx.avgLikesTop = top.length ? mean(top.map((p) => p.likes)) : NaN;
+        ctx.avgLikesReply = toOther.length ? mean(toOther.map((p) => p.likes)) : NaN;
+        ctx.zeroLikeReplyShare = toOther.length ? toOther.filter((p) => p.likes === 0).length / toOther.length : NaN;
+        ctx.totalRepliesReceived = sum(posts.map((p) => p.repliesReceived));
+        ctx.totalRepostsReceived = sum(posts.map((p) => p.repostsReceived));
+
+        // Delays
+        ctx.unpromptedTimed = unprompted.filter((p) => p.delayMs !== undefined);
+        ctx.toOtherTimed = toOther.filter((p) => p.delayMs !== undefined);
+        ctx.typingCandidates = toOther.filter((p) => p.delaySource === 'server' && p.length >= TYPING_MIN_LENGTH);
+        ctx.typingFlagged = toOther.filter((p) => p.flags.includes('typing'));
+
+        // Hours - prefer replies to other people so scheduled top-level posts don't count
+        let hourSource = null;
+        if (toOther.length >= 100) hourSource = { posts: toOther, label: 'replies to other people' };
+        else if (n >= 100) hourSource = { posts, label: 'posts' };
+        ctx.hourSource = hourSource || { posts, label: 'posts' };
+        ctx.hourCounts = hourCounts(ctx.hourSource.posts);
+        ctx.quiet = quietWindow(ctx.hourCounts);
+        ctx.hourEnough = !!hourSource && spanDays >= 3;
+        ctx.breaks = breakTest(ctx.hourSource.posts);
+
+        ctx.signals = buildSignals(ctx);
+        ctx.verdict = buildVerdict(ctx);
+        return ctx;
+      }
+
+      function signal(def) {
+        return Object.assign({ status: 'na', value: '', botPhrase: '', humanPhrase: '' }, def);
+      }
+
+      function buildSignals(ctx) {
+        const S = [];
+        const { profile, n, toOther, unprompted } = ctx;
+
+        // 1. Posting rate
+        {
+          const recentRate = n / ctx.spanDays;
+          const lifetimeRate = isFinite(ctx.ageDays) ? (profile.postsCount || 0) / Math.max(ctx.ageDays, 1) : NaN;
+          const s = signal({
+            id: 'rate',
+            name: 'High posting rate',
+            short: 'a very high posting rate',
+            weight: 2,
+            rule: 'Flagged when the account averages 50 or more posts a day, either across the scanned posts (needs at least 50 of them) or over its whole lifetime.',
+            why: 'Keeping up 50+ posts every day, day after day, is hard for a person. Automated accounts can post hundreds of times a day.',
+            caveat: 'Some very active people post this much for a while, especially during big news events or live-posting.',
+          });
+          const parts = [];
+          if (n >= 50) parts.push(`${fmt1(recentRate)} posts/day across the scanned posts (${fmtNum(n)} posts in ${fmt1(ctx.spanDays)} days)`);
+          if (isFinite(lifetimeRate)) parts.push(`${fmt1(lifetimeRate)} posts/day over the account's lifetime (${fmtNum(profile.postsCount || 0)} posts in ${fmtNum(Math.max(ctx.ageDays, 1))} days)`);
+          s.value = parts.join('; ') || 'Not enough posts';
+          const rate = Math.max(n >= 50 ? recentRate : 0, isFinite(lifetimeRate) ? lifetimeRate : 0);
+          if (parts.length) {
+            s.status = rate >= 50 ? 'flag' : 'clear';
+            s.botPhrase = `it averages <b>${fmtNum(rate)} posts a day</b>`;
+            s.humanPhrase = `it posts at a human-scale rate (${fmt1(rate)} a day)`;
+          }
+          S.push(s);
+        }
+
+        // 2. Account age
+        {
+          const s = signal({
+            id: 'age',
+            name: 'New account',
+            short: 'a brand new account',
+            weight: 1,
+            rule: 'Flagged when the account was created less than 30 days ago.',
+            why: 'Reply bots are often freshly created, and replaced when they get reported.',
+            caveat: 'Lots of real people are new to Bluesky. On its own this means very little.',
+          });
+          if (isFinite(ctx.ageDays)) {
+            s.value = `Created ${fmtDate(ctx.createdAt)} (${plural(Math.floor(ctx.ageDays), 'day')} ago)`;
+            s.status = ctx.ageDays < 30 ? 'flag' : 'clear';
+            s.botPhrase = `the account is only <b>${plural(Math.floor(ctx.ageDays), 'day')} old</b>`;
+            s.humanPhrase = `the account has existed since ${fmtDate(ctx.createdAt)}`;
+          } else s.value = 'Creation date not available';
+          S.push(s);
+        }
+
+        // 3. Mostly replies
+        {
+          const share = n ? toOther.length / n : 0;
+          const s = signal({
+            id: 'replies',
+            name: 'Almost everything is a reply to someone else',
+            short: 'almost nothing but replies to other people',
+            weight: 1,
+            rule: 'Flagged when 90% or more of the scanned posts are replies to other people (needs at least 50 posts).',
+            why: 'Reply bots exist to reply. They rarely write their own top-level posts or threads.',
+            caveat: 'Many people mostly use Bluesky to join other people’s conversations.',
+          });
+          s.value = n ? `${fmtPct(share)} of ${plural(n, 'scanned post')} are replies to other people` : 'No posts';
+          if (n >= 50) {
+            s.status = share >= 0.9 ? 'flag' : 'clear';
+            s.botPhrase = `<b>${fmtPct(share)}</b> of its posts are replies to other people`;
+            s.humanPhrase = `only ${fmtPct(share)} of its posts are replies to other people`;
+          }
+          S.push(s);
+        }
+
+        // 4. Posting mix
+        {
+          const m = ctx.mix;
+          const s = signal({
+            id: 'mix',
+            name: 'Nothing but text',
+            short: 'text-only activity with no reposts, images or quotes',
+            weight: 1,
+            rule: 'Flagged when, across the scanned posts (needs at least 50), the account never reposted anything, never posted an image or video, and never quote-posted.',
+            why: 'People share things: they repost, post photos and quote other posts. A bot built to generate replies usually only emits text.',
+            caveat: 'Some people only ever write text.',
+          });
+          s.value = `${plural(ctx.repostsInWindow, 'repost')}, ${plural(m.images, 'post')} with images, ${fmtNum(m.video)} with video, ${plural(m.quote, 'quote post')}, ${fmtNum(m.link)} with links`;
+          if (n >= 50) {
+            const narrow = ctx.repostsInWindow === 0 && m.images === 0 && m.video === 0 && m.quote === 0;
+            s.status = narrow ? 'flag' : 'clear';
+            s.botPhrase = `in ${plural(n, 'post')} it <b>never reposted, quoted or posted an image</b>`;
+            s.humanPhrase = `it reposts, quotes or posts media (${s.value})`;
+          }
+          S.push(s);
+        }
+
+        // 5. Around the clock
+        {
+          const b = ctx.breaks;
+          const q = ctx.quiet;
+          const src = ctx.hourSource;
+          const s = signal({
+            id: 'clock',
+            name: 'Never takes a break',
+            short: 'activity around the clock with no daily break',
+            weight: 2,
+            rule: 'Slides a 24-hour window across the scanned period, one hour at a time, and checks whether each window contains a gap of at least 4 hours with no activity. Flagged when fewer than half of the windows do. Uses replies to other people if there are at least 100 of them (so scheduled posts don’t count), otherwise all posts; needs at least 100 posts spread over 3+ days. This doesn’t depend on time zone, so travelling doesn’t affect it.',
+            why: 'People sleep. Almost any 24 hours of a human account includes a stretch of several hours with no activity. An automated account can keep going around the clock.',
+            caveat: 'Shared or team-run accounts, and people with very irregular sleep, can look busy around the clock.',
+          });
+          const quietText = q.length ? `${q.length}h (${fmtHour(q.start)}–${fmtHour(q.start + q.length)} UTC)` : 'none';
+          s.value = `${fmtPct(b.share)} of ${plural(b.total, '24-hour window')} contain a break of 4+ hours (based on ${plural(src.posts.length, src.label.replace(/s$/, ''), src.label)}). ${q.length ? `For reference, the longest quiet stretch in the hour-of-day chart is ${quietText}.` : 'For reference, no hour of the day is quiet in the hour-of-day chart.'}`;
+          if (ctx.hourEnough && b.total) {
+            s.status = b.share < 0.5 ? 'flag' : 'clear';
+            s.botPhrase = `only <b>${fmtPct(b.share)}</b> of 24-hour periods include a break of 4+ hours, so it <b>rarely seems to sleep</b>`;
+            s.humanPhrase = `${fmtPct(b.share)} of 24-hour periods include a break of 4+ hours, like someone sleeping`;
+          } else {
+            s.value += ' Not enough data to score.';
+          }
+          S.push(s);
+        }
+
+        // 6. Fast replies
+        {
+          const timed = ctx.unpromptedTimed;
+          const fast = timed.filter((p) => p.delayMs < FAST_MS);
+          const share = timed.length ? fast.length / timed.length : 0;
+          const med = median(timed.map((p) => p.delayMs));
+          const s = signal({
+            id: 'fast',
+            name: 'Replies arrive very quickly',
+            short: 'very fast replies',
+            weight: 3,
+            rule: 'Looks at unprompted replies: replies to other people’s posts, excluding posts that @mention this account and replies to people who replied to it first (a notification makes a fast reply natural). Flagged when 50% or more were posted within 2 minutes of the post they reply to (needs at least 10).',
+            why: 'Bots watching the firehose or search results can reply within seconds of a post appearing, every time. People reply at all sorts of delays, because they only see a post when they happen to open the app.',
+            caveat: 'Someone who spends all day refreshing their feed can reply quickly to many posts, especially in fast-moving live events.',
+          });
+          s.value = timed.length ? `${fmtPct(share)} of ${plural(timed.length, 'unprompted reply', 'unprompted replies')} were posted within 2 minutes (median delay ${fmtDelay(med)})` : 'No unprompted replies with a known delay';
+          const prompted = ctx.toOtherTimed.filter((p) => !isUnprompted(p));
+          if (prompted.length) {
+            const pf = prompted.filter((p) => p.delayMs < FAST_MS).length / prompted.length;
+            s.value += `. Not counted: ${plural(prompted.length, 'reply', 'replies')} to mentions or to people who replied to it first, of which ${fmtPct(pf)} came within 2 minutes`;
+          }
+          if (timed.length >= 10) {
+            s.status = share >= 0.5 ? 'flag' : 'clear';
+            s.botPhrase = `<b>${fmtPct(share)}</b> of its unprompted replies were posted <b>within 2 minutes</b> of the post they reply to (median ${fmtDelay(med)})`;
+            s.humanPhrase = `only ${fmtPct(share)} of its unprompted replies came within 2 minutes (median delay ${fmtDelay(med)})`;
+          }
+          S.push(s);
+        }
+
+        // 7. Faster than typing
+        {
+          const cands = ctx.typingCandidates;
+          const flagged = ctx.typingFlagged;
+          const share = cands.length ? flagged.length / cands.length : 0;
+          const s = signal({
+            id: 'typing',
+            name: 'Replies faster than anyone could type them',
+            short: 'replies posted faster than a person could type them',
+            weight: 3,
+            rule: `For each reply to someone else of ${TYPING_MIN_LENGTH}+ characters (links excluded), divides its length by the time since the original post. Anything above ${TYPING_CPS} characters per second is flagged – that’s faster than a fast typist, with zero time allowed for reading the post. Flagged when at least 3 replies, and at least 10% of those checked, exceed it.`,
+            why: 'A reply can’t be written before the post it replies to exists. A 250-character reply appearing 10 seconds after the original post was not typed by hand.',
+            caveat: 'Pasting pre-written text (a canned response, a link with a long description) can beat this. Check the flagged replies below to see whether they look pasted.',
+          });
+          s.value = cands.length ? `${fmtNum(flagged.length)} of ${plural(cands.length, 'reply', 'replies')} checked exceeded ${TYPING_CPS} characters per second (${fmtPct(share)})` : 'No replies long enough to check';
+          if (cands.length >= 5) {
+            s.status = flagged.length >= 3 && share >= 0.1 ? 'flag' : 'clear';
+            s.botPhrase = `<b>${fmtNum(flagged.length)} replies</b> appeared faster than anyone could type them (over ${TYPING_CPS} characters per second, with no time to read)`;
+            s.humanPhrase = flagged.length ? `only ${fmtNum(flagged.length)} of its replies appeared faster than typing speed` : `none of its replies appeared faster than a person could type them`;
+          }
+          S.push(s);
+        }
+
+        // 8. Drive-by replies
+        {
+          const d = toOther.filter((p) => p.cat === 'driveby').length;
+          const c = toOther.filter((p) => p.cat === 'conversation' || p.cat === 'mention').length;
+          const dShare = toOther.length ? d / toOther.length : 0;
+          const cShare = toOther.length ? c / toOther.length : 0;
+          const s = signal({
+            id: 'driveby',
+            name: 'Mostly one-off replies to top-level posts',
+            short: 'mostly drive-by replies to top-level posts',
+            weight: 1,
+            rule: 'Flagged when 80% or more of replies to other people go straight to a top-level post, and fewer than 10% are conversation replies or replies to posts that @mention it (needs at least 20 replies to other people).',
+            why: 'Reply bots typically find a post, reply once and move on. People get drawn into conversations: they reply to people who replied to them.',
+            caveat: 'Some people mostly reply to posts in their feed and rarely get replies back.',
+          });
+          s.value = toOther.length ? `${fmtPct(dShare)} drive-by replies to top-level posts, ${fmtPct(cShare)} conversation or mention replies (of ${plural(toOther.length, 'reply', 'replies')} to other people)` : 'No replies to other people';
+          if (toOther.length >= 20) {
+            s.status = dShare >= 0.8 && cShare < 0.1 ? 'flag' : 'clear';
+            s.botPhrase = `<b>${fmtPct(dShare)}</b> of its replies are one-off replies to top-level posts, and only ${fmtPct(cShare)} continue a conversation or answer a mention`;
+            s.humanPhrase = `${fmtPct(cShare)} of its replies are back-and-forth conversation or answers to mentions`;
+          }
+          S.push(s);
+        }
+
+        // 9. Distinct targets
+        {
+          const withDid = toOther.filter((p) => p.parentDid);
+          const distinct = new Set(withDid.map((p) => p.parentDid)).size;
+          const ratio = withDid.length ? distinct / withDid.length : 0;
+          const s = signal({
+            id: 'distinct',
+            name: 'Rarely replies to the same person twice',
+            short: 'rarely replying to the same person twice',
+            weight: 1,
+            rule: 'Flagged when the number of different accounts replied to is 90% or more of the number of replies (needs at least 30 replies to other people).',
+            why: 'People tend to have repeat conversations with friends and mutuals. Reply bots spray replies across strangers.',
+            caveat: 'People who mostly reply to posts surfaced by Discover or search can look like this too.',
+          });
+          s.value = withDid.length ? `${plural(withDid.length, 'reply', 'replies')} went to ${plural(distinct, 'different account')} (${fmtPct(ratio)})` : 'No replies to other people';
+          if (withDid.length >= 30) {
+            s.status = ratio >= 0.9 ? 'flag' : 'clear';
+            s.botPhrase = `its ${fmtNum(withDid.length)} replies went to <b>${fmtNum(distinct)} different accounts</b>`;
+            s.humanPhrase = `it has repeat conversations (${fmtNum(withDid.length)} replies to ${fmtNum(distinct)} accounts)`;
+          }
+          S.push(s);
+        }
+
+        // 10. Big accounts
+        {
+          const known = toOther.filter((p) => p.parentFollowers !== undefined);
+          const med = median(known.map((p) => p.parentFollowers));
+          const bigShare = known.length ? known.filter((p) => p.parentFollowers >= BIG_ACCOUNT).length / known.length : 0;
+          const s = signal({
+            id: 'big',
+            name: 'Mostly replies to large accounts',
+            short: 'mostly replying to large accounts',
+            weight: 1,
+            rule: `Flagged when the median follower count of the accounts it replies to is ${fmtNum(BIG_ACCOUNT)} or more (needs at least 20 replies with a known follower count).`,
+            why: 'Reply bots (and engagement farmers) target big accounts, because replies there get seen by the most people.',
+            caveat: 'Popular posts are what show up in feeds, so plenty of people mostly reply to big accounts.',
+          });
+          s.value = known.length ? `Median follower count of accounts replied to: ${fmtNum(med)}; ${fmtPct(bigShare)} have ${fmtNum(BIG_ACCOUNT)}+ followers` : 'No follower counts available';
+          if (known.length >= 20) {
+            s.status = med >= BIG_ACCOUNT ? 'flag' : 'clear';
+            s.botPhrase = `the median account it replies to has <b>${fmtNum(med)} followers</b>`;
+            s.humanPhrase = `the median account it replies to has ${fmtNum(med)} followers`;
+          }
+          S.push(s);
+        }
+
+        // 11. Questions
+        {
+          const q = toOther.filter((p) => p.hasQuestion).length;
+          const share = toOther.length ? q / toOther.length : 0;
+          const s = signal({
+            id: 'questions',
+            name: 'Frequently asks questions',
+            short: 'frequent questions',
+            weight: 1,
+            rule: 'Flagged when 50% or more of replies to other people contain a question mark (needs at least 20).',
+            why: 'AI reply bots are often prompted to “drive engagement”, so they end replies with a question back to the poster.',
+            caveat: 'Curious people ask a lot of questions.',
+          });
+          s.value = toOther.length ? `${fmtPct(share)} of ${plural(toOther.length, 'reply', 'replies')} to other people contain a question mark` : 'No replies to other people';
+          if (toOther.length >= 20) {
+            s.status = share >= 0.5 ? 'flag' : 'clear';
+            s.botPhrase = `<b>${fmtPct(share)}</b> of its replies ask a question`;
+            s.humanPhrase = `${fmtPct(share)} of its replies ask a question`;
+          }
+          S.push(s);
+        }
+
+        // 12. Uniform length
+        {
+          const lengths = toOther.map((p) => p.length).filter((l) => l > 0);
+          const m = mean(lengths);
+          const cv = m ? stdev(lengths) / m : 0;
+          const s = signal({
+            id: 'length',
+            name: 'Unusually consistent reply length',
+            short: 'unusually uniform reply lengths',
+            weight: 2,
+            rule: 'Measures the “coefficient of variation” of reply lengths: the standard deviation divided by the average. Flagged when it is below 0.35 (needs at least 20 replies with text). Human replies typically score 0.7 or more.',
+            why: 'Language models produce replies of very similar length every time. People write “lol” one minute and a long paragraph the next.',
+            caveat: 'Some people have a very consistent writing style, and the 300-character limit squeezes long-winded posters into a narrow range.',
+          });
+          s.value = lengths.length ? `Average ${fmtNum(m)} characters, middle half between ${fmtNum(quantile(lengths, 0.25))} and ${fmtNum(quantile(lengths, 0.75))}; variation ${cv.toFixed(2)}` : 'No replies with text';
+          if (lengths.length >= 20) {
+            s.status = cv < 0.35 ? 'flag' : 'clear';
+            s.botPhrase = `its replies are <b>unusually uniform in length</b> (variation ${cv.toFixed(2)}, with the middle half between ${fmtNum(quantile(lengths, 0.25))} and ${fmtNum(quantile(lengths, 0.75))} characters)`;
+            s.humanPhrase = `its reply lengths vary a lot (variation ${cv.toFixed(2)})`;
+          }
+          S.push(s);
+        }
+        return S;
+      }
+
+      function buildVerdict(ctx) {
+        const measurable = ctx.signals.filter((s) => s.status !== 'na');
+        const flagged = measurable.filter((s) => s.status === 'flag').sort((a, b) => b.weight - a.weight);
+        const clear = measurable.filter((s) => s.status === 'clear').sort((a, b) => b.weight - a.weight);
+        const maxWeight = sum(measurable.map((s) => s.weight));
+        const score = sum(flagged.map((s) => s.weight));
+        const ratio = maxWeight ? score / maxWeight : 0;
+        let level;
+        if (maxWeight < 8 || ctx.toOther.length < 10) level = 'insufficient';
+        else if (ratio >= 0.5 && flagged.some((s) => s.weight >= 2)) level = 'high';
+        else if (ratio >= 0.25) level = 'medium';
+        else level = 'low';
+        return { measurable, flagged, clear, maxWeight, score, ratio, level };
+      }
+
+      // ---------- Rendering ----------
+
+      function statHtml(value, label, sub) {
+        return `<div class="stat"><div class="value">${value}</div><div class="label">${label}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+      }
+
+      function renderOverview(ctx) {
+        const p = ctx.profile;
+        const profileUrl = `https://bsky.app/profile/${p.handle}`;
+        const labels = (p.labels || []).map((l) => l.val).filter((v) => v && !v.startsWith('!no-'));
+        const toOtherShare = ctx.n ? ctx.toOther.length / ctx.n : 0;
+        const replies = ctx.n - ctx.byCat.top;
+        $('overview').innerHTML = `
+          <div class="profile">
+            ${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '<img alt="">'}
+            <div>
+              <div class="name">${esc(p.displayName || p.handle)}</div>
+              <div><a href="${esc(profileUrl)}" target="_blank" rel="noopener">@${esc(p.handle)}</a> <span class="muted small">${esc(p.did)}</span></div>
+              ${p.description ? `<div class="bio">${esc(p.description)}</div>` : ''}
+              ${labels.length ? `<div class="small" style="margin-top:0.3em">Moderation labels on this account: <b>${labels.map(esc).join(', ')}</b></div>` : ''}
+            </div>
+          </div>
+          <div class="stats">
+            ${statHtml(fmtNum(p.followersCount || 0), 'Followers')}
+            ${statHtml(fmtNum(p.followsCount || 0), 'Following')}
+            ${statHtml(fmtNum(p.postsCount || 0), 'Posts (all time)', isFinite(ctx.ageDays) ? `${fmt1((p.postsCount || 0) / Math.max(ctx.ageDays, 1))} per day` : '')}
+            ${statHtml(isFinite(ctx.ageDays) ? plural(Math.floor(ctx.ageDays), 'day') : '?', 'Account age', isFinite(ctx.createdAt) ? 'created ' + fmtDate(ctx.createdAt) : '')}
+            ${statHtml(fmtPct(ctx.n ? replies / ctx.n : 0), 'Replies (scanned posts)', `${fmtNum(replies)} replies, ${fmtNum(ctx.byCat.top)} top-level`)}
+            ${statHtml(fmtPct(toOtherShare), 'Replies to other people', `${fmtNum(ctx.toOther.length)} of ${fmtNum(ctx.n)}; ${fmtNum(ctx.byCat.self)} to own posts`)}
+            ${statHtml(fmtNum(ctx.totalLikes), 'Likes received', `on the ${fmtNum(ctx.n)} scanned posts`)}
+            ${statHtml(fmt1(ctx.avgLikes), 'Average likes per post', isFinite(ctx.avgLikesReply) ? `${fmt1(ctx.avgLikesReply)} per reply to others` : '')}
+            ${statHtml(fmtNum(ctx.repostsInWindow), 'Reposts', 'in the same period')}
+          </div>
+          <div class="scan-note">
+            Scanned ${ctx.reachedEnd ? `all ${plural(ctx.n, 'post')} the API returned for this account${(p.postsCount || 0) > ctx.n ? ` (its profile reports ${fmtNum(p.postsCount)}, some may be unavailable)` : ''}` : `the ${plural(ctx.n, 'most recent post')}`}${ctx.n ? `, from ${fmtUTC(ctx.oldest)} to ${fmtUTC(ctx.newest)}` : ''}.
+            All times are UTC.
+          </div>`;
+      }
+
+      function renderVerdict(ctx) {
+        const v = ctx.verdict;
+        const handle = '@' + esc(ctx.profile.handle);
+        const badge = {
+          high: ['⚑', 'Strong bot-like pattern'],
+          medium: ['◑', 'Some bot-like signals'],
+          low: ['✓', 'Few bot-like signals'],
+          insufficient: ['?', 'Not enough data'],
+        }[v.level];
+        let text = '';
+        if (v.level === 'high') text += `${handle} shows a strong pattern of automated-looking reply behaviour. `;
+        else if (v.level === 'medium') text += `${handle} shows some patterns associated with automated reply accounts, but it is not a clear-cut case. `;
+        else if (v.level === 'low') text += `${handle} shows few signs of being an automated reply account. `;
+        else text += `There isn’t enough recent reply activity from ${handle} (${plural(ctx.toOther.length, 'reply', 'replies')} to other people in the scanned posts) to say much with confidence. `;
+
+        text += `${fmtNum(v.flagged.length)} of the ${fmtNum(v.measurable.length)} signals the tool could measure ${v.flagged.length === 1 ? 'points' : 'point'} toward automation${v.flagged.length ? ': ' + joinList(v.flagged.map((s) => s.short)) : ''}. `;
+        const evidence = v.flagged.slice(0, 3).map((s) => s.botPhrase);
+        if (evidence.length) text += 'Specifically, ' + joinList(evidence) + '. ';
+        const counter = v.clear.slice(0, v.flagged.length ? 2 : 3).map((s) => s.humanPhrase);
+        if (counter.length) text += (v.flagged.length ? 'On the other hand, ' : 'For example, ') + joinList(counter) + '. ';
+        text += 'These are statistical patterns, not proof: read the example replies and evidence below before drawing any conclusions.';
+
+        $('verdict').innerHTML = `
+          <h2>Assessment</h2>
+          <div class="verdict-badge level-${v.level}"><span class="icon">${badge[0]}</span>${badge[1]}</div>
+          <p class="verdict-text">${text}</p>
+          <div class="score-line">
+            Scoring: each signal has a weight (strong = 3, moderate = 2, weak = 1). Flagged signals add up to
+            <b>${v.score} of a possible ${v.maxWeight}</b> (${fmtPct(v.ratio)}).
+            50%+ with at least one moderate or strong signal is “strong pattern”, 25%+ is “some signals”, below that is “few signals”.
+            ${ctx.signals.length - v.measurable.length ? `${ctx.signals.length - v.measurable.length} signal(s) could not be measured for lack of data.` : ''}
+            <a href="#signals">See every signal</a>.
+          </div>`;
+      }
+
+      function replyCardHtml(p, ctx, { explain = false } = {}) {
+        const parent = p.parent
+          ? `<div class="parent-post">
+              <div class="post-meta">
+                Replying to <b>${esc(p.parent.displayName || p.parent.handle)}</b> @${esc(p.parent.handle)}
+                ${p.parentFollowers !== undefined ? `· ${fmtNum(p.parentFollowers)} followers` : ''}
+                · <a href="${esc(p.parent.url)}" target="_blank" rel="noopener">${fmtUTC(p.parent.time)}</a>
+              </div>
+              <div class="post-text">${esc(p.parent.text) || '<span class="muted">(no text' + (p.parent.hasMedia ? ', media only' : '') + ')</span>'}</div>
+            </div>`
+          : `<div class="parent-post"><div class="post-meta">Replying to a post that is ${p.parentMissing || 'unavailable'}</div></div>`;
+        const facts = [
+          `<span>Posted <b>${fmtUTC(p.time)}</b></span>`,
+          `<span>Delay <b>${p.delayMs !== undefined ? fmtDelay(p.delayMs) : 'unknown'}</b></span>`,
+          `<span>Question mark: <b>${p.hasQuestion ? 'yes' : 'no'}</b></span>`,
+          `<span>Length <b>${fmtNum(p.length)}</b> chars</span>`,
+          `<span>❤ <b>${fmtNum(p.likes)}</b></span>`,
+          `<span class="kind">${CAT_LABELS[p.cat]}</span>`,
+        ];
+        return `<div class="reply-card">
+          ${parent}
+          <div class="post-text">${esc(p.text) || `<span class="muted">(${noTextLabel(p)})</span>`}</div>
+          <div class="facts">${facts.join('')}<span>${indicatorHtml(p)}</span><a href="${esc(p.url)}" target="_blank" rel="noopener" class="small">View reply ↗</a></div>
+          ${explain && p.flags.length ? `<ul class="flag-explain">${p.flags.map((f) => `<li>${flagExplanation(p, f)}</li>`).join('')}</ul>` : flagChips(p)}
+        </div>`;
+      }
+
+      function renderExamples(ctx) {
+        const candidates = ctx.toOther
+          .filter((p) => p.score >= 3 || p.flags.includes('typing'))
+          .sort((a, b) => b.score - a.score || b.time - a.time)
+          .slice(0, EXAMPLES);
+        const low = ctx.verdict.level === 'low';
+        let html = `<h2>${low ? 'Replies with the most per-reply signals' : 'Most bot-like recent replies'}</h2>`;
+        if (!ctx.toOther.length) {
+          html += `<p>No replies to other people were found in the scanned posts.</p>`;
+        } else if (!candidates.length) {
+          html += `<p>None of the ${plural(ctx.toOther.length, 'reply', 'replies')} to other people tripped more than two of the per-reply signals, so there are no stand-out examples to show. The <a href="#recentReplies">most recent replies</a> are listed further down.</p>`;
+        } else {
+          html += `<p class="chart-caption">The replies that tripped the most per-reply signals (faster than typing, fast reply, question, drive-by, big account). Any one of these can happen to a person; what matters is whether they add up across many replies. Read them and judge for yourself.${low ? ' <b>The overall assessment found few bot-like signals for this account, so these are most likely coincidences.</b>' : ''}</p>`;
+          html += candidates.map((p) => replyCardHtml(p, ctx, { explain: true })).join('');
+        }
+        $('examples').innerHTML = html;
+      }
+
+      function renderSignals(ctx) {
+        const weightLabel = { 3: 'strong signal', 2: 'moderate signal', 1: 'weak signal' };
+        const statusLabel = {
+          flag: ['⚑', 'Bot-like'],
+          clear: ['✓', 'Not bot-like'],
+          na: ['–', 'Not enough data'],
+        };
+        const order = { flag: 0, clear: 1, na: 2 };
+        const sigs = [...ctx.signals].sort((a, b) => order[a.status] - order[b.status] || b.weight - a.weight);
+        $('signals').innerHTML = `
+          <h2>Signals checked</h2>
+          <p class="chart-caption">Every signal the assessment is based on, with the measured value and the exact rule used. Weak signals are common among real people; the stronger ones are harder to explain innocently.</p>
+          ${sigs
+            .map(
+              (s) => `<div class="signal ${s.status}-status">
+                <div class="signal-head">
+                  <span class="signal-status"><span class="icon">${statusLabel[s.status][0]}</span> ${statusLabel[s.status][1]}</span>
+                  <span class="signal-name">${esc(s.name)}</span>
+                  <span class="signal-weight">${weightLabel[s.weight]} (weight ${s.weight})</span>
+                </div>
+                <dl>
+                  <dt>Measured</dt><dd>${esc(s.value)}</dd>
+                  <dt>Rule</dt><dd>${esc(s.rule)}</dd>
+                  <dt>Why it matters</dt><dd>${esc(s.why)}</dd>
+                  <dt>Innocent explanations</dt><dd>${esc(s.caveat)}</dd>
+                </dl>
+              </div>`
+            )
+            .join('')}`;
+      }
+
+      function hbarChart(rows, total) {
+        const max = Math.max(1, ...rows.map((r) => r.count));
+        return `<div class="hbar-chart">${rows
+          .map(
+            (r) => `<div class="label">${esc(r.label)}</div>
+              <div class="track" title="${esc(r.label)}: ${fmtNum(r.count)}${total ? ' (' + fmtPct(r.count / total) + ')' : ''}"><div class="bar" style="width:${(r.count / max) * 100}%"></div></div>
+              <div class="val">${fmtNum(r.count)}${total ? ` <span class="muted">(${fmtPct(r.count / total)})</span>` : ''}</div>`
+          )
+          .join('')}</div>`;
+      }
+
+      function renderActivity(ctx) {
+        const counts = ctx.hourCounts;
+        const max = Math.max(1, ...counts);
+        const q = ctx.quiet;
+        const cols = counts
+          .map(
+            (c, h) => `<div class="col${q.quiet[h] ? ' quiet' : ''}" title="${fmtHour(h)}–${fmtHour(h + 1)} UTC: ${plural(c, 'post')}${q.quiet[h] ? ' (quiet hour)' : ''}"><div class="bar" style="height:${(c / max) * 100}%"></div></div>`
+          )
+          .join('');
+        const labels = counts.map((_, h) => `<span>${String(h).padStart(2, '0')}</span>`).join('');
+
+        // Day-by-hour heatmap (all posts), most recent 45 days of the scan
+        const byDay = new Map();
+        for (const p of ctx.posts) {
+          const d = fmtDate(p.time);
+          if (!byDay.has(d)) byDay.set(d, new Array(24).fill(0));
+          byDay.get(d)[new Date(p.time).getUTCHours()]++;
+        }
+        // Most recent MAX_DAYS days that had any posts; runs of empty days collapse into one row
+        const MAX_DAYS = 45;
+        const days = [];
+        if (ctx.n) {
+          const start = Date.parse(fmtDate(ctx.newest) + 'T00:00:00Z');
+          const oldestDay = Date.parse(fmtDate(ctx.oldest) + 'T00:00:00Z');
+          let empty = 0;
+          for (let t = start; t >= oldestDay && days.filter((d) => d.date).length < MAX_DAYS; t -= DAY) {
+            const d = fmtDate(t);
+            if (!byDay.has(d)) {
+              empty++;
+              continue;
+            }
+            if (empty) days.push({ gap: empty });
+            empty = 0;
+            days.push({ date: d });
+          }
+        }
+        const activeDays = days.filter((d) => d.date).length;
+        const level = (c) => (c === 0 ? 0 : c === 1 ? 1 : c <= 3 ? 2 : c <= 7 ? 3 : 4);
+        let heat = `<div class="heatmap"><div></div>${counts.map((_, h) => `<div class="hour">${h % 3 === 0 ? String(h).padStart(2, '0') : ''}</div>`).join('')}`;
+        for (const d of days) {
+          if (d.gap) {
+            heat += `<div class="gap-row">… ${plural(d.gap, 'day')} with no posts …</div>`;
+            continue;
+          }
+          const row = byDay.get(d.date);
+          heat += `<div class="day" title="${d.date}"><span class="full">${d.date}</span><span class="short">${d.date.slice(5)}</span></div>${row.map((c, h) => `<div class="cell l${level(c)}" title="${d.date} ${fmtHour(h)} UTC: ${plural(c, 'post')}"></div>`).join('')}`;
+        }
+        heat += '</div>';
+
+        $('activity').innerHTML = `
+          <h2>When it posts (UTC)</h2>
+          <h3>Posts by hour of day</h3>
+          <p class="chart-caption">Based on ${plural(ctx.hourSource.posts.length, ctx.hourSource.label.replace(/s$/, ''), ctx.hourSource.label)}.
+            Shaded columns are quiet hours (fewer than ${fmt1(q.threshold)} posts, a quarter of the hourly average).
+            ${q.length ? `Longest quiet stretch: <b>${q.length} hours, ${fmtHour(q.start)}–${fmtHour(q.start + q.length)} UTC</b>, containing ${fmtPct(q.share)} of posts.` : '<b>No hour of the day is quiet.</b>'}
+            This chart isn’t scored directly: someone who travelled across time zones during the scanned period will have their quiet hours smeared out. The scored “Never takes a break” signal checks for a 4-hour gap in every 24 hours instead, which works in any time zone:
+            <b>${fmtPct(ctx.breaks.share)}</b> of 24-hour windows had one.</p>
+          <div class="col-chart" role="img" aria-label="Posts per hour of day, UTC">${cols}</div>
+          <div class="col-labels">${labels}</div>
+          <div class="legend"><span><span class="swatch" style="background:var(--series)"></span>Posts in that hour</span><span><span class="swatch" style="background:var(--surface-2)"></span>Quiet hour</span></div>
+
+          <h3>Day by day</h3>
+          <p class="chart-caption">All scanned posts. Each row is a day with posts (most recent first${activeDays === MAX_DAYS ? `, the ${MAX_DAYS} most recent active days` : ''}), each column an hour, UTC. A person usually shows an empty band of several hours each day while they sleep; an automated account is often busy in every column.</p>
+          ${days.length ? heat : '<p class="muted">No posts.</p>'}
+          <div class="legend">
+            <span><span class="swatch l0"></span>0</span>
+            <span><span class="swatch l1"></span>1</span>
+            <span><span class="swatch l2"></span>2–3</span>
+            <span><span class="swatch l3"></span>4–7</span>
+            <span><span class="swatch l4"></span>8+ posts</span>
+          </div>`;
+      }
+
+      function renderReplyStats(ctx) {
+        const timed = ctx.unpromptedTimed;
+        const delayBuckets = [
+          ['Under 30s', 0, 30e3],
+          ['30s – 2m', 30e3, 120e3],
+          ['2 – 10m', 120e3, 600e3],
+          ['10 – 60m', 600e3, HOUR],
+          ['1 – 6h', HOUR, 6 * HOUR],
+          ['6 – 24h', 6 * HOUR, DAY],
+          ['Over 1 day', DAY, Infinity],
+        ].map(([label, lo, hi]) => ({ label, count: timed.filter((p) => p.delayMs >= lo && p.delayMs < hi).length }));
+
+        const lengths = ctx.toOther.map((p) => p.length);
+        const lengthBuckets = [];
+        for (let lo = 0; lo < 300; lo += 25) lengthBuckets.push({ label: `${lo}–${lo + 24}`, count: lengths.filter((l) => l >= lo && l < lo + 25).length });
+        lengthBuckets.push({ label: '300+', count: lengths.filter((l) => l >= 300).length });
+
+        const known = ctx.toOther.filter((p) => p.parentFollowers !== undefined);
+        const followerBuckets = [
+          ['Under 100', 0, 100],
+          ['100 – 999', 100, 1000],
+          ['1k – 9.9k', 1000, 10000],
+          ['10k – 99k', 10000, 100000],
+          ['100k+', 100000, Infinity],
+        ].map(([label, lo, hi]) => ({ label, count: known.filter((p) => p.parentFollowers >= lo && p.parentFollowers < hi).length }));
+
+        const catRows = ['top', 'self', 'conversation', 'mention', 'driveby', 'thread'].map((k) => ({ label: CAT_LABELS[k], count: ctx.byCat[k] }));
+        const m = ctx.mix;
+
+        $('replyStats').innerHTML = `
+          <h2>Reply details</h2>
+          <div class="two-col">
+            <div>
+              <h3>How long after the original post?</h3>
+              <p class="chart-caption">Unprompted replies only (${plural(timed.length, 'reply', 'replies')} with a known delay).</p>
+              ${hbarChart(delayBuckets, timed.length)}
+            </div>
+            <div>
+              <h3>Reply length (characters)</h3>
+              <p class="chart-caption">All ${plural(ctx.toOther.length, 'reply', 'replies')} to other people, links excluded.</p>
+              ${hbarChart(lengthBuckets, lengths.length)}
+            </div>
+            <div>
+              <h3>Followers of the accounts it replies to</h3>
+              <p class="chart-caption">${plural(known.length, 'reply', 'replies')} where the follower count could be looked up.</p>
+              ${hbarChart(followerBuckets, known.length)}
+            </div>
+            <div>
+              <h3>Posting mix</h3>
+              <p class="chart-caption">The ${plural(ctx.n, 'scanned post')}, by type.</p>
+              ${hbarChart(catRows, ctx.n)}
+              <table class="simple" style="margin-top:0.8em">
+                <tr><td>Reposts of other people’s posts (same period)</td><td class="num">${fmtNum(ctx.repostsInWindow)}</td></tr>
+                <tr><td>Quote posts</td><td class="num">${fmtNum(m.quote)}</td></tr>
+                <tr><td>Posts with images</td><td class="num">${fmtNum(m.images)}</td></tr>
+                <tr><td>Posts with video</td><td class="num">${fmtNum(m.video)}</td></tr>
+                <tr><td>Posts with links</td><td class="num">${fmtNum(m.link)}</td></tr>
+              </table>
+            </div>
+          </div>
+          <h3>Engagement received</h3>
+          <table class="simple">
+            <tr><td>Total likes on scanned posts</td><td class="num">${fmtNum(ctx.totalLikes)}</td></tr>
+            <tr><td>Average likes per post</td><td class="num">${fmt1(ctx.avgLikes)}</td></tr>
+            <tr><td>Average likes per top-level post</td><td class="num">${isFinite(ctx.avgLikesTop) ? fmt1(ctx.avgLikesTop) : '–'}</td></tr>
+            <tr><td>Average likes per reply to other people</td><td class="num">${isFinite(ctx.avgLikesReply) ? fmt1(ctx.avgLikesReply) : '–'}</td></tr>
+            <tr><td>Replies to other people with zero likes</td><td class="num">${isFinite(ctx.zeroLikeReplyShare) ? fmtPct(ctx.zeroLikeReplyShare) : '–'}</td></tr>
+            <tr><td>Replies received on scanned posts</td><td class="num">${fmtNum(ctx.totalRepliesReceived)}</td></tr>
+            <tr><td>Reposts received on scanned posts</td><td class="num">${fmtNum(ctx.totalRepostsReceived)}</td></tr>
+          </table>
+          <p class="chart-caption" style="margin-top:0.5em">Engagement is shown for context and is not scored: plenty of real people get few likes.</p>`;
+      }
+
+      function renderRecentReplies(ctx) {
+        const recent = ctx.toOther.slice(0, RECENT_REPLIES);
+        $('recentReplies').innerHTML = `
+          <h2>${recent.length === RECENT_REPLIES ? `${RECENT_REPLIES} most recent` : 'All'} replies to other people</h2>
+          <p class="chart-caption">For each: when it was posted (UTC), how long after the original post, whether it contains a question mark, its length, and the follower count of the account it replies to.</p>
+          ${recent.length ? recent.map((p) => replyCardHtml(p, ctx)).join('') : '<p>No replies to other people in the scanned posts.</p>'}`;
+      }
+
+      function renderMethod(ctx) {
+        $('method').innerHTML = `
+          <details class="method">
+            <summary>How this works</summary>
+            <ul>
+              <li><b>Data:</b> the profile comes from <code>app.bsky.actor.getProfile</code>. Up to ${fmtNum(SCAN_LIMIT)} of the account’s most recent posts and replies come from <code>app.bsky.feed.getAuthorFeed</code>, which also returns the post each reply responds to. Follower counts for ${plural(ctx.uniqueParentsLooked, 'replied-to account')} come from <code>app.bsky.actor.getProfiles</code>. That was ${plural(apiCalls, 'API request')} in total, all to Bluesky’s public, unauthenticated API. Nothing is sent anywhere else.</li>
+              <li><b>Reply types:</b>
+                <i>Drive-by reply</i> – directly to someone else’s top-level post.
+                <i>Joins a thread</i> – to someone else’s reply, in a thread this account didn’t start.
+                <i>Conversation reply</i> – to someone else, in a thread this account started or responding to someone who replied to this account.
+                <i>Reply to a mention</i> – to a post that @mentions this account.
+                <i>Reply to own post</i> – continuing its own thread.
+                “Unprompted” replies are drive-by replies plus thread joins: nobody mentioned or replied to this account first.</li>
+              <li><b>Delay:</b> the time between the original post and the reply, using the time Bluesky’s servers first indexed each post (which the posting app can’t fake). If either post appears to have been indexed more than an hour after it was written, the tool uses the creation times reported by the apps instead. “Faster than typing” only uses server times.</li>
+              <li><b>Length:</b> characters as a person would count them (emoji count as one), with link text removed.</li>
+              <li><b>Time of day:</b> everything is in UTC. The account’s own time zone is unknown, so look for <em>whether</em> there is a quiet stretch rather than where it falls. The scored test (4-hour break in every 24 hours) ignores time zones entirely.</li>
+              <li><b>Per-reply indicators</b> (shown on each reply): faster than typing (3 points), fast reply under 2 minutes for unprompted replies (2), asks a question (1), drive-by (1), replying to an account with ${fmtNum(BIG_ACCOUNT)}+ followers (1). 1–2 points is “weak” and 3+ is “some”. Only a faster-than-typing reply counts as “strong”, because it is the one per-reply signal that is hard for a person to trip. A single reply can trip these by coincidence; they are there to help you find examples, and the overall assessment only uses the account-wide signals above.</li>
+              <li><b>Limits:</b> it only sees the most recent posts, can’t see deleted posts, and can’t read the text itself for AI style. A clever bot can add random delays and sleep at night. A busy person can trip several signals. Use this to decide what to look at more closely, not as a verdict.</li>
+            </ul>
+          </details>`;
+      }
+
+      // ---------- All posts list ----------
+
+      let allState = null;
+
+      function postRowHtml(p) {
+        const parentLine = p.cat === 'top'
+          ? ''
+          : `<div class="post-meta">↳ ${p.parent ? `replying to <a href="${esc(p.parent.url)}" target="_blank" rel="noopener">@${esc(p.parent.handle)}</a>${p.parentFollowers !== undefined ? ` (${fmtCompact(p.parentFollowers)} followers)` : ''}` : `replying to a post that is ${p.parentMissing || 'unavailable'}`}${p.delayMs !== undefined ? ` · ${fmtDelay(p.delayMs)} later` : ''}</div>`;
+        const kinds = [CAT_LABELS[p.cat]];
+        if (p.media.quote) kinds.push('Quote');
+        if (p.media.images) kinds.push('Images');
+        if (p.media.video) kinds.push('Video');
+        return `<div class="post-row">
+          <div>
+            ${indicatorHtml(p)}
+            <div class="post-meta" style="margin-top:0.3em"><a href="${esc(p.url)}" target="_blank" rel="noopener">${fmtUTC(p.time).replace(' UTC', '')}</a></div>
+          </div>
+          <div>
+            <div>${kinds.map((k) => `<span class="kind">${k}</span>`).join(' ')} <span class="post-meta">❤ ${fmtNum(p.likes)}${p.hasQuestion ? ' · has question mark' : ''} · ${fmtNum(p.length)} chars</span></div>
+            ${parentLine}
+            <div class="post-text">${esc(p.text) || `<span class="muted">(${noTextLabel(p)})</span>`}</div>
+            ${flagChips(p)}
+          </div>
+        </div>`;
+      }
+
+      const FILTERS = [
+        ['all', 'All', () => true],
+        ['toOther', 'Replies to others', isToOther],
+        ['flagged', 'Some or strong signals', (p) => ['some', 'strong'].includes(indicatorLevel(p))],
+        ['top', 'Top-level posts', (p) => p.cat === 'top'],
+      ];
+
+      function renderAllPosts(ctx) {
+        allState = { ctx, filter: 'all', shown: PAGE_SIZE };
+        drawAllPosts();
+      }
+
+      function drawAllPosts() {
+        const { ctx, filter, shown } = allState;
+        const f = FILTERS.find((x) => x[0] === filter);
+        const list = ctx.posts.filter(f[2]);
+        $('allPosts').innerHTML = `
+          <h2>All scanned posts</h2>
+          <p class="chart-caption">Every one of the ${plural(ctx.n, 'scanned post')}, newest first, with its per-reply signal indicator. Times are UTC.</p>
+          <div class="filters">${FILTERS.map(([key, label, fn]) => `<button type="button" data-filter="${key}" class="${key === filter ? 'active' : ''}">${label} (${fmtNum(ctx.posts.filter(fn).length)})</button>`).join('')}</div>
+          <div>${list.slice(0, shown).map(postRowHtml).join('') || '<p class="muted">Nothing to show.</p>'}</div>
+          ${list.length > shown ? `<p class="center"><button type="button" class="secondary" id="showMore">Show more (${fmtNum(list.length - shown)} remaining)</button></p>` : ''}`;
+      }
+
+      $('allPosts').addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn || !allState) return;
+        if (btn.dataset.filter) {
+          allState.filter = btn.dataset.filter;
+          allState.shown = PAGE_SIZE;
+          drawAllPosts();
+        } else if (btn.id === 'showMore') {
+          allState.shown += PAGE_SIZE;
+          drawAllPosts();
+        }
+      });
+
+      // ---------- Main ----------
+
+      async function run(raw) {
+        const actor = parseActor(raw);
+        submitBtn.disabled = true;
+        results.hidden = true;
+        apiCalls = 0;
+        try {
+          setStatus('Looking up profile…');
+          const profile = await xrpc('app.bsky.actor.getProfile', { actor });
+          const feed = await fetchFeed(profile.did);
+          if (!feed.own.length) {
+            const hidden = (profile.labels || []).some((l) => l.val === '!no-unauthenticated');
+            throw new Error(hidden ? 'This account has asked for its posts not to be shown to logged-out users, so they can’t be analyzed here.' : 'No posts found for this account.');
+          }
+          // Look up follower counts for every account this user replied to
+          const parentDids = new Set();
+          for (const item of feed.own) {
+            const parentUri = item.post.record && item.post.record.reply && item.post.record.reply.parent && item.post.record.reply.parent.uri;
+            const d = (item.reply && item.reply.parent && item.reply.parent.author && item.reply.parent.author.did) || didFromUri(parentUri);
+            if (d && d !== profile.did) parentDids.add(d);
+          }
+          const parentProfiles = await fetchProfiles([...parentDids]);
+          const ctx = analyze(profile, feed, parentProfiles);
+          renderOverview(ctx);
+          renderVerdict(ctx);
+          renderExamples(ctx);
+          renderSignals(ctx);
+          renderActivity(ctx);
+          renderReplyStats(ctx);
+          renderRecentReplies(ctx);
+          renderMethod(ctx);
+          renderAllPosts(ctx);
+          results.hidden = false;
+          setStatus('');
+        } catch (err) {
+          console.error(err);
+          setStatus('Error: ' + err.message, true);
+        } finally {
+          submitBtn.disabled = false;
+        }
+      }
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const raw = input.value.trim();
+        if (!raw) return;
+        const url = new URL(location.href);
+        url.searchParams.set('user', raw);
+        history.replaceState(null, '', url);
+        run(raw);
+      });
+
+      const initial = new URLSearchParams(location.search).get('user');
+      if (initial) {
+        input.value = initial;
+        run(initial);
+      }
+    })();
+  </script>
+</body>
+</html>
