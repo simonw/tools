@@ -25,8 +25,15 @@ def iso(dt):
     return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
-def post_view(did, handle, rkey, text, created, embed=None, reply=None):
-    record = {"$type": "app.bsky.feed.post", "text": text, "createdAt": iso(created)}
+def iso_python(dt):
+    # How a Python script writes timestamps: microseconds, not milliseconds
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def post_view(did, handle, rkey, text, created, embed=None, reply=None, langs=("en",), created_str=None):
+    record = {"$type": "app.bsky.feed.post", "text": text, "createdAt": created_str or iso(created)}
+    if langs:
+        record["langs"] = list(langs)
     if reply:
         record["reply"] = reply
     view = {
@@ -49,12 +56,15 @@ def ref(view):
     return {"uri": view["uri"], "cid": view["cid"]}
 
 
-def reply_item(me, rkey, text, created, parent, root, grandparent=None, likes=0):
+def reply_item(me, rkey, text, created, parent, root, grandparent=None, likes=0, script=False, replies=0):
     post = post_view(
         me["did"], me["handle"], rkey, text, created,
         reply={"parent": ref(parent), "root": ref(root)},
+        langs=None if script else ("en",),
+        created_str=iso_python(created) if script else None,
     )
     post["likeCount"] = likes
+    post["replyCount"] = replies
     item = {"post": post, "reply": {"parent": parent, "root": root}}
     if grandparent:
         item["reply"]["grandparentAuthor"] = grandparent
@@ -62,6 +72,7 @@ def reply_item(me, rkey, text, created, parent, root, grandparent=None, likes=0)
 
 
 BOT = {"did": "did:plc:replybot", "handle": "helpful-replies.bsky.social"}
+SLOW_BOT = {"did": "did:plc:slowbot", "handle": "thoughtful-builder.bsky.social"}
 HUMAN = {"did": "did:plc:person", "handle": "person.bsky.social"}
 
 BOT_TOPICS = ["climate policy", "remote work", "open source", "city planning", "ev charging", "space travel"]
@@ -79,10 +90,33 @@ def bot_feed():
         text = (
             f"This is such an insightful take on {topic}! I think the real question is whether "
             f"we can scale these ideas sustainably without leaving anyone behind in the process. "
-            f"What do you see as the biggest challenge ahead?"
+            f"What do you see as the biggest challenge ahead, big{i}?"
         )
-        items.append(reply_item(BOT, f"b{i}", text, t, parent, parent))
+        items.append(reply_item(BOT, f"b{i}", text, t, parent, parent, replies=1 if i % 5 == 0 else 0))
         t -= timedelta(minutes=37)
+    return items
+
+
+def slow_bot_feed():
+    """Replies hours after the original post, in bursts of six a few seconds apart, only
+    during the working day - so it passes the fast-reply and never-sleeps tests."""
+    items = []
+    openers = ["Makes sense.", "Interesting angle.", "Fair point.", "Good callout.", "Hard agree.", "Useful framing."]
+    for day in range(1, 31):
+        for burst in range(2):
+            start = (NOW - timedelta(days=day)).replace(hour=14 + burst * 3, minute=5, second=0)
+            for k in range(6):
+                i = day * 100 + burst * 10 + k
+                t = start + timedelta(seconds=15 * k)
+                parent = post_view(f"did:plc:dev{i}", f"dev{i}.bsky.social", f"q{i}",
+                                   "Shipping agents to production is harder than it looks", t - timedelta(hours=3 + k))
+                text = (
+                    f"{openers[k]} The gap between a demo agent and one you can trust in production is "
+                    f"mostly evals and permissions, not the model itself. Curious how team {i} handles it at scale."
+                )
+                items.append(reply_item(SLOW_BOT, f"s{i}", text, t, parent, parent, script=True,
+                                        replies=1 if k == 0 else 0))
+    items.sort(key=lambda it: it["post"]["record"]["createdAt"], reverse=True)
     return items
 
 
@@ -112,6 +146,7 @@ def human_feed():
                 embed={"$type": "app.bsky.embed.images#view", "images": []},
             )
             post["likeCount"] = 12
+            post["replyCount"] = 3
             items.append({"post": post})
         elif kind == 1:  # someone replied to my post, I reply back
             root = post_view(me["did"], me["handle"], f"r{i}", "my post", t - timedelta(hours=3))
@@ -145,6 +180,13 @@ ACCOUNTS = {
             "postsCount": 2100, "createdAt": iso(NOW - timedelta(days=12)),
         },
         "feed": bot_feed(),
+    },
+    SLOW_BOT["handle"]: {
+        "profile": {
+            **SLOW_BOT, "displayName": "Builder", "followersCount": 25, "followsCount": 14,
+            "postsCount": 360, "createdAt": iso(NOW - timedelta(days=200)),
+        },
+        "feed": slow_bot_feed(),
     },
     HUMAN["handle"]: {
         "profile": {
@@ -218,6 +260,7 @@ def test_bot_like_account(tool):
     for name in [
         "Replies arrive very quickly",
         "Replies faster than anyone could type them",
+        "Never replies back",
         "Never takes a break",
         "Unusually consistent reply length",
         "Nothing but text",
@@ -244,7 +287,13 @@ def test_human_like_account(tool):
 
     expect(page.locator(".verdict-badge")).to_have_text("✓Few bot-like signals")
     assert page.locator(".signal.flag-status").count() == 0
-    expect(page.locator("#verdict")).to_contain_text("0 of the 12 signals")
+    expect(page.locator("#verdict")).to_contain_text("None of the direct checks for automation were triggered")
+    # Passing a two-way test counts as human-like; one-way signals are just "not triggered"
+    human_like = page.locator(".signal.clear-status .signal-name").all_inner_texts()
+    assert "Never takes a break" in human_like
+    assert "Never replies back" in human_like
+    not_triggered = page.locator(".signal.quiet-status .signal-name").all_inner_texts()
+    assert "Replies arrive very quickly" in not_triggered
 
     # Posting mix shows the reposts and image posts
     expect(page.locator("#replyStats")).to_contain_text("Reposts of other people")
@@ -254,6 +303,30 @@ def test_human_like_account(tool):
     page.click("#allPosts button[data-filter='top']")
     assert page.locator("#allPosts .post-row").count() == 60
     expect(page.locator("#allPosts .post-row").first).to_contain_text("Top-level post")
+
+
+def test_slow_scheduled_bot(tool):
+    """Slow replies must not count in a bot's favour: bursts, script records and never
+    replying back are enough."""
+    page = tool(SLOW_BOT["handle"])
+    expect(page.locator("#results")).to_be_visible(timeout=20_000)
+
+    expect(page.locator(".verdict-badge")).to_have_text("⚑Strong bot-like pattern")
+    flagged = page.locator(".signal.flag-status .signal-name").all_inner_texts()
+    for name in [
+        "Replies posted by software, not an app",
+        "Replies faster than anyone could type them",
+        "Never replies back",
+        "Only drive-by replies to top-level posts",
+        "Unusually consistent reply length",
+    ]:
+        assert name in flagged
+    assert "Replies arrive very quickly" not in flagged
+    assert "Never takes a break" not in flagged
+
+    # The typing evidence cites the gap after its own previous post
+    expect(page.locator("#examples")).to_contain_text("after this account’s own previous post")
+    expect(page.locator("#examples")).to_contain_text("a format the Bluesky app never uses")
 
 
 def test_profile_not_found(tool):

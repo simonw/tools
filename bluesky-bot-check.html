@@ -359,8 +359,12 @@
     .signal.clear-status {
       --sig-color: var(--good);
     }
-    .signal.na-status {
+    .signal.na-status,
+    .signal.quiet-status {
       --sig-color: var(--border);
+    }
+    .signal.quiet-status .signal-status .icon {
+      color: var(--muted);
     }
     .signal-head {
       display: flex;
@@ -730,9 +734,9 @@
       function plural(n, word, pluralWord) {
         return fmtNum(n) + ' ' + (n === 1 ? word : pluralWord || word + 's');
       }
-      function joinList(items) {
+      function joinList(items, sep = ', ') {
         if (items.length <= 1) return items.join('');
-        return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+        return items.slice(0, -1).join(sep) + (sep === ', ' ? ' and ' : sep + 'and ') + items[items.length - 1];
       }
 
       // ---------- Stats helpers ----------
@@ -835,6 +839,9 @@
       }
 
       const didFromUri = (uri) => (uri || '').split('/')[2] || null;
+      const parseTime = (s) => Date.parse(String(s || '').replace(/(\.\d{3})\d+/, '$1'));
+      // The format the Bluesky app (and other JavaScript clients) write: exactly 3 decimal places
+      const APP_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
       function setStatus(msg, isError = false) {
         statusEl.textContent = msg;
@@ -921,8 +928,9 @@
         const did = profile.did;
         const post = item.post;
         const rec = post.record || {};
-        const createdMs = Date.parse(rec.createdAt);
-        const indexedMs = Date.parse(post.indexedAt);
+        const createdMs = parseTime(rec.createdAt);
+        const indexedMs = parseTime(post.indexedAt);
+        const live = liveIndexed(createdMs, indexedMs);
         const rkey = post.uri.split('/').pop();
         const p = {
           uri: post.uri,
@@ -931,6 +939,10 @@
           time: isFinite(createdMs) ? createdMs : indexedMs,
           createdMs,
           indexedMs,
+          live,
+          rawCreatedAt: String(rec.createdAt || ''),
+          appTimestamp: APP_TIMESTAMP.test(rec.createdAt || ''),
+          hasLangs: Array.isArray(rec.langs) && rec.langs.length > 0,
           likes: post.likeCount || 0,
           repostsReceived: post.repostCount || 0,
           repliesReceived: post.replyCount || 0,
@@ -957,8 +969,8 @@
         if (parentView && parentView.$type === 'app.bsky.feed.defs#postView') {
           const pr = parentView.record || {};
           mentioned = (pr.facets || []).some((f) => (f.features || []).some((x) => x.$type === 'app.bsky.richtext.facet#mention' && x.did === did));
-          const pc = Date.parse(pr.createdAt);
-          const pi = Date.parse(parentView.indexedAt);
+          const pc = parseTime(pr.createdAt);
+          const pi = parseTime(parentView.indexedAt);
           p.parent = {
             handle: parentView.author.handle,
             displayName: parentView.author.displayName || '',
@@ -967,7 +979,7 @@
             url: `https://bsky.app/profile/${parentView.author.handle}/post/${parentUri.split('/').pop()}`,
             hasMedia: !!parentView.embed,
           };
-          if (liveIndexed(createdMs, indexedMs) && liveIndexed(pc, pi)) {
+          if (live && liveIndexed(pc, pi)) {
             p.delayMs = Math.max(0, indexedMs - pi);
             p.delaySource = 'server';
           } else if (isFinite(createdMs) && isFinite(pc)) {
@@ -1005,6 +1017,7 @@
       // Per-reply flags. Weights feed the per-post indicator only.
       const FLAG_DEFS = {
         typing: { label: 'Faster than typing', weight: 3 },
+        script: { label: 'Posted by software', weight: 2 },
         fast: { label: 'Fast reply', weight: 2 },
         question: { label: 'Asks a question', weight: 1 },
         driveby: { label: 'Drive-by', weight: 1 },
@@ -1014,10 +1027,20 @@
       function computeFlags(p) {
         p.flags = [];
         if (!isToOther(p)) return;
-        if (p.delaySource === 'server' && p.length >= TYPING_MIN_LENGTH && p.delayMs !== undefined) {
-          p.cps = p.length / Math.max(p.delayMs / 1000, 0.5);
-          if (p.cps > TYPING_CPS) p.flags.push('typing');
+        // Time available to write this reply: the shorter of time since the post it replies to and
+        // time since this account's own previous post (a person finishes one post before the next).
+        // Text posted more than once is skipped - it was probably pasted, not written.
+        if (p.length >= TYPING_MIN_LENGTH && p.repeats <= 1) {
+          const windows = [];
+          if (p.delaySource === 'server' && p.delayMs !== undefined) windows.push({ ms: p.delayMs, after: 'parent' });
+          if (p.sincePrevMs !== undefined) windows.push({ ms: p.sincePrevMs, after: 'previous' });
+          if (windows.length) {
+            p.typingWindow = windows.reduce((a, b) => (b.ms < a.ms ? b : a));
+            p.cps = p.length / Math.max(p.typingWindow.ms / 1000, 0.5);
+            if (p.cps > TYPING_CPS) p.flags.push('typing');
+          }
         }
+        if (!p.appTimestamp || !p.hasLangs) p.flags.push('script');
         if (isUnprompted(p) && p.delayMs !== undefined && p.delayMs < FAST_MS) p.flags.push('fast');
         if (p.hasQuestion) p.flags.push('question');
         if (p.cat === 'driveby') p.flags.push('driveby');
@@ -1028,7 +1051,15 @@
       function flagExplanation(p, f) {
         switch (f) {
           case 'typing':
-            return `<b>Faster than typing:</b> ${fmtNum(p.length)} characters posted ${fmtDelay(p.delayMs)} after the post it replies to, which is ${fmt1(p.cps)} characters per second before even counting time to read the post. A fast typist manages about 6–8.`;
+            if (p.typingWindow.after === 'previous')
+              return `<b>Faster than typing:</b> ${fmtNum(p.length)} characters posted ${fmtDelay(p.typingWindow.ms)} after <a href="${esc(p.prevPost.url)}" target="_blank" rel="noopener">this account’s own previous post</a> (${p.prevPost.cat === 'top' ? 'a top-level post' : p.prevPost.parentUri === p.parentUri ? 'another reply to the same post' : 'a reply to a different post'}). A person has to finish one post before starting the next, so that’s ${fmt1(p.cps)} characters per second, with no time to read the post it replies to. A fast typist manages about 6–8.`;
+            return `<b>Faster than typing:</b> ${fmtNum(p.length)} characters posted ${fmtDelay(p.typingWindow.ms)} after the post it replies to, which is ${fmt1(p.cps)} characters per second before even counting time to read the post. A fast typist manages about 6–8.`;
+          case 'script': {
+            const bits = [];
+            if (!p.appTimestamp) bits.push(`its timestamp is written as <code>${esc(p.rawCreatedAt)}</code>, a format the Bluesky app never uses (it writes exactly 3 decimal places)`);
+            if (!p.hasLangs) bits.push('it has no language tag, which the Bluesky app always adds');
+            return `<b>Posted by software:</b> ${joinList(bits)}.`;
+          }
           case 'fast':
             return `<b>Fast reply:</b> posted ${fmtDelay(p.delayMs)} after the original post (threshold: under 2 minutes).`;
           case 'question':
@@ -1117,6 +1148,23 @@
 
       function analyze(profile, feed, parentProfiles) {
         const posts = feed.own.map((item) => processPost(item, profile)).sort((a, b) => b.time - a.time);
+        // Time since this account's own previous post, using server index times
+        const chrono = posts.filter((p) => p.live).sort((a, b) => a.indexedMs - b.indexedMs);
+        for (let i = 1; i < chrono.length; i++) {
+          chrono[i].sincePrevMs = chrono[i].indexedMs - chrono[i - 1].indexedMs;
+          chrono[i].prevPost = chrono[i - 1];
+        }
+        // How many times each exact text was posted
+        const textCounts = new Map();
+        for (const p of posts) {
+          const k = p.text.trim();
+          if (k) textCounts.set(k, (textCounts.get(k) || 0) + 1);
+        }
+        for (const p of posts) p.repeats = textCounts.get(p.text.trim()) || 0;
+        // Replies each post received from other people (the account's own self-replies excluded)
+        const selfReplies = new Map();
+        for (const p of posts) if (p.cat === 'self') selfReplies.set(p.parentUri, (selfReplies.get(p.parentUri) || 0) + 1);
+        for (const p of posts) p.repliesFromOthers = Math.max(0, p.repliesReceived - (selfReplies.get(p.uri) || 0));
         for (const p of posts) {
           if (p.parentDid && parentProfiles.has(p.parentDid)) p.parentFollowers = parentProfiles.get(p.parentDid).followersCount || 0;
           computeFlags(p);
@@ -1131,10 +1179,10 @@
         const byCat = {};
         for (const k of Object.keys(CAT_LABELS)) byCat[k] = posts.filter((p) => p.cat === k).length;
         const repostsInWindow = feed.reposts.filter((r) => {
-          const t = Date.parse(r.reason.indexedAt);
+          const t = parseTime(r.reason.indexedAt);
           return !n || !isFinite(t) || t >= oldest;
         }).length;
-        const createdAt = profile.createdAt ? Date.parse(profile.createdAt) : NaN;
+        const createdAt = profile.createdAt ? parseTime(profile.createdAt) : NaN;
         const ageDays = isFinite(createdAt) ? (now - createdAt) / DAY : NaN;
 
         const ctx = {
@@ -1174,8 +1222,9 @@
         // Delays
         ctx.unpromptedTimed = unprompted.filter((p) => p.delayMs !== undefined);
         ctx.toOtherTimed = toOther.filter((p) => p.delayMs !== undefined);
-        ctx.typingCandidates = toOther.filter((p) => p.delaySource === 'server' && p.length >= TYPING_MIN_LENGTH);
+        ctx.typingCandidates = toOther.filter((p) => p.typingWindow);
         ctx.typingFlagged = toOther.filter((p) => p.flags.includes('typing'));
+        ctx.typingPasted = toOther.filter((p) => p.length >= TYPING_MIN_LENGTH && p.repeats > 1).length;
 
         // Hours - prefer replies to other people so scheduled top-level posts don't count
         let hourSource = null;
@@ -1193,22 +1242,130 @@
       }
 
       function signal(def) {
-        return Object.assign({ status: 'na', value: '', botPhrase: '', humanPhrase: '' }, def);
+        return Object.assign({ status: 'na', value: '', botPhrase: '', humanPhrase: '', oneWay: true }, def, { weight: def.maxWeight });
       }
 
+      // family 'automation': direct evidence of how the posts were made
+      // family 'behaviour': patterns typical of reply bots that people can also show
+      // oneWay: the signal can only point toward automation - not triggering it is not evidence of a person
       function buildSignals(ctx) {
         const S = [];
-        const { profile, n, toOther, unprompted } = ctx;
+        const { profile, n, posts, toOther, unprompted } = ctx;
 
-        // 1. Posting rate
+        // Posted by software
+        {
+          const odd = toOther.filter((p) => !p.appTimestamp);
+          const noLang = toOther.filter((p) => !p.hasLangs);
+          const oddShare = toOther.length ? odd.length / toOther.length : 0;
+          const noLangShare = toOther.length ? noLang.length / toOther.length : 0;
+          const s = signal({
+            id: 'script',
+            family: 'automation',
+            name: 'Replies posted by software, not an app',
+            maxWeight: 3,
+            rule: 'Every post records when it was written and (usually) its language. The Bluesky app writes the time with exactly 3 decimal places, like 2026-09-27T14:18:45.897Z, and always adds a language tag. Flagged when at least half of its replies to other people use a different time format, or at least 80% have no language tag (needs at least 10 replies).',
+            why: 'Code that posts through the API leaves fingerprints in the records it writes: Python, for example, writes microseconds (…T14:18:45.897318Z), and many bot scripts don’t set a language. In a sample of 30 ordinary reply-heavy accounts checked while building this tool, every one of their posts used the app’s format and had a language tag.',
+            caveat: 'Some less common apps, cross-posting tools and bridges from other networks write posts this way too. That is still software posting on someone’s behalf, but not necessarily AI.',
+          });
+          s.value = toOther.length ? `${fmtPct(oddShare)} of ${plural(toOther.length, 'reply', 'replies')} to other people use a timestamp format the app doesn’t${odd[0] ? ` (e.g. ${odd[0].rawCreatedAt})` : ''}; ${fmtPct(noLangShare)} have no language tag` : 'No replies to other people';
+          if (toOther.length >= 10) {
+            s.status = oddShare >= 0.5 || noLangShare >= 0.8 ? 'flag' : 'clear';
+            const bits = [];
+            if (oddShare >= 0.5) bits.push(`${fmtPct(oddShare)} use a timestamp format the Bluesky app never produces`);
+            if (noLangShare >= 0.8) bits.push(`${fmtPct(noLangShare)} lack the language tag the app always adds`);
+            s.botPhrase = `its replies were <b>posted by custom software</b> rather than an app (${joinList(bits)})`;
+          }
+          S.push(s);
+        }
+
+        // Faster than typing
+        {
+          const cands = ctx.typingCandidates;
+          const flagged = ctx.typingFlagged;
+          const viaPrevious = flagged.filter((p) => p.typingWindow.after === 'previous').length;
+          const share = cands.length ? flagged.length / cands.length : 0;
+          const s = signal({
+            id: 'typing',
+            family: 'automation',
+            name: 'Replies faster than anyone could type them',
+            maxWeight: 3,
+            rule: `For each reply to someone else of ${TYPING_MIN_LENGTH}+ characters (links excluded), works out the most time a person could have spent writing it: the shorter of the time since the post it replies to, and the time since this account’s own previous post. More than ${TYPING_CPS} characters per second in that time is faster than a fast typist, with zero time allowed for reading. Replies whose exact text was posted more than once are skipped, since they were probably pasted. Flagged when at least 3 replies, and at least 5% of those checked, exceed it.`,
+            why: 'A reply can’t be written before the post it replies to exists, and a person has to finish one post before starting the next. Six different 180-character replies to six different posts inside two minutes were not typed by hand.',
+            caveat: 'Text written in advance and pasted (for example from several browser tabs at once) can beat this. Check the flagged replies to see whether that’s plausible.',
+          });
+          s.value = cands.length ? `${fmtNum(flagged.length)} of ${plural(cands.length, 'reply', 'replies')} checked exceeded ${TYPING_CPS} characters per second (${fmtPct(share)})${flagged.length ? `; ${fmtNum(viaPrevious)} of those came seconds after its own previous post rather than right after the original post` : ''}` : 'No replies long enough to check';
+          if (ctx.typingPasted) s.value += `. ${plural(ctx.typingPasted, 'reply', 'replies')} with repeated text skipped`;
+          if (cands.length >= 5) {
+            s.status = flagged.length >= 3 && share >= 0.05 ? 'flag' : 'clear';
+            s.botPhrase = `<b>${fmtNum(flagged.length)} of its replies</b> were posted faster than anyone could type them (over ${TYPING_CPS} characters per second, with no time to read)`;
+          }
+          S.push(s);
+        }
+
+        // Fast replies
+        {
+          const timed = ctx.unpromptedTimed;
+          const fast = timed.filter((p) => p.delayMs < FAST_MS);
+          const share = timed.length ? fast.length / timed.length : 0;
+          const med = median(timed.map((p) => p.delayMs));
+          const s = signal({
+            id: 'fast',
+            family: 'automation',
+            name: 'Replies arrive very quickly',
+            maxWeight: 2,
+            rule: 'Looks at unprompted replies: replies to other people’s posts, excluding posts that @mention this account and replies to people who replied to it first (a notification makes a fast reply natural). Flagged when 50% or more were posted within 2 minutes of the post they reply to (needs at least 10).',
+            why: 'Bots watching the firehose can reply within seconds of a post appearing, every time. A slow reply proves nothing, though: many bots work through search results or run on a schedule, replying hours later.',
+            caveat: 'Someone who spends all day refreshing their feed can reply quickly to many posts, especially in fast-moving live events.',
+          });
+          s.value = timed.length ? `${fmtPct(share)} of ${plural(timed.length, 'unprompted reply', 'unprompted replies')} were posted within 2 minutes (median delay ${fmtDelay(med)})` : 'No unprompted replies with a known delay';
+          const prompted = ctx.toOtherTimed.filter((p) => !isUnprompted(p));
+          if (prompted.length) {
+            const pf = prompted.filter((p) => p.delayMs < FAST_MS).length / prompted.length;
+            s.value += `. Not counted: ${plural(prompted.length, 'reply', 'replies')} to mentions or to people who replied to it first, of which ${fmtPct(pf)} came within 2 minutes`;
+          }
+          if (timed.length >= 10) {
+            s.status = share >= 0.5 ? 'flag' : 'clear';
+            s.botPhrase = `<b>${fmtPct(share)}</b> of its unprompted replies were posted <b>within 2 minutes</b> of the post they reply to (median ${fmtDelay(med)})`;
+          }
+          S.push(s);
+        }
+
+        // Around the clock
+        {
+          const b = ctx.breaks;
+          const q = ctx.quiet;
+          const src = ctx.hourSource;
+          const s = signal({
+            id: 'clock',
+            family: 'automation',
+            oneWay: false,
+            name: 'Never takes a break',
+            maxWeight: 2,
+            rule: 'Slides a 24-hour window across the scanned period, one hour at a time, and checks whether each window contains a gap of at least 4 hours with no activity. Flagged when fewer than half of the windows do. Uses replies to other people if there are at least 100 of them (so scheduled posts don’t count), otherwise all posts; needs at least 100 posts spread over 3+ days. This doesn’t depend on time zone, so travelling doesn’t affect it.',
+            why: 'People sleep. Almost any 24 hours of a human account includes a stretch of several hours with no activity. An automated account can keep going around the clock.',
+            caveat: 'Shared or team-run accounts, and people with very irregular sleep, can look busy around the clock. Bots that only run during the day pass this test.',
+          });
+          const quietText = q.length ? `${q.length}h (${fmtHour(q.start)}–${fmtHour(q.start + q.length)} UTC)` : 'none';
+          s.value = `${fmtPct(b.share)} of ${plural(b.total, '24-hour window')} contain a break of 4+ hours (based on ${plural(src.posts.length, src.label.replace(/s$/, ''), src.label)}). ${q.length ? `For reference, the longest quiet stretch in the hour-of-day chart is ${quietText}.` : 'For reference, no hour of the day is quiet in the hour-of-day chart.'}`;
+          if (ctx.hourEnough && b.total) {
+            s.status = b.share < 0.5 ? 'flag' : 'clear';
+            s.botPhrase = `only <b>${fmtPct(b.share)}</b> of 24-hour periods include a break of 4+ hours, so it <b>rarely seems to sleep</b>`;
+            s.humanPhrase = `${fmtPct(b.share)} of 24-hour periods include a break of 4+ hours, like someone sleeping`;
+          } else {
+            s.value += ' Not enough data to score.';
+          }
+          S.push(s);
+        }
+
+        // Posting rate
         {
           const recentRate = n / ctx.spanDays;
           const lifetimeRate = isFinite(ctx.ageDays) ? (profile.postsCount || 0) / Math.max(ctx.ageDays, 1) : NaN;
           const s = signal({
             id: 'rate',
+            family: 'automation',
             name: 'High posting rate',
-            short: 'a very high posting rate',
-            weight: 2,
+            maxWeight: 2,
             rule: 'Flagged when the account averages 50 or more posts a day, either across the scanned posts (needs at least 50 of them) or over its whole lifetime.',
             why: 'Keeping up 50+ posts every day, day after day, is hard for a person. Automated accounts can post hundreds of times a day.',
             caveat: 'Some very active people post this much for a while, especially during big news events or live-posting.',
@@ -1221,60 +1378,92 @@
           if (parts.length) {
             s.status = rate >= 50 ? 'flag' : 'clear';
             s.botPhrase = `it averages <b>${fmtNum(rate)} posts a day</b>`;
-            s.humanPhrase = `it posts at a human-scale rate (${fmt1(rate)} a day)`;
           }
           S.push(s);
         }
 
-        // 2. Account age
+        // Never replies back
         {
+          const got = posts.filter((p) => p.repliesFromOthers > 0);
+          const received = sum(got.map((p) => p.repliesFromOthers));
+          const back = toOther.filter((p) => p.cat === 'conversation').length;
           const s = signal({
-            id: 'age',
-            name: 'New account',
-            short: 'a brand new account',
-            weight: 1,
-            rule: 'Flagged when the account was created less than 30 days ago.',
-            why: 'Reply bots are often freshly created, and replaced when they get reported.',
-            caveat: 'Lots of real people are new to Bluesky. On its own this means very little.',
+            id: 'repliesBack',
+            family: 'behaviour',
+            oneWay: false,
+            name: 'Never replies back',
+            maxWeight: 3,
+            rule: 'Counts how many of the scanned posts received replies from other people, and how many times this account replied back in one of its own conversations. Flagged when at least 20 of its posts got replies and it never once replied back.',
+            why: 'People reply to the people who reply to them, at least some of the time. Reply bots are usually built to fire off replies, not to read their notifications.',
+            caveat: 'Some people never check their notifications, or deliberately don’t engage with replies.',
           });
-          if (isFinite(ctx.ageDays)) {
-            s.value = `Created ${fmtDate(ctx.createdAt)} (${plural(Math.floor(ctx.ageDays), 'day')} ago)`;
-            s.status = ctx.ageDays < 30 ? 'flag' : 'clear';
-            s.botPhrase = `the account is only <b>${plural(Math.floor(ctx.ageDays), 'day')} old</b>`;
-            s.humanPhrase = `the account has existed since ${fmtDate(ctx.createdAt)}`;
-          } else s.value = 'Creation date not available';
-          S.push(s);
-        }
-
-        // 3. Mostly replies
-        {
-          const share = n ? toOther.length / n : 0;
-          const s = signal({
-            id: 'replies',
-            name: 'Almost everything is a reply to someone else',
-            short: 'almost nothing but replies to other people',
-            weight: 1,
-            rule: 'Flagged when 90% or more of the scanned posts are replies to other people (needs at least 50 posts).',
-            why: 'Reply bots exist to reply. They rarely write their own top-level posts or threads.',
-            caveat: 'Many people mostly use Bluesky to join other people’s conversations.',
-          });
-          s.value = n ? `${fmtPct(share)} of ${plural(n, 'scanned post')} are replies to other people` : 'No posts';
-          if (n >= 50) {
-            s.status = share >= 0.9 ? 'flag' : 'clear';
-            s.botPhrase = `<b>${fmtPct(share)}</b> of its posts are replies to other people`;
-            s.humanPhrase = `only ${fmtPct(share)} of its posts are replies to other people`;
+          s.value = `${plural(got.length, 'post')} received replies from other people (${plural(received, 'reply', 'replies')} in total); it replied back ${plural(back, 'time')}`;
+          if (got.length >= 20) {
+            s.status = back === 0 ? 'flag' : 'clear';
+            s.botPhrase = `people replied to <b>${fmtNum(got.length)} of its posts</b>, but it <b>never once replied back</b>`;
+            s.humanPhrase = `it replies back when people reply to it (${plural(back, 'time')})`;
+          } else {
+            s.value += ' – not enough replies received to score';
           }
           S.push(s);
         }
 
-        // 4. Posting mix
+        // Drive-by replies
+        {
+          const d = toOther.filter((p) => p.cat === 'driveby').length;
+          const dShare = toOther.length ? d / toOther.length : 0;
+          const s = signal({
+            id: 'driveby',
+            family: 'behaviour',
+            name: 'Only drive-by replies to top-level posts',
+            maxWeight: 2,
+            rule: 'Flagged when 80% or more of its replies to other people go straight to someone’s top-level post rather than into a thread or conversation: 1 point at 80%, 2 points at 95% or more (needs at least 20 replies to other people).',
+            why: 'Reply bots find posts through search or a feed, reply once to the post itself and move on. People also join threads and get drawn into discussions.',
+            caveat: 'Plenty of people mostly reply to posts in their feed: in a sample of reply-heavy accounts, 80–95% drive-by replies was common, and a few reached 99–100%.',
+          });
+          s.value = toOther.length ? `${fmtPct(dShare)} of ${plural(toOther.length, 'reply', 'replies')} to other people are drive-by replies to top-level posts` : 'No replies to other people';
+          if (toOther.length >= 20) {
+            s.status = dShare >= 0.8 ? 'flag' : 'clear';
+            s.weight = dShare >= 0.95 ? 2 : 1;
+            s.botPhrase = `<b>${fmtPct(dShare)}</b> of its replies are one-off replies to top-level posts`;
+          }
+          S.push(s);
+        }
+
+        // Uniform length
+        {
+          const lengths = toOther.map((p) => p.length).filter((l) => l > 0);
+          const m = mean(lengths);
+          const cv = m ? stdev(lengths) / m : 0;
+          const s = signal({
+            id: 'length',
+            family: 'behaviour',
+            oneWay: false,
+            name: 'Unusually consistent reply length',
+            maxWeight: 3,
+            rule: 'Measures the “coefficient of variation” of reply lengths: the standard deviation divided by the average. Flagged below 0.35 (2 points), or below 0.25 (3 points); needs at least 20 replies with text. Most ordinary accounts sampled while building this tool scored between 0.5 and 1.0.',
+            why: 'Language models produce replies of very similar length every time. People write “lol” one minute and a long paragraph the next.',
+            caveat: 'Some people have a very consistent writing style, and the 300-character limit squeezes long-winded posters into a narrow range.',
+          });
+          s.value = lengths.length ? `Average ${fmtNum(m)} characters, middle half between ${fmtNum(quantile(lengths, 0.25))} and ${fmtNum(quantile(lengths, 0.75))}; variation ${cv.toFixed(2)}` : 'No replies with text';
+          if (lengths.length >= 20) {
+            s.status = cv < 0.35 ? 'flag' : 'clear';
+            s.weight = cv < 0.25 ? 3 : 2;
+            s.botPhrase = `its replies are <b>unusually uniform in length</b> (variation ${cv.toFixed(2)}, the middle half between ${fmtNum(quantile(lengths, 0.25))} and ${fmtNum(quantile(lengths, 0.75))} characters)`;
+            s.humanPhrase = `its reply lengths vary a lot (variation ${cv.toFixed(2)})`;
+          }
+          S.push(s);
+        }
+
+        // Posting mix
         {
           const m = ctx.mix;
           const s = signal({
             id: 'mix',
+            family: 'behaviour',
+            oneWay: false,
             name: 'Nothing but text',
-            short: 'text-only activity with no reposts, images or quotes',
-            weight: 1,
+            maxWeight: 1,
             rule: 'Flagged when, across the scanned posts (needs at least 50), the account never reposted anything, never posted an image or video, and never quote-posted.',
             why: 'People share things: they repost, post photos and quote other posts. A bot built to generate replies usually only emits text.',
             caveat: 'Some people only ever write text.',
@@ -1289,118 +1478,36 @@
           S.push(s);
         }
 
-        // 5. Around the clock
+        // Mostly replies
         {
-          const b = ctx.breaks;
-          const q = ctx.quiet;
-          const src = ctx.hourSource;
+          const share = n ? toOther.length / n : 0;
           const s = signal({
-            id: 'clock',
-            name: 'Never takes a break',
-            short: 'activity around the clock with no daily break',
-            weight: 2,
-            rule: 'Slides a 24-hour window across the scanned period, one hour at a time, and checks whether each window contains a gap of at least 4 hours with no activity. Flagged when fewer than half of the windows do. Uses replies to other people if there are at least 100 of them (so scheduled posts don’t count), otherwise all posts; needs at least 100 posts spread over 3+ days. This doesn’t depend on time zone, so travelling doesn’t affect it.',
-            why: 'People sleep. Almost any 24 hours of a human account includes a stretch of several hours with no activity. An automated account can keep going around the clock.',
-            caveat: 'Shared or team-run accounts, and people with very irregular sleep, can look busy around the clock.',
+            id: 'replies',
+            family: 'behaviour',
+            name: 'Almost everything is a reply to someone else',
+            maxWeight: 1,
+            rule: 'Flagged when 90% or more of the scanned posts are replies to other people (needs at least 50 posts).',
+            why: 'Reply bots exist to reply. They rarely write their own top-level posts or threads.',
+            caveat: 'Many people mostly use Bluesky to join other people’s conversations.',
           });
-          const quietText = q.length ? `${q.length}h (${fmtHour(q.start)}–${fmtHour(q.start + q.length)} UTC)` : 'none';
-          s.value = `${fmtPct(b.share)} of ${plural(b.total, '24-hour window')} contain a break of 4+ hours (based on ${plural(src.posts.length, src.label.replace(/s$/, ''), src.label)}). ${q.length ? `For reference, the longest quiet stretch in the hour-of-day chart is ${quietText}.` : 'For reference, no hour of the day is quiet in the hour-of-day chart.'}`;
-          if (ctx.hourEnough && b.total) {
-            s.status = b.share < 0.5 ? 'flag' : 'clear';
-            s.botPhrase = `only <b>${fmtPct(b.share)}</b> of 24-hour periods include a break of 4+ hours, so it <b>rarely seems to sleep</b>`;
-            s.humanPhrase = `${fmtPct(b.share)} of 24-hour periods include a break of 4+ hours, like someone sleeping`;
-          } else {
-            s.value += ' Not enough data to score.';
+          s.value = n ? `${fmtPct(share)} of ${plural(n, 'scanned post')} are replies to other people` : 'No posts';
+          if (n >= 50) {
+            s.status = share >= 0.9 ? 'flag' : 'clear';
+            s.botPhrase = `<b>${fmtPct(share)}</b> of its posts are replies to other people`;
           }
           S.push(s);
         }
 
-        // 6. Fast replies
-        {
-          const timed = ctx.unpromptedTimed;
-          const fast = timed.filter((p) => p.delayMs < FAST_MS);
-          const share = timed.length ? fast.length / timed.length : 0;
-          const med = median(timed.map((p) => p.delayMs));
-          const s = signal({
-            id: 'fast',
-            name: 'Replies arrive very quickly',
-            short: 'very fast replies',
-            weight: 3,
-            rule: 'Looks at unprompted replies: replies to other people’s posts, excluding posts that @mention this account and replies to people who replied to it first (a notification makes a fast reply natural). Flagged when 50% or more were posted within 2 minutes of the post they reply to (needs at least 10).',
-            why: 'Bots watching the firehose or search results can reply within seconds of a post appearing, every time. People reply at all sorts of delays, because they only see a post when they happen to open the app.',
-            caveat: 'Someone who spends all day refreshing their feed can reply quickly to many posts, especially in fast-moving live events.',
-          });
-          s.value = timed.length ? `${fmtPct(share)} of ${plural(timed.length, 'unprompted reply', 'unprompted replies')} were posted within 2 minutes (median delay ${fmtDelay(med)})` : 'No unprompted replies with a known delay';
-          const prompted = ctx.toOtherTimed.filter((p) => !isUnprompted(p));
-          if (prompted.length) {
-            const pf = prompted.filter((p) => p.delayMs < FAST_MS).length / prompted.length;
-            s.value += `. Not counted: ${plural(prompted.length, 'reply', 'replies')} to mentions or to people who replied to it first, of which ${fmtPct(pf)} came within 2 minutes`;
-          }
-          if (timed.length >= 10) {
-            s.status = share >= 0.5 ? 'flag' : 'clear';
-            s.botPhrase = `<b>${fmtPct(share)}</b> of its unprompted replies were posted <b>within 2 minutes</b> of the post they reply to (median ${fmtDelay(med)})`;
-            s.humanPhrase = `only ${fmtPct(share)} of its unprompted replies came within 2 minutes (median delay ${fmtDelay(med)})`;
-          }
-          S.push(s);
-        }
-
-        // 7. Faster than typing
-        {
-          const cands = ctx.typingCandidates;
-          const flagged = ctx.typingFlagged;
-          const share = cands.length ? flagged.length / cands.length : 0;
-          const s = signal({
-            id: 'typing',
-            name: 'Replies faster than anyone could type them',
-            short: 'replies posted faster than a person could type them',
-            weight: 3,
-            rule: `For each reply to someone else of ${TYPING_MIN_LENGTH}+ characters (links excluded), divides its length by the time since the original post. Anything above ${TYPING_CPS} characters per second is flagged – that’s faster than a fast typist, with zero time allowed for reading the post. Flagged when at least 3 replies, and at least 10% of those checked, exceed it.`,
-            why: 'A reply can’t be written before the post it replies to exists. A 250-character reply appearing 10 seconds after the original post was not typed by hand.',
-            caveat: 'Pasting pre-written text (a canned response, a link with a long description) can beat this. Check the flagged replies below to see whether they look pasted.',
-          });
-          s.value = cands.length ? `${fmtNum(flagged.length)} of ${plural(cands.length, 'reply', 'replies')} checked exceeded ${TYPING_CPS} characters per second (${fmtPct(share)})` : 'No replies long enough to check';
-          if (cands.length >= 5) {
-            s.status = flagged.length >= 3 && share >= 0.1 ? 'flag' : 'clear';
-            s.botPhrase = `<b>${fmtNum(flagged.length)} replies</b> appeared faster than anyone could type them (over ${TYPING_CPS} characters per second, with no time to read)`;
-            s.humanPhrase = flagged.length ? `only ${fmtNum(flagged.length)} of its replies appeared faster than typing speed` : `none of its replies appeared faster than a person could type them`;
-          }
-          S.push(s);
-        }
-
-        // 8. Drive-by replies
-        {
-          const d = toOther.filter((p) => p.cat === 'driveby').length;
-          const c = toOther.filter((p) => p.cat === 'conversation' || p.cat === 'mention').length;
-          const dShare = toOther.length ? d / toOther.length : 0;
-          const cShare = toOther.length ? c / toOther.length : 0;
-          const s = signal({
-            id: 'driveby',
-            name: 'Mostly one-off replies to top-level posts',
-            short: 'mostly drive-by replies to top-level posts',
-            weight: 1,
-            rule: 'Flagged when 80% or more of replies to other people go straight to a top-level post, and fewer than 10% are conversation replies or replies to posts that @mention it (needs at least 20 replies to other people).',
-            why: 'Reply bots typically find a post, reply once and move on. People get drawn into conversations: they reply to people who replied to them.',
-            caveat: 'Some people mostly reply to posts in their feed and rarely get replies back.',
-          });
-          s.value = toOther.length ? `${fmtPct(dShare)} drive-by replies to top-level posts, ${fmtPct(cShare)} conversation or mention replies (of ${plural(toOther.length, 'reply', 'replies')} to other people)` : 'No replies to other people';
-          if (toOther.length >= 20) {
-            s.status = dShare >= 0.8 && cShare < 0.1 ? 'flag' : 'clear';
-            s.botPhrase = `<b>${fmtPct(dShare)}</b> of its replies are one-off replies to top-level posts, and only ${fmtPct(cShare)} continue a conversation or answer a mention`;
-            s.humanPhrase = `${fmtPct(cShare)} of its replies are back-and-forth conversation or answers to mentions`;
-          }
-          S.push(s);
-        }
-
-        // 9. Distinct targets
+        // Distinct targets
         {
           const withDid = toOther.filter((p) => p.parentDid);
           const distinct = new Set(withDid.map((p) => p.parentDid)).size;
           const ratio = withDid.length ? distinct / withDid.length : 0;
           const s = signal({
             id: 'distinct',
+            family: 'behaviour',
             name: 'Rarely replies to the same person twice',
-            short: 'rarely replying to the same person twice',
-            weight: 1,
+            maxWeight: 1,
             rule: 'Flagged when the number of different accounts replied to is 90% or more of the number of replies (needs at least 30 replies to other people).',
             why: 'People tend to have repeat conversations with friends and mutuals. Reply bots spray replies across strangers.',
             caveat: 'People who mostly reply to posts surfaced by Discover or search can look like this too.',
@@ -1409,21 +1516,20 @@
           if (withDid.length >= 30) {
             s.status = ratio >= 0.9 ? 'flag' : 'clear';
             s.botPhrase = `its ${fmtNum(withDid.length)} replies went to <b>${fmtNum(distinct)} different accounts</b>`;
-            s.humanPhrase = `it has repeat conversations (${fmtNum(withDid.length)} replies to ${fmtNum(distinct)} accounts)`;
           }
           S.push(s);
         }
 
-        // 10. Big accounts
+        // Big accounts
         {
           const known = toOther.filter((p) => p.parentFollowers !== undefined);
           const med = median(known.map((p) => p.parentFollowers));
           const bigShare = known.length ? known.filter((p) => p.parentFollowers >= BIG_ACCOUNT).length / known.length : 0;
           const s = signal({
             id: 'big',
+            family: 'behaviour',
             name: 'Mostly replies to large accounts',
-            short: 'mostly replying to large accounts',
-            weight: 1,
+            maxWeight: 1,
             rule: `Flagged when the median follower count of the accounts it replies to is ${fmtNum(BIG_ACCOUNT)} or more (needs at least 20 replies with a known follower count).`,
             why: 'Reply bots (and engagement farmers) target big accounts, because replies there get seen by the most people.',
             caveat: 'Popular posts are what show up in feeds, so plenty of people mostly reply to big accounts.',
@@ -1432,20 +1538,19 @@
           if (known.length >= 20) {
             s.status = med >= BIG_ACCOUNT ? 'flag' : 'clear';
             s.botPhrase = `the median account it replies to has <b>${fmtNum(med)} followers</b>`;
-            s.humanPhrase = `the median account it replies to has ${fmtNum(med)} followers`;
           }
           S.push(s);
         }
 
-        // 11. Questions
+        // Questions
         {
           const q = toOther.filter((p) => p.hasQuestion).length;
           const share = toOther.length ? q / toOther.length : 0;
           const s = signal({
             id: 'questions',
+            family: 'behaviour',
             name: 'Frequently asks questions',
-            short: 'frequent questions',
-            weight: 1,
+            maxWeight: 1,
             rule: 'Flagged when 50% or more of replies to other people contain a question mark (needs at least 20).',
             why: 'AI reply bots are often prompted to “drive engagement”, so they end replies with a question back to the poster.',
             caveat: 'Curious people ask a lot of questions.',
@@ -1454,31 +1559,26 @@
           if (toOther.length >= 20) {
             s.status = share >= 0.5 ? 'flag' : 'clear';
             s.botPhrase = `<b>${fmtPct(share)}</b> of its replies ask a question`;
-            s.humanPhrase = `${fmtPct(share)} of its replies ask a question`;
           }
           S.push(s);
         }
 
-        // 12. Uniform length
+        // Account age
         {
-          const lengths = toOther.map((p) => p.length).filter((l) => l > 0);
-          const m = mean(lengths);
-          const cv = m ? stdev(lengths) / m : 0;
           const s = signal({
-            id: 'length',
-            name: 'Unusually consistent reply length',
-            short: 'unusually uniform reply lengths',
-            weight: 2,
-            rule: 'Measures the “coefficient of variation” of reply lengths: the standard deviation divided by the average. Flagged when it is below 0.35 (needs at least 20 replies with text). Human replies typically score 0.7 or more.',
-            why: 'Language models produce replies of very similar length every time. People write “lol” one minute and a long paragraph the next.',
-            caveat: 'Some people have a very consistent writing style, and the 300-character limit squeezes long-winded posters into a narrow range.',
+            id: 'age',
+            family: 'behaviour',
+            name: 'New account',
+            maxWeight: 1,
+            rule: 'Flagged when the account was created less than 30 days ago.',
+            why: 'Reply bots are often freshly created, and replaced when they get reported.',
+            caveat: 'Lots of real people are new to Bluesky. On its own this means very little.',
           });
-          s.value = lengths.length ? `Average ${fmtNum(m)} characters, middle half between ${fmtNum(quantile(lengths, 0.25))} and ${fmtNum(quantile(lengths, 0.75))}; variation ${cv.toFixed(2)}` : 'No replies with text';
-          if (lengths.length >= 20) {
-            s.status = cv < 0.35 ? 'flag' : 'clear';
-            s.botPhrase = `its replies are <b>unusually uniform in length</b> (variation ${cv.toFixed(2)}, with the middle half between ${fmtNum(quantile(lengths, 0.25))} and ${fmtNum(quantile(lengths, 0.75))} characters)`;
-            s.humanPhrase = `its reply lengths vary a lot (variation ${cv.toFixed(2)})`;
-          }
+          if (isFinite(ctx.ageDays)) {
+            s.value = `Created ${fmtDate(ctx.createdAt)} (${plural(Math.floor(ctx.ageDays), 'day')} ago)`;
+            s.status = ctx.ageDays < 30 ? 'flag' : 'clear';
+            s.botPhrase = `the account is only <b>${plural(Math.floor(ctx.ageDays), 'day')} old</b>`;
+          } else s.value = 'Creation date not available';
           S.push(s);
         }
         return S;
@@ -1486,17 +1586,19 @@
 
       function buildVerdict(ctx) {
         const measurable = ctx.signals.filter((s) => s.status !== 'na');
-        const flagged = measurable.filter((s) => s.status === 'flag').sort((a, b) => b.weight - a.weight);
-        const clear = measurable.filter((s) => s.status === 'clear').sort((a, b) => b.weight - a.weight);
-        const maxWeight = sum(measurable.map((s) => s.weight));
-        const score = sum(flagged.map((s) => s.weight));
-        const ratio = maxWeight ? score / maxWeight : 0;
+        const byWeight = (a, b) => b.weight - a.weight;
+        const flagged = measurable.filter((s) => s.status === 'flag').sort(byWeight);
+        const autoFlagged = flagged.filter((s) => s.family === 'automation');
+        const behaviourFlagged = flagged.filter((s) => s.family !== 'automation');
+        const counter = measurable.filter((s) => s.status === 'clear' && !s.oneWay).sort(byWeight);
+        const points = sum(flagged.map((s) => s.weight));
+        const autoPoints = sum(autoFlagged.map((s) => s.weight));
         let level;
-        if (maxWeight < 8 || ctx.toOther.length < 10) level = 'insufficient';
-        else if (ratio >= 0.5 && flagged.some((s) => s.weight >= 2)) level = 'high';
-        else if (ratio >= 0.25) level = 'medium';
+        if (ctx.toOther.length < 10) level = 'insufficient';
+        else if (points >= 7 && autoPoints >= 3) level = 'high';
+        else if (points >= 5 || autoPoints >= 3) level = 'medium';
         else level = 'low';
-        return { measurable, flagged, clear, maxWeight, score, ratio, level };
+        return { measurable, flagged, autoFlagged, behaviourFlagged, counter, points, autoPoints, level };
       }
 
       // ---------- Rendering ----------
@@ -1548,27 +1650,32 @@
           insufficient: ['?', 'Not enough data'],
         }[v.level];
         let text = '';
-        if (v.level === 'high') text += `${handle} shows a strong pattern of automated-looking reply behaviour. `;
-        else if (v.level === 'medium') text += `${handle} shows some patterns associated with automated reply accounts, but it is not a clear-cut case. `;
+        if (v.level === 'high') text += `${handle} shows a strong pattern of automated reply behaviour. `;
+        else if (v.level === 'medium') text += `${handle} shows some signs of automated reply behaviour, but not enough to be confident. `;
         else if (v.level === 'low') text += `${handle} shows few signs of being an automated reply account. `;
         else text += `There isn’t enough recent reply activity from ${handle} (${plural(ctx.toOther.length, 'reply', 'replies')} to other people in the scanned posts) to say much with confidence. `;
 
-        text += `${fmtNum(v.flagged.length)} of the ${fmtNum(v.measurable.length)} signals the tool could measure ${v.flagged.length === 1 ? 'points' : 'point'} toward automation${v.flagged.length ? ': ' + joinList(v.flagged.map((s) => s.short)) : ''}. `;
-        const evidence = v.flagged.slice(0, 3).map((s) => s.botPhrase);
-        if (evidence.length) text += 'Specifically, ' + joinList(evidence) + '. ';
-        const counter = v.clear.slice(0, v.flagged.length ? 2 : 3).map((s) => s.humanPhrase);
-        if (counter.length) text += (v.flagged.length ? 'On the other hand, ' : 'For example, ') + joinList(counter) + '. ';
-        text += 'These are statistical patterns, not proof: read the example replies and evidence below before drawing any conclusions.';
+        if (v.autoFlagged.length) text += `<b>Direct evidence of automation:</b> ${joinList(v.autoFlagged.map((s) => s.botPhrase), '; ')}. `;
+        else text += 'None of the direct checks for automation were triggered. ';
+        const shown = v.behaviourFlagged.slice(0, 4);
+        if (shown.length) {
+          const more = v.behaviourFlagged.length - shown.length;
+          text += `<b>${v.behaviourFlagged.length === 1 ? 'One pattern' : `${v.behaviourFlagged.length} patterns`} typical of reply bots:</b> ${joinList(shown.map((s) => s.botPhrase), '; ')}${more ? `; plus ${more} more` : ''}. `;
+        }
+        const counter = v.counter.slice(0, 2).map((s) => s.humanPhrase);
+        if (counter.length) text += `<b>Pointing the other way:</b> ${joinList(counter, '; ')}. `;
+        if (v.level === 'medium' && !v.autoFlagged.length) text += 'Without direct evidence of automation, this could just as easily be a person who uses Bluesky this way. ';
+        text += 'These are patterns, not proof: read the example replies and the evidence below before drawing any conclusions.';
 
         $('verdict').innerHTML = `
           <h2>Assessment</h2>
           <div class="verdict-badge level-${v.level}"><span class="icon">${badge[0]}</span>${badge[1]}</div>
           <p class="verdict-text">${text}</p>
           <div class="score-line">
-            Scoring: each signal has a weight (strong = 3, moderate = 2, weak = 1). Flagged signals add up to
-            <b>${v.score} of a possible ${v.maxWeight}</b> (${fmtPct(v.ratio)}).
-            50%+ with at least one moderate or strong signal is “strong pattern”, 25%+ is “some signals”, below that is “few signals”.
-            ${ctx.signals.length - v.measurable.length ? `${ctx.signals.length - v.measurable.length} signal(s) could not be measured for lack of data.` : ''}
+            Scoring: flagged signals add up to <b>${plural(v.points, 'point')}</b>, ${fmtNum(v.autoPoints)} of them from direct evidence of automation.
+            “Strong pattern” needs 7+ points including at least 3 from automation evidence; “some signals” needs 5+ points, or 3+ from automation evidence.
+            Behaviour alone can never produce “strong pattern”, because people can behave this way too.
+            Signals shown as “not triggered” can only ever add points, never take them away: a slow reply, for example, doesn’t show that an account is human.
             <a href="#signals">See every signal</a>.
           </div>`;
       }
@@ -1612,41 +1719,50 @@
         } else if (!candidates.length) {
           html += `<p>None of the ${plural(ctx.toOther.length, 'reply', 'replies')} to other people tripped more than two of the per-reply signals, so there are no stand-out examples to show. The <a href="#recentReplies">most recent replies</a> are listed further down.</p>`;
         } else {
-          html += `<p class="chart-caption">The replies that tripped the most per-reply signals (faster than typing, fast reply, question, drive-by, big account). Any one of these can happen to a person; what matters is whether they add up across many replies. Read them and judge for yourself.${low ? ' <b>The overall assessment found few bot-like signals for this account, so these are most likely coincidences.</b>' : ''}</p>`;
+          html += `<p class="chart-caption">The replies that tripped the most per-reply signals (faster than typing, posted by software, fast reply, question, drive-by, big account). Any one of these can happen to a person; what matters is whether they add up across many replies. Read them and judge for yourself.${low ? ' <b>The overall assessment found few bot-like signals for this account, so these are most likely coincidences.</b>' : ''}</p>`;
           html += candidates.map((p) => replyCardHtml(p, ctx, { explain: true })).join('');
         }
         $('examples').innerHTML = html;
       }
 
       function renderSignals(ctx) {
-        const weightLabel = { 3: 'strong signal', 2: 'moderate signal', 1: 'weak signal' };
-        const statusLabel = {
-          flag: ['⚑', 'Bot-like'],
-          clear: ['✓', 'Not bot-like'],
-          na: ['–', 'Not enough data'],
+        const statusLabel = (s) => {
+          if (s.status === 'flag') return ['⚑', 'Bot-like', 'flag'];
+          if (s.status === 'na') return ['–', 'Not enough data', 'na'];
+          return s.oneWay ? ['○', 'Not triggered', 'quiet'] : ['✓', 'Human-like', 'clear'];
         };
+        const points = (s) => (s.status === 'flag' ? `${plural(s.weight, 'point')}` : `worth up to ${plural(s.maxWeight, 'point')}`);
         const order = { flag: 0, clear: 1, na: 2 };
-        const sigs = [...ctx.signals].sort((a, b) => order[a.status] - order[b.status] || b.weight - a.weight);
+        const section = (family, title, intro) => {
+          const sigs = ctx.signals
+            .filter((s) => s.family === family)
+            .sort((a, b) => order[a.status] - order[b.status] || (a.status === 'clear' ? a.oneWay - b.oneWay : 0) || b.maxWeight - a.maxWeight);
+          return `<h3>${title}</h3><p class="chart-caption">${intro}</p>
+            ${sigs
+              .map((s) => {
+                const [icon, label, cls] = statusLabel(s);
+                return `<div class="signal ${cls}-status">
+                  <div class="signal-head">
+                    <span class="signal-status"><span class="icon">${icon}</span> ${label}</span>
+                    <span class="signal-name">${esc(s.name)}</span>
+                    <span class="signal-weight">${points(s)}</span>
+                  </div>
+                  <dl>
+                    <dt>Measured</dt><dd>${esc(s.value)}</dd>
+                    <dt>Rule</dt><dd>${esc(s.rule)}</dd>
+                    <dt>Why it matters</dt><dd>${esc(s.why)}</dd>
+                    <dt>Innocent explanations</dt><dd>${esc(s.caveat)}</dd>
+                  </dl>
+                </div>`;
+              })
+              .join('')}`;
+        };
         $('signals').innerHTML = `
           <h2>Signals checked</h2>
-          <p class="chart-caption">Every signal the assessment is based on, with the measured value and the exact rule used. Weak signals are common among real people; the stronger ones are harder to explain innocently.</p>
-          ${sigs
-            .map(
-              (s) => `<div class="signal ${s.status}-status">
-                <div class="signal-head">
-                  <span class="signal-status"><span class="icon">${statusLabel[s.status][0]}</span> ${statusLabel[s.status][1]}</span>
-                  <span class="signal-name">${esc(s.name)}</span>
-                  <span class="signal-weight">${weightLabel[s.weight]} (weight ${s.weight})</span>
-                </div>
-                <dl>
-                  <dt>Measured</dt><dd>${esc(s.value)}</dd>
-                  <dt>Rule</dt><dd>${esc(s.rule)}</dd>
-                  <dt>Why it matters</dt><dd>${esc(s.why)}</dd>
-                  <dt>Innocent explanations</dt><dd>${esc(s.caveat)}</dd>
-                </dl>
-              </div>`
-            )
-            .join('')}`;
+          <p class="chart-caption">Every signal the assessment is based on, with the measured value and the exact rule used.
+            “Human-like” means the account passed a test that a bot would usually fail. “Not triggered” means the signal wasn’t seen, which tells you nothing either way.</p>
+          ${section('automation', 'Direct evidence of automation', 'How the posts were made. These are hard for a person to trigger by accident.')}
+          ${section('behaviour', 'Patterns typical of reply bots', 'What the account does. Real people can show any of these, so on their own they can never produce a “strong pattern” result.')}`;
       }
 
       function hbarChart(rows, total) {
@@ -1827,10 +1943,11 @@
                 <i>Reply to a mention</i> – to a post that @mentions this account.
                 <i>Reply to own post</i> – continuing its own thread.
                 “Unprompted” replies are drive-by replies plus thread joins: nobody mentioned or replied to this account first.</li>
-              <li><b>Delay:</b> the time between the original post and the reply, using the time Bluesky’s servers first indexed each post (which the posting app can’t fake). If either post appears to have been indexed more than an hour after it was written, the tool uses the creation times reported by the apps instead. “Faster than typing” only uses server times.</li>
+              <li><b>Delay:</b> the time between the original post and the reply, using the time Bluesky’s servers first indexed each post (which the posting app can’t fake). If either post appears to have been indexed more than an hour after it was written, the tool uses the creation times reported by the apps instead. “Faster than typing” only uses server times, and also counts the time since the account’s own previous post, since a person has to finish one post before writing the next.</li>
               <li><b>Length:</b> characters as a person would count them (emoji count as one), with link text removed.</li>
               <li><b>Time of day:</b> everything is in UTC. The account’s own time zone is unknown, so look for <em>whether</em> there is a quiet stretch rather than where it falls. The scored test (4-hour break in every 24 hours) ignores time zones entirely.</li>
-              <li><b>Per-reply indicators</b> (shown on each reply): faster than typing (3 points), fast reply under 2 minutes for unprompted replies (2), asks a question (1), drive-by (1), replying to an account with ${fmtNum(BIG_ACCOUNT)}+ followers (1). 1–2 points is “weak” and 3+ is “some”. Only a faster-than-typing reply counts as “strong”, because it is the one per-reply signal that is hard for a person to trip. A single reply can trip these by coincidence; they are there to help you find examples, and the overall assessment only uses the account-wide signals above.</li>
+              <li><b>Per-reply indicators</b> (shown on each reply): faster than typing (3 points), posted by software (2), fast reply under 2 minutes for unprompted replies (2), asks a question (1), drive-by (1), replying to an account with ${fmtNum(BIG_ACCOUNT)}+ followers (1). 1–2 points is “weak” and 3+ is “some”. Only a faster-than-typing reply counts as “strong”, because it is the one per-reply signal that is hard for a person to trip. A single reply can trip these by coincidence; they are there to help you find examples, and the overall assessment only uses the account-wide signals above.</li>
+              <li><b>Replied back:</b> a reply to someone who replied to this account, or anywhere in a thread this account started. “Replies from other people” on a post come from its reply count, minus this account’s own replies to it.</li>
               <li><b>Limits:</b> it only sees the most recent posts, can’t see deleted posts, and can’t read the text itself for AI style. A clever bot can add random delays and sleep at night. A busy person can trip several signals. Use this to decide what to look at more closely, not as a verdict.</li>
             </ul>
           </details>`;
