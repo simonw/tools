@@ -85,6 +85,7 @@
       margin-top: 20px;
       display: flex;
       flex-wrap: wrap;
+      align-content: flex-start;
       gap: 20px;
     }
     .image-container {
@@ -203,7 +204,8 @@
     const QUALITY_VALUES = [1, 0.9, 0.7, 0.5, 0.3];
     const OUTPUT_FORMATS = {
       jpeg: { label: 'JPEG', mime: 'image/jpeg', extension: 'jpg', supportsAlpha: false, qualityValues: QUALITY_VALUES },
-      webp: { label: 'WebP', mime: 'image/webp', extension: 'webp', supportsAlpha: true, qualityValues: QUALITY_VALUES },
+      webp: { label: 'WebP', mime: 'image/webp', extension: 'webp', supportsAlpha: true, qualityValues: QUALITY_VALUES, wasmPackage: '@jsquash/webp' },
+      avif: { label: 'AVIF', mime: 'image/avif', extension: 'avif', supportsAlpha: true, qualityValues: QUALITY_VALUES, wasmPackage: '@jsquash/avif' },
       png: { label: 'PNG', mime: 'image/png', extension: 'png', supportsAlpha: true, qualityValues: [null] }
     };
 
@@ -213,6 +215,7 @@
     let supportedFormatKeys = [];
     let cropHasTransparency = false;
     let renderGeneration = 0;
+    let renderAbortController = null;
     let outputUrls = [];
     const MIN_CROP = 20;           // minimum crop size in image pixels
 
@@ -252,8 +255,8 @@
         tab.setAttribute('role', 'tab');
         tab.setAttribute('aria-selected', String(key === activeFormat));
         tab.textContent = format.label;
-        if (key === 'webp' && !nativeWebpSupported) {
-          tab.title = 'This browser cannot encode WebP itself, so the @jsquash/webp encoder is loaded from jsdelivr on first use.';
+        if (format.wasmPackage && !nativeEncodeSupported[key]) {
+          tab.title = `This browser cannot encode ${format.label} itself, so the ${format.wasmPackage} encoder is loaded from jsdelivr on first use.`;
         }
         tab.addEventListener('click', () => {
           if (activeFormat === key) return;
@@ -272,14 +275,16 @@
       });
     }
 
-    /* ---------- WebP encoding ----------
-       Chrome and Firefox encode WebP natively from a canvas, but Safari
-       (desktop and iOS) silently returns a PNG when asked for image/webp.
-       Feature-detect that once, and only when native encoding is missing
-       load the @jsquash/webp wasm encoder (Squoosh's libwebp) from jsdelivr
-       the first time a WebP is actually requested. */
+    /* ---------- WebP and AVIF encoding ----------
+       Browsers that cannot encode a format from a canvas silently return a
+       PNG instead: Safari (desktop and iOS) cannot do WebP, and most browsers
+       cannot do AVIF. Feature-detect each format once, and only when native
+       encoding is missing load a jSquash wasm encoder (Squoosh's libwebp or
+       libavif) from jsdelivr the first time that format is actually
+       requested. */
     const JSQUASH_WEBP_ENCODE_URL = 'https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/encode.js/+esm';
-    let nativeWebpSupported = false;
+    const JSQUASH_AVIF_ENCODE_URL = 'https://cdn.jsdelivr.net/npm/@jsquash/avif@2.1.1/encode.js/+esm';
+    const nativeEncodeSupported = {};
     let jsquashWebpPromise = null;
 
     function loadJsquashWebpEncoder() {
@@ -296,17 +301,84 @@
       return jsquashWebpPromise;
     }
 
-    function wasmWebpFallbackAvailable() {
-      return typeof WebAssembly !== 'undefined' && typeof WebAssembly.instantiate === 'function';
+    // The AVIF encoder takes seconds per image, so unlike WebP it runs in a
+    // module worker to keep the page responsive.
+    const AVIF_WORKER_SOURCE = `
+      let encoderPromise = null;
+      self.onmessage = async (e) => {
+        const { data, width, height, quality } = e.data;
+        try {
+          if (!encoderPromise) {
+            encoderPromise = import(${JSON.stringify(JSQUASH_AVIF_ENCODE_URL)}).then(async (mod) => {
+              await mod.init();
+              return mod.default;
+            });
+          }
+          const encode = await encoderPromise;
+          const buffer = await encode({ data, width, height }, { quality });
+          self.postMessage({ buffer }, [buffer]);
+        } catch (err) {
+          self.postMessage({ error: String((err && err.message) || err) });
+        }
+      };
+    `;
+    let avifWorkerUrl = null;
+    let avifWorker = null;
+    // Encodes run one at a time, in the order they were requested.
+    let avifQueue = Promise.resolve();
+
+    function runAvifWorkerJob(imageData, quality) {
+      if (!avifWorker) {
+        avifWorkerUrl = avifWorkerUrl || URL.createObjectURL(new Blob([AVIF_WORKER_SOURCE], { type: 'text/javascript' }));
+        avifWorker = new Worker(avifWorkerUrl, { type: 'module' });
+      }
+      const worker = avifWorker;
+      return new Promise((resolve, reject) => {
+        const fail = message => {
+          // Start from a fresh worker next time, so a failed encoder download
+          // can be retried instead of being cached for the life of the page.
+          worker.terminate();
+          if (avifWorker === worker) avifWorker = null;
+          reject(new Error(message));
+        };
+        worker.onmessage = e => {
+          if (e.data.error !== undefined) fail(e.data.error);
+          else resolve(new Blob([e.data.buffer], { type: 'image/avif' }));
+        };
+        worker.onerror = e => {
+          e.preventDefault();
+          fail(e.message || 'AVIF encoder worker failed');
+        };
+        const { data, width, height } = imageData;
+        worker.postMessage({ data, width, height, quality }, [data.buffer]);
+      });
+    }
+
+    // The pixels are read when the job starts, so the canvas must not be
+    // drawn on again until the returned promise settles. A job whose `signal`
+    // has been aborted by then (the crop or format changed) is skipped.
+    function encodeAvifWithWasm(canvas, quality, signal) {
+      const job = avifQueue.then(() => {
+        if (signal && signal.aborted) throw new DOMException('AVIF encode cancelled', 'AbortError');
+        const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+        return runAvifWorkerJob(imageData, Math.round(clamp(0, quality, 1) * 100));
+      });
+      avifQueue = job.catch(() => {});
+      return job;
+    }
+
+    function wasmFallbackAvailable(format) {
+      const hasWasm = typeof WebAssembly !== 'undefined' && typeof WebAssembly.instantiate === 'function';
+      return hasWasm && (format.mime !== 'image/avif' || typeof Worker !== 'undefined');
     }
 
     function detectSupportedOutputFormats() {
       return Promise.all(
         Object.entries(OUTPUT_FORMATS).map(([key, format]) => {
           return canExportMime(format.mime).then(isSupported => {
-            if (key === 'webp') {
-              nativeWebpSupported = isSupported;
-              return isSupported || wasmWebpFallbackAvailable() ? key : null;
+            if (format.wasmPackage) {
+              nativeEncodeSupported[key] = isSupported;
+              return isSupported || wasmFallbackAvailable(format) ? key : null;
             }
             return isSupported ? key : null;
           });
@@ -655,6 +727,9 @@
     /* ---------- Processing: resize qualities based on CROP area (rounded dims) ---------- */
     function processImage(img, options = {}) {
       const generation = ++renderGeneration;
+      if (renderAbortController) renderAbortController.abort();
+      renderAbortController = new AbortController();
+      const { signal } = renderAbortController;
       const format = OUTPUT_FORMATS[activeFormat];
       if (!format) return;
 
@@ -708,25 +783,21 @@
           ctx.fillRect(0, 0, w, h);
         }
 
-        // Draw the CROPPED region scaled to the canvas (rounded source rect)
+        // Draw the CROPPED region scaled to the canvas (rounded source rect).
+        // Every quality level is encoded from this same, unchanging canvas.
         const sx = Math.round(cropRect.x);
         const sy = Math.round(cropRect.y);
         const sw = roundedCropW;
         const sh = roundedCropH;
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
 
         qualities.forEach(quality => {
-          ctx.clearRect(0, 0, w, h);
-          if (shouldFillBackground(format)) {
-            ctx.fillStyle = colorPicker.value;
-            ctx.fillRect(0, 0, w, h);
-          }
-          ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
-
           const container = document.createElement('div');
           container.className = 'image-container';
+          container.textContent = `Encoding ${format.label}…`;
           output.appendChild(container);
 
-          createOutputBlob(canvas, format, quality, blob => {
+          createOutputBlob(canvas, format, quality, signal, blob => {
             if (generation !== renderGeneration) return;
             if (!blob) {
               container.textContent = `Unable to generate ${format.label}.`;
@@ -760,6 +831,7 @@
             downloadLink.download = `image_crop_${sw}x${sh}_w${w}${quality === null ? '' : `_q${quality.toFixed(1)}`}.${format.extension}`;
             downloadLink.textContent = 'Download';
 
+            container.textContent = '';
             container.appendChild(resultImg);
             container.appendChild(infoDiv);
             container.appendChild(downloadLink);
@@ -787,10 +859,9 @@
       }
     }
 
-    function createOutputBlob(canvas, format, quality, callback) {
-      if (format.mime === 'image/webp' && !nativeWebpSupported) {
-        // Copy the pixels now: the caller reuses this canvas for the next
-        // quality level before the async encoder runs.
+    function createOutputBlob(canvas, format, quality, signal, callback) {
+      if (format.mime === 'image/webp' && !nativeEncodeSupported.webp) {
+        // Copy the pixels now, before the async encoder loads.
         const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
         const webpQuality = Math.round(clamp(0, quality === null ? 0.75 : quality, 1) * 100);
         loadJsquashWebpEncoder()
@@ -800,6 +871,14 @@
             console.error('WebP encoding failed', err);
             callback(null);
           });
+        return;
+      }
+
+      if (format.mime === 'image/avif' && !nativeEncodeSupported.avif) {
+        encodeAvifWithWasm(canvas, quality === null ? 0.5 : quality, signal).then(callback, err => {
+          if (err.name !== 'AbortError') console.error('AVIF encoding failed', err);
+          callback(null);
+        });
         return;
       }
 

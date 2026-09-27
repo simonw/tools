@@ -591,33 +591,40 @@ function snapshotSvgAtTime(code, t) {
   return new XMLSerializer().serializeToString(svg);
 }
 
-// ---- WebP encoding ----
-// Chrome and Firefox can encode WebP straight from a canvas, but Safari
-// (desktop and iOS) silently falls back to PNG when asked for image/webp.
-// Feature-detect that once, and only when the browser cannot do it natively
-// load the @jsquash/webp wasm encoder (Squoosh's libwebp build) from jsdelivr.
+// ---- WebP and AVIF encoding ----
+// Browsers that cannot encode a format from a canvas silently hand back a PNG
+// instead: Safari (desktop and iOS) cannot do WebP, and most browsers cannot
+// do AVIF. Feature-detect each format once, and only when the browser cannot
+// do it natively load a jSquash wasm encoder (Squoosh's libwebp or libavif
+// build) from jsdelivr, the first time that format is actually requested.
 const JSQUASH_WEBP_ENCODE_URL =
   "https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/encode.js/+esm";
+const JSQUASH_AVIF_ENCODE_URL =
+  "https://cdn.jsdelivr.net/npm/@jsquash/avif@2.1.1/encode.js/+esm";
 
-let nativeWebpSupportPromise = null;
-function canvasSupportsWebp() {
-  if (!nativeWebpSupportPromise) {
-    nativeWebpSupportPromise = new Promise((resolve) => {
+const nativeEncodeSupportPromises = {};
+function canvasCanEncode(mimeType) {
+  if (!nativeEncodeSupportPromises[mimeType]) {
+    nativeEncodeSupportPromises[mimeType] = new Promise((resolve) => {
       const canvas = document.createElement("canvas");
       canvas.width = 1;
       canvas.height = 1;
       if (!canvas.toBlob) return resolve(false);
       try {
         canvas.toBlob(
-          (blob) => resolve(Boolean(blob && blob.type === "image/webp")),
-          "image/webp"
+          (blob) => resolve(Boolean(blob && blob.type === mimeType)),
+          mimeType
         );
       } catch (err) {
         resolve(false);
       }
     });
   }
-  return nativeWebpSupportPromise;
+  return nativeEncodeSupportPromises[mimeType];
+}
+
+function wasmQuality(quality) {
+  return Math.round(Math.max(0, Math.min(1, quality)) * 100);
 }
 
 let jsquashWebpPromise = null;
@@ -637,35 +644,99 @@ function loadJsquashWebpEncoder() {
   return jsquashWebpPromise;
 }
 
-// Encode a canvas as a WebP Blob. `quality` is 0..1 as for canvas.toBlob.
-async function canvasToWebpBlob(canvas, quality = 0.9) {
-  if (await canvasSupportsWebp()) {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (blob && blob.type === "image/webp") resolve(blob);
-          else reject(new Error("Browser could not encode WebP"));
-        },
-        "image/webp",
-        quality
-      );
-    });
-  }
+async function encodeWebpWithWasm(canvas, quality) {
   // Grab the pixels before awaiting anything so later canvas drawing cannot
   // change what gets encoded.
   const ctx = canvas.getContext("2d");
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const encode = await loadJsquashWebpEncoder();
-  const buffer = await encode(imageData, {
-    quality: Math.round(Math.max(0, Math.min(1, quality)) * 100),
-  });
+  const buffer = await encode(imageData, { quality: wasmQuality(quality) });
   return new Blob([buffer], { type: "image/webp" });
 }
 
-// Encode a canvas as a Blob of the given raster type, routing WebP through
-// the feature-detected path above.
-function canvasToBlob(canvas, mimeType, quality = 0.9) {
-  if (mimeType === "image/webp") return canvasToWebpBlob(canvas, quality);
+// The AVIF encoder takes seconds per image, so unlike WebP it runs in a
+// module worker to keep the page responsive.
+const avifWorkerSource = `
+let encoderPromise = null;
+self.onmessage = async (e) => {
+  const { data, width, height, quality } = e.data;
+  try {
+    if (!encoderPromise) {
+      encoderPromise = import(${JSON.stringify(JSQUASH_AVIF_ENCODE_URL)})
+        .then(async (mod) => {
+          await mod.init();
+          return mod.default;
+        });
+    }
+    const encode = await encoderPromise;
+    const buffer = await encode({ data, width, height }, { quality });
+    self.postMessage({ buffer }, [buffer]);
+  } catch (err) {
+    self.postMessage({ error: String((err && err.message) || err) });
+  }
+};
+`;
+
+let avifWorkerUrl = null;
+let avifWorker = null;
+// Encodes run one at a time, in the order they were requested.
+let avifQueue = Promise.resolve();
+
+function runAvifWorkerJob(imageData, quality) {
+  if (!avifWorker) {
+    avifWorkerUrl =
+      avifWorkerUrl ||
+      URL.createObjectURL(
+        new Blob([avifWorkerSource], { type: "text/javascript" })
+      );
+    avifWorker = new Worker(avifWorkerUrl, { type: "module" });
+  }
+  const worker = avifWorker;
+  return new Promise((resolve, reject) => {
+    const fail = (message) => {
+      // Start from a fresh worker next time, so a failed encoder download
+      // can be retried instead of being cached for the life of the page.
+      worker.terminate();
+      if (avifWorker === worker) avifWorker = null;
+      reject(new Error(message));
+    };
+    worker.onmessage = (e) => {
+      if (e.data.error !== undefined) fail(e.data.error);
+      else resolve(new Blob([e.data.buffer], { type: "image/avif" }));
+    };
+    worker.onerror = (e) => {
+      e.preventDefault();
+      fail(e.message || "AVIF encoder worker failed");
+    };
+    const { data, width, height } = imageData;
+    worker.postMessage({ data, width, height, quality }, [data.buffer]);
+  });
+}
+
+// The pixels are read when the job starts, so the canvas must not be drawn
+// on again until the returned promise settles.
+function encodeAvifWithWasm(canvas, quality) {
+  const job = avifQueue.then(() => {
+    const ctx = canvas.getContext("2d");
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return runAvifWorkerJob(imageData, wasmQuality(quality));
+  });
+  avifQueue = job.catch(() => {});
+  return job;
+}
+
+const WASM_ENCODERS = {
+  "image/webp": encodeWebpWithWasm,
+  "image/avif": encodeAvifWithWasm,
+};
+
+// Encode a canvas as a Blob of the given raster type. `quality` is 0..1 as
+// for canvas.toBlob. WebP and AVIF fall back to wasm where needed.
+async function canvasToBlob(canvas, mimeType, quality = 0.9) {
+  const wasmEncode = WASM_ENCODERS[mimeType];
+  if (wasmEncode && !(await canvasCanEncode(mimeType))) {
+    return wasmEncode(canvas, quality);
+  }
   return new Promise((resolve, reject) => {
     if (!canvas.toBlob) return reject(new Error("canvas.toBlob is unavailable"));
     canvas.toBlob(
@@ -862,6 +933,7 @@ class SvgBlock extends HTMLElement {
         }
         .tabs {
           display: flex;
+          flex-wrap: wrap;
           border-bottom: 1px solid #e2e2e2;
           background: #f6f6f6;
         }
@@ -1035,6 +1107,7 @@ class SvgBlock extends HTMLElement {
         <button data-tab="png">PNG</button>
         <button data-tab="jpeg">JPEG</button>
         <button data-tab="webp">WEBP</button>
+        <button data-tab="avif">AVIF</button>
         ${mp4Tab}
         <button data-tab="code">Code</button>
       </div>
@@ -1071,6 +1144,15 @@ class SvgBlock extends HTMLElement {
           <button type="button">Download WEBP</button>
         </div>
       </div>
+      <div class="panel" data-panel="avif">
+        <div class="image-status">Rendering AVIF…</div>
+        <div class="image-wrap" hidden>
+          <img alt="SVG rendered as AVIF">
+        </div>
+        <div class="image-actions" hidden>
+          <button type="button">Download AVIF</button>
+        </div>
+      </div>
       ${mp4Panel}
       <div class="panel" data-panel="code">
         <div class="code-wrap">
@@ -1097,7 +1179,7 @@ class SvgBlock extends HTMLElement {
         panels.forEach((p) =>
           p.classList.toggle("active", p.dataset.panel === tab)
         );
-        if (tab === "png" || tab === "jpeg" || tab === "webp") {
+        if (["png", "jpeg", "webp", "avif"].includes(tab)) {
           this.renderImage(tab);
         }
         if (tab === "mp4") this.prefetchFfmpeg();
@@ -1291,10 +1373,10 @@ class SvgBlock extends HTMLElement {
     }
   }
 
-  // Rasterize the SVG to PNG/JPEG/WebP at the size the SVG preview is
+  // Rasterize the SVG to PNG/JPEG/WebP/AVIF at the size the SVG preview is
   // displayed, by drawing it onto a canvas via a blob URL (same approach as
-  // svg-render.html). Runs lazily on first visit to the tab. WebP goes
-  // through canvasToWebpBlob so it also works in Safari.
+  // svg-render.html). Runs lazily on first visit to the tab. canvasToBlob
+  // loads a wasm encoder for WebP or AVIF if the browser lacks one.
   renderImage(format) {
     this._rendered = this._rendered || {};
     if (this._rendered[format]) return;
@@ -1330,6 +1412,7 @@ class SvgBlock extends HTMLElement {
       png: { mimeType: "image/png", extension: "png" },
       jpeg: { mimeType: "image/jpeg", extension: "jpg" },
       webp: { mimeType: "image/webp", extension: "webp" },
+      avif: { mimeType: "image/avif", extension: "avif" },
     };
     const { mimeType, extension } = RASTER_FORMATS[format];
     const svgBlob = new Blob([code], { type: "image/svg+xml;charset=utf-8" });

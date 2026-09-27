@@ -474,11 +474,40 @@ def read_rendered_image_bytes(page, panel):
     )
 
 
-def track_jsquash_requests(page):
+# Most browsers cannot encode AVIF from a canvas either. Force that, so the
+# @jsquash/avif fallback runs even if Chromium gains a native encoder.
+NO_NATIVE_AVIF_INIT_SCRIPT = """
+(() => {
+  const original = HTMLCanvasElement.prototype.toBlob;
+  HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+    if (type === "image/avif") type = "image/png";
+    return original.call(this, callback, type, quality);
+  };
+})();
+"""
+
+# Emulate a browser that can encode AVIF natively by relabelling the PNG
+# Chromium produces, to check the wasm encoder is then never fetched.
+NATIVE_AVIF_INIT_SCRIPT = """
+(() => {
+  const original = HTMLCanvasElement.prototype.toBlob;
+  HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+    if (type !== "image/avif") return original.call(this, callback, type, quality);
+    return original.call(
+      this,
+      (blob) => callback(blob && new Blob([blob], { type: "image/avif" })),
+      "image/png"
+    );
+  };
+})();
+"""
+
+
+def track_jsquash_requests(page, codec="webp"):
     requests = []
     page.on(
         "request",
-        lambda request: "/@jsquash/webp" in request.url
+        lambda request: f"/@jsquash/{codec}" in request.url
         and requests.append(request.url),
     )
     return requests
@@ -537,3 +566,90 @@ def test_webp_tab_falls_back_to_jsquash_without_native_support(
     data = read_rendered_image_bytes(page, "webp")
     assert data[:4] == b"RIFF"
     assert data[8:12] == b"WEBP"
+
+
+def test_avif_tab_skips_jsquash_when_browser_encodes_avif(
+    page: Page, unused_port_server
+):
+    unused_port_server.start(root)
+    jsquash_requests = track_jsquash_requests(page, "avif")
+    page.add_init_script(NATIVE_AVIF_INIT_SCRIPT)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    block = fill_svg_block(page, STATIC_SVG)
+    block.locator('button[data-tab="avif"]').click()
+
+    panel = block.locator('.panel[data-panel="avif"]')
+    download_button = panel.locator(".image-actions button")
+    expect(download_button).to_be_visible()
+    assert "Download AVIF (" in download_button.text_content()
+
+    page.wait_for_timeout(200)
+    assert jsquash_requests == []
+
+
+def test_avif_tab_falls_back_to_jsquash_without_native_support(
+    page: Page, unused_port_server
+):
+    """Loads @jsquash/avif from jsdelivr, so this test needs network access."""
+    unused_port_server.start(root)
+    jsquash_requests = track_jsquash_requests(page, "avif")
+    page.add_init_script(NO_NATIVE_AVIF_INIT_SCRIPT)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    block = fill_svg_block(page, STATIC_SVG)
+
+    # Other formats must not trigger the encoder download.
+    block.locator('button[data-tab="webp"]').click()
+    expect(
+        block.locator('.panel[data-panel="webp"] .image-actions button')
+    ).to_be_visible()
+    assert jsquash_requests == []
+
+    with page.expect_request("**/@jsquash/avif@*/encode.js/+esm"):
+        block.locator('button[data-tab="avif"]').click()
+
+    panel = block.locator('.panel[data-panel="avif"]')
+    download_button = panel.locator(".image-actions button")
+    expect(download_button).to_be_visible(timeout=60_000)
+    assert "Download AVIF (" in download_button.text_content()
+
+    data = read_rendered_image_bytes(page, "avif")
+    assert data[4:8] == b"ftyp"
+    assert data[8:12] == b"avif"
+
+
+def test_avif_encoder_download_can_be_retried_after_a_failure(
+    page: Page, unused_port_server
+):
+    """Loads @jsquash/avif from jsdelivr, so this test needs network access."""
+    unused_port_server.start(root)
+    page.add_init_script(NO_NATIVE_AVIF_INIT_SCRIPT)
+    attempts = []
+
+    def fail_first_attempt(route):
+        attempts.append(route.request.url)
+        if len(attempts) == 1:
+            route.abort()
+        else:
+            route.fallback()
+
+    page.route("**/@jsquash/avif@*/encode.js/+esm", fail_first_attempt)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    block = fill_svg_block(page, STATIC_SVG)
+    panel = block.locator('.panel[data-panel="avif"]')
+
+    block.locator('button[data-tab="avif"]').click()
+    expect(panel.locator(".image-status")).to_contain_text("Could not render AVIF")
+
+    block.locator('button[data-tab="png"]').click()
+    block.locator('button[data-tab="avif"]').click()
+    download_button = panel.locator(".image-actions button")
+    expect(download_button).to_be_visible(timeout=60_000)
+    assert len(attempts) == 2
+    data = read_rendered_image_bytes(page, "avif")
+    assert data[8:12] == b"avif"
