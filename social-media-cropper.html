@@ -291,8 +291,8 @@
                         <label for="quality">Quality (0–100):</label>
                         <input type="number" id="quality" min="0" max="100" step="1" value="90" style="width: 70px; margin-left: 6px;">
                     </div>
-                    <div id="webpNote" class="help-text" hidden>This browser cannot encode WebP itself, so the @jsquash/webp encoder is loaded from jsdelivr the first time a WebP card is generated.</div>
-                    <div id="avifNote" class="help-text" hidden>This browser cannot encode AVIF itself, so the @jsquash/avif encoder (3.5 MB) is loaded from jsdelivr the first time an AVIF card is generated. Encoding takes a few seconds.</div>
+                    <div id="webpNote" class="help-text" hidden>This browser has no WebP encoder that respects the quality setting, so the @jsquash/webp encoder is loaded from jsdelivr the first time a WebP card is generated.</div>
+                    <div id="avifNote" class="help-text" hidden>This browser has no AVIF encoder that respects the quality setting, so the @jsquash/avif encoder (3.5 MB) is loaded from jsdelivr the first time an AVIF card is generated. Encoding takes a few seconds.</div>
                 </div>
             </div>
         </div>
@@ -752,9 +752,9 @@
         // Browsers that cannot encode a format from a canvas silently return
         // a PNG instead: Safari (desktop and iOS) cannot do WebP, and most
         // browsers cannot do AVIF. Feature-detect each format once, and only
-        // when native encoding is missing load a jSquash wasm encoder
-        // (Squoosh's libwebp or libavif) from jsdelivr the first time that
-        // format is actually requested.
+        // when native encoding is missing (or ignores quality) load a jSquash
+        // wasm encoder (Squoosh's libwebp or libavif) from jsdelivr the first
+        // time that format is actually requested.
         const JSQUASH_WEBP_ENCODE_URL = 'https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/encode.js/+esm';
         const JSQUASH_AVIF_ENCODE_URL = 'https://cdn.jsdelivr.net/npm/@jsquash/avif@2.1.1/encode.js/+esm';
         const OUTPUT_FORMATS = {
@@ -765,19 +765,33 @@
         const nativeEncodeSupportPromises = {};
         let jsquashWebpPromise = null;
 
+        // A native encoder is only used if it produces the requested format
+        // and honours the quality setting: an encoder that ignores quality
+        // would make every card the same (typically huge) file.
         function canvasCanEncode(mime) {
             if (!nativeEncodeSupportPromises[mime]) {
-                nativeEncodeSupportPromises[mime] = new Promise(resolve => {
+                nativeEncodeSupportPromises[mime] = (async () => {
                     const canvas = document.createElement('canvas');
-                    canvas.width = 1;
-                    canvas.height = 1;
-                    if (!canvas.toBlob) return resolve(false);
-                    try {
-                        canvas.toBlob(blob => resolve(Boolean(blob && blob.type === mime)), mime);
-                    } catch (err) {
-                        resolve(false);
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    if (!canvas.toBlob) return false;
+                    // Noise, so that a lower quality has detail to throw away.
+                    const ctx = canvas.getContext('2d');
+                    const noise = ctx.createImageData(64, 64);
+                    for (let i = 0; i < noise.data.length; i++) {
+                        noise.data[i] = i % 4 === 3 ? 255 : Math.random() * 256;
                     }
-                });
+                    ctx.putImageData(noise, 0, 0);
+                    const encodeAt = quality => new Promise(resolve => {
+                        try {
+                            canvas.toBlob(resolve, mime, quality);
+                        } catch (err) {
+                            resolve(null);
+                        }
+                    });
+                    const [low, high] = await Promise.all([encodeAt(0.2), encodeAt(0.9)]);
+                    return Boolean(low && high && low.type === mime && high.type === mime && low.size !== high.size);
+                })();
             }
             return nativeEncodeSupportPromises[mime];
         }

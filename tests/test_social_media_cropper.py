@@ -35,9 +35,27 @@ NO_NATIVE_AVIF_INIT_SCRIPT = """
 })();
 """
 
-# Emulate a browser that can encode AVIF natively by relabelling the PNG
-# Chromium produces, to check the wasm encoder is then never fetched.
+# Emulate a browser that can encode AVIF natively by relabelling the JPEG
+# Chromium produces at the requested quality, to check the wasm encoder is
+# then never fetched.
 NATIVE_AVIF_INIT_SCRIPT = """
+(() => {
+  const original = HTMLCanvasElement.prototype.toBlob;
+  HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+    if (type !== "image/avif") return original.call(this, callback, type, quality);
+    return original.call(
+      this,
+      (blob) => callback(blob && new Blob([blob], { type: "image/avif" })),
+      "image/jpeg",
+      quality
+    );
+  };
+})();
+"""
+
+# Emulate a browser whose native AVIF encoder ignores the quality argument,
+# by relabelling a PNG: every quality level comes out the same size.
+NATIVE_AVIF_IGNORING_QUALITY_INIT_SCRIPT = """
 (() => {
   const original = HTMLCanvasElement.prototype.toBlob;
   HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
@@ -221,3 +239,22 @@ def test_avif_download_falls_back_to_jsquash_without_native_support(
     page.locator("#quality").fill("10")
     expect(download).to_contain_text("Download Social Media Card (AVIF q10,", timeout=60_000)
     assert download_size_kb(page) < high_quality_size
+
+
+def test_avif_download_falls_back_to_jsquash_when_native_encoder_ignores_quality(
+    page: Page, unused_port_server
+):
+    """Loads @jsquash/avif from jsdelivr, so this test needs network access."""
+    unused_port_server.start(root)
+    page.add_init_script(NATIVE_AVIF_IGNORING_QUALITY_INIT_SCRIPT)
+    load_page_with_image(page, unused_port_server.port)
+    expect(page.locator("#avifNote")).to_be_visible()
+
+    with page.expect_request("**/@jsquash/avif@*/encode.js/+esm"):
+        page.locator('input[name="outputFormat"][value="avif"]').check()
+
+    download = page.locator("#downloadBtn")
+    expect(download).to_contain_text("Download Social Media Card (AVIF q90,", timeout=60_000)
+    data = download_bytes(page)
+    assert data[4:8] == b"ftyp"
+    assert data[8:12] == b"avif"

@@ -595,30 +595,49 @@ function snapshotSvgAtTime(code, t) {
 // Browsers that cannot encode a format from a canvas silently hand back a PNG
 // instead: Safari (desktop and iOS) cannot do WebP, and most browsers cannot
 // do AVIF. Feature-detect each format once, and only when the browser cannot
-// do it natively load a jSquash wasm encoder (Squoosh's libwebp or libavif
-// build) from jsdelivr, the first time that format is actually requested.
+// do it natively (or ignores quality) load a jSquash wasm encoder (Squoosh's
+// libwebp or libavif build) from jsdelivr, the first time that format is
+// actually requested.
 const JSQUASH_WEBP_ENCODE_URL =
   "https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/encode.js/+esm";
 const JSQUASH_AVIF_ENCODE_URL =
   "https://cdn.jsdelivr.net/npm/@jsquash/avif@2.1.1/encode.js/+esm";
 
+// A native encoder is only used if it produces the requested format and
+// honours the quality setting: an encoder that ignores quality would turn
+// every export into the same (typically huge) file.
 const nativeEncodeSupportPromises = {};
 function canvasCanEncode(mimeType) {
   if (!nativeEncodeSupportPromises[mimeType]) {
-    nativeEncodeSupportPromises[mimeType] = new Promise((resolve) => {
+    nativeEncodeSupportPromises[mimeType] = (async () => {
       const canvas = document.createElement("canvas");
-      canvas.width = 1;
-      canvas.height = 1;
-      if (!canvas.toBlob) return resolve(false);
-      try {
-        canvas.toBlob(
-          (blob) => resolve(Boolean(blob && blob.type === mimeType)),
-          mimeType
-        );
-      } catch (err) {
-        resolve(false);
+      canvas.width = 64;
+      canvas.height = 64;
+      if (!canvas.toBlob) return false;
+      // Noise, so that a lower quality has detail to throw away.
+      const ctx = canvas.getContext("2d");
+      const noise = ctx.createImageData(64, 64);
+      for (let i = 0; i < noise.data.length; i++) {
+        noise.data[i] = i % 4 === 3 ? 255 : Math.random() * 256;
       }
-    });
+      ctx.putImageData(noise, 0, 0);
+      const encodeAt = (quality) =>
+        new Promise((resolve) => {
+          try {
+            canvas.toBlob(resolve, mimeType, quality);
+          } catch (err) {
+            resolve(null);
+          }
+        });
+      const [low, high] = await Promise.all([encodeAt(0.2), encodeAt(0.9)]);
+      return Boolean(
+        low &&
+          high &&
+          low.type === mimeType &&
+          high.type === mimeType &&
+          low.size !== high.size
+      );
+    })();
   }
   return nativeEncodeSupportPromises[mimeType];
 }

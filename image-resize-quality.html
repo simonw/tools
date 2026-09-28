@@ -256,7 +256,7 @@
         tab.setAttribute('aria-selected', String(key === activeFormat));
         tab.textContent = format.label;
         if (format.wasmPackage && !nativeEncodeSupported[key]) {
-          tab.title = `This browser cannot encode ${format.label} itself, so the ${format.wasmPackage} encoder is loaded from jsdelivr on first use.`;
+          tab.title = `This browser has no ${format.label} encoder that respects quality settings, so the ${format.wasmPackage} encoder is loaded from jsdelivr on first use.`;
         }
         tab.addEventListener('click', () => {
           if (activeFormat === key) return;
@@ -279,9 +279,9 @@
        Browsers that cannot encode a format from a canvas silently return a
        PNG instead: Safari (desktop and iOS) cannot do WebP, and most browsers
        cannot do AVIF. Feature-detect each format once, and only when native
-       encoding is missing load a jSquash wasm encoder (Squoosh's libwebp or
-       libavif) from jsdelivr the first time that format is actually
-       requested. */
+       encoding is missing (or ignores quality) load a jSquash wasm encoder
+       (Squoosh's libwebp or libavif) from jsdelivr the first time that format
+       is actually requested. */
     const JSQUASH_WEBP_ENCODE_URL = 'https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/encode.js/+esm';
     const JSQUASH_AVIF_ENCODE_URL = 'https://cdn.jsdelivr.net/npm/@jsquash/avif@2.1.1/encode.js/+esm';
     const nativeEncodeSupported = {};
@@ -375,7 +375,8 @@
     function detectSupportedOutputFormats() {
       return Promise.all(
         Object.entries(OUTPUT_FORMATS).map(([key, format]) => {
-          return canExportMime(format.mime).then(isSupported => {
+          const detect = format.wasmPackage ? nativeEncoderHonoursQuality : canExportMime;
+          return detect(format.mime).then(isSupported => {
             if (format.wasmPackage) {
               nativeEncodeSupported[key] = isSupported;
               return isSupported || wasmFallbackAvailable(format) ? key : null;
@@ -399,6 +400,32 @@
           resolve(Boolean(blob && blob.type === mime));
         }, mime);
       });
+    }
+
+    // A native encoder with a wasm alternative is only used if it also
+    // honours the quality setting: one that ignores it would make every
+    // quality level the same (typically huge) file.
+    async function nativeEncoderHonoursQuality(mime) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      if (!canvas.toBlob) return false;
+      // Noise, so that a lower quality has detail to throw away.
+      const ctx = canvas.getContext('2d');
+      const noise = ctx.createImageData(64, 64);
+      for (let i = 0; i < noise.data.length; i++) {
+        noise.data[i] = i % 4 === 3 ? 255 : Math.random() * 256;
+      }
+      ctx.putImageData(noise, 0, 0);
+      const encodeAt = quality => new Promise(resolve => {
+        try {
+          canvas.toBlob(resolve, mime, quality);
+        } catch (err) {
+          resolve(null);
+        }
+      });
+      const [low, high] = await Promise.all([encodeAt(0.2), encodeAt(0.9)]);
+      return Boolean(low && high && low.type === mime && high.type === mime && low.size !== high.size);
     }
 
     function updateFormatTabsSelectedState() {

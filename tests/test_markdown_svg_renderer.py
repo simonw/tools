@@ -486,9 +486,27 @@ NO_NATIVE_AVIF_INIT_SCRIPT = """
 })();
 """
 
-# Emulate a browser that can encode AVIF natively by relabelling the PNG
-# Chromium produces, to check the wasm encoder is then never fetched.
+# Emulate a browser that can encode AVIF natively by relabelling the JPEG
+# Chromium produces at the requested quality, to check the wasm encoder is
+# then never fetched.
 NATIVE_AVIF_INIT_SCRIPT = """
+(() => {
+  const original = HTMLCanvasElement.prototype.toBlob;
+  HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+    if (type !== "image/avif") return original.call(this, callback, type, quality);
+    return original.call(
+      this,
+      (blob) => callback(blob && new Blob([blob], { type: "image/avif" })),
+      "image/jpeg",
+      quality
+    );
+  };
+})();
+"""
+
+# Emulate a browser whose native AVIF encoder ignores the quality argument,
+# by relabelling a PNG: every quality level comes out the same size.
+NATIVE_AVIF_IGNORING_QUALITY_INIT_SCRIPT = """
 (() => {
   const original = HTMLCanvasElement.prototype.toBlob;
   HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
