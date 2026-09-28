@@ -53,8 +53,8 @@ NATIVE_AVIF_INIT_SCRIPT = """
 })();
 """
 
-# Emulate a browser whose native AVIF encoder ignores the quality argument,
-# by relabelling a PNG: every quality level comes out the same size.
+# Mobile Safari encodes AVIF natively but ignores the quality argument.
+# Emulate that by relabelling a PNG: every quality level is the same size.
 NATIVE_AVIF_IGNORING_QUALITY_INIT_SCRIPT = """
 (() => {
   const original = HTMLCanvasElement.prototype.toBlob;

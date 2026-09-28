@@ -504,8 +504,8 @@ NATIVE_AVIF_INIT_SCRIPT = """
 })();
 """
 
-# Emulate a browser whose native AVIF encoder ignores the quality argument,
-# by relabelling a PNG: every quality level comes out the same size.
+# Mobile Safari encodes AVIF natively but ignores the quality argument.
+# Emulate that by relabelling a PNG: every quality level is the same size.
 NATIVE_AVIF_IGNORING_QUALITY_INIT_SCRIPT = """
 (() => {
   const original = HTMLCanvasElement.prototype.toBlob;
@@ -670,4 +670,25 @@ def test_avif_encoder_download_can_be_retried_after_a_failure(
     expect(download_button).to_be_visible(timeout=60_000)
     assert len(attempts) == 2
     data = read_rendered_image_bytes(page, "avif")
+    assert data[8:12] == b"avif"
+
+
+def test_avif_tab_falls_back_to_jsquash_when_native_encoder_ignores_quality(
+    page: Page, unused_port_server
+):
+    """Loads @jsquash/avif from jsdelivr, so this test needs network access."""
+    unused_port_server.start(root)
+    page.add_init_script(NATIVE_AVIF_IGNORING_QUALITY_INIT_SCRIPT)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    block = fill_svg_block(page, STATIC_SVG)
+
+    with page.expect_request("**/@jsquash/avif@*/encode.js/+esm"):
+        block.locator('button[data-tab="avif"]').click()
+
+    download_button = block.locator('.panel[data-panel="avif"] .image-actions button')
+    expect(download_button).to_be_visible(timeout=60_000)
+    data = read_rendered_image_bytes(page, "avif")
+    assert data[4:8] == b"ftyp"
     assert data[8:12] == b"avif"
