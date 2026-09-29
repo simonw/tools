@@ -1,0 +1,3 @@
+View and edit photos locally to blur faces and remove metadata before sharing. The tool automatically detects faces using machine learning, allows manual redaction with adjustable blur strength, and exports cleaned images with all personal metadata stripped. All processing occurs in the browser—photos never leave your device.
+
+<!-- Generated from commit: aa733ecc3458d5703e3b40c84507ae362f5fb294 -->
