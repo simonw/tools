@@ -9,6 +9,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   font-family: Helvetica, Arial, sans-serif;
   max-width: 1200px;
@@ -132,6 +136,26 @@ table.variants .remove:hover {
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.format-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.format-choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.format-note {
+  font-size: 13px;
+  color: #555;
 }
 
 .options {
@@ -308,11 +332,16 @@ button.small {
   border-color: #ef9a9a;
 }
 
-.result video {
+.result video,
+.result img.preview {
   width: 100%;
   background: #000;
   border-radius: 4px;
   aspect-ratio: 16 / 9;
+}
+
+.result img.preview {
+  object-fit: contain;
 }
 
 .result .title {
@@ -570,8 +599,9 @@ pre.log {
   <p class="intro">
     Open a video and this tool encodes several smaller versions of it entirely in your browser, using
     <a href="https://ffmpegwasm.netlify.app/">FFmpeg compiled to WebAssembly</a>. Nothing is uploaded anywhere.
-    Every version is an H.264 + AAC <code>.mp4</code> with settings chosen to play in as many mobile browsers and
-    operating systems as possible. Compare them side by side and download the smallest one that still looks good.
+    Versions are H.264 + AAC <code>.mp4</code> files with settings chosen to play in as many mobile browsers and
+    operating systems as possible, or silent, looping animated <code>.webp</code> images that work anywhere a GIF would.
+    Compare them side by side and download the smallest one that still looks good.
   </p>
 
   <div class="card">
@@ -591,6 +621,11 @@ pre.log {
       <span class="hint" id="base-name-hint"></span>
     </label>
     <h2>Versions to generate</h2>
+    <div class="format-choice" role="radiogroup" aria-label="Output format">Format
+      <label><input type="radio" name="output-format" value="mp4" checked> MP4 video</label>
+      <label><input type="radio" name="output-format" value="webp"> Animated WebP</label>
+    </div>
+    <p class="format-note" data-format="webp" hidden>An animated WebP is an image: it plays automatically and loops forever like a GIF, with no sound and no player controls. Expect it to be several times larger than an MP4 of the same size, so it suits short clips.</p>
     <div class="table-wrap">
       <table class="variants" id="variants-table">
         <thead>
@@ -598,8 +633,8 @@ pre.log {
             <th></th>
             <th>Name</th>
             <th>Output size</th>
-            <th title="Constant Rate Factor: lower numbers mean higher quality and larger files. 18 is near-lossless, 28 is visibly compressed.">Quality (CRF)</th>
-            <th>Audio</th>
+            <th id="quality-header"></th>
+            <th id="audio-header">Audio</th>
             <th></th>
           </tr>
         </thead>
@@ -610,13 +645,14 @@ pre.log {
       <summary>Add a custom version</summary>
       <div class="add-custom">
         <label>Short side <input type="number" id="custom-short" value="540" min="64" max="1080" step="2"> px</label>
-        <label>CRF <input type="number" id="custom-crf" value="25" min="10" max="45"></label>
-        <label>Audio <input type="number" id="custom-audio" value="96" min="32" max="256" step="8"> kbps</label>
+        <label data-format="mp4">CRF <input type="number" id="custom-crf" value="25" min="10" max="45"></label>
+        <label data-format="webp" hidden>Quality <input type="number" id="custom-webp-quality" value="70" min="0" max="100"></label>
+        <label data-format="mp4">Audio <input type="number" id="custom-audio" value="96" min="32" max="256" step="8"> kbps</label>
         <button type="button" class="small" id="add-custom">Add</button>
       </div>
     </details>
     <div class="options">
-      <label>Encoder speed
+      <label data-format="mp4">Encoder speed
         <select id="preset">
           <option value="ultrafast">Ultrafast (largest files)</option>
           <option value="superfast">Superfast</option>
@@ -626,16 +662,33 @@ pre.log {
           <option value="medium">Medium (smallest files, slow)</option>
         </select>
       </label>
-      <label>H.264 profile
+      <label data-format="mp4">H.264 profile
         <select id="profile">
           <option value="main" selected>Main (recommended)</option>
           <option value="high">High (slightly smaller, needs a less ancient device)</option>
           <option value="baseline">Baseline (largest, works on anything)</option>
         </select>
       </label>
-      <label><input type="checkbox" id="cap-fps"> Limit to 30 fps</label>
-      <label><input type="checkbox" id="strip-metadata" checked> Strip metadata (location, camera, dates)</label>
-      <label><input type="checkbox" id="no-audio"> No audio (drop the sound track)</label>
+      <label data-format="webp" hidden>Encoder speed
+        <select id="webp-effort">
+          <option value="0">Fastest (largest files)</option>
+          <option value="2">Fast</option>
+          <option value="4" selected>Default (recommended)</option>
+          <option value="6">Slowest (barely smaller)</option>
+        </select>
+      </label>
+      <label data-format="webp" hidden>Max frame rate
+        <select id="webp-fps">
+          <option value="30">30 fps</option>
+          <option value="24">24 fps</option>
+          <option value="15" selected>15 fps (recommended)</option>
+          <option value="12">12 fps</option>
+          <option value="10">10 fps</option>
+        </select>
+      </label>
+      <label data-format="mp4"><input type="checkbox" id="cap-fps"> Limit to 30 fps</label>
+      <label data-format="mp4"><input type="checkbox" id="strip-metadata" checked> Strip metadata (location, camera, dates)</label>
+      <label data-format="mp4"><input type="checkbox" id="no-audio"> No audio (drop the sound track)</label>
       <label><input type="checkbox" id="sample-mode"> Only encode the first
         <input type="number" id="sample-seconds" value="10" min="1" max="600"> seconds (quick comparison)</label>
     </div>
@@ -686,7 +739,8 @@ pre.log {
 
   <div class="card embed" id="embed-card" hidden>
     <h3>Embed on a web page</h3>
-    <p>Upload the video and the poster image alongside your page, then paste this in. It uses the first video shown in the results above. <code>preload="none"</code> means the browser only shows the poster image and does not download any of the video until someone presses play.</p>
+    <p id="embed-video-intro">Upload the video and the poster image alongside your page, then paste this in. It uses the first video shown in the results above. <code>preload="none"</code> means the browser only shows the poster image and does not download any of the video until someone presses play.</p>
+    <p id="embed-image-intro" hidden>Upload the animated WebP alongside your page, then paste this in. It uses the first version shown in the results above. It plays automatically and loops, with no sound. <code>loading="lazy"</code> means the browser waits until the image is about to scroll into view before downloading it. Fill in the empty <code>alt</code> with a description of the clip.</p>
     <pre class="embed-code" id="embed-code"></pre>
     <div class="actions">
       <button type="button" class="small" id="copy-embed">Copy HTML</button>
@@ -702,6 +756,7 @@ pre.log {
       <li>AAC-LC audio at 44.1 or 48 kHz, downmixed to stereo when the source has more channels.</li>
       <li>MP4 container with the index moved to the front (<code>+faststart</code>) so playback can begin before the file has fully downloaded.</li>
       <li>Only the first video and first audio track are kept. Rotation metadata from phones is baked into the pixels so every player shows the video the right way up.</li>
+      <li>Animated WebP versions use libwebp's animation encoder (<code>libwebp_anim</code>): lossy, 4:2:0 colour, set to loop forever, with no sound and no metadata. The frame rate is capped (15 fps by default) and never raised above the source's. They display as an ordinary <code>&lt;img&gt;</code> in every current browser, including Safari 14 and later, but are usually several times larger than the MP4 at the same resolution: WebP can only skip the parts of a frame that did not change, where H.264 also tracks movement.</li>
     </ul>
     Encoding runs on a single CPU core inside WebAssembly, so it is much slower than a native ffmpeg. Long or high resolution videos can take a while: use the "first N seconds" option to compare settings quickly, then encode the full version of the one you like. The ffmpeg engine (about 32&nbsp;MB) is downloaded once and cached by your browser.
   </div>
@@ -719,13 +774,24 @@ const MAX_INPUT_BYTES = 1.5 * 1024 * 1024 * 1024;
 const WARN_INPUT_BYTES = 400 * 1024 * 1024;
 const MAX_LOG_LINES = 400;
 
+// crf and audio apply to MP4 versions, webpQuality to animated WebP versions.
 const DEFAULT_VARIANTS = [
-  { id: 'xl', name: 'Largest', shortSide: 1080, crf: 22, audio: 128 },
-  { id: 'l', name: 'Large', shortSide: 720, crf: 23, audio: 128 },
-  { id: 'm', name: 'Medium', shortSide: 720, crf: 27, audio: 96 },
-  { id: 's', name: 'Small', shortSide: 480, crf: 26, audio: 96 },
-  { id: 'xs', name: 'Smallest', shortSide: 360, crf: 28, audio: 64 },
+  { id: 'xl', name: 'Largest', shortSide: 1080, crf: 22, audio: 128, webpQuality: 80 },
+  { id: 'l', name: 'Large', shortSide: 720, crf: 23, audio: 128, webpQuality: 75 },
+  { id: 'm', name: 'Medium', shortSide: 720, crf: 27, audio: 96, webpQuality: 60 },
+  { id: 's', name: 'Small', shortSide: 480, crf: 26, audio: 96, webpQuality: 65 },
+  { id: 'xs', name: 'Smallest', shortSide: 360, crf: 28, audio: 64, webpQuality: 55 },
 ];
+
+const OUTPUT_FORMATS = {
+  mp4: { mime: 'video/mp4', extension: 'mp4' },
+  webp: { mime: 'image/webp', extension: 'webp' },
+};
+
+const QUALITY_HEADERS = {
+  mp4: { text: 'Quality (CRF)', title: 'Constant Rate Factor: lower numbers mean higher quality and larger files. 18 is near-lossless, 28 is visibly compressed.' },
+  webp: { text: 'Quality (0–100)', title: 'WebP quality: higher numbers mean higher quality and larger files. 75 is the libwebp default.' },
+};
 
 const POSTER_FORMATS = {
   jpeg: { mime: 'image/jpeg', extension: 'jpg', label: 'JPEG' },
@@ -744,8 +810,12 @@ const els = {
   baseName: $('base-name'),
   baseNameHint: $('base-name-hint'),
   variantsBody: $('variants-body'),
+  qualityHeader: $('quality-header'),
+  audioHeader: $('audio-header'),
   preset: $('preset'),
   profile: $('profile'),
+  webpEffort: $('webp-effort'),
+  webpFps: $('webp-fps'),
   capFps: $('cap-fps'),
   stripMetadata: $('strip-metadata'),
   noAudio: $('no-audio'),
@@ -773,6 +843,8 @@ const els = {
   posterPending: $('poster-pending'),
   posterError: $('poster-error'),
   embedCard: $('embed-card'),
+  embedVideoIntro: $('embed-video-intro'),
+  embedImageIntro: $('embed-image-intro'),
   embedCode: $('embed-code'),
   copyEmbed: $('copy-embed'),
   embedXhtml: $('embed-xhtml'),
@@ -834,8 +906,15 @@ function variantSlug(variant) {
   return variant.name.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '') || variant.id;
 }
 
+// The format picked for the next "Generate versions": 'mp4' or 'webp'. Each job keeps
+// its own copy in job.options.format, so results in both formats can sit side by side.
+function outputFormat() {
+  const checked = document.querySelector('input[name="output-format"]:checked');
+  return checked && OUTPUT_FORMATS[checked.value] ? checked.value : 'mp4';
+}
+
 function jobFilename(job) {
-  return `${baseName()}-${variantSlug(job.variant)}${job.sampleSeconds ? '-sample' : ''}.mp4`;
+  return `${baseName()}-${variantSlug(job.variant)}${job.sampleSeconds ? '-sample' : ''}.${OUTPUT_FORMATS[job.options.format].extension}`;
 }
 
 // Defaults to the format picked in the poster controls; the download link passes the
@@ -846,7 +925,9 @@ function posterFilename(format = posterFormat()) {
 
 // Re-derive every filename that depends on the filename field.
 function refreshFilenames() {
-  els.baseNameHint.textContent = `Downloads will be named ${baseName()}-medium.mp4, ${baseName()}-small.mp4 and so on, plus ${posterFilename()} for the poster frame.`;
+  els.baseNameHint.textContent = outputFormat() === 'webp'
+    ? `Downloads will be named ${baseName()}-medium.webp, ${baseName()}-small.webp and so on.`
+    : `Downloads will be named ${baseName()}-medium.mp4, ${baseName()}-small.mp4 and so on, plus ${posterFilename()} for the poster frame.`;
   for (const card of els.results.querySelectorAll('.result')) {
     const job = card.job;
     if (!job) continue;
@@ -862,7 +943,7 @@ function refreshFilenames() {
 function commandText(job) {
   const displayArgs = job.args.map((arg) => {
     if (arg === source.memName) return source.name;
-    if (/^(?:[\w-]+)-(?:sample|full)\.mp4$/.test(arg)) return jobFilename(job);
+    if (/^(?:[\w-]+)-(?:sample|full)\.(?:mp4|webp)$/.test(arg)) return jobFilename(job);
     return arg;
   });
   return `ffmpeg ${displayArgs.map(shellQuote).join(' ')}`;
@@ -918,25 +999,35 @@ function scaleFilter(shortSide) {
 
 // ---------- variants table ----------
 
+// The table shows a CRF and audio bitrate for each MP4 version, or a quality for each
+// animated WebP version (which never has sound).
 function renderVariants() {
+  const webp = outputFormat() === 'webp';
   els.variantsBody.innerHTML = '';
   for (const v of variants) {
     const tr = document.createElement('tr');
     tr.dataset.id = v.id;
     const dims = source ? outputDimensions(source.width, source.height, v.shortSide) : null;
     const dimsText = dims ? `${dims.width}×${dims.height}` : `up to ${v.shortSide}p`;
+    const quality = webp
+      ? `<input type="number" class="webp-quality" min="0" max="100" value="${v.webpQuality}">`
+      : `<input type="number" class="crf" min="10" max="45" value="${v.crf}">`;
     tr.innerHTML = `
       <td><input type="checkbox" class="enabled" ${v.enabled ? 'checked' : ''}></td>
       <td class="name"></td>
       <td class="dims"></td>
-      <td><input type="number" class="crf" min="10" max="45" value="${v.crf}"></td>
-      <td><input type="number" class="audio" min="32" max="256" step="8" value="${v.audio}"> kbps</td>
+      <td>${quality}</td>
+      <td ${webp ? 'hidden' : ''}><input type="number" class="audio" min="32" max="256" step="8" value="${v.audio}"> kbps</td>
       <td>${v.custom ? '<button type="button" class="remove" title="Remove">×</button>' : ''}</td>
     `;
     tr.querySelector('.name').textContent = v.name;
     tr.querySelector('.dims').textContent = dimsText;
     tr.querySelector('.enabled').addEventListener('change', (e) => { v.enabled = e.target.checked; updateEmbed(); });
-    tr.querySelector('.crf').addEventListener('change', (e) => { v.crf = clampInt(e.target.value, 10, 45, v.crf); e.target.value = v.crf; });
+    if (webp) {
+      tr.querySelector('.webp-quality').addEventListener('change', (e) => { v.webpQuality = clampInt(e.target.value, 0, 100, v.webpQuality); e.target.value = v.webpQuality; });
+    } else {
+      tr.querySelector('.crf').addEventListener('change', (e) => { v.crf = clampInt(e.target.value, 10, 45, v.crf); e.target.value = v.crf; });
+    }
     tr.querySelector('.audio').disabled = els.noAudio.checked;
     tr.querySelector('.audio').addEventListener('change', (e) => { v.audio = clampInt(e.target.value, 32, 256, v.audio); e.target.value = v.audio; });
     const remove = tr.querySelector('.remove');
@@ -960,10 +1051,28 @@ $('add-custom').addEventListener('click', () => {
   const shortSide = clampInt($('custom-short').value, 64, 1080, 540);
   const crf = clampInt($('custom-crf').value, 10, 45, 25);
   const audio = clampInt($('custom-audio').value, 32, 256, 96);
+  const webpQuality = clampInt($('custom-webp-quality').value, 0, 100, 70);
   customCounter += 1;
-  variants.push({ id: `custom-${customCounter}`, name: `Custom ${customCounter}`, shortSide, crf, audio, enabled: true, custom: true });
+  variants.push({ id: `custom-${customCounter}`, name: `Custom ${customCounter}`, shortSide, crf, audio, webpQuality, enabled: true, custom: true });
   renderVariants();
 });
+
+// Show only the settings that apply to the chosen format.
+function syncFormatControls() {
+  const format = outputFormat();
+  for (const el of els.settingsCard.querySelectorAll('[data-format]')) el.hidden = el.dataset.format !== format;
+  els.qualityHeader.textContent = QUALITY_HEADERS[format].text;
+  els.qualityHeader.title = QUALITY_HEADERS[format].title;
+  els.audioHeader.hidden = format === 'webp';
+}
+
+for (const radio of document.querySelectorAll('input[name="output-format"]')) {
+  radio.addEventListener('change', () => {
+    syncFormatControls();
+    renderVariants();
+    refreshFilenames();
+  });
+}
 
 // ---------- source file ----------
 
@@ -1524,12 +1633,13 @@ els.posterQuality.addEventListener('input', () => {
 function embedTarget() {
   for (const card of els.results.querySelectorAll('.result')) {
     if (card.job && card.dataset.state === 'done') {
-      return { filename: jobFilename(card.job), width: card.dataset.width, height: card.dataset.height };
+      return { filename: jobFilename(card.job), format: card.job.options.format, width: card.dataset.width, height: card.dataset.height };
     }
   }
   const variant = variants.find((v) => v.enabled) || variants[0] || DEFAULT_VARIANTS[2];
   const dims = source ? outputDimensions(source.width, source.height, variant.shortSide) : null;
-  return { filename: `${baseName()}-${variantSlug(variant)}.mp4`, width: dims && dims.width, height: dims && dims.height };
+  const format = outputFormat();
+  return { filename: `${baseName()}-${variantSlug(variant)}.${OUTPUT_FORMATS[format].extension}`, format, width: dims && dims.width, height: dims && dims.height };
 }
 
 function escapeAttr(value) {
@@ -1543,6 +1653,14 @@ function updateEmbed() {
   // Boolean attributes must be written out in full in XHTML, and empty elements closed.
   const flag = (name) => (xhtml ? `${name}="${name}"` : name);
   const size = target.width && target.height ? ` width="${target.width}" height="${target.height}"` : '';
+  const image = target.format === 'webp';
+  els.embedVideoIntro.hidden = image;
+  els.embedImageIntro.hidden = !image;
+  if (image) {
+    // An animated WebP is just an image: no poster, and it plays and loops by itself.
+    els.embedCode.textContent = `<img src="${escapeAttr(target.filename)}"${size} alt="" loading="lazy"${xhtml ? ' /' : ''}>`;
+    return;
+  }
   els.embedCode.textContent = [
     `<video ${flag('controls')} ${flag('playsinline')} preload="none"${size} poster="${escapeAttr(posterFilename())}">`,
     `  <source src="${escapeAttr(target.filename)}" type="video/mp4"${xhtml ? ' /' : ''}>`,
@@ -1572,10 +1690,20 @@ function currentOptions() {
     stripMetadata: els.stripMetadata.checked,
     noAudio: els.noAudio.checked,
     sampleSeconds: els.sampleMode.checked ? clampInt(els.sampleSeconds.value, 1, 600, 10) : null,
+    format: outputFormat(),
+    webpEffort: clampInt(els.webpEffort.value, 0, 6, 4),
+    webpFps: clampInt(els.webpFps.value, 1, 60, 15),
   };
 }
 
+// Frame rate of an animated WebP version: the cap from the settings, or the source's
+// own frame rate when that is lower.
+function webpFrameRate(options) {
+  return source.fps && source.fps < options.webpFps ? source.fps : options.webpFps;
+}
+
 function buildArgs(variant, options, outputName) {
+  if (options.format === 'webp') return buildWebpArgs(variant, options, outputName);
   const args = ['-y', '-hide_banner'];
   if (options.sampleSeconds) args.push('-t', String(options.sampleSeconds));
   args.push('-i', source.memName);
@@ -1600,6 +1728,23 @@ function buildArgs(variant, options, outputName) {
   return args;
 }
 
+// libwebp_anim (rather than libwebp) stores only the parts of each frame that changed
+// since the one before. -compression_level is libwebp's "method": 0 is fastest, 6
+// smallest. The webp muxer defaults to playing once; -loop 0 loops forever. The muxer
+// writes no metadata, so there is nothing to strip.
+function buildWebpArgs(variant, options, outputName) {
+  const args = ['-y', '-hide_banner'];
+  if (options.sampleSeconds) args.push('-t', String(options.sampleSeconds));
+  args.push('-i', source.memName, '-map', '0:v:0');
+  args.push('-c:v', 'libwebp_anim', '-quality', String(variant.webpQuality), '-compression_level', String(options.webpEffort));
+  args.push('-pix_fmt', 'yuv420p');
+  args.push('-vf', scaleFilter(variant.shortSide));
+  if (!source.fps || source.fps > options.webpFps) args.push('-r', String(options.webpFps));
+  args.push('-an', '-loop', '0');
+  args.push('-f', 'webp', outputName);
+  return args;
+}
+
 function enqueue(job) {
   queue.push(job);
   els.resultsCard.hidden = false;
@@ -1617,27 +1762,39 @@ async function runQueue() {
   let failed = 0;
   try {
     const ff = await ensureInputWritten();
-    await ensurePoster(ff);
-    if (ffmpeg !== ff) return; // stopped while extracting the poster
     while (queue.length) {
       const job = queue.shift();
       currentJob = job;
+      const webp = job.options.format === 'webp';
+      // The poster frame only goes with a video, so it is saved before the first MP4.
+      if (!webp) {
+        await ensurePoster(ff);
+        if (ffmpeg !== ff) return; // stopped while extracting the poster
+      }
       const position = `${completed + failed + 1} of ${completed + failed + 1 + queue.length}`;
       const label = jobLabel(job);
       const expected = job.sampleSeconds ? Math.min(job.sampleSeconds, source.duration || job.sampleSeconds) : source.duration;
       const started = performance.now();
-      progressHandler = (seconds) => {
+      const showProgress = (seconds) => {
         const fraction = expected ? seconds / expected : null;
         const pct = fraction === null ? '' : ` ${Math.round(Math.min(1, fraction) * 100)}%`;
         setStatus(`Encoding ${position}: ${label}${pct} (${formatElapsed(performance.now() - started)})`, fraction);
       };
+      if (webp) job.frameRate = webpFrameRate(job.options);
+      // libwebp_anim hands the whole animation to ffmpeg at the very end, so ffmpeg's
+      // progress time stays at zero until then: count the frames sent to it instead.
+      progressHandler = webp ? null : showProgress;
       setStatus(`Encoding ${position}: ${label}`, 0);
-      const outputName = `${job.variant.id}-${job.sampleSeconds ? 'sample' : 'full'}.mp4`;
+      const outputName = `${job.variant.id}-${job.sampleSeconds ? 'sample' : 'full'}.${OUTPUT_FORMATS[job.options.format].extension}`;
       job.args = buildArgs(job.variant, job.options, outputName);
       let ret;
       const logStart = logLines.length;
       const captured = [];
-      const capture = ({ message }) => captured.push(message);
+      const capture = ({ message }) => {
+        captured.push(message);
+        const frames = webp && message.match(/^frame=\s*(\d+)/);
+        if (frames) showProgress(parseInt(frames[1], 10) / job.frameRate);
+      };
       ff.on('log', capture);
       try {
         ret = await ff.exec(job.args);
@@ -1667,7 +1824,7 @@ async function runQueue() {
         markFailed(job, `Could not read the output file: ${err}`);
         continue;
       }
-      job.blob = new Blob([data], { type: 'video/mp4' });
+      job.blob = new Blob([data], { type: OUTPUT_FORMATS[job.options.format].mime });
       job.size = job.blob.size;
       completed += 1;
       fillCard(job);
@@ -1693,7 +1850,8 @@ async function runQueue() {
 function jobLabel(job) {
   const dims = outputDimensions(source.width, source.height, job.variant.shortSide);
   const res = dims ? `${dims.width}×${dims.height}` : `${job.variant.shortSide}p`;
-  return `${job.variant.name} (${res}, CRF ${job.variant.crf})`;
+  const quality = job.options.format === 'webp' ? `animated WebP quality ${job.variant.webpQuality}` : `CRF ${job.variant.crf}`;
+  return `${job.variant.name} (${res}, ${quality})`;
 }
 
 async function stopEverything() {
@@ -1728,7 +1886,8 @@ els.generate.addEventListener('click', () => {
   els.resultsCard.dataset.state = 'running';
   ensureOriginalCard();
   // Smallest first so results start appearing quickly.
-  const ordered = [...selected].sort((a, b) => (a.shortSide - b.shortSide) || (b.crf - a.crf));
+  const lowerQualityFirst = options.format === 'webp' ? (a, b) => a.webpQuality - b.webpQuality : (a, b) => b.crf - a.crf;
+  const ordered = [...selected].sort((a, b) => (a.shortSide - b.shortSide) || lowerQualityFirst(a, b));
   for (const variant of ordered) {
     enqueue({ variant: { ...variant }, options, sampleSeconds: options.sampleSeconds });
   }
@@ -1743,8 +1902,8 @@ els.noAudio.addEventListener('change', () => {
 // ---------- results ----------
 
 function clearResults() {
-  for (const video of els.results.querySelectorAll('video')) {
-    if (video.src && video.src.startsWith('blob:')) URL.revokeObjectURL(video.src);
+  for (const media of els.results.querySelectorAll('video, img.preview')) {
+    if (media.src && media.src.startsWith('blob:')) URL.revokeObjectURL(media.src);
   }
   els.results.innerHTML = '';
   els.resultsCard.hidden = true;
@@ -1816,6 +1975,7 @@ function fillCard(job) {
   const sampleLength = isSample ? Math.min(job.sampleSeconds, source.duration || job.sampleSeconds) : null;
   const estimatedFull = isSample && source.duration ? (job.size * source.duration) / sampleLength : null;
   const effectiveSize = estimatedFull || job.size;
+  const webp = job.options.format === 'webp';
   resultCounter += 1;
 
   card.className = 'result';
@@ -1825,33 +1985,50 @@ function fillCard(job) {
   card.dataset.state = 'done';
   card.innerHTML = `
     <div class="title"></div>
-    <video controls playsinline preload="metadata"></video>
+    ${webp ? '<img class="preview" alt="">' : '<video controls playsinline preload="metadata"></video>'}
     <div class="size"></div>
     <div class="meta"></div>
     <div class="buttons"></div>
     <details><summary>ffmpeg command</summary><div class="command"></div></details>
   `;
 
-  const url = URL.createObjectURL(job.blob);
-  const video = card.querySelector('video');
-  video.src = url;
-  video.addEventListener('loadedmetadata', () => {
-    card.dataset.width = video.videoWidth;
-    card.dataset.height = video.videoHeight;
-    const durationSeconds = video.duration && isFinite(video.duration) ? video.duration : null;
+  const durationGuess = isSample ? sampleLength : source.duration;
+  const metaText = (dims, durationSeconds) => {
     const kbps = durationSeconds ? Math.round((job.size * 8) / durationSeconds / 1000) : null;
-    card.querySelector('.meta').textContent = [
-      `${video.videoWidth}×${video.videoHeight}`,
-      `CRF ${variant.crf}`,
+    return [
+      dims ? `${dims.width}×${dims.height}` : null,
+      webp ? `quality ${variant.webpQuality}` : `CRF ${variant.crf}`,
+      webp ? `${Math.round(job.frameRate * 100) / 100} fps` : null,
       kbps ? `${kbps} kbps` : null,
-      job.options.noAudio ? 'no audio' : null,
+      !webp && job.options.noAudio ? 'no audio' : null,
       `encoded in ${formatElapsed(job.elapsedMs)}`,
     ].filter(Boolean).join(', ');
+  };
+
+  const url = URL.createObjectURL(job.blob);
+  // Once the browser has decoded the result, use its real dimensions and duration.
+  const showLoaded = (width, height, durationSeconds) => {
+    card.dataset.width = width;
+    card.dataset.height = height;
+    card.querySelector('.meta').textContent = metaText({ width, height }, durationSeconds || durationGuess);
     updateEmbed();
     updatePosterButtons();
-  }, { once: true });
+  };
+  if (webp) {
+    const img = card.querySelector('img');
+    img.alt = `${variant.name} animated WebP`;
+    img.addEventListener('load', () => showLoaded(img.naturalWidth, img.naturalHeight, null), { once: true });
+    img.src = url;
+  } else {
+    const video = card.querySelector('video');
+    video.src = url;
+    video.addEventListener('loadedmetadata', () => {
+      showLoaded(video.videoWidth, video.videoHeight, video.duration && isFinite(video.duration) ? video.duration : null);
+    }, { once: true });
+  }
 
-  card.querySelector('.title').textContent = `${variant.name}${isSample ? ` (first ${formatDuration(sampleLength)})` : ''}`;
+  const titleNotes = [webp ? 'animated WebP' : null, isSample ? `first ${formatDuration(sampleLength)}` : null].filter(Boolean);
+  card.querySelector('.title').textContent = `${variant.name}${titleNotes.length ? ` (${titleNotes.join(', ')})` : ''}`;
   const sizeEl = card.querySelector('.size');
   const pctOfOriginal = source.size ? Math.round((effectiveSize / source.size) * 100) : null;
   if (isSample) {
@@ -1864,15 +2041,7 @@ function fillCard(job) {
     sizeEl.querySelector('small').textContent = pctOfOriginal !== null ? `${pctOfOriginal}% of original` : '';
   }
   const dims = job.outputDims;
-  const durationGuess = isSample ? sampleLength : source.duration;
-  const kbpsGuess = durationGuess ? Math.round((job.size * 8) / durationGuess / 1000) : null;
-  card.querySelector('.meta').textContent = [
-    dims ? `${dims.width}×${dims.height}` : null,
-    `CRF ${variant.crf}`,
-    kbpsGuess ? `${kbpsGuess} kbps` : null,
-    job.options.noAudio ? 'no audio' : null,
-    `encoded in ${formatElapsed(job.elapsedMs)}`,
-  ].filter(Boolean).join(', ');
+  card.querySelector('.meta').textContent = metaText(dims, durationGuess);
   if (dims) {
     card.dataset.width = dims.width;
     card.dataset.height = dims.height;
@@ -1883,7 +2052,7 @@ function fillCard(job) {
   download.className = 'download';
   download.href = url;
   download.download = jobFilename(job);
-  download.textContent = 'Download .mp4';
+  download.textContent = `Download .${OUTPUT_FORMATS[job.options.format].extension}`;
   buttons.appendChild(download);
   if (isSample) {
     const full = document.createElement('button');
@@ -1896,12 +2065,14 @@ function fillCard(job) {
     });
     buttons.appendChild(full);
   }
-  const resize = document.createElement('button');
-  resize.type = 'button';
-  resize.className = 'small resize-poster';
-  resize.hidden = true;
-  resize.addEventListener('click', () => resizePoster(parseInt(card.dataset.width, 10), parseInt(card.dataset.height, 10)));
-  buttons.appendChild(resize);
+  if (!webp) {
+    const resize = document.createElement('button');
+    resize.type = 'button';
+    resize.className = 'small resize-poster';
+    resize.hidden = true;
+    resize.addEventListener('click', () => resizePoster(parseInt(card.dataset.width, 10), parseInt(card.dataset.height, 10)));
+    buttons.appendChild(resize);
+  }
 
   card.querySelector('.command').textContent = commandText(job);
 
@@ -1927,6 +2098,8 @@ els.playAll.addEventListener('click', () => {
 els.pauseAll.addEventListener('click', () => {
   for (const video of els.results.querySelectorAll('video')) video.pause();
 });
+
+syncFormatControls();
 
 if (typeof WebAssembly === 'undefined' || typeof Worker === 'undefined') {
   showError('This browser does not support WebAssembly and Web Workers, which this tool needs.');
