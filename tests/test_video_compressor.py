@@ -1,10 +1,11 @@
 """
 Playwright tests for video-compressor.html
 
-The initial-state test runs offline. The full flow downloads the ~32 MB
-ffmpeg.wasm core from jsDelivr, encodes a small fixture video into several
-MP4 versions, and then checks the resulting files really are the kind of
-MP4 the tool promises (H.264 Main profile, yuv420p, AAC, faststart).
+The initial-state and format-switching tests run offline. The full flow
+downloads the ~32 MB ffmpeg.wasm core from jsDelivr, encodes a small fixture
+video into several MP4 versions, and then checks the resulting files really
+are the kind of MP4 the tool promises (H.264 Main profile, yuv420p, AAC,
+faststart). The animated WebP test does the same for a looping WebP.
 
 Set FFMPEG_WASM_CACHE_DIR to a directory containing ffmpeg-core.js and
 ffmpeg-core.wasm to serve the core from disk instead of the CDN.
@@ -80,6 +81,42 @@ def describe_mp4(data):
                         tkhd_dims.append((width >> 16, height >> 16))
     info["dims"] = tkhd_dims
     return info
+
+
+def describe_webp(data):
+    """Return a dict describing the RIFF chunks of a WebP file."""
+    assert data[:4] == b"RIFF" and data[8:12] == b"WEBP", data[:16]
+    chunks = []
+    pos = 12
+    while pos + 8 <= len(data):
+        size = struct.unpack("<I", data[pos + 4:pos + 8])[0]
+        chunks.append((data[pos:pos + 4], data[pos + 8:pos + 8 + size]))
+        pos += 8 + size + (size & 1)
+    first = dict(chunks)
+    vp8x = first.get(b"VP8X", b"")
+    anim = first.get(b"ANIM")
+    return {
+        "chunks": [kind for kind, _ in chunks],
+        # VP8X flags byte: 0x02 is the animation bit
+        "animated": bool(vp8x and vp8x[0] & 0x02),
+        "width": 1 + int.from_bytes(vp8x[4:7], "little") if vp8x else None,
+        "height": 1 + int.from_bytes(vp8x[7:10], "little") if vp8x else None,
+        # ANIM is a 4 byte background colour then a 16 bit loop count, 0 meaning forever
+        "loop": struct.unpack("<H", anim[4:6])[0] if anim else None,
+        # Each ANMF frame starts with X, Y, width-1, height-1 and its duration in ms, 3 bytes each
+        "durations": [int.from_bytes(body[12:15], "little") for kind, body in chunks if kind == b"ANMF"],
+    }
+
+
+def read_blob(locator, selector):
+    """The bytes behind the blob: URL of the element matching selector inside locator."""
+    b64 = locator.evaluate("""async (el, selector) => {
+        const buf = await (await fetch(el.querySelector(selector).src)).arrayBuffer();
+        let s = '';
+        for (const b of new Uint8Array(buf)) s += String.fromCharCode(b);
+        return btoa(s);
+    }""", selector)
+    return base64.b64decode(b64)
 
 
 def route_ffmpeg_core(page: Page):
@@ -560,3 +597,162 @@ def test_poster_webp_falls_back_to_jsquash_without_native_support(page: Page, un
 
     page.locator('input[name="poster-format"][value="jpeg"]').check()
     expect(page.locator("#poster-webp-note")).to_be_hidden()
+
+
+def test_webp_format_switches_settings(page: Page, unused_port_server):
+    """Picking animated WebP swaps CRF and audio for a WebP quality, shows the WebP
+    settings and renames everything. Nothing is encoded, so this runs offline."""
+    unused_port_server.start(root)
+    page.goto(f"http://localhost:{unused_port_server.port}/video-compressor.html")
+    page.set_input_files("#file-input", str(fixture))
+    expect(page.locator("#settings-card")).to_be_visible()
+
+    # MP4 by default, with none of the WebP settings showing
+    expect(page.locator('input[name="output-format"][value="mp4"]')).to_be_checked()
+    expect(page.locator("#quality-header")).to_have_text("Quality (CRF)")
+    expect(page.locator("#webp-effort")).to_be_hidden()
+    expect(page.locator("#webp-fps")).to_be_hidden()
+    expect(page.locator("#variants-body input.webp-quality")).to_have_count(0)
+
+    page.locator('input[name="output-format"][value="webp"]').check()
+    expect(page.locator("#quality-header")).to_have_text("Quality (0–100)")
+    expect(page.locator("#audio-header")).to_be_hidden()
+    expect(page.locator("#variants-body input.crf")).to_have_count(0)
+    for audio in page.locator("#variants-body input.audio").all():
+        expect(audio).to_be_hidden()
+    qualities = page.locator("#variants-body input.webp-quality").evaluate_all("els => els.map(e => e.value)")
+    assert qualities == ["80", "75", "60", "65", "55"]
+
+    # Only the settings that mean something for an animated WebP are offered
+    for mp4_only in ("#preset", "#profile", "#cap-fps", "#strip-metadata", "#no-audio"):
+        expect(page.locator(mp4_only)).to_be_hidden()
+    expect(page.locator("#webp-effort")).to_have_value("4")
+    expect(page.locator("#webp-fps")).to_have_value("15")
+    expect(page.locator("#sample-mode")).to_be_visible()
+    page.click("#settings-card details summary")
+    expect(page.locator("#custom-webp-quality")).to_be_visible()
+    expect(page.locator("#custom-crf")).to_be_hidden()
+    expect(page.locator("#custom-audio")).to_be_hidden()
+
+    # Downloads and the embed snippet become .webp, and the snippet is an <img>
+    expect(page.locator("#base-name-hint")).to_have_text("Downloads will be named test-video-medium.webp, test-video-small.webp and so on.")
+    expect(page.locator("#embed-code")).to_have_text('<img src="test-video-largest.webp" alt="" loading="lazy">')
+    expect(page.locator("#embed-image-intro")).to_be_visible()
+    expect(page.locator("#embed-video-intro")).to_be_hidden()
+    page.check("#embed-xhtml")
+    expect(page.locator("#embed-code")).to_have_text('<img src="test-video-largest.webp" alt="" loading="lazy" />')
+    page.uncheck("#embed-xhtml")
+
+    # Each version remembers its WebP quality and CRF separately
+    page.locator("#variants-body tr[data-id=xs] input.webp-quality").fill("40")
+    page.locator("#variants-body tr[data-id=xs] input.webp-quality").blur()
+    page.fill("#custom-webp-quality", "33")
+    page.click("#add-custom")
+    expect(page.locator("#variants-body tr[data-id=custom-1] input.webp-quality")).to_have_value("33")
+    page.locator('input[name="output-format"][value="mp4"]').check()
+    expect(page.locator("#variants-body tr[data-id=xs] input.crf")).to_have_value("28")
+    expect(page.locator("#variants-body tr[data-id=custom-1] input.crf")).to_have_value("25")
+    page.locator('input[name="output-format"][value="webp"]').check()
+    expect(page.locator("#variants-body tr[data-id=xs] input.webp-quality")).to_have_value("40")
+
+    # And back to MP4, as before
+    page.locator('input[name="output-format"][value="mp4"]').check()
+    expect(page.locator("#quality-header")).to_have_text("Quality (CRF)")
+    expect(page.locator("#audio-header")).to_be_visible()
+    expect(page.locator("#preset")).to_be_visible()
+    expect(page.locator("#webp-fps")).to_be_hidden()
+    expect(page.locator("#base-name-hint")).to_contain_text("test-video-medium.mp4")
+    expect(page.locator("#embed-code")).to_contain_text('<source src="test-video-largest.mp4" type="video/mp4">')
+    expect(page.locator("#embed-video-intro")).to_be_visible()
+
+
+def test_animated_webp_encode(page: Page, unused_port_server):
+    """Encodes the fixture as a looping animated WebP, first as a one second sample and
+    then in full, then as an MP4 alongside it. Same ffmpeg.wasm download as the full flow."""
+    route_ffmpeg_core(page)
+    unused_port_server.start(root)
+    page.goto(f"http://localhost:{unused_port_server.port}/video-compressor.html")
+    page.set_input_files("#file-input", str(fixture))
+    expect(page.locator("#settings-card")).to_be_visible()
+
+    page.locator('input[name="output-format"][value="webp"]').check()
+    for row_id in ("xl", "l", "m", "s"):
+        page.locator(f"#variants-body tr[data-id={row_id}] input.enabled").uncheck()
+    page.check("#sample-mode")
+    page.fill("#sample-seconds", "1")
+
+    # Record every status message, to check the progress bar moves even though
+    # ffmpeg's own progress time stays at zero for this encoder
+    page.evaluate("""() => {
+        window.statusLog = [];
+        new MutationObserver(() => window.statusLog.push(document.querySelector('#status').textContent))
+            .observe(document.querySelector('#status'), {childList: true, characterData: true, subtree: true});
+    }""")
+    page.click("#generate")
+    page.wait_for_selector("#results-card[data-state=done]", timeout=300_000)
+    expect(page.locator("#status")).to_contain_text("Done: 1 version")
+    expect(page.locator("#error")).to_be_hidden()
+    status_log = page.evaluate("window.statusLog")
+    assert any("Smallest (640×360, animated WebP quality 55) 100%" in line for line in status_log), status_log
+
+    card = page.locator(".result[data-state=done]")
+    expect(card).to_have_count(1)
+    expect(card.locator(".title")).to_have_text("Smallest (animated WebP, first 0:01)")
+    expect(card.locator("video")).to_have_count(0)
+    # Chromium decodes WebP, so the preview really loads at the expected size
+    page.wait_for_function("() => document.querySelector('.result img.preview').naturalWidth > 0")
+    assert card.locator("img.preview").evaluate("img => [img.naturalWidth, img.naturalHeight]") == [640, 360]
+    expect(card.locator(".meta")).to_contain_text("640×360, quality 55, 15 fps")
+    expect(card.locator(".size")).to_contain_text("estimated full length")
+    expect(card.locator("a.download")).to_have_text("Download .webp")
+    expect(card.locator("a.download")).to_have_attribute("download", "test-video-smallest-sample.webp")
+    expect(card.locator("button.resize-poster")).to_have_count(0)
+
+    command = card.locator(".command").text_content()
+    assert "-c:v libwebp_anim -quality 55 -compression_level 4" in command
+    assert " -t 1 " in command
+    assert " -r 15 " in command
+    assert " -an -loop 0 -f webp test-video-smallest-sample.webp" in command
+    assert "-c:a" not in command
+
+    sample = describe_webp(read_blob(card, "img.preview"))
+    assert sample["animated"], sample
+    assert sample["loop"] == 0, sample
+    assert (sample["width"], sample["height"]) == (640, 360), sample
+    assert len(sample["durations"]) > 1, sample
+    assert abs(sum(sample["durations"]) - 1000) <= 100, sample
+    # No EXIF, XMP or colour profile chunks
+    assert not {b"EXIF", b"XMP ", b"ICCP"} & set(sample["chunks"]), sample
+
+    # Only a video needs a poster frame, so none was extracted
+    expect(page.locator("#poster-section")).to_be_hidden()
+
+    # The embed snippet is an <img> for the WebP
+    expect(page.locator("#embed-code")).to_have_text(
+        '<img src="test-video-smallest-sample.webp" width="640" height="360" alt="" loading="lazy">'
+    )
+
+    # "Encode full version" keeps the format
+    card.locator("button", has_text="Encode full version").click()
+    cards = page.locator(".result[data-state=done]")
+    expect(cards).to_have_count(2, timeout=120_000)
+    page.wait_for_selector("#results-card[data-state=done]", timeout=120_000)
+    full = cards.filter(has_text="Smallest (animated WebP)").filter(has_not_text="first 0:01")
+    expect(full.locator("a.download")).to_have_attribute("download", "test-video-smallest.webp")
+    whole = describe_webp(read_blob(full, "img.preview"))
+    assert whole["animated"] and whole["loop"] == 0, whole
+    assert abs(sum(whole["durations"]) - 3000) <= 150, whole
+
+    # An MP4 of the same version sits alongside, with its poster frame
+    page.locator('input[name="output-format"][value="mp4"]').check()
+    page.click("#generate")
+    expect(cards).to_have_count(3, timeout=120_000)
+    page.wait_for_selector("#results-card[data-state=done]", timeout=120_000)
+    mp4 = cards.filter(has=page.locator("video"))
+    expect(mp4).to_have_count(1)
+    expect(mp4.locator("a.download")).to_have_attribute("download", "test-video-smallest-sample.mp4")
+    expect(page.locator("#poster-row")).to_be_visible()
+    # The MP4 is smaller, so it is listed first and the snippet is a <video> again
+    assert cards.first.locator("video").count() == 1
+    expect(page.locator("#embed-code")).to_contain_text('<source src="test-video-smallest-sample.mp4" type="video/mp4">')
+    expect(page.locator("#embed-video-intro")).to_be_visible()
