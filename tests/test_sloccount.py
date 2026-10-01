@@ -246,8 +246,33 @@ def test_github_repo_validation(page: Page, unused_port_server):
     expect(status).to_contain_text("Invalid format")
 
 
+MOCK_REPO_FILES = {
+    "src/hello.c": '#include <stdio.h>\n\nint main(void) {\n    printf("hello\\n");\n    return 0;\n}\n',
+    "scripts/count.py": "import sys\n\n\ndef main():\n    print(len(sys.argv))\n\n\nmain()\n",
+    "README.md": "# Not code\n",
+}
+
+
+def mock_github(route):
+    """Serve a tiny fake repository in place of the GitHub API and raw.githubusercontent.com,
+    whose unauthenticated rate limit is easily exhausted by shared CI runners."""
+    url = route.request.url
+    headers = {"access-control-allow-origin": "*"}
+    if url == "https://api.github.com/repos/example/tiny":
+        return route.fulfill(json={"default_branch": "main"}, headers=headers)
+    if url == "https://api.github.com/repos/example/tiny/git/trees/main?recursive=1":
+        tree = [{"path": path, "type": "blob"} for path in MOCK_REPO_FILES]
+        return route.fulfill(json={"tree": tree, "truncated": False}, headers=headers)
+    prefix = "https://raw.githubusercontent.com/example/tiny/main/"
+    if url.startswith(prefix) and url[len(prefix):] in MOCK_REPO_FILES:
+        return route.fulfill(body=MOCK_REPO_FILES[url[len(prefix):]], headers=headers)
+    route.fulfill(status=404, headers=headers)
+
+
 def test_github_repo_analysis(page: Page, unused_port_server):
     """Test analyzing a small GitHub repository"""
+    page.route("https://api.github.com/**", mock_github)
+    page.route("https://raw.githubusercontent.com/**", mock_github)
     unused_port_server.start(root)
     page.goto(f"http://localhost:{unused_port_server.port}/sloccount.html")
 
@@ -258,28 +283,17 @@ def test_github_repo_analysis(page: Page, unused_port_server):
     analyze_btn = page.locator("#analyze-repo-btn")
     expect(analyze_btn).to_have_text("Analyze Repository", timeout=30000)
 
-    # Use a small public repository for testing
-    # Using the sloccount repo itself as a test
-    page.locator("#repo-input").fill("https://github.com/licquia/sloccount")
-
-    # Analyze (this may take a while)
+    page.locator("#repo-input").fill("https://github.com/example/tiny")
     analyze_btn.click()
 
-    # Wait for fetch to start
-    status = page.locator("#status")
-    expect(status).to_contain_text("Fetching", timeout=5000)
-
-    # Wait for results (may take up to 60 seconds)
+    # Wait for results
     results = page.locator("#results")
     expect(results).to_have_class("visible", timeout=60000)
 
-    # Check that we got results
-    total_lines = page.locator("#total-lines")
-    expect(total_lines).not_to_have_text("0")
-
-    total_languages = page.locator("#total-languages")
-    # Should have at least one language
-    expect(total_languages).not_to_have_text("0")
+    # Only the C and Python files count, not the README
+    expect(page.locator("#total-files")).to_have_text("2")
+    expect(page.locator("#total-languages")).to_have_text("2")
+    expect(page.locator("#total-lines")).not_to_have_text("0")
 
 
 def test_mobile_responsive(page: Page, unused_port_server):

@@ -145,8 +145,8 @@ def test_full_flow_encodes_compatible_mp4s(page: Page, unused_port_server):
     expect(page.locator("#status")).to_contain_text("Done: 3 versions")
     expect(page.locator("#error")).to_be_hidden()
 
-    # Playwright's Chromium has no H.264 decoder, so these details come from
-    # ffmpeg probing the file rather than from the <video> element.
+    # Older Playwright Chromium builds have no H.264 decoder, so there these details
+    # come from ffmpeg probing the file rather than from the <video> element.
     expect(page.locator("#source-details")).to_contain_text("640×360")
     expect(page.locator("#source-details")).to_contain_text("0:03")
     expect(page.locator("#source-details")).to_contain_text("44100 Hz, stereo")
@@ -255,10 +255,13 @@ def test_filename_poster_and_embed_snippet(page: Page, unused_port_server):
     expect(page.locator("#base-name-hint")).to_contain_text("test-video-medium.mp4")
     expect(page.locator("#base-name-hint")).to_contain_text("test-video.jpg")
 
-    # Before anything is encoded the snippet uses the first selected version
+    # Before anything is encoded the snippet uses the first selected version. It only
+    # carries the size if this Chromium build could read the H.264 file's metadata
+    # (older Playwright builds have no H.264 decoder, newer ones do).
     expect(page.locator("#embed-card")).to_be_visible()
     snippet = page.locator("#embed-code").text_content()
-    assert '<video controls playsinline preload="none" poster="test-video.jpg">' in snippet
+    size = ' width="640" height="360"' if "640×360" in page.locator("#source-details").text_content() else ""
+    assert f'<video controls playsinline preload="none"{size} poster="test-video.jpg">' in snippet
     assert '<source src="test-video-largest.mp4" type="video/mp4">' in snippet
 
     # Editing the filename is reflected everywhere, and unsafe characters are cleaned up
