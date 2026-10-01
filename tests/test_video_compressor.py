@@ -182,8 +182,8 @@ def test_full_flow_encodes_compatible_mp4s(page: Page, unused_port_server):
     expect(page.locator("#status")).to_contain_text("Done: 3 versions")
     expect(page.locator("#error")).to_be_hidden()
 
-    # Playwright's Chromium has no H.264 decoder, so these details come from
-    # ffmpeg probing the file rather than from the <video> element.
+    # Older Playwright Chromium builds have no H.264 decoder, so there these details
+    # come from ffmpeg probing the file rather than from the <video> element.
     expect(page.locator("#source-details")).to_contain_text("640×360")
     expect(page.locator("#source-details")).to_contain_text("0:03")
     expect(page.locator("#source-details")).to_contain_text("44100 Hz, stereo")
@@ -292,10 +292,13 @@ def test_filename_poster_and_embed_snippet(page: Page, unused_port_server):
     expect(page.locator("#base-name-hint")).to_contain_text("test-video-medium.mp4")
     expect(page.locator("#base-name-hint")).to_contain_text("test-video.jpg")
 
-    # Before anything is encoded the snippet uses the first selected version
+    # Before anything is encoded the snippet uses the first selected version. It only
+    # carries the size if this Chromium build could read the H.264 file's metadata
+    # (older Playwright builds have no H.264 decoder, newer ones do).
     expect(page.locator("#embed-card")).to_be_visible()
     snippet = page.locator("#embed-code").text_content()
-    assert '<video controls playsinline preload="none" poster="test-video.jpg">' in snippet
+    size = ' width="640" height="360"' if "640×360" in page.locator("#source-details").text_content() else ""
+    assert f'<video controls playsinline preload="none"{size} poster="test-video.jpg">' in snippet
     assert '<source src="test-video-largest.mp4" type="video/mp4">' in snippet
 
     # Editing the filename is reflected everywhere, and unsafe characters are cleaned up
@@ -631,13 +634,15 @@ def test_webp_format_switches_settings(page: Page, unused_port_server):
     expect(page.locator("#custom-crf")).to_be_hidden()
     expect(page.locator("#custom-audio")).to_be_hidden()
 
-    # Downloads and the embed snippet become .webp, and the snippet is an <img>
+    # Downloads and the embed snippet become .webp, and the snippet is an <img>. As for
+    # the <video> snippet, the size is only known if this Chromium can read H.264 metadata.
     expect(page.locator("#base-name-hint")).to_have_text("Downloads will be named test-video-medium.webp, test-video-small.webp and so on.")
-    expect(page.locator("#embed-code")).to_have_text('<img src="test-video-largest.webp" alt="" loading="lazy">')
+    size = ' width="640" height="360"' if "640×360" in page.locator("#source-details").text_content() else ""
+    expect(page.locator("#embed-code")).to_have_text(f'<img src="test-video-largest.webp"{size} alt="" loading="lazy">')
     expect(page.locator("#embed-image-intro")).to_be_visible()
     expect(page.locator("#embed-video-intro")).to_be_hidden()
     page.check("#embed-xhtml")
-    expect(page.locator("#embed-code")).to_have_text('<img src="test-video-largest.webp" alt="" loading="lazy" />')
+    expect(page.locator("#embed-code")).to_have_text(f'<img src="test-video-largest.webp"{size} alt="" loading="lazy" />')
     page.uncheck("#embed-xhtml")
 
     # Each version remembers its WebP quality and CRF separately
