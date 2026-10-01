@@ -634,13 +634,15 @@ def test_webp_format_switches_settings(page: Page, unused_port_server):
     expect(page.locator("#custom-crf")).to_be_hidden()
     expect(page.locator("#custom-audio")).to_be_hidden()
 
-    # Downloads and the embed snippet become .webp, and the snippet is an <img>
+    # Downloads and the embed snippet become .webp, and the snippet is an <img>. As for
+    # the <video> snippet, the size is only known if this Chromium can read H.264 metadata.
     expect(page.locator("#base-name-hint")).to_have_text("Downloads will be named test-video-medium.webp, test-video-small.webp and so on.")
-    expect(page.locator("#embed-code")).to_have_text('<img src="test-video-largest.webp" alt="" loading="lazy">')
+    size = ' width="640" height="360"' if "640×360" in page.locator("#source-details").text_content() else ""
+    expect(page.locator("#embed-code")).to_have_text(f'<img src="test-video-largest.webp"{size} alt="" loading="lazy">')
     expect(page.locator("#embed-image-intro")).to_be_visible()
     expect(page.locator("#embed-video-intro")).to_be_hidden()
     page.check("#embed-xhtml")
-    expect(page.locator("#embed-code")).to_have_text('<img src="test-video-largest.webp" alt="" loading="lazy" />')
+    expect(page.locator("#embed-code")).to_have_text(f'<img src="test-video-largest.webp"{size} alt="" loading="lazy" />')
     page.uncheck("#embed-xhtml")
 
     # Each version remembers its WebP quality and CRF separately
