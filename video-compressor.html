@@ -472,6 +472,49 @@ button.small {
   background: #43a047;
 }
 
+.poster-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.poster-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.poster-format {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.poster-quality input[type="range"] {
+  width: 140px;
+}
+
+.poster-quality output {
+  min-width: 2em;
+  font-variant-numeric: tabular-nums;
+}
+
+.poster-note {
+  font-size: 13px;
+  color: #777;
+}
+
+/* Dim the size while a slow encode (WebP via wasm, large frames) is running, but only
+   after a moment so quick encodes don't flicker. */
+.poster-row.encoding .size,
+.poster-row.encoding .meta {
+  opacity: 0.45;
+  transition: opacity 0.1s 0.25s;
+}
+
 .embed p {
   font-size: 14px;
   color: #444;
@@ -616,12 +659,23 @@ pre.log {
     <div class="grid" id="results"></div>
     <div class="poster" id="poster-section" hidden>
       <h3>Poster frame</h3>
-      <p class="intro">The first frame of the original video, saved as a JPEG to use as the poster image for the embedded video.</p>
+      <p class="intro">The first frame of the original video, saved as an image to use as the poster for the embedded video. The preview and file size update as you change the format and quality.</p>
       <div class="poster-row" id="poster-row" hidden>
         <img id="poster-img" alt="First frame of the video">
         <div class="poster-info">
           <div class="size" id="poster-size"></div>
           <div class="meta" id="poster-meta"></div>
+          <div class="poster-controls">
+            <span class="poster-format" role="radiogroup" aria-label="Poster format">Format
+              <label><input type="radio" name="poster-format" value="jpeg" checked> JPEG</label>
+              <label><input type="radio" name="poster-format" value="webp"> WebP</label>
+            </span>
+            <label class="poster-quality">Quality
+              <input type="range" id="poster-quality" min="0" max="100" step="1" value="85">
+              <output id="poster-quality-value" for="poster-quality">85</output>
+            </label>
+          </div>
+          <div class="poster-note" id="poster-webp-note" hidden>This browser has no WebP encoder that respects the quality setting, so the @jsquash/webp encoder is loaded from jsdelivr the first time a WebP poster is made.</div>
           <a class="download" id="poster-download">Download .jpg</a>
         </div>
       </div>
@@ -632,7 +686,7 @@ pre.log {
 
   <div class="card embed" id="embed-card" hidden>
     <h3>Embed on a web page</h3>
-    <p>Upload the video and the poster JPEG alongside your page, then paste this in. It uses the first video shown in the results above. <code>preload="none"</code> means the browser only shows the poster image and does not download any of the video until someone presses play.</p>
+    <p>Upload the video and the poster image alongside your page, then paste this in. It uses the first video shown in the results above. <code>preload="none"</code> means the browser only shows the poster image and does not download any of the video until someone presses play.</p>
     <pre class="embed-code" id="embed-code"></pre>
     <div class="actions">
       <button type="button" class="small" id="copy-embed">Copy HTML</button>
@@ -673,6 +727,11 @@ const DEFAULT_VARIANTS = [
   { id: 'xs', name: 'Smallest', shortSide: 360, crf: 28, audio: 64 },
 ];
 
+const POSTER_FORMATS = {
+  jpeg: { mime: 'image/jpeg', extension: 'jpg', label: 'JPEG' },
+  webp: { mime: 'image/webp', extension: 'webp', label: 'WebP' },
+};
+
 const $ = (id) => document.getElementById(id);
 const els = {
   dropZone: $('drop-zone'),
@@ -708,6 +767,9 @@ const els = {
   posterSize: $('poster-size'),
   posterMeta: $('poster-meta'),
   posterDownload: $('poster-download'),
+  posterQuality: $('poster-quality'),
+  posterQualityValue: $('poster-quality-value'),
+  posterWebpNote: $('poster-webp-note'),
   posterPending: $('poster-pending'),
   posterError: $('poster-error'),
   embedCard: $('embed-card'),
@@ -776,8 +838,10 @@ function jobFilename(job) {
   return `${baseName()}-${variantSlug(job.variant)}${job.sampleSeconds ? '-sample' : ''}.mp4`;
 }
 
-function posterFilename() {
-  return `${baseName()}.jpg`;
+// Defaults to the format picked in the poster controls; the download link passes the
+// format of the image it actually holds.
+function posterFilename(format = posterFormat()) {
+  return `${baseName()}.${format.extension}`;
 }
 
 // Re-derive every filename that depends on the filename field.
@@ -791,7 +855,7 @@ function refreshFilenames() {
     const command = card.querySelector('.command');
     if (command && job.args) command.textContent = commandText(job);
   }
-  els.posterDownload.download = posterFilename();
+  if (source && source.posterFormat) els.posterDownload.download = posterFilename(source.posterFormat);
   updateEmbed();
 }
 
@@ -1154,23 +1218,107 @@ async function ensureInputWritten() {
   return ff;
 }
 
+// ---------- WebP encoding ----------
+
+// Browsers that cannot encode WebP from a canvas silently return a PNG instead: Safari
+// (desktop and iOS) cannot do WebP. Feature-detect that once, and only when native
+// encoding is missing (or ignores quality) load a jSquash wasm encoder (Squoosh's
+// libwebp) from jsdelivr the first time a WebP poster is actually requested.
+const JSQUASH_WEBP_ENCODE_URL = 'https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/encode.js/+esm';
+const nativeEncodeSupportPromises = {};
+let jsquashWebpPromise = null;
+
+// A native encoder is only used if it produces the requested format and honours the
+// quality setting.
+function canvasCanEncode(mime) {
+  if (!nativeEncodeSupportPromises[mime]) {
+    nativeEncodeSupportPromises[mime] = (async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      if (!canvas.toBlob) return false;
+      // Noise, so that a lower quality has detail to throw away.
+      const ctx = canvas.getContext('2d');
+      const noise = ctx.createImageData(64, 64);
+      for (let i = 0; i < noise.data.length; i++) {
+        noise.data[i] = i % 4 === 3 ? 255 : Math.random() * 256;
+      }
+      ctx.putImageData(noise, 0, 0);
+      const encodeAt = (quality) => new Promise((resolve) => {
+        try {
+          canvas.toBlob(resolve, mime, quality);
+        } catch (err) {
+          resolve(null);
+        }
+      });
+      const [low, high] = await Promise.all([encodeAt(0.2), encodeAt(0.9)]);
+      return Boolean(low && high && low.type === mime && high.type === mime && low.size !== high.size);
+    })();
+  }
+  return nativeEncodeSupportPromises[mime];
+}
+
+function loadJsquashWebpEncoder() {
+  if (!jsquashWebpPromise) {
+    // Call init() explicitly: encode() would otherwise cache a failed wasm load for the
+    // lifetime of the page, so a flaky connection could never be retried.
+    jsquashWebpPromise = import(JSQUASH_WEBP_ENCODE_URL).then(async (mod) => {
+      await mod.init();
+      return mod.default;
+    });
+    jsquashWebpPromise.catch(() => { jsquashWebpPromise = null; });
+  }
+  return jsquashWebpPromise;
+}
+
+async function encodeWebpWithWasm(canvas, quality) {
+  const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  const encode = await loadJsquashWebpEncoder();
+  const buffer = await encode(imageData, { quality: Math.round(quality * 100) });
+  return new Blob([buffer], { type: 'image/webp' });
+}
+
+// Encode a canvas as a Blob. `quality` is 0..1 as for canvas.toBlob.
+async function canvasToBlob(canvas, mime, quality) {
+  if (mime === 'image/webp' && !(await canvasCanEncode(mime))) {
+    return encodeWebpWithWasm(canvas, quality);
+  }
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob && blob.type === mime) resolve(blob);
+      else reject(new Error(blob ? `the browser cannot encode ${mime}` : 'the browser returned an empty image'));
+    }, mime, quality);
+  });
+}
+
 // ---------- poster frame ----------
 
-// Save the first frame of the original video as a JPEG. Runs once per source file,
-// before the first encode, so the input has already been written into ffmpeg's memory.
-// ffmpeg decodes the frame (applying any rotation metadata) and writes it as a lossless
-// PNG; the browser then turns that into a JPEG. Encoding straight to JPEG with ffmpeg's
-// mjpeg encoder crashed the ffmpeg.wasm worker in testing, and a canvas is more than
-// good enough for a poster image. The PNG is kept so the JPEG can be regenerated at the
-// size of any of the encoded versions without going through a second lossy step.
-const POSTER_JPEG_QUALITY = 0.85;
+// Save the first frame of the original video as a poster image. Runs once per source
+// file, before the first encode, so the input has already been written into ffmpeg's
+// memory. ffmpeg decodes the frame (applying any rotation metadata) and writes it as a
+// lossless PNG; the browser then turns that into a JPEG or WebP. Encoding straight to
+// JPEG with ffmpeg's mjpeg encoder crashed the ffmpeg.wasm worker in testing, and a
+// canvas is more than good enough for a poster image. The PNG is kept so the poster can
+// be regenerated at any format, quality, or the size of any of the encoded versions
+// without going through a second lossy step.
+
+function posterFormat() {
+  const checked = document.querySelector('input[name="poster-format"]:checked');
+  return POSTER_FORMATS[checked && checked.value] || POSTER_FORMATS.jpeg;
+}
+
+// Encoder quality as 0..1, from the 0-100 slider.
+function posterQuality() {
+  const value = parseInt(els.posterQuality.value, 10);
+  return Number.isNaN(value) ? 0.85 : Math.max(0, Math.min(100, value)) / 100;
+}
 
 async function ensurePoster(ff) {
-  if (source.poster || source.posterFailed) return;
+  if (source.posterFrame || source.posterFailed) return;
   els.posterSection.hidden = false;
   els.posterPending.hidden = false;
   els.posterError.hidden = true;
-  setStatus('Saving the first frame as a JPEG…', null);
+  setStatus('Saving the first frame…', null);
   const args = ['-y', '-hide_banner', '-i', source.memName, '-map', '0:v:0', '-frames:v', '1', '-c:v', 'png', '-update', '1', '-f', 'image2', 'poster.png'];
   let ret;
   const logStart = logLines.length;
@@ -1195,24 +1343,23 @@ async function ensurePoster(ff) {
     posterFailed(`Could not read the frame back from ffmpeg: ${err}`);
     return;
   }
-  source.posterFrame = new Blob([png], { type: 'image/png' });
+  const target = source;
+  target.posterFrame = new Blob([png], { type: 'image/png' });
   try {
-    const result = await pngToJpeg(source.posterFrame);
-    source.poster = result.blob;
-    source.posterWidth = result.width;
-    source.posterHeight = result.height;
-    source.posterFrameWidth = result.width;
-    source.posterFrameHeight = result.height;
+    target.posterCanvas = await drawPoster(target.posterFrame);
   } catch (err) {
-    posterFailed(`Could not convert the frame to a JPEG: ${err.message || err}`);
+    if (source === target) posterFailed(`Could not decode the frame: ${err.message || err}`);
     return;
   }
-  renderPoster();
+  target.posterFrameWidth = target.posterCanvas.width;
+  target.posterFrameHeight = target.posterCanvas.height;
+  // Not awaited: loading the WebP encoder from the CDN should not hold up the videos.
+  updatePoster();
 }
 
-// Draw the PNG frame onto a canvas and read it back as a JPEG, scaled to width×height
-// when given (the frame's own size otherwise).
-async function pngToJpeg(pngBlob, width, height) {
+// Draw the PNG frame onto a new canvas, scaled to width×height when given (the frame's
+// own size otherwise). Every re-encode at a different format or quality reads from it.
+async function drawPoster(pngBlob, width, height) {
   const bitmap = await createImageBitmap(pngBlob);
   try {
     const canvas = document.createElement('canvas');
@@ -1222,35 +1369,81 @@ async function pngToJpeg(pngBlob, width, height) {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const jpeg = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', POSTER_JPEG_QUALITY));
-    if (!jpeg) throw new Error('the browser returned an empty image');
-    return { blob: jpeg, width: canvas.width, height: canvas.height };
+    return canvas;
   } finally {
     bitmap.close();
   }
 }
 
-// Regenerate the poster JPEG from the original frame at the size of one of the videos.
+// Re-encode the poster with the current format and quality. Called on every change to
+// either, so dragging the quality slider updates the preview live: while one encode is
+// running, further changes are coalesced into a single follow-up encode of the latest
+// settings rather than queueing one per slider position.
+let posterEncoding = false;
+let posterDirty = false;
+
+async function updatePoster() {
+  posterDirty = true;
+  if (posterEncoding) return;
+  posterEncoding = true;
+  els.posterRow.classList.add('encoding');
+  try {
+    while (posterDirty) {
+      posterDirty = false;
+      await encodePoster();
+    }
+  } finally {
+    posterEncoding = false;
+    els.posterRow.classList.remove('encoding');
+  }
+}
+
+async function encodePoster() {
+  const target = source;
+  if (!target || !target.posterCanvas) return;
+  const canvas = target.posterCanvas;
+  const format = posterFormat();
+  const quality = posterQuality();
+  let blob;
+  try {
+    blob = await canvasToBlob(canvas, format.mime, quality);
+  } catch (err) {
+    if (source !== target) return;
+    els.posterPending.hidden = true;
+    els.posterError.hidden = false;
+    els.posterError.textContent = `Could not encode the poster as ${format.label}: ${err.message || err}`;
+    // Keep the controls reachable, so a different format can be picked.
+    els.posterRow.hidden = false;
+    return;
+  }
+  if (source !== target) return;
+  target.poster = blob;
+  target.posterFormat = format;
+  target.posterWidth = canvas.width;
+  target.posterHeight = canvas.height;
+  renderPoster();
+}
+
+// Regenerate the poster from the original frame at the size of one of the videos.
 async function resizePoster(width, height) {
   if (!source || !source.posterFrame) return;
+  const target = source;
   els.posterPending.hidden = false;
   els.posterPending.textContent = `Resizing the poster to ${width}×${height}…`;
   try {
-    const result = await pngToJpeg(source.posterFrame, width, height);
-    source.poster = result.blob;
-    source.posterWidth = result.width;
-    source.posterHeight = result.height;
+    target.posterCanvas = await drawPoster(target.posterFrame, width, height);
   } catch (err) {
+    if (source !== target) return;
     els.posterPending.hidden = true;
     els.posterError.hidden = false;
     els.posterError.textContent = `Could not resize the poster: ${err.message || err}`;
     return;
   }
-  renderPoster();
+  if (source === target) updatePoster();
 }
 
 function posterMetaText() {
-  const size = `${source.posterWidth}×${source.posterHeight} JPEG`;
+  const size = `${source.posterWidth}×${source.posterHeight} ${source.posterFormat.label}`;
   const resized = source.posterWidth !== source.posterFrameWidth || source.posterHeight !== source.posterFrameHeight;
   return resized ? `${size}, first frame of the original resized from ${source.posterFrameWidth}×${source.posterFrameHeight}` : `${size}, first frame of the original`;
 }
@@ -1283,7 +1476,8 @@ function renderPoster() {
   els.posterSize.textContent = formatBytes(source.poster.size);
   els.posterMeta.textContent = posterMetaText();
   els.posterDownload.href = url;
-  els.posterDownload.download = posterFilename();
+  els.posterDownload.download = posterFilename(source.posterFormat);
+  els.posterDownload.textContent = `Download .${source.posterFormat.extension}`;
   els.posterSection.hidden = false;
   els.posterPending.hidden = true;
   els.posterError.hidden = true;
@@ -1301,6 +1495,27 @@ function resetPoster() {
   els.posterPending.textContent = 'Extracting the first frame…';
   els.posterError.hidden = true;
 }
+
+function updateWebpNote() {
+  els.posterWebpNote.hidden = true;
+  if (posterFormat().mime !== 'image/webp') return;
+  canvasCanEncode('image/webp').then((supported) => {
+    els.posterWebpNote.hidden = supported || posterFormat().mime !== 'image/webp';
+  });
+}
+
+for (const radio of document.querySelectorAll('input[name="poster-format"]')) {
+  radio.addEventListener('change', () => {
+    refreshFilenames(); // the poster's extension appears in the hint and the embed snippet
+    updateWebpNote();
+    updatePoster();
+  });
+}
+
+els.posterQuality.addEventListener('input', () => {
+  els.posterQualityValue.textContent = els.posterQuality.value;
+  updatePoster();
+});
 
 // ---------- embed snippet ----------
 

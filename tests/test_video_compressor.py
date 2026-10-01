@@ -95,8 +95,11 @@ def route_ffmpeg_core(page: Page):
             content_type = "application/wasm" if local.suffix == ".wasm" else "text/javascript"
             route.fulfill(status=200, body=local.read_bytes(), content_type=content_type,
                           headers={"Access-Control-Allow-Origin": "*"})
-        else:
+        elif "/@ffmpeg/" in request.url:
             route.abort()
+        else:
+            # Other CDN files, such as the @jsquash/webp encoder, go to the network
+            route.continue_()
 
     page.route("https://cdn.jsdelivr.net/**", serve_from_cache)
 
@@ -361,3 +364,196 @@ def test_filename_poster_and_embed_snippet(page: Page, unused_port_server):
     assert page.locator("#poster-img").evaluate("img => [img.naturalWidth, img.naturalHeight]") == [640, 360]
     expect(back).to_be_hidden()
     expect(resize).to_be_visible()
+
+
+# Safari (desktop and iOS) cannot encode WebP from a canvas: toBlob silently hands back
+# a PNG instead. Emulate that so the @jsquash/webp fallback path runs in Chromium.
+SAFARI_NO_WEBP_INIT_SCRIPT = """
+(() => {
+  const original = HTMLCanvasElement.prototype.toBlob;
+  HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+    if (type === "image/webp") type = "image/png";
+    return original.call(this, callback, type, quality);
+  };
+})();
+"""
+
+
+def read_poster(page: Page):
+    """The bytes of the poster image currently shown, summarised."""
+    return page.locator("#poster-img").evaluate("""async (img) => {
+        const bytes = new Uint8Array(await (await fetch(img.src)).arrayBuffer());
+        const ascii = (start, end) => String.fromCharCode(...bytes.slice(start, end));
+        return {
+            length: bytes.length,
+            jpeg: bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF,
+            webp: ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP',
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+        };
+    }""")
+
+
+def encode_one_sample(page: Page, port):
+    page.goto(f"http://localhost:{port}/video-compressor.html")
+    page.set_input_files("#file-input", str(fixture))
+    expect(page.locator("#settings-card")).to_be_visible()
+    for row_id in ("xl", "l", "m", "s"):
+        page.locator(f"#variants-body tr[data-id={row_id}] input.enabled").uncheck()
+    page.select_option("#preset", "ultrafast")
+    page.check("#sample-mode")
+    page.fill("#sample-seconds", "1")
+    page.click("#generate")
+    page.wait_for_selector("#results-card[data-state=done]", timeout=300_000)
+    expect(page.locator("#poster-row")).to_be_visible()
+    expect(page.locator("#poster-error")).to_be_hidden()
+
+
+def wait_for_poster_change(page: Page, previous_src):
+    page.wait_for_function(
+        "src => { const img = document.querySelector('#poster-img'); return img.src !== src && img.complete && img.naturalWidth > 0; }",
+        arg=previous_src,
+    )
+
+
+def test_poster_format_and_quality_update_live(page: Page, unused_port_server):
+    """The poster can be saved as JPEG or WebP at any quality, and the preview, size,
+    download and embed snippet follow every change. Same ffmpeg.wasm download as the
+    full flow; Chromium encodes WebP natively so no jsquash is loaded."""
+    route_ffmpeg_core(page)
+    unused_port_server.start(root)
+    jsquash_requests = []
+    page.on("request", lambda request: "/@jsquash/" in request.url and jsquash_requests.append(request.url))
+    encode_one_sample(page, unused_port_server.port)
+
+    # JPEG at quality 85 by default
+    expect(page.locator('input[name="poster-format"][value="jpeg"]')).to_be_checked()
+    expect(page.locator("#poster-quality")).to_have_value("85")
+    expect(page.locator("#poster-quality-value")).to_have_text("85")
+    expect(page.locator("#poster-download")).to_have_text("Download .jpg")
+    jpeg_85 = read_poster(page)
+    assert jpeg_85["jpeg"], jpeg_85
+
+    # Lowering the quality re-encodes straight away, without a button press
+    src = page.locator("#poster-img").get_attribute("src")
+    page.locator("#poster-quality").fill("20")
+    expect(page.locator("#poster-quality-value")).to_have_text("20")
+    wait_for_poster_change(page, src)
+    jpeg_20 = read_poster(page)
+    assert jpeg_20["jpeg"], jpeg_20
+    assert jpeg_20["length"] < jpeg_85["length"], (jpeg_20, jpeg_85)
+    expect(page.locator("#poster-size")).to_have_text(f"{round(jpeg_20['length'] / 1024)} KB")
+
+    # Switching to WebP re-encodes as WebP and renames everything that mentions the poster
+    src = page.locator("#poster-img").get_attribute("src")
+    page.locator('input[name="poster-format"][value="webp"]').check()
+    wait_for_poster_change(page, src)
+    webp_20 = read_poster(page)
+    assert webp_20["webp"], webp_20
+    assert (webp_20["width"], webp_20["height"]) == (640, 360)
+    expect(page.locator("#poster-meta")).to_have_text("640×360 WebP, first frame of the original")
+    expect(page.locator("#poster-download")).to_have_text("Download .webp")
+    expect(page.locator("#poster-download")).to_have_attribute("download", "test-video.webp")
+    expect(page.locator("#base-name-hint")).to_contain_text("test-video.webp for the poster frame")
+    expect(page.locator("#embed-code")).to_contain_text('poster="test-video.webp"')
+    expect(page.locator("#poster-webp-note")).to_be_hidden()
+
+    src = page.locator("#poster-img").get_attribute("src")
+    page.locator("#poster-quality").fill("90")
+    wait_for_poster_change(page, src)
+    webp_90 = read_poster(page)
+    assert webp_90["webp"], webp_90
+    assert webp_90["length"] > webp_20["length"], (webp_90, webp_20)
+
+    # Renaming keeps the WebP extension
+    page.fill("#base-name", "clip")
+    expect(page.locator("#poster-download")).to_have_attribute("download", "clip.webp")
+    expect(page.locator("#embed-code")).to_contain_text('poster="clip.webp"')
+
+    # Dragging through many values settles on the last one
+    for value in range(10, 80, 5):
+        page.locator("#poster-quality").fill(str(value))
+    page.locator("#poster-quality").fill("50")
+    page.wait_for_function("() => !document.querySelector('#poster-row').classList.contains('encoding')")
+    webp_50_size = read_poster(page)["length"]
+    page.locator("#poster-quality").fill("51")
+    page.wait_for_function("() => !document.querySelector('#poster-row').classList.contains('encoding')")
+    page.locator("#poster-quality").fill("50")
+    page.wait_for_function("() => !document.querySelector('#poster-row').classList.contains('encoding')")
+    assert read_poster(page)["length"] == webp_50_size
+
+    # And back to JPEG
+    src = page.locator("#poster-img").get_attribute("src")
+    page.locator('input[name="poster-format"][value="jpeg"]').check()
+    wait_for_poster_change(page, src)
+    assert read_poster(page)["jpeg"]
+    expect(page.locator("#poster-download")).to_have_attribute("download", "clip.jpg")
+    expect(page.locator("#embed-code")).to_contain_text('poster="clip.jpg"')
+    expect(page.locator("#poster-meta")).to_have_text("640×360 JPEG, first frame of the original")
+    assert jsquash_requests == []
+
+
+def test_poster_resize_keeps_format_and_quality(page: Page, unused_port_server):
+    """Resizing the poster to a smaller version re-encodes it with the chosen settings."""
+    route_ffmpeg_core(page)
+    unused_port_server.start(root)
+    encode_one_sample(page, unused_port_server.port)
+
+    src = page.locator("#poster-img").get_attribute("src")
+    page.locator('input[name="poster-format"][value="webp"]').check()
+    page.locator("#poster-quality").fill("60")
+    wait_for_poster_change(page, src)
+    page.wait_for_function("() => !document.querySelector('#poster-row').classList.contains('encoding')")
+
+    page.locator("#variants-body tr[data-id=xs] input.enabled").uncheck()
+    page.click("#settings-card details summary")
+    page.fill("#custom-short", "180")
+    page.click("#add-custom")
+    page.click("#generate")
+    small = page.locator(".result[data-state=done]").filter(has_text="Custom 1")
+    expect(small).to_have_count(1, timeout=120_000)
+    page.wait_for_selector("#results-card[data-state=done]", timeout=120_000)
+    small.locator("button.resize-poster").click()
+    expect(page.locator("#poster-meta")).to_have_text("320×180 WebP, first frame of the original resized from 640×360")
+    poster = read_poster(page)
+    assert poster["webp"], poster
+    assert (poster["width"], poster["height"]) == (320, 180)
+    expect(page.locator("#poster-download")).to_have_attribute("download", "test-video.webp")
+
+    # Changing the quality after a resize keeps the new size
+    src = page.locator("#poster-img").get_attribute("src")
+    page.locator("#poster-quality").fill("30")
+    wait_for_poster_change(page, src)
+    poster = read_poster(page)
+    assert poster["webp"] and (poster["width"], poster["height"]) == (320, 180), poster
+
+
+def test_poster_webp_falls_back_to_jsquash_without_native_support(page: Page, unused_port_server):
+    """Loads @jsquash/webp from jsdelivr, so this test needs network access."""
+    page.add_init_script(SAFARI_NO_WEBP_INIT_SCRIPT)
+    route_ffmpeg_core(page)
+    unused_port_server.start(root)
+    encode_one_sample(page, unused_port_server.port)
+
+    # The note only shows once WebP is picked, and the encoder is fetched on demand
+    expect(page.locator("#poster-webp-note")).to_be_hidden()
+    src = page.locator("#poster-img").get_attribute("src")
+    with page.expect_request("**/@jsquash/webp@*/encode.js/+esm"):
+        page.locator('input[name="poster-format"][value="webp"]').check()
+    expect(page.locator("#poster-webp-note")).to_be_visible()
+    wait_for_poster_change(page, src)
+    expect(page.locator("#poster-error")).to_be_hidden()
+    high = read_poster(page)
+    assert high["webp"], high
+    assert (high["width"], high["height"]) == (640, 360)
+    expect(page.locator("#poster-download")).to_have_attribute("download", "test-video.webp")
+
+    src = page.locator("#poster-img").get_attribute("src")
+    page.locator("#poster-quality").fill("10")
+    wait_for_poster_change(page, src)
+    low = read_poster(page)
+    assert low["webp"], low
+    assert low["length"] < high["length"], (low, high)
+
+    page.locator('input[name="poster-format"][value="jpeg"]').check()
+    expect(page.locator("#poster-webp-note")).to_be_hidden()
