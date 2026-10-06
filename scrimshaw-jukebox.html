@@ -101,6 +101,11 @@ pre.sample .c { color: var(--ink-dim); }
 .inst { display: grid; grid-template-columns: minmax(0, 9em) minmax(0, 1fr); gap: 4px 12px; font-size: 13.5px; margin: 0; }
 .inst dt { color: var(--ink-dim); }
 .inst dd { margin: 0; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); }
+/* ---------------- LLM prompt */
+.prompt-intro { margin: 0 0 12px; max-width: 72ch; }
+.prompt-bar { margin: 0 0 10px; }
+pre.prompt { margin: 0; white-space: pre-wrap; overflow-wrap: break-word; max-height: 520px; overflow-y: auto; }
+pre.prompt:focus-visible { outline: 2px dashed var(--lamp); outline-offset: 2px; }
 footer { margin-top: 44px; color: var(--ink-dim); font-size: 13px; }
 
 @media (max-width: 760px) {
@@ -244,6 +249,244 @@ loop  A A+2     <span class="c"># then forever (A+2 = up a tone)</span></pre>
         </dl>
       </div>
     </div>
+  </section>
+
+  <section id="prompt" aria-labelledby="p-h">
+    <div class="sec-head"><h2 id="p-h">Compose with an LLM</h2></div>
+    <p class="prompt-intro">This prompt teaches any LLM the Scrimshaw format. Copy it into a chat, add a line describing the music you want, then paste the score it writes into the editor above and press <em>Play this score</em>. If the editor reports errors, paste them back to the model and ask for a fix.</p>
+    <div class="editor-bar prompt-bar">
+      <button class="btn" id="b-prompt">Copy prompt</button>
+    </div>
+    <pre class="sample prompt" id="llm-prompt" tabindex="0" aria-label="Prompt for composing Scrimshaw scores with an LLM">You are composing music in the Scrimshaw score format: plain text that a web page plays through a Web Audio synthesizer, in the style of early-1990s adventure game soundtracks. Your score will be pasted into an editor and played straight away, so follow these rules exactly. The most common mistake is a bar with the wrong number of steps, so count every bar.
+
+## What to reply with
+
+One complete score in a single fenced code block, followed by no more than a couple of sentences about it. Only use the keywords, instruments, chord names and symbols described here. If I paste back error messages from the editor, fix the lines they point to and reply with the whole corrected score.
+
+## Layout
+
+A score is read from top to bottom, one statement per line, in this order:
+
+1. Settings for the whole song
+2. `voice` lines, declaring each part and its instrument
+3. `pattern` blocks: a pattern line followed by its music lines
+4. `play` and `loop` lines: the arrangement (always last)
+
+A `#` at the start of a word begins a comment that runs to the end of the line. `F#4` is still a note because its `#` is inside a word. Blank lines are ignored.
+
+## Settings
+
+```
+title    The Name of the Piece
+composer Your Name   # optional
+about    One or two sentences. The first sentence is shown as a caption while it plays.
+tempo    100         # beats per minute, 20 to 400 (default 120)
+beats    4           # beats per bar, 1 to 16 (default 4)
+steps    4           # steps per beat, 1 to 12 (default 4)
+swing    0.12        # delays every other step, 0 to 0.75 (default 0)
+reverb   0.3         # overall reverb, 0 to 1 (default 0.3)
+```
+
+A step is the smallest unit of rhythm. Every bar holds exactly beats × steps steps:
+
+- `beats 4` `steps 4`: 4/4 in sixteenth notes, 16 steps per bar
+- `beats 4` `steps 2`: 4/4 in eighth notes, 8 steps per bar
+- `beats 3` `steps 2`: a 3/4 waltz in eighths, 6 steps per bar
+- `beats 2` `steps 3`: a 6/8 jig, 6 steps per bar (tempo counts dotted quarters)
+- `beats 4` `steps 3`: a 12/8 shuffle, 12 steps per bar
+
+Swing only works when steps is even. 0.1 to 0.15 is a light lilt; 0.33 gives a triplet shuffle.
+
+## Voices
+
+```
+voice NAME INSTRUMENT key=value key=value ...
+```
+
+Names use letters, digits and underscores, and each is declared once. Every voice used in a pattern must be declared. There is no drum kit instrument: give each drum sound its own voice (one for kick, one for snare, one for hat and so on).
+
+Voice options:
+
+- `vol=0.8` level, 0 to 2 (default 0.8)
+- `pan=-0.3` stereo position, -1 left to 1 right (default 0)
+- `rev=0.4` reverb send, 0 to 1
+- `oct=-1` shift by whole octaves
+- `trans=3` shift by semitones
+- `gate=0.5` sound each note for this fraction of its written length, 0.05 to 1 (default 1). 0.4 to 0.6 gives short, detached chords
+- `center=A4` the pitch that chord names are voiced around (default D4)
+- `glide=0.1` slide time in seconds for `~` notes (default 0.07)
+- `bright=1.5` tone brightness, 0.1 to 4 (default 1)
+- `att=0.05` attack time in seconds
+- `rel=0.5` release time in seconds
+
+Melodic instruments:
+
+- Mallets and bells: steeldrum marimba vibes celesta glock xylophone musicbox bell
+- Keyboards: organ pipe harpsichord
+- Strings: strings pizz fiddle harp guitar banjo upright
+- Winds and brass: flute clarinet oboe bassoon accordion trumpet brass horn tuba
+- Voices and pads: choir voices pad
+- Bass and timpani: fretless synbass timpani
+- Plain synths: chip sine square saw triangle
+
+Drum instruments, one sound per voice:
+
+- Kit: kick snare rim hat ohat ride crash clap
+- Hand percussion: conga tumba bongo bongolo timbale bodhran shaker tamb clave block cowbell guiro tri
+- Toms and effects: tomlo tommid tomhi gong thunder surf
+
+Some of these names are short: pipe is a pipe organ, pizz is pizzicato strings, upright is an upright bass, chip is a square-wave game console lead, ohat is an open hi-hat, tamb is a tambourine, tri is a triangle, thunder is a long thunder roll and surf is a wave breaking on a beach (both last several seconds).
+
+## Patterns
+
+```
+pattern NAME
+VOICE | bar | bar | bar | bar |
+VOICE | bar | bar | bar | bar |
+```
+
+Pattern names use letters, digits and underscores, like `A`, `B2` or `intro`. A music line is a voice name followed by bars separated by `|`. There must be a `|` straight after the voice name; the closing `|` is optional. A bar can't be empty: write `_` for a silent bar.
+
+- A voice can have several lines in one pattern; they join end to end. Keep lines to about four bars.
+- Voices left out of a pattern are silent during it.
+- A pattern lasts as long as its longest voice, so give every voice in it the same number of bars.
+- `pattern A2 from A` starts as a copy of pattern A. A voice written in A2 replaces that voice's whole part from A; the other voices carry over unchanged.
+- `mute NAME` inside a pattern silences that voice (handy after `from`).
+- A `tempo`, `beats`, `steps` or `swing` line inside a pattern changes only that pattern. These can also go on the pattern line: `pattern slow tempo=80 swing=0`
+
+## Melodic bars
+
+A melodic bar is a row of tokens separated by spaces. Each token takes up a number of steps, and together they must add up to exactly beats × steps.
+
+- Note: a letter A to G, an optional accidental (`#` `##` `b` `bb`), then an octave 0 to 8. `C4` is middle C, `B3` is just below it, `A4` is 440 Hz. Examples: `D5` `F#4` `Bb3`. A note lasts one step.
+- Each dash after a note adds a step: `D5---` lasts four steps.
+- Rest: each `.` is one step of silence, and dashes after a dot add more rest: `.` is 1 step, `....` is 4, `.---` is 4, `.-------` is 8.
+- A token of dashes on its own (`-` or `---`) keeps the previous note sounding for that many more steps. Use it to tie a note across a bar line.
+- Notes struck together are joined with `+` and no spaces: `C4+E4+G4`. Dashes go at the end: `C4+E4+G4---`
+- A chord name in square brackets, voiced close to the voice's `center`: `[Dm]` `[G7]` `[Bbmaj7]`. A slash adds a bass note below: `[C/E]` `[D/F#]`. Dashes extend it: `[Dm]---`
+- Dynamics: `!` after a note makes it louder, `?` makes it softer. Stack them for more: `D5!!` `A2??`. They go right after the note or after its dashes: `[Dm]?---` or `D5---!`
+- Slide: `~` before a note glides into it from that voice's previous note: `~A2--`
+
+Symbols that fill a whole bar, alone between the bar lines:
+
+- `%` repeats the previous bar
+- `_` is a silent bar
+- `=` holds the note that was sounding at the end of the previous bar through this whole bar
+
+Chord names are a root (A to G, optionally followed by `#` or `b`) then one of these suffixes, or no suffix for a major triad:
+
+m 7 m7 maj7 mmaj7 6 m6 9 m9 maj9 add9 madd9 sus2 sus4 7sus4 dim dim7 m7b5 aug 5 7b9
+
+Examples: `[C]` `[Am]` `[F#m7]` `[Ebmaj7]` `[Dsus4]` `[G7b9]` `[Bdim]` `[Em/G]`
+
+## Drum bars
+
+A voice played by a drum instrument reads one character per step:
+
+- `x` a hit
+- `X` an accented hit
+- `o` a quiet ghost note
+- `.` nothing
+
+Spaces are ignored, so group the characters by beat. With 16 steps per bar: `x... ..x. x... ..x.` With 6 steps per bar: `X.x x.x`. The whole-bar symbols `%` and `_` work in drum lines too. A drum bar still needs exactly beats × steps characters, not counting spaces.
+
+## Arrangement
+
+```
+play intro            # patterns played once, in order
+loop A A2 B*2 A2+2    # patterns that then repeat forever
+```
+
+- `B*2` plays a pattern twice.
+- `A+5` or `A-2` transposes a pattern up or down by that many semitones. Drums are not affected. Both can be combined: `A+2*2`
+- With no `play` or `loop` line, every pattern loops in the order it was written.
+- Like game music, the loop repeats forever, so make the end of the loop lead smoothly back to its beginning.
+
+## Count every bar before you reply
+
+A note or chord counts 1 plus its dashes. A rest counts its dots plus its dashes. A lone dash token counts its dashes. A drum bar counts its characters, ignoring spaces. Worked examples at 16 steps per bar:
+
+```
+E5-- G5-- B5- A5 G5 F#5 E5 D5---       3+3+2+1+1+1+1+4 = 16
+.- [Em]- .- [Em]- .- [Em]- .- [Em]-    2+2+2+2+2+2+2+2 = 16
+A5------- .... D5 E5 F#5! G5!          8+4+1+1+1+1 = 16
+x... .... x... x.x.                    16 characters
+```
+
+## Example score
+
+```
+title    The Lighthouse Keeper
+composer Claude
+about    A quiet theme for a lonely lighthouse. Clarinet over a soft calypso groove.
+tempo    92
+beats    4        # 4 beats per bar
+steps    4        # 4 steps per beat, so every bar holds 16 steps
+swing    0.1
+reverb   0.35
+
+voice lead    clarinet vol=0.95 pan=-0.15
+voice counter vibes    vol=0.7  pan=0.35
+voice chords  guitar   vol=0.7  pan=0.25 gate=0.5 center=G4
+voice pad     strings  vol=0.4  pan=-0.3 center=E4
+voice bass    upright  vol=0.95
+voice kick    kick     vol=0.75
+voice snare   snare    vol=0.45 pan=0.1
+voice hat     hat      vol=0.4  pan=0.3
+voice ride    ride     vol=0.35 pan=0.3
+voice crash   crash    vol=0.3
+
+pattern intro
+pad     | [Em]--------------- | = | [D/F#]--------------- | [D]--------------- |
+counter | B4------- E5------- | G5--------------- | F#5------- A5------- | F#5------- D5------- |
+hat     | _ | _ | _ | x.x. x.x. xxxx XXXX |
+
+pattern A
+lead   | E5-- G5-- B5- A5 G5 F#5 E5 D5--- | C5-- E5-- G5- F#5 E5 D5 C5 B4--- |
+lead   | B4-- D5-- G5- A5--- B5- A5 G5 | A5------- F#5- E5- D5- F#5- |
+chords | .- [Em]- .- [Em]- .- [Em]- .- [Em]- | .- [C]- .- [C]- .- [C]- .- [C]- |
+chords | .- [G]- .- [G]- .- [G]- .- [G]- | .- [D]- .- [D]- .- [D]- .- [D]- |
+pad    | [Em]?--------------- | [C]?--------------- | [G]?--------------- | [D]?--------------- |
+bass   | E2--- B1--- E2--- ~G2--- | C2--- G1--- C2--- E2--- |
+bass   | G1--- D2--- G2--- B1--- | D2--- A1--- D2--- F#2--- |
+kick   | x... .... x... .... | % | % | x... .... x... x.x. |
+snare  | .... x... .... x... | % | % | .... x... .... X.oo |
+hat    | x.x. x.x. x.x. x.x. | % | % | % |
+crash  | X... .... .... .... | _ | _ | _ |
+
+# A2 copies A; the parts written here replace or add to A's
+pattern A2 from A
+mute    hat
+ride    | x.x. x.xo x.x. x.xo | % | % | % |
+counter | B5------- G5------- | G5------- E5------- | D6------- B5------- | A5--------------- |
+
+pattern B
+lead   | C6--- B5- A5- E5------- | B5--- A5- G5- E5------- |
+lead   | E5- G5- C6- E6- D6--- C6- B5- | A5------- .... D5 E5 F#5! G5! |
+chords | .- [Am]- .- [Am]- .- [Am]- .- [Am]- | .- [Em/G]- .- [Em/G]- .- [Em/G]- .- [Em/G]- |
+chords | .- [C]- .- [C]- .- [C]- .- [C]- | .- [D]- .- [D]- .- [D7]- .- [D7]- |
+pad    | [Am]--------------- | [Em/G]--------------- | [C]--------------- | [D]------- [D7]------- |
+bass   | A1--- E2--- A2--- E2--- | G1--- B1--- E2--- G2--- |
+bass   | C2--- G2--- C3--- G2--- | D2------- ~A2--- D2--- |
+kick   | x... ..x. x... ..x. | % | % | x... x... x.x. XXXX |
+snare  | .... x... .... x... | % | % | .... x... ..x. xoXX |
+hat    | x.x. x.x. x.x. x.x. | % | % | % |
+crash  | X... .... .... .... | _ | _ | _ |
+
+play intro
+loop A A2 B*2 A2+2
+```
+
+## Composing tips
+
+- Write a short intro that plays once, then a loop of 16 to 48 bars built from two to four patterns, so the music develops before it repeats.
+- Typical ranges: bass in octaves 1 and 2, chords and pads centered in octave 4 (`center=E4` or `center=G4`), melodies in octaves 4 to 6.
+- Use `pattern X2 from X` to vary a section with a counter-melody or a different drum part without rewriting it.
+- Use `%` for repeated bars, especially in drum parts, to keep the score short.
+- Balance levels with `vol`: pads and percussion around 0.3 to 0.7, the lead around 0.9 to 1.1.
+- Choose a key and a chord progression first, then write the melody over it. The bass usually plays chord roots on the strong beats.
+
+Compose the piece I describe below. If I haven't described one, compose an original piece in a style of your choice.</pre>
   </section>
 
   <footer>Music and synthesizer written for this page. All sounds are generated live with the Web Audio API; there are no samples.</footer>
@@ -1879,6 +2122,16 @@ const TRACKS = [{"file": "01-moonlit-harbor.scrim", "text": "title    Moonlit Ha
       try { await navigator.clipboard.writeText(ta.value); btn.textContent = 'Copied'; }
       catch (e) { ta.focus(); ta.select(); btn.textContent = 'Selected, press copy'; }
       setTimeout(() => { btn.textContent = 'Copy score'; }, 1600);
+    });
+    $('#b-prompt').addEventListener('click', async () => {
+      const btn = $('#b-prompt'), pre = $('#llm-prompt');
+      try { await navigator.clipboard.writeText(pre.textContent.trim() + '\n\n'); btn.textContent = 'Copied'; }
+      catch (e) {
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+        btn.textContent = 'Selected, press copy';
+      }
+      setTimeout(() => { btn.textContent = 'Copy prompt'; }, 1600);
     });
     document.addEventListener('keydown', e => {
       if (e.code !== 'Space') return;
