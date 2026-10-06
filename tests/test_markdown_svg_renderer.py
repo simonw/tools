@@ -22,7 +22,7 @@ def test_url_starts_in_viewer_before_scripts_and_gist_load(
     pending_gists = []
     script_pattern = "**/markdown-it@*/dist/markdown-it.min.js"
     page.route(script_pattern, lambda route: pending_scripts.append(route))
-    page.route("https://api.github.com/gists/*", lambda route: pending_gists.append(route))
+    page.route("https://gist.githubusercontent.com/**", lambda route: pending_gists.append(route))
     gist_url = "https://gist.github.com/simonw/abc123"
     page.goto(
         f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
@@ -47,7 +47,7 @@ def test_url_starts_in_viewer_before_scripts_and_gist_load(
     expect(page.locator(".editor-pane")).to_be_hidden()
     expect(page.locator("#output")).to_be_empty()
     assert len(pending_gists) == 1
-    pending_gists[0].fulfill(json={"files": {"example.md": {"content": "# Loaded Gist"}}})
+    pending_gists[0].fulfill(body="# Loaded Gist", content_type="text/plain")
 
     expect(page.locator("#output h1")).to_contain_text("Loaded Gist")
     expect(page.locator("#preview-status")).to_be_hidden()
@@ -60,6 +60,48 @@ def test_url_starts_in_viewer_before_scripts_and_gist_load(
     expect(page.locator(".editor-pane")).to_be_hidden()
 
 
+@pytest.mark.parametrize("suffix", ["", "/deadbeef", "?x=1#file-example-md"])
+def test_named_gist_avoids_rate_limited_api(page: Page, unused_port_server, suffix):
+    unused_port_server.start(root)
+    api_requests = []
+    raw_requests = []
+
+    def rate_limited(route):
+        api_requests.append(route.request.url)
+        route.fulfill(status=403, body="API rate limit exceeded")
+
+    def raw_content(route):
+        raw_requests.append(route.request.url)
+        route.fulfill(body="# No API needed", content_type="text/plain")
+
+    page.route("https://api.github.com/gists/*", rate_limited)
+    page.route("https://gist.githubusercontent.com/**", raw_content)
+    gist_url = "https://gist.github.com/simonw/abc123" + suffix
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html?url="
+        + quote(gist_url, safe="")
+    )
+    expect(page.locator("#output h1")).to_contain_text("No API needed")
+    revision = "deadbeef" if suffix == "/deadbeef" else ""
+    assert raw_requests == [f"https://gist.githubusercontent.com/simonw/abc123/raw/{revision}"]
+    assert api_requests == []
+
+
+def test_ownerless_gist_keeps_api_loading(page: Page, unused_port_server):
+    unused_port_server.start(root)
+    page.route(
+        "https://api.github.com/gists/abc123",
+        lambda route: route.fulfill(
+            json={"files": {"example.md": {"content": "# Ownerless Gist"}}}
+        ),
+    )
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html?url="
+        + quote("https://gist.github.com/abc123", safe="")
+    )
+    expect(page.locator("#output h1")).to_contain_text("Ownerless Gist")
+
+
 @pytest.mark.parametrize("action", ["Retry", "Edit URL"])
 def test_gist_loading_error_recovery(page: Page, unused_port_server, action):
     unused_port_server.start(root)
@@ -70,14 +112,14 @@ def test_gist_loading_error_recovery(page: Page, unused_port_server, action):
         if len(requests) == 1:
             route.fulfill(status=503, body="Unavailable")
         else:
-            route.fulfill(json={"files": {"example.md": {"content": "# Recovered"}}})
+            route.fulfill(body="# Recovered", content_type="text/plain")
 
-    page.route("https://api.github.com/gists/*", gist_response)
+    page.route("https://gist.githubusercontent.com/**", gist_response)
     page.goto(
         f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
         "?url=https%3A%2F%2Fgist.github.com%2Fsimonw%2Fabc123"
     )
-    expect(page.locator("#preview-status-message")).to_have_text("Error: Gist API returned 503")
+    expect(page.locator("#preview-status-message")).to_have_text("Error: Raw gist fetch returned 503")
     expect(page.locator(".editor-pane")).to_be_hidden()
     expect(page.get_by_role("button", name="Retry", exact=True)).to_be_visible()
     page.get_by_role("button", name=action, exact=True).click()
@@ -90,7 +132,7 @@ def test_gist_loading_error_recovery(page: Page, unused_port_server, action):
     expect(page.locator("#output h1")).to_contain_text("Recovered")
     expect(page.locator("#preview-status")).to_be_hidden()
     expect(page.locator(".editor-pane")).to_be_hidden()
-    assert requests[-1].endswith("abc123" if action == "Retry" else "def456")
+    assert requests[-1].endswith("abc123/raw/" if action == "Retry" else "def456/raw/")
 
 
 def test_svg_is_rendered_raw_in_a_network_isolated_iframe(

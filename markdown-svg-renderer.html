@@ -1838,8 +1838,8 @@ function setStatus(msg, isError) {
   urlStatus.classList.toggle("error", !!isError);
 }
 
-// Match a gist URL and capture the gist id (the long hex segment).
-const gistRe = /^https?:\/\/gist\.github\.com\/(?:[^/]+\/)?([0-9a-f]+)/i;
+// Capture the owner, gist id, and optional revision from a gist page URL.
+const gistRe = /^https?:\/\/gist\.github\.com\/(?:([^/?#]+)\/)?([0-9a-f]+)(?:\/([0-9a-f]+))?(?=[/?#]|$)/i;
 
 function normalizeSourceUrl(rawUrl) {
   let parsed;
@@ -1858,7 +1858,16 @@ async function fetchSource(url) {
   const sourceUrl = normalizeSourceUrl(url);
   const gistMatch = gistRe.exec(sourceUrl);
   if (gistMatch) {
-    const id = gistMatch[1];
+    const [, owner, id, revision] = gistMatch;
+    // Raw gist hosting supports CORS and avoids the shared-IP API rate limit.
+    // Without a filename it returns the first file, just like our API loader.
+    if (owner) {
+      const rawUrl = `https://gist.githubusercontent.com/${owner}/${id}/raw/${revision || ""}`;
+      const raw = await fetch(rawUrl);
+      if (!raw.ok) throw new Error(`Raw gist fetch returned ${raw.status}`);
+      return await raw.text();
+    }
+    // Ownerless gist links still need the API to discover the raw URL.
     const res = await fetch(`https://api.github.com/gists/${id}`);
     if (!res.ok) throw new Error(`Gist API returned ${res.status}`);
     const data = await res.json();
