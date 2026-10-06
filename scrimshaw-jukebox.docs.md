@@ -1,0 +1,3 @@
+Play synthesized adventure-game music written as plain text scores that you can edit and modify in real time. Six original compositions in the Scrimshaw format showcase various instruments and styles, from a calypso harbour theme to a tavern jig, with a pixel-art scene that reacts to the music and an interactive piano roll display.
+
+<!-- Generated from commit: 76a0ebf61c84d5968abe5042d39bee80e4548964 -->
