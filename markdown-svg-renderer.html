@@ -300,6 +300,29 @@ body {
   color: #2563eb;
 }
 
+#output details {
+  margin: 1em 0;
+  padding: 0 16px;
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+  background: #fff;
+}
+
+#output summary {
+  margin: 0 -16px;
+  padding: 8px 16px;
+  border-radius: 5px;
+  background: #f6f6f6;
+  cursor: pointer;
+}
+
+#output summary:hover { background: #efefef; }
+
+#output details[open] > summary {
+  border-bottom: 1px solid #e2e2e2;
+  border-radius: 5px 5px 0 0;
+}
+
 #output img { max-width: 100%; }
 
 #output hr {
@@ -1774,8 +1797,19 @@ function scrollToHash() {
     id = hash;
   }
   const target = output.querySelector(`[id="${CSS.escape(id)}"]`);
-  if (target) target.scrollIntoView();
+  if (!target) return;
+  // Linking to a heading such as "Reasoning" expands every details element
+  // in its section (up to the next heading), so the linked content is visible.
+  const isHeading = (el) => /^H[1-6]$/.test(el.tagName);
+  if (isHeading(target)) {
+    for (let el = target.nextElementSibling; el && !isHeading(el); el = el.nextElementSibling) {
+      if (el.tagName === "DETAILS") el.open = true;
+    }
+  }
+  target.scrollIntoView();
 }
+
+window.addEventListener("hashchange", scrollToHash);
 
 function update() {
   output.innerHTML = renderMarkdown(input.value);
@@ -1968,6 +2002,7 @@ Paste **markdown** here and watch it render on the right.
 - Standard \`\`\`code\`\`\` blocks
 - Special SVG blocks with tabs
 - Load from a raw markdown URL or a Gist
+- Collapsible \`<details>\` sections that [open when linked to](#reasoning)
 
 > SVG fenced blocks render as a tabbed component.
 
@@ -2018,6 +2053,16 @@ allowing resources only from cdnjs, jsdelivr, unpkg, and esm.sh:
 | Tables  | Yes       |
 | SVG tabs| Yes       |
 | HTML tabs| Yes      |
+
+## Reasoning
+
+Linking to a heading opens every \`<details>\` element between it and the next heading.
+
+<details><summary>Reasoning trace</summary>
+
+Collapsed by default, with **markdown** support inside.
+
+</details>
 `;
 
 // On load: redirect legacy #url= links, otherwise load ?url= if present.

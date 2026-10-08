@@ -1,6 +1,7 @@
 """Playwright tests for markdown-svg-renderer.html."""
 
 import pathlib
+import re
 from urllib.parse import quote
 
 import pytest
@@ -305,6 +306,81 @@ Inner content.
     expect(inner.locator("p")).to_be_visible()
     expect(page.locator("#output > p > code")).to_have_text(literal)
     expect(page.locator("#output pre code")).to_have_text(literal + "\n")
+
+
+def test_heading_link_opens_details_in_its_section(page: Page, unused_port_server):
+    unused_port_server.start(root)
+    page.route(
+        "https://gist.githubusercontent.com/**",
+        lambda route: route.fulfill(
+            body="""## Reasoning
+
+Intro paragraph.
+
+<details><summary>First trace</summary>
+
+First reasoning.
+
+</details>
+
+<details><summary>Extra trace</summary>
+
+Extra reasoning.
+
+</details>
+
+### Notes
+
+<details><summary>Notes trace</summary>
+
+Notes content.
+
+</details>
+
+## Response
+
+First response.
+
+## Reasoning
+
+<details><summary>Second trace</summary>
+
+Second reasoning.
+
+</details>
+""",
+            content_type="text/plain",
+        ),
+    )
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html?url="
+        + quote("https://gist.github.com/simonw/abc123", safe="")
+        + "#reasoning-1"
+    )
+    details = page.locator("#output details")
+    first, extra, notes, second = (details.nth(i) for i in range(4))
+    expect(second).to_have_attribute("open", "")
+    expect(page.get_by_text("Second reasoning.")).to_be_in_viewport()
+    for closed in (first, extra, notes):
+        expect(closed).not_to_have_attribute("open", "")
+
+    # Following a heading's anchor link within the page opens every details
+    # element up to the next heading, but none beyond it.
+    page.locator("#reasoning .header-anchor").click()
+    expect(first).to_have_attribute("open", "")
+    expect(extra).to_have_attribute("open", "")
+    expect(page.get_by_text("First reasoning.")).to_be_visible()
+    expect(page.get_by_text("Extra reasoning.")).to_be_visible()
+    expect(notes).not_to_have_attribute("open", "")
+
+    page.locator("#notes .header-anchor").click()
+    expect(notes).to_have_attribute("open", "")
+
+    # A section with no details elements leaves the following section alone.
+    second.evaluate("details => details.open = false")
+    page.locator("#response .header-anchor").click()
+    expect(page).to_have_url(re.compile("#response$"))
+    expect(second).not_to_have_attribute("open", "")
 
 
 def test_static_svg_has_no_mp4_tab(page: Page, unused_port_server):
