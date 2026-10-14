@@ -489,6 +489,17 @@ function htmlPreviewDocument(html) {
   return `<!doctype html>\n${meta}\n${html}`;
 }
 
+// Inline SVG previews use HTML parsing, which accepts comments containing
+// "--". SVG image decoding and DOMParser use XML, where those comments are
+// invalid. Remove comments from the export copy, leaving the source and any
+// literal comment text inside CDATA (such as styles or text) unchanged.
+function stripSvgComments(code) {
+  // Escape the comment opener so HTML's inline-script parser ignores it.
+  return code.replace(/<!\[CDATA\[[\s\S]*?\]\]>|\x3c!--[\s\S]*?-->/g, (part) =>
+    part.startsWith("\x3c!--") ? "" : part
+  );
+}
+
 // ---- Animated SVG detection ----
 // Parse an SMIL clock value ("2s", "150ms", "1.5min", bare seconds) into
 // seconds, or null if it is not a plain clock value (e.g. "click", "0:02").
@@ -522,7 +533,7 @@ function detectSvgAnimation(code) {
 
   let doc = null;
   try {
-    doc = new DOMParser().parseFromString(code, "image/svg+xml");
+    doc = new DOMParser().parseFromString(stripSvgComments(code), "image/svg+xml");
     if (doc.querySelector("parsererror")) doc = null;
   } catch {
     doc = null;
@@ -586,7 +597,7 @@ function detectSvgAnimation(code) {
 // offsets. Rasterizing the result captures the frame at time t, because SVG
 // images drawn to a canvas render at document time 0.
 function snapshotSvgAtTime(code, t) {
-  const doc = new DOMParser().parseFromString(code, "image/svg+xml");
+  const doc = new DOMParser().parseFromString(stripSvgComments(code), "image/svg+xml");
   if (doc.querySelector("parsererror")) {
     throw new Error("SVG could not be parsed");
   }
@@ -1457,7 +1468,7 @@ class SvgBlock extends HTMLElement {
       avif: { mimeType: "image/avif", extension: "avif" },
     };
     const { mimeType, extension } = RASTER_FORMATS[format];
-    const svgBlob = new Blob([code], { type: "image/svg+xml;charset=utf-8" });
+    const svgBlob = new Blob([stripSvgComments(code)], { type: "image/svg+xml;charset=utf-8" });
     const svgUrl = URL.createObjectURL(svgBlob);
 
     const img = new Image();

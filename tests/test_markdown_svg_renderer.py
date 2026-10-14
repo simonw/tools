@@ -649,6 +649,91 @@ def track_jsquash_requests(page, codec="webp"):
     return requests
 
 
+@pytest.mark.parametrize(
+    "format, force_wasm", [("png", False), ("jpeg", False), ("webp", False), ("webp", True)]
+)
+def test_raster_export_ignores_invalid_xml_comments_and_preserves_cdata(
+    page: Page, unused_port_server, format, force_wasm
+):
+    unused_port_server.start(root)
+    if force_wasm:
+        page.add_init_script(SAFARI_NO_WEBP_INIT_SCRIPT)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    # HTML previews accept these comments, but SVG image decoding uses XML,
+    # where both repeated hyphens and a final hyphen are invalid. The literal
+    # comment in CDATA is CSS selector content and must remain unchanged.
+    svg = """<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- -------- SECTION -------- -->
+  <!-- trailing--->
+  <style><![CDATA[
+    rect[data-label="<!-- keep -->"] { fill: #22c55e; }
+  ]]></style>
+  <rect data-label="&lt;!-- keep --&gt;" width="100" height="100" fill="red"/>
+</svg>"""
+    block = fill_svg_block(page, svg)
+    block.locator(f'button[data-tab="{format}"]').click()
+    panel = block.locator(f'.panel[data-panel="{format}"]')
+    expect(panel.locator(".image-actions button")).to_be_visible(timeout=60_000)
+    data = read_rendered_image_bytes(page, format)
+    if format == "png":
+        assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    elif format == "jpeg":
+        assert data[:3] == b"\xff\xd8\xff"
+    else:
+        assert data[:4] == b"RIFF"
+        assert data[8:12] == b"WEBP"
+
+    pixel = panel.locator("img").evaluate("""async (img) => {
+      await img.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, 1, 1);
+      return Array.from(ctx.getImageData(0, 0, 1, 1).data);
+    }""")
+    assert all(abs(actual - expected) <= 5 for actual, expected in zip(pixel, [34, 197, 94, 255]))
+
+    # Cleaning the exported copy must not change the user's original code.
+    assert block.get_attribute("data-svg") == svg + "\n"
+    block.locator('button[data-tab="code"]').click()
+    expect(block.locator('.panel[data-panel="code"] pre')).to_have_text(svg + "\n")
+
+
+def test_animation_detection_and_snapshot_ignore_invalid_xml_comments(
+    page: Page, unused_port_server
+):
+    unused_port_server.start(root)
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    svg = ANIMATED_SMIL_SVG.replace(
+        "<rect", "<!-- -------- SECTION -------- --><!-- trailing--->\n<rect"
+    )
+    block = fill_svg_block(page, svg)
+    expect(block.locator('button[data-tab="mp4"]')).to_be_visible()
+    # Without a successful XML parse, detection finds the animation tag but
+    # cannot read its duration.
+    assert block.evaluate("block => block._animation.duration") == 2
+    result = block.evaluate("""async (block) => {
+      const bytes = await block.snapshotFrame(0, 200, 100);
+      const bitmap = await createImageBitmap(new Blob([bytes], {type: "image/png"}));
+      const canvas = document.createElement("canvas");
+      canvas.width = 200;
+      canvas.height = 100;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      return {
+        header: Array.from(bytes.slice(0, 8)),
+        pixel: Array.from(ctx.getImageData(25, 50, 1, 1).data)
+      };
+    }""")
+    assert bytes(result["header"]) == b"\x89PNG\r\n\x1a\n"
+    assert result["pixel"] == [220, 38, 38, 255]
+
+
 def test_webp_tab_uses_native_encoder_when_available(page: Page, unused_port_server):
     unused_port_server.start(root)
     jsquash_requests = track_jsquash_requests(page)
