@@ -14,8 +14,8 @@ description as the starting point, updating it only when the current HTML shows
 user-facing behavior that should be reflected in the description. If no updates
 are required, return the previous description unchanged.
 
-Instead of starting with something like "This Bugzilla Bug Viewer is a web application for..."
-start with "View Mozilla Bugzilla bug reports..." or similar
+Instead of starting with something like "This AppX is a web application for..."
+start with "AppX reports..." or similar
 """.strip()
 
 import os
@@ -104,7 +104,7 @@ def generate_documentation(html_file_path, previous_description=None):
     """Generate documentation for an HTML file using Claude."""
     try:
         result = subprocess.run(
-            ["llm", "-m", "claude-haiku-4.5", "--system", PROMPT],
+            ["llm", "-m", "claude-haiku-5.5", "--system", PROMPT],
             input=build_llm_input(html_file_path, previous_description),
             capture_output=True,
             text=True,
