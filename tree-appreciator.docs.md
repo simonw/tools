@@ -1,0 +1,3 @@
+Tree Appreciator is a slow spot-the-difference game in which each round grows two 3D trees from one seed and asks the player to find a handful of small differences between them, such as a missing bough, a visiting bird, or an early-turning branch. Players tap a difference in either tree to notice it, can use limited hints and drag or zoom to view the trees from different angles, and earn appreciation points, leaves and herbarium entries for each pair completed. The page also tracks a field guide of difference kinds, periodic "Connoisseur's round" comparison quizzes, and progress saved in the browser.
+
+<!-- Generated from commit: dafb677a5d54a89c32a80d1c9b6a7ab7318d55c3 -->
