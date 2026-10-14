@@ -1,0 +1,3 @@
+`<click-to-play>` is a web component that turns a linked still image into a tap-to-play animation. Without JavaScript, the element is a plain link to a GIF. Once defined, it intercepts the click, preloads the GIF off-screen, and swaps it in for the still so playback starts at the first frame. A second tap returns to the still, and the page shows the play, loading, and error states along with the component's source and a copy button.
+
+<!-- Generated from commit: 30fd288b81c515558c7febb2fbb83e4237a19a64 -->
