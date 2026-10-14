@@ -1,3 +1,0 @@
-View Mozilla Bugzilla bug reports with interactive 3D renderings of procedurally generated trees. This slow-paced observation game challenges players to spot subtle differences between pairs of trees grown from identical seeds, from variations in branch angles and leaf density to environmental details like visiting birds and carved initials. Complete pairs to build a digital herbarium while learning botanical variety through careful visual comparison.
-
-<!-- Generated from commit: dafb677a5d54a89c32a80d1c9b6a7ab7318d55c3 -->
