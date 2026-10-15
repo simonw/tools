@@ -1,0 +1,3 @@
+LaTeX renderer turns LaTeX source into a rendered view, either a single display equation typeset by MathJax or a full document or prose fragment typeset by faster-latex, with a live preview beside the editor and a toolbar switch between Edit and Rendered views. Source can be typed, loaded from a URL or GitHub Gist, or picked from built-in examples, and the page keeps the LaTeX in the URL fragment so it can be shared as a readable or compressed link. Shares and exports include copying the link, copying the LaTeX, downloading equations as SVG or PNG, and printing or saving the output as a PDF.
+
+<!-- Generated from commit: 955cd795140f2a706e7b47bcdea8d4d8e5a32218 -->
