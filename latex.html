@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LaTeX renderer</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfbf9;
+  --fg: #1c1c1e;
+  --muted: #6a6a70;
+  --border: #d9d9dc;
+  --panel: #ffffff;
+  --input-bg: #ffffff;
+  --accent: #2552d0;
+  --accent-fg: #ffffff;
+  --hover: #f0f0ee;
+  --error-bg: #fff1ef;
+  --error-fg: #9f2410;
+  --warn-bg: #fff8e6;
+  --warn-fg: #7a5200;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151517;
+    --fg: #ececef;
+    --muted: #9c9ca3;
+    --border: #393940;
+    --panel: #1d1d21;
+    --input-bg: #19191c;
+    --accent: #86a8ff;
+    --accent-fg: #0b1020;
+    --hover: #26262b;
+    --error-bg: #3a1813;
+    --error-fg: #ffb3a3;
+    --warn-bg: #352a10;
+    --warn-fg: #f3d58c;
+    --shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 7px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+button:hover { background: var(--hover); }
+button:focus-visible, textarea:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+button.primary:hover { filter: brightness(1.08); }
+code, kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+
+/* Top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+.topbar h1 { font-size: 18px; margin: 0 auto 0 0; font-weight: 650; letter-spacing: -0.01em; }
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  background: var(--bg);
+}
+.view-toggle button { border: 0; background: transparent; border-radius: 6px; padding: 4px 12px; }
+.view-toggle button[aria-pressed="true"] { background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,0.15); font-weight: 600; }
+.actions { display: flex; gap: 8px; }
+
+/* Edit view: source on the left, live preview on the right */
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: calc(100vh - 58px);
+}
+.editor-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+.editor-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.editor-head label { font-weight: 600; }
+.chip {
+  font-size: 13px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 10px;
+  white-space: nowrap;
+}
+.chip:empty { display: none; }
+.url-row { display: flex; gap: 6px; }
+.url-row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 10px;
+  background: var(--input-bg);
+  font-size: 14px;
+}
+.url-status { margin: -4px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.url-status.error { color: var(--error-fg); }
+#source {
+  width: 100%;
+  flex: 1;
+  min-height: 300px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 15px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+.examples { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; color: var(--muted); }
+.examples button { font-size: 13px; padding: 3px 10px; color: var(--fg); }
+.help { font-size: 13px; color: var(--muted); margin: 0; }
+.help code { background: var(--hover); padding: 0 4px; border-radius: 4px; word-break: break-all; }
+#warnings { font-size: 13px; background: var(--warn-bg); color: var(--warn-fg); border-radius: 8px; padding: 6px 10px; }
+#warnings summary { cursor: pointer; }
+#warnings ul { margin: 6px 0 0; padding-left: 18px; max-height: 160px; overflow: auto; }
+
+.output-pane { position: relative; min-width: 0; padding: 16px; }
+.message {
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  background: var(--error-bg);
+  color: var(--error-fg);
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+/* All rendering happens in this sandboxed frame; its height follows its content */
+#render-frame {
+  display: block;
+  width: 100%;
+  height: 240px;
+  border: 0;
+  background: transparent;
+  color-scheme: light dark;
+}
+body.has-equation #render-frame { min-height: 240px; }
+
+/* Rendered view: just the output, centred, with a slim floating toolbar */
+body.view-render .editor-pane { display: none; }
+body.view-render .workspace { grid-template-columns: minmax(0, 1fr); min-height: 100vh; }
+body.view-render .topbar {
+  position: fixed;
+  top: 10px;
+  right: 12px;
+  z-index: 10;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  gap: 6px;
+  box-shadow: var(--shadow);
+  opacity: 0.88;
+  transition: opacity 0.15s;
+}
+body.view-render .topbar:hover, body.view-render .topbar:focus-within { opacity: 1; }
+body.view-render .topbar h1 { display: none; }
+body.view-render .output-pane { padding: 64px 20px 40px; }
+body.view-render.has-equation #render-frame { min-height: calc(100vh - 104px); }
+
+/* Share & export popover */
+#share-panel {
+  position: fixed;
+  inset: 62px 16px auto auto;
+  margin: 0;
+  width: min(460px, calc(100vw - 32px));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--panel);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+}
+#share-panel h2 { font-size: 15px; margin: 0 0 10px; }
+#share-panel .link-label { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+#share-panel .row { display: flex; gap: 6px; margin-top: 4px; }
+#share-panel input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 8px;
+  background: var(--input-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+#share-panel .exports { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+#share-panel .note { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+body:not(.has-equation) .eq-only { display: none; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: var(--fg);
+  color: var(--bg);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .editor-pane { border-right: 0; border-bottom: 1px solid var(--border); }
+  #source { min-height: 200px; font-size: 16px; }
+  .url-row input { font-size: 16px; }
+  .topbar { gap: 8px 10px; }
+  .topbar h1 { flex-basis: 100%; font-size: 16px; }
+  .actions { margin-left: auto; }
+  body.view-render .topbar { left: 12px; justify-content: flex-end; }
+}
+
+@media print {
+  .topbar, .editor-pane, #share-panel, .toast, .message { display: none !important; }
+  body, .workspace { background: #fff; color: #000; display: block; min-height: 0; }
+  .output-pane { padding: 0 !important; }
+  #render-frame { min-height: 0 !important; }
+}
+</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+</head>
+<body class="view-edit">
+<header class="topbar">
+  <h1>LaTeX renderer</h1>
+  <div class="view-toggle" role="group" aria-label="View">
+    <button type="button" id="edit-btn" aria-pressed="true">Edit</button>
+    <button type="button" id="render-btn" aria-pressed="false" title="Rendered view (Ctrl/⌘+Enter)">Rendered</button>
+  </div>
+  <div class="actions">
+    <button type="button" id="copy-link" class="primary">Copy link</button>
+    <button type="button" id="share-btn" popovertarget="share-panel" aria-label="Share and export">Share…</button>
+  </div>
+</header>
+
+<div id="share-panel" popover>
+  <h2>Share &amp; export</h2>
+  <div id="source-link-row" hidden>
+    <div class="link-label"><span>Link to the source URL (follows changes to it)</span></div>
+    <div class="row">
+      <input id="source-link" readonly aria-label="Link to the source URL">
+      <button type="button" data-copy="source-link">Copy</button>
+    </div>
+  </div>
+  <div class="link-label"><span>Readable link</span><span id="readable-len"></span></div>
+  <div class="row">
+    <input id="readable-link" readonly aria-label="Readable link">
+    <button type="button" data-copy="readable-link">Copy</button>
+  </div>
+  <div class="link-label"><span>Compressed link (LaTeX dictionary)</span><span id="compressed-len"></span></div>
+  <div class="row">
+    <input id="compressed-link" readonly aria-label="Compressed link">
+    <button type="button" data-copy="compressed-link">Copy</button>
+  </div>
+  <div class="exports">
+    <button type="button" id="copy-latex">Copy LaTeX</button>
+    <button type="button" id="copy-png" class="eq-only">Copy image</button>
+    <button type="button" id="download-png" class="eq-only">Download PNG</button>
+    <button type="button" id="download-svg" class="eq-only">Download SVG</button>
+    <button type="button" id="print-btn">Print / save PDF</button>
+  </div>
+  <p class="note">The readable and compressed links contain the LaTeX itself. "Copy link" in the toolbar uses the shortest link.</p>
+</div>
+
+<main class="workspace">
+  <section class="editor-pane">
+    <div class="editor-head">
+      <label for="source">LaTeX source</label>
+      <span id="mode-chip" class="chip"></span>
+    </div>
+    <form class="url-row" id="url-form">
+      <input id="url-input" type="url" inputmode="url" spellcheck="false" autocomplete="off"
+        placeholder="Load from a URL or GitHub Gist…" aria-label="URL of a LaTeX file or GitHub Gist">
+      <button type="submit">Load</button>
+    </form>
+    <p id="url-status" class="url-status" role="status" hidden></p>
+    <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"
+      placeholder="Paste or type LaTeX here, for example:&#10;&#10;\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}"></textarea>
+    <div class="examples" id="examples">Load an example:</div>
+    <details id="warnings" hidden><summary></summary><ul></ul></details>
+    <p class="help">
+      A bare formula renders as a display equation with MathJax. Prose with <code>$…$</code> math,
+      <code>\section</code>, lists or a full <code>\documentclass</code> document renders with
+      faster-latex (WebAssembly). Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> for the rendered view.
+      Links can be <code>latex#E=mc^2</code>, compressed <code>latex#~1…</code>, or
+      <code>latex?url=</code> a raw file or Gist.
+    </p>
+  </section>
+  <section class="output-pane">
+    <div id="message" class="message" role="alert" hidden></div>
+    <iframe id="render-frame" title="Rendered LaTeX" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+  </section>
+</main>
+
+<!--
+  The renderer runs in a sandboxed iframe (scripts allowed, but an opaque
+  origin), so even a rendering bug could not reach this page, its storage or
+  the API keys other tools on this domain keep in localStorage. The parent
+  turns this template into the frame's srcdoc, behind a CSP that only allows
+  these inline scripts (by hash) and the pinned CDN files they load.
+-->
+<template id="renderer-template">
+<style>
+:root { color-scheme: light dark; --fg: #1c1c1e; --muted: #6a6a70; --eq-size: 22px; }
+@media (prefers-color-scheme: dark) { :root { --fg: #ececef; --muted: #9c9ca3; } }
+html, body { margin: 0; background: transparent; color: var(--fg); overflow-y: hidden; }
+body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.5; }
+body.view-render { --eq-size: clamp(24px, 4.2vw, 46px); }
+#frame { min-height: 100vh; display: flex; flex-direction: column; }
+body.mode-equation #frame { justify-content: center; }
+#output { overflow-x: auto; }
+.placeholder { color: var(--muted); font-style: italic; text-align: center; padding: 40px 0; margin: 0; }
+#eq-probe { position: absolute; visibility: hidden; pointer-events: none; font-size: var(--eq-size); width: 1ex; height: 1em; }
+/* Equation mode; auto margins centre without pushing overflow off the left edge */
+#output.mode-equation { display: flex; font-size: var(--eq-size); }
+#output.mode-equation > .eq { margin: 0 auto; padding: 12px 0; }
+#output.mode-equation mjx-container[display="true"] { margin: 0; }
+/* Document mode (faster-latex article) */
+#output.mode-document .fl-article { padding-top: 0.5rem; }
+#output.mode-document mjx-container[display="true"] { margin: 0.6em 0; }
+#output.mode-document .fl-align mjx-container[display="true"] { margin: 0; }
+/* Centre each display equation on the full width, number flush right */
+#output.mode-document .fl-display-math {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0 1rem;
+}
+#output.mode-document .fl-display-math > :not(.fl-eqnum) { grid-column: 2; margin: 0; }
+#output.mode-document .fl-display-math > .fl-eqnum { grid-column: 3; justify-self: end; margin: 0; }
+#output.mode-document .fl-eqnum { font-style: normal; }
+/* TikZ labels are positioned absolutely, so stop them wrapping at the edge
+   (including at MathJax's inline line-break points) */
+#output.mode-document .fl-tikz-node,
+#output.mode-document .fl-tikz-node mjx-break { white-space: nowrap !important; }
+@media print { html, body { overflow: visible; } #frame { min-height: 0; } }
+</style>
+<script>
+// MathJax 4 configuration. TeX is only ever typeset explicitly (never found by
+// scanning the page), and the "safe" extension filters \href/\style/\class etc.
+window.mathJaxReady = new Promise((resolve, reject) => {
+  window.MathJax = {
+    loader: { load: ['ui/safe', '[tex]/begingroup'] },
+    tex: {
+      packages: { '[+]': ['begingroup'] },
+      inlineMath: [],
+      displayMath: [],
+      processEscapes: false,
+      processEnvironments: false,
+      processRefs: false,
+      tags: 'ams',
+    },
+    // Equations too wide for the screen are broken across lines (new in v4)
+    svg: { fontCache: 'local', displayOverflow: 'linebreak' },
+    startup: {
+      typeset: false,
+      ready() {
+        MathJax.startup.defaultReady();
+        MathJax.startup.promise.then(resolve, reject);
+      },
+    },
+  };
+  // The sandbox has no storage; give MathJax's menu settings somewhere to go
+  try {
+    window.localStorage;
+  } catch {
+    const items = new Map();
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key) => (items.has(key) ? items.get(key) : null),
+        setItem: (key, value) => items.set(key, String(value)),
+        removeItem: (key) => items.delete(key),
+      },
+    });
+  }
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-svg.js';
+  script.onerror = () => reject(new Error('Could not load MathJax from the CDN'));
+  document.head.append(script);
+});
+</script>
+<div id="frame"><div id="output"><p class="placeholder">The rendered output will appear here.</p></div></div>
+<span id="eq-probe" aria-hidden="true"></span>
+<script type="module">
+const FASTER_LATEX_URL = 'https://cdn.jsdelivr.net/npm/@arena.ai/faster-latex@0.3.1/web-graphics/faster_latex.js';
+const DOMPURIFY_URL = 'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.16/purify.min.js';
+const $ = (id) => document.getElementById(id);
+const outputEl = $('output');
+const send = (message) => parent.postMessage(message, '*');
+
+function percentDecode(text) {
+  try { return decodeURIComponent(text); } catch { return text; }
+}
+
+let mathJaxQueue = Promise.resolve();
+function withMathJax(fn) {
+  // MathJax calls must not overlap, so run them one at a time
+  const run = mathJaxQueue.then(() => window.mathJaxReady).then(fn);
+  mathJaxQueue = run.catch(() => {});
+  return run;
+}
+
+async function renderEquation(plan) {
+  return withMathJax(async () => {
+    MathJax.texReset();
+    // Each render gets a fresh sandbox so \newcommand definitions from a
+    // previous version of the source do not leak into this one.
+    MathJax.tex2svg('\\begingroupSandbox');
+    // Lines may be up to 1/BREAK_SCALE times the available width, since
+    // fitEquation() can shrink them that far; beyond that MathJax breaks them
+    // (MathJax sizes SVGs in ex units of the surrounding font, so measure it)
+    const probe = $('eq-probe').getBoundingClientRect();
+    const node = await MathJax.tex2svgPromise(plan.tex, {
+      display: plan.display,
+      em: probe.height || 22,
+      ex: probe.width || 11,
+      containerWidth: Math.max(200, outputEl.clientWidth - 8) / BREAK_SCALE,
+    });
+    const wrapper = document.createElement('div');
+    wrapper.className = 'eq';
+    wrapper.append(node);
+    const err = node.querySelector('[data-mjx-error]');
+    // Unknown commands are drawn in red rather than raising an error; name them
+    const unknown = [...node.querySelectorAll('g[data-mml-node="mtext"][fill="red"]')]
+      .map((g) => [...g.querySelectorAll('[data-c]')]
+        .map((c) => String.fromCodePoint(parseInt(c.getAttribute('data-c'), 16))).join(''))
+      .filter((name) => name.startsWith('\\'));
+    const error = err ? err.getAttribute('data-mjx-error')
+      : unknown.length ? `Unknown command${unknown.length > 1 ? 's' : ''}: ${[...new Set(unknown)].join(', ')}` : null;
+    return { node: wrapper, error, warnings: [] };
+  });
+}
+
+let fasterLatexPromise = null;
+function loadFasterLatex() {
+  if (!fasterLatexPromise) {
+    fasterLatexPromise = (async () => {
+      const [mod] = await Promise.all([import(FASTER_LATEX_URL), loadScript(DOMPURIFY_URL)]);
+      await mod.default();
+      const style = document.createElement('style');
+      // MathJax replaces the MathML, so skip the 390KB Latin Modern Math font
+      // (system math fonts cover the fallback if MathJax fails)
+      style.textContent = mod.article_css().replace(/@font-face\s*\{[^}]*"Latin Modern Math"[^}]*\}/, '');
+      document.head.prepend(style);
+      return mod;
+    })();
+    fasterLatexPromise.catch(() => { fasterLatexPromise = null; });
+  }
+  return fasterLatexPromise;
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Could not load ${src}`));
+    document.head.append(script);
+  });
+}
+
+function todayString() {
+  return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+async function renderDocument(source) {
+  const fl = await loadFasterLatex();
+  const result = fl.render(source, { today: todayString() });
+  // faster-latex escapes its output; sanitizing as well costs little. Taking
+  // the DOM fragment (not a string) avoids re-parsing the sanitized markup.
+  const fragment = DOMPurify.sanitize(result.html, {
+    USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
+    RETURN_DOM_FRAGMENT: true,
+  });
+  // Typeset off-screen (but in the document, at the same width, so MathJax
+  // can measure it) to avoid flashing raw MathML while typing
+  const node = document.createElement('div');
+  node.setAttribute('aria-hidden', 'true');
+  node.style.cssText = `position:absolute;visibility:hidden;left:-10000px;top:0;width:${outputEl.clientWidth}px`;
+  node.append(fragment);
+  document.body.append(node);
+  let mathError = null;
+  try {
+    // Re-typeset faster-latex's MathML with MathJax so documents use the same
+    // fonts and quality as the equation view. Native MathML stays as a fallback.
+    await withMathJax(() => {
+      MathJax.texReset();
+      MathJax.typesetClear();
+      return MathJax.typesetPromise([node]);
+    });
+  } catch (e) {
+    mathError = e;
+  }
+  node.remove();
+  node.removeAttribute('aria-hidden');
+  node.removeAttribute('style');
+  return {
+    node,
+    error: mathError ? `MathJax could not typeset the maths (${mathError.message}); showing the browser's native MathML instead.` : null,
+    warnings: (result.warnings || []).map((w) => ({ line: Number(w.line) || 0, message: String(w.message) })),
+  };
+}
+
+let current = { id: 0, source: '', plan: { mode: 'empty' } };
+
+async function render(id, source, plan) {
+  current = { id, source, plan };
+  document.body.classList.toggle('mode-equation', plan.mode === 'equation');
+  if (plan.mode === 'empty') {
+    outputEl.className = '';
+    outputEl.innerHTML = '<p class="placeholder">The rendered output will appear here.</p>';
+    send({ type: 'rendered', id, error: null, warnings: [] });
+    return;
+  }
+  if (!outputEl.firstChild || outputEl.querySelector('.placeholder')) {
+    outputEl.innerHTML = '<p class="placeholder">Rendering…</p>';
+  }
+  let result;
+  try {
+    result = plan.mode === 'equation' ? await renderEquation(plan) : await renderDocument(source);
+  } catch (e) {
+    if (current.id === id && current.source === source) {
+      send({ type: 'rendered', id, error: `Could not render: ${e.message}`, warnings: [] });
+    }
+    return;
+  }
+  if (current.id !== id || current.source !== source) return; // superseded
+  outputEl.className = `mode-${plan.mode}`;
+  outputEl.replaceChildren(result.node);
+  fitEquation();
+  send({ type: 'rendered', id, error: result.error, warnings: result.warnings });
+}
+
+// Shrink wide equations to fit, down to MIN_SCALE, then fall back to scrolling.
+// MathJax breaks lines longer than the width at BREAK_SCALE, but a line it
+// cannot break may overshoot that a little, hence the lower MIN_SCALE.
+const BREAK_SCALE = 0.7;
+const MIN_SCALE = 0.55;
+let fittedWidth = 0;
+function fitEquation() {
+  const eq = outputEl.querySelector('.eq');
+  if (!eq) return;
+  fittedWidth = outputEl.clientWidth;
+  eq.style.fontSize = '';
+  const available = outputEl.clientWidth - 8;
+  const width = eq.scrollWidth;
+  if (width > available && available > 0) {
+    eq.style.fontSize = Math.max(MIN_SCALE, available / width) + 'em';
+  }
+}
+
+function rerender() {
+  render(current.id, current.source, current.plan);
+}
+
+// Returns whether the view changed
+function setView(view) {
+  const wasRender = document.body.classList.contains('view-render');
+  document.body.classList.toggle('view-render', view === 'render');
+  return wasRender !== (view === 'render');
+}
+
+// A standalone copy of the equation SVG, black on transparent, sized in px
+function exportSvg(pxPerEx) {
+  const svg = outputEl.querySelector('.eq mjx-container svg');
+  if (!svg) return null;
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  const rect = svg.getBoundingClientRect();
+  const exPx = $('eq-probe').getBoundingClientRect().width || 8;
+  const size = (attr, fallback) => {
+    const v = svg.getAttribute(attr) || '';
+    return /ex$/.test(v) ? parseFloat(v) * pxPerEx : (fallback / exPx) * pxPerEx;
+  };
+  const width = size('width', rect.width);
+  const height = size('height', rect.height);
+  clone.setAttribute('width', width.toFixed(2));
+  clone.setAttribute('height', height.toFixed(2));
+  clone.setAttribute('style', 'color:#000');
+  return { markup: new XMLSerializer().serializeToString(clone), width, height };
+}
+
+window.addEventListener('message', (e) => {
+  const msg = e.data;
+  if (e.source !== parent || !msg || typeof msg !== 'object') return;
+  if (msg.type === 'render') {
+    setView(msg.view);
+    render(msg.id, String(msg.source), msg.plan || { mode: 'empty' });
+  } else if (msg.type === 'view') {
+    // Equations are sized (and line-broken) for the view, so redo them
+    if (setView(msg.view) && current.plan.mode === 'equation') rerender();
+  } else if (msg.type === 'export-svg') {
+    send({ type: 'svg', id: msg.id, ...(exportSvg(Number(msg.pxPerEx) || 8) || { error: 'No equation to export' }) });
+  }
+});
+
+// Line breaks depend on the width, so re-render equations when it changes
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (current.plan.mode === 'equation' && fittedWidth && Math.abs(outputEl.clientWidth - fittedWidth) > 2) {
+      rerender();
+    }
+  }, 150);
+});
+
+// The parent sizes the frame to fit the output
+new ResizeObserver(() => {
+  send({ type: 'height', height: Math.ceil(outputEl.getBoundingClientRect().height) });
+}).observe(outputEl);
+
+// Links never navigate this frame: in-page ones (\ref, \eqref, footnotes)
+// ask the parent to scroll, others ask it to open a new tab
+document.addEventListener('click', (e) => {
+  const link = e.target.closest?.('a[href], [data-mjx-href]');
+  if (!link) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const href = link.getAttribute('href') || link.getAttribute('data-mjx-href') || '';
+  if (href.startsWith('#')) {
+    const target = document.getElementById(percentDecode(href.slice(1)));
+    if (target) send({ type: 'scroll', top: target.getBoundingClientRect().top + window.scrollY });
+  } else {
+    send({ type: 'open', href });
+  }
+}, true);
+
+window.mathJaxReady.catch((e) => send({ type: 'rendered', id: current.id, error: e.message, warnings: [] }));
+send({ type: 'ready' });
+</script>
+</template>
+
+<script type="module">
+// ---------------------------------------------------------------------------
+// Link format
+//
+//   #<latex>       the LaTeX itself, percent-encoded where needed
+//   #~1<base64url> raw DEFLATE of the UTF-8 LaTeX, compressed using the preset
+//                  dictionary below, encoded as unpadded base64url
+//   ?url=<url>     fetch the LaTeX from a raw file URL or a GitHub Gist
+//
+// The "1" is the dictionary version. Existing links depend on these exact
+// bytes, so NEVER edit LATEX_DICTIONARY_V1: add a V2 and a "~2" prefix instead.
+// It holds a generic article skeleton and academic phrasing (far end), then
+// formula fragments chosen with the COVER algorithm from ~10,000 formulas on
+// Wikipedia math, physics and statistics pages (near end, most useful last).
+// It makes formula links ~35% shorter than DEFLATE with no dictionary.
+// ---------------------------------------------------------------------------
+const LATEX_DICTIONARY_V1 = [
+  "In this paper, we propose a new method for the problem of learning. We show that the proposed approach is able to achieve state-of-the-art results on the following tasks, as well as in terms of the number of parameters. On the other hand, it is not clear whether this can be done in general. Note that the results of this section can be used to prove that there exists a solution if and only if the condition holds. Without loss of generality, we assume that each of these is given by the same function, which is defined as follows. For each of the $n$ examples in the training set, we compute the corresponding value with respect to the model. This is because the data is drawn from a distribution, and the performance of our model on the test set is shown in Table~\\ref{tab:results} and Figure~\\ref{fig:results}, respectively. Similarly, we can see that the first term is bounded, and therefore the second one is also small. In particular, this implies that",
+  "\\documentclass[11pt]{article}",
+  "\\usepackage[utf8]{inputenc}",
+  "\\usepackage[T1]{fontenc}",
+  "\\usepackage[margin=1in]{geometry}",
+  "\\usepackage{amsmath,amssymb,amsthm}",
+  "\\usepackage{graphicx}",
+  "\\usepackage{hyperref}",
+  "\\usepackage{xcolor}",
+  "\\newtheorem{theorem}{Theorem}[section]",
+  "\\newtheorem{lemma}[theorem]{Lemma}",
+  "\\newtheorem{proposition}[theorem]{Proposition}",
+  "\\newtheorem{corollary}[theorem]{Corollary}",
+  "\\theoremstyle{definition}",
+  "\\newtheorem{definition}[theorem]{Definition}",
+  "\\newtheorem{example}[theorem]{Example}",
+  "\\theoremstyle{remark}",
+  "\\newtheorem{remark}[theorem]{Remark}",
+  "\\newcommand{\\R}{\\mathbb{R}}",
+  "\\newcommand{\\N}{\\mathbb{N}}",
+  "\\newcommand{\\Z}{\\mathbb{Z}}",
+  "\\DeclareMathOperator{\\argmax}{arg\\,max}",
+  "\\title{}",
+  "\\author{}",
+  "\\date{\\today}",
+  "",
+  "\\begin{document}",
+  "",
+  "\\maketitle",
+  "",
+  "\\begin{abstract}",
+  "In this paper, we show that the",
+  "\\end{abstract}",
+  "",
+  "\\tableofcontents",
+  "",
+  "\\section{Introduction}",
+  "\\label{sec:introduction}",
+  "",
+  "\\subsection{Related Work}",
+  "",
+  "\\section{Preliminaries}",
+  "\\label{sec:preliminaries}",
+  "",
+  "\\begin{definition}",
+  "Let $X$ be a set and let $f \\colon X \\to Y$ be a function such that",
+  "\\end{definition}",
+  "",
+  "\\begin{theorem}\\label{thm:main}",
+  "Suppose that $n \\geq 1$. Then for all $x \\in \\mathbb{R}$ we have",
+  "\\end{theorem}",
+  "",
+  "\\begin{proof}",
+  "By Lemma~\\ref{lem:} and Theorem~\\ref{thm:}, it follows that",
+  "\\end{proof}",
+  "",
+  "\\begin{itemize}",
+  "  \\item \\textbf{}",
+  "  \\item",
+  "\\end{itemize}",
+  "",
+  "\\begin{enumerate}",
+  "  \\item",
+  "  \\item",
+  "\\end{enumerate}",
+  "",
+  "\\begin{figure}[htbp]",
+  "  \\centering",
+  "  \\includegraphics[width=0.8\\textwidth]{figure.png}",
+  "  \\caption{}",
+  "  \\label{fig:}",
+  "\\end{figure}",
+  "",
+  "\\begin{table}[htbp]",
+  "  \\centering",
+  "  \\caption{}",
+  "  \\label{tab:}",
+  "  \\begin{tabular}{lcc}",
+  "    \\hline",
+  "    Method & Accuracy & Loss \\\\",
+  "    \\hline",
+  "  \\end{tabular}",
+  "\\end{table}",
+  "",
+  "\\begin{equation}",
+  "  \\label{eq:}",
+  "\\end{equation}",
+  "",
+  "\\begin{align*}",
+  "\\end{align*}",
+  "",
+  "\\begin{align}",
+  "\\end{align}",
+  "",
+  "\\begin{equation*}",
+  "\\end{equation*}",
+  "",
+  "where \\emph{} is the, \\textit{} \\texttt{} \\footnote{} \\cite{} \\eqref{eq:} \\url{https://}",
+  "",
+  "\\section{Conclusion}",
+  "\\label{sec:conclusion}",
+  "",
+  "\\bibliographystyle{plain}",
+  "\\bibliography{references}",
+  "",
+  "\\end{document}",
+  "",
+  "j' = 1 \\ldots p",
+  "\\mathbf{V} = [ V_{jj'} ]",
+  "p \\timrt{\\frac{\\hbar}{2m\\omega}} \\\\",
+  "\\sigma_p(t) &= \\sq^{n-1}\\ y_k\\ s_k(t - t_0) + \\int_{t_0}^t s_{n-1}ht)",
+  "\\end{align}",
+  "y^1_{t+h/2} = \\dfrac{y_t + y^1_{\\sin\\left(\\frac{\\pi s}2\\right)\\Gamma\\left(1-\\fra1}{12}.",
+  "\\end{align}",
+  "\\Pr\\,(X=k) = \\binom{n}{k}p^k{2}, \\frac{\\nu}{2}\\right)}} \\left(1 + \\frac{t^2}ht) \\cdot \\left(-\\left[\\mathbf{\\hat{k}}\\right]^2) = \\rho\\left(R^{-1}\\right)T(F).",
+  "T: \\underbrace{ac{1}{\\epsilon}",
+  "\\left(\\displaystyle",
+  "e^{X + \\epsitial\\mathbf r}{\\partial q_j}",
+  "E(\\mathbf{q},\\dot\\m\\mathbf{r}_i\\right)\\right) +",
+  "    \\frac{1}{2}\\lef\\mathbf{Q} = \\lim_{k\\to\\infty}\\mathbf{P}^k.",
+  "\\matsin \\varphi\\sin \\theta, \\rho \\cos \\varphi) \\, \\rheta}\\right) = - \\left[ \\frac{1}{n} \\sum_{t=1}^n}^2 = (n-1)s_n^2 + \\frac{n}{n+1}(x_{n+1} - \\bar{\\quad\\text{and}\\quad y_{n+1} = y_n + h k_1,",
+  "\\beg} \\\\",
+  "&= E^\\ominus - \\frac{RT}{zF} \\ln \\frac{[\\maz^{-1}\\cos(\\omega_0)+ a^2 z^{-2} }",
+  "\\sum_{n=-\\inf .",
+  "\\rho_i = \\exp \\left( \\frac{-k_\\text{B} - \\laml \\mathcal{L}}{\\partial \\varphi_{,\\nu}} =",
+  "  \\lefleft|\\bigcap_{i \\in \\underline{m} \\smallsetminusc{1}{1 - \\alpha^2} \\sum_{i=1}^{n} (\\alpha p_i -        & \\text{if } x = 0",
+  "\\end{cases}",
+  "f(x)=\\sum_& 0 \\\\ 1 & 0 & 0 \\end{bmatrix}, \\quad",
+  "\\mathbf{C}c{1}{ e^{\\hbar \\omega/(k_\\mathrm{B}T)} - 1 }",
+  "B_\\varphi \\in C_c^\\infty(U)",
+  "\\alpha = (\\alpha_1, \\lderatorname{Var}(\\hat{p}) = \\frac{p(1-p)}{n}",
+  "\\ope1- \\sqrt{5} \\over 2}\\right)^n .",
+  "\\varphi^n = \\tfrthbf{I}_\\mathbf{C} = -\\sum_{i=1}^n m_i \\left[\\Dedot{a}}{c^2} \\, \\\\[1ex]",
+  " \\frac{\\dot{a}^2}{2} - \\sqrt{1 - Z_3^2}}\\right), \\\\",
+  "\\beta &= \\arccos\\leforname{I}(X;Y)}{\\Eta(X, Y)} ",
+  "  = \\frac{\\sum_{x \\ac{\\pi}{2} & = \\prod_{n=1}^\\infty \\frac{ 4n^2 }{gn}",
+  " \\int p(x) \\lim_{\\Delta t \\to 0} \\frac1{\\Delgn}",
+  "\\begin{align}",
+  "     I[f] & = \\int_{\\Omega} \\m 0 \\\\",
+  "0 & 0 & 1 \\\\",
+  "\\end{pmatrix}.",
+  "\\begin{alignatymbol x) = 0.",
+  "\\nabla^2",
+  "\\phi(x) = e^{i\\omega t-i\\\\mathbf{b} - \\mathbf{c}) &= \\mathbf{0} \\\\",
+  "   \\ma\\tau_p \\subseteq \\tau",
+  "\\{x \\in X \\mid x}_{k+1} := \\mathbf{x}_k + \\alpha_k \\mathbf{p}_k(1 + \\hat{\\alpha})^2} \\right)",
+  "\\Pr(\\theta \\mid \\ae_{\\theta}",
+  "e_{\\varphi}",
+  "\\beg F_i^2 = F_{n+1}F_{n+2}",
+  "\\sqrt5F_n = \\varphi^n - ght)^\\frac{1}{p} \\qquad \\text{ for } p < \\infty.^2\\hat{\\mathbf{r}}\\cdot\\mathbf{E}(\\mathbf{r}) = _2) = \\lambda_1 \\log \\frac{\\lambda_1}{\\lambda_2}tial\\rho}{\\partial t} = D\\cdot \\frac{\\partial^2\\k)\\lambda)^2} + \\left(\\sum_{k=0}^{i-1}\\frac{1}{(sim \\chi^2_k",
+  "X \\sim \\text{Gamma}(\\alpha=\\frac{k}ight]\\, dV = \\iiint_V \\nabla \\cdot \\left[ G \\nablpha \\, \\partial \\beta} = \\operatorname{cov}[\\ln \\, \\frac {1}{\\sqrt{2\\pi}} e^{-\\frac{x^2}{2}} + -ds^2 = \\left(1 - \\frac{r_\\text{s}}{r}\\thbf{F}\\right)\\,\\mathrm{d}V=",
+  "\\scriptstyle S",
+  "(\\maame{\\mathbb E}\\left\\{ T^k \\right\\} = \\begin{case\\left (\\mathbf{U\\Sigma U}^{-1} \\right ) \\\\",
+  "&= \\mmbol{q},\\boldsymbol{\\dot q},t)\\, \\stackrel{\\text}",
+  "\\text{Attention}(Q, K, V) = \\text{softmax}\\lefght)}{\\partial\\dot{q}_i}\\dot{q}_i \\right) - \\lef_{\\mu \\nu} + \\Lambda g_{\\mu \\nu} = \\kappa T_{\\mu =",
+  "  \\frac{d}{dt}\\left[\\frac{m}{2}\\sum_i\\dot{x}_(a+t) = \\lim_{h\\to 0^+} \\int_{-\\infty}^\\infty f(ght) \\right] \\\\[5pt]",
+  "    &= \\frac{n - 1}{n} \\sigeft(\\left\\|\\mathbf{r}_k\\right\\|^{2}\\delta_{ij} - 0",
+  "\\operatorname{var}[\\ln (1-X)] > 0",
+  "\\psi_1(\\alp} + \\tfrac12 n^{-s} + \\frac{n^{1-s}}{s-1} + \\sum^\\dagger\\right)^2 \\left| n - 2 \\right\\rangle = \\ \\to \\mathbb{Q}[\\alpha_1,\\ldots,\\alpha_k]",
+  "n \\tim{1}{2\\pi i} \\oint_\\gamma \\frac{f(z)}{z-a}\\,dz.",
+  "\\ =\\frac{e^{-\\beta E\\left(r\\right)}}{Z\\left(\\betaleft(x - \\mu\\right)}^2 f(x) \\, dx \\\\[4pt]",
+  "     &E^{\\ominus}_\\text{red} (\\text{volt}) = -\\frac{\\Drac{\\omega}{2\\pi}\\right| < B.ign}",
+  "&\\lim_{\\alpha\\to  0}\\text{excess kurtosis} lign}",
+  "f(x;\\alpha,\\beta) = \\frac{x^{\\alpha-1} \\le,1} & \\ddots &       \\ddots & \\vdots \\\\",
+  "    \\vdo\\sum_i \\mathbf{r}_i \\times m_i\\mathbf{v}_i",
+  "\\begisin(\\theta) \\, d\\theta \\, d\\phi.}_i \\times (\\boldsymbol\\omega \\times \\Delta\\math& 1 \\\\ 0 & 0 \\end{bmatrix} \\right) = \\\\[6pt]",
+  "  {arrow \\mathbf{r} + \\delta\\theta \\, \\mathbf{n} \\t{a}_k - \\sum_{j=1}^{k-1}\\left\\langle\\mathbf{e}_j\\widehat{\\theta\\,}_\\mathrm{mle}\\ \\xrightarrow{\\trac{s}{2}\\right)\\zeta(s) = \\int_0^\\infty \\bigl(\\ &\\Rightarrow\\ && v &= \\int\\cos(x)\\,dx = \\sin(x)r = \\frac{p}{1 + \\varepsilon \\c\\ddot{\\theta}}\\right)",
+  "  = ra_\\theta = 0.{g}{\\omega_\\text{n}^2} \\approx \\frac{9.81 \\ \\mat\\partial y}{\\partial\\theta} \\end{bmatrix}",
+  "= \\beg(\\Beta(\\beta, \\alpha) ) \\text{ if } \\alpha, \\betes \\left(\\mathbf{r}_i - \\mathbf{R}\\right) + \\matgin{align}",
+  "\\frac{dL}{dt} &= \\dot{\\mathbf q} \\frai} = \\dot{q}^i \\quad, ",
+  "\\quad \\frac{\\partial \\mat) \\\\",
+  "  &= \\sum_{k=1}^N \\sum^n_{i=1} \\sum^n_{j=1}{\\delta \\mathbf{r}_k} \\equiv \\frac{\\partial}{\\paE}[\\ln X] = \\psi(\\alpha) - \\psi(\\alpha + \\beta)\\dot \\mathbf{\\hat n} \\, ds,{\\hat{\\beta}} &= \\left(X^\\textsf{T}X\\right)^{-1}^2 \\sim \\Gamma{\\left(\\tfrac{3}{2}, 2a^2\\right)}.}}{\\mathrm{d}t}\\frac{\\partial L}{\\partial \\dot qp_{ss}(x) = \\sqrt{\\frac{a}{\\pi \\sigma^2}} e^{-{ame{E}\\left[\\prod_{i=1}^K X_i^{\\beta_i}\\right] = _i , \\ldots, a_n\\big ) = \\det \\big ( a_1, \\dots,phi^{-1} \\\\ 1 & 1 \\end{pmatrix}",
+  "     \\begin{pmatfrac{d}{dx} \\det(A) = \\operatorname{tr}\\left(\\opc{1}{\\overline{x}}.",
+  "  \\end{cases} \\exp\\left(-x\\sum_{i=1}^n \\lambda_i\\right).",
+  "\\endA \\mathbf{x} = \\mathbf{b}D_\\text{KL}(P \\parallel Q) = \\int_{x \\in \\max_1,\\dots, x_{K}; \\alpha) = \\frac{\\Gamma(\\alpha  noninteger}, \\\\",
+  "        (n+1)\\,p\\ \\text{ and }\\} - \\frac{1}{3!} + \\cdots + \\frac{(-1)^n}{n!} = k}\\frac{\\mathbf{r}_{k}^\\mathsf{T} \\mathbf{A} \\ma \\rangle \\sqrt g \\,dx \\\\",
+  "    &= \\int_{\\mathbb{R}\\begin{bmatrix} \\theta_1\\qquad tX \\mapsto e^{tX} = \\sum_{n=0}^\\infty \\frlon)\\right) \\\\",
+  "\\ln \\Pr(X \\leq (1 - \\varepsilon) align}",
+  "\\mathbf{a} \\times (\\mathbf{b} \\times \\mat{\\mathrm{T}} \\boldsymbol{\\mu}}-\\frac {1}{2} \\mat\\bar{x} = \\frac{1}{N}\\sum_{i=1}^N X_iot \\nabla \\varphi \\, dx\\, dy.}{\\partial x^2} \\cdot \\int_{-\\infty}^{\\infty} \\f\\mathrm{G} = \\left(\\frac{2}{\\alpha}\\right)\\fracrac{\\partial \\ln \\mathcal{L}(\\alpha,\\beta\\mid X) = \\beta \\to \\infty} G_X =\\tfrac{1}{2}",
+  "\\end{alig\\operatorname{E}[X] = \\frac{\\alpha}{\\alpha+\\beta{softmax} \\left( \\frac{QK^T}{\\sqrt{d_k}} \\right)\\begin{align}",
+  "  \\mathbf{L}"
+].join('\n');
+const DICTIONARY = new TextEncoder().encode(LATEX_DICTIONARY_V1);
+const COMPRESSED_PREFIX = '~1';
+
+// Characters left readable in "readable" links: everything URL fragments allow
+// that LaTeX uses a lot. Spaces, %, #, newlines, quotes, <>` stay escaped.
+const READABLE_UNESCAPE = /%(5C|7B|7D|5E|3D|2B|5B|5D|2C|3B|3A|7C|40|24|26|2F|3F)/g;
+
+function readableFragment(source) {
+  // A leading "~" is reserved for compressed links
+  if (source.startsWith('~')) return null;
+  return encodeURIComponent(source).replace(READABLE_UNESCAPE, (m, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+function compressedFragment(source) {
+  const bytes = pako.deflateRaw(new TextEncoder().encode(source), { level: 9, memLevel: 9, dictionary: DICTIONARY });
+  return COMPRESSED_PREFIX + bytesToBase64url(bytes);
+}
+
+function bytesToBase64url(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64urlToBytes(text) {
+  let b64 = text.replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4) b64 += '=';
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// decodeURIComponent, but tolerant of stray "%" characters in hand-typed links
+function percentDecode(text) {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text.replace(/(%[0-9a-f]{2})+/gi, (m) => {
+      try { return decodeURIComponent(m); } catch { return m; }
+    });
+  }
+}
+
+function decodeFragment(fragment) {
+  if (!fragment) return { source: '' };
+  const text = percentDecode(fragment);
+  const m = /^~(\d)/.exec(text);
+  if (m) {
+    if (m[1] !== '1') {
+      return { source: '', error: `This link uses compression format ~${m[1]}, which this version of the tool does not know.` };
+    }
+    try {
+      const payload = text.slice(2).replace(/\s+/g, '');
+      if (!/^[A-Za-z0-9_-]*$/.test(payload)) throw new Error('invalid characters');
+      const inflator = new pako.Inflate({ raw: true, dictionary: DICTIONARY });
+      inflator.push(base64urlToBytes(payload), true);
+      // A truncated stream is not an error to pako, it just never ends
+      if (inflator.err || !inflator.ended) throw new Error(inflator.msg || 'truncated');
+      return { source: new TextDecoder('utf-8', { fatal: true }).decode(inflator.result) };
+    } catch (e) {
+      return { source: '', error: 'This compressed link is damaged or truncated, so it could not be decompressed.' };
+    }
+  }
+  return { source: text };
+}
+
+function shortestFragment(source) {
+  if (!source) return '';
+  const readable = readableFragment(source);
+  const compressed = compressedFragment(source);
+  return readable !== null && readable.length <= compressed.length ? readable : compressed;
+}
+
+// ---------------------------------------------------------------------------
+// Deciding how to render: a bare formula goes to MathJax, anything with prose
+// or document structure goes to faster-latex.
+// ---------------------------------------------------------------------------
+const DOCUMENT_SIGNS = new RegExp([
+  String.raw`\\documentclass\b`,
+  String.raw`\\(?:part|chapter|(?:sub){0,2}section|(?:sub)?paragraph)\*?\s*[\[{]`,
+  String.raw`\\(?:maketitle|tableofcontents|item|footnote|cite[pt]?|bibliography|bibliographystyle|usepackage|includegraphics|caption|noindent|newpage|clearpage|title|author)\b`,
+  String.raw`\\begin\s*\{\s*(?:document|itemize|enumerate|description|figure|table|tabular|theorem|lemma|proof|definition|corollary|proposition|remark|example|abstract|quote|quotation|verse|center|flushleft|flushright|verbatim|lstlisting|tikzpicture|thebibliography|minipage)\*?\s*\}`,
+].join('|'));
+const MATH_ENV = new RegExp(String.raw`\\begin\s*\{(equation|align|alignat|flalign|gather|multline|eqnarray|displaymath|math)(\*?)\}[\s\S]*?\\end\s*\{\1\2\}`, 'g');
+
+function stripComments(text) {
+  return text.replace(/(^|[^\\])%.*$/gm, '$1');
+}
+
+function analyze(source) {
+  // Hide \\ and \$ so they are not mistaken for \[ or $ delimiters (or \\% for \%)
+  const s = stripComments(source.replace(/\\\\/g, '\u0001')).replace(/\\\$/g, '\u0002').trim();
+  if (!s) return { mode: 'empty' };
+  if (DOCUMENT_SIGNS.test(s)) return { mode: 'document' };
+  if (!/\$|\\\(|\\\[/.test(s)) {
+    // One numbered environment on its own suits MathJax; several, or text
+    // around one, is a document fragment
+    const envs = s.match(MATH_ENV) || [];
+    if (envs.length > 1 || (envs.length === 1 && s.replace(MATH_ENV, '').trim())) return { mode: 'document' };
+    return { mode: 'equation', tex: source.trim(), display: true };
+  }
+  // There are math delimiters: is it a single formula, or text with maths in it?
+  const single = /^(?:\$\$([\s\S]*)\$\$|\\\[([\s\S]*)\\\]|\$([\s\S]*)\$|\\\(([\s\S]*)\\\))$/.exec(s);
+  if (single) {
+    const i = [1, 2, 3, 4].find((n) => single[n] !== undefined);
+    const inner = single[i];
+    if (!/\$|\\[()[\]]/.test(inner)) {
+      const tex = inner.replace(/\u0001/g, '\\\\').replace(/\u0002/g, '\\$').trim();
+      return { mode: 'equation', tex, display: i <= 2 };
+    }
+  }
+  return { mode: 'document' };
+}
+
+// ---------------------------------------------------------------------------
+// The sandboxed renderer frame
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const frame = $('render-frame');
+
+const RENDERER_SOURCES = {
+  script: [
+    'https://cdn.jsdelivr.net/npm/mathjax@4.1.3/',
+    'https://cdn.jsdelivr.net/npm/@mathjax/', // MathJax's own font packages
+    'https://cdn.jsdelivr.net/npm/@arena.ai/faster-latex@0.3.1/',
+    'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.16/',
+  ],
+  connect: [
+    'https://cdn.jsdelivr.net/npm/mathjax@4.1.3/sre/', // speech rules
+    'https://cdn.jsdelivr.net/npm/@arena.ai/faster-latex@0.3.1/', // .wasm
+  ],
+  font: ['https://cdn.jsdelivr.net/npm/latex.css@1.11.0/fonts/'],
+};
+
+async function sha256Base64(text) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return btoa(String.fromCharCode(...new Uint8Array(digest)));
+}
+
+async function rendererDocument() {
+  const template = $('renderer-template');
+  const inline = [...template.content.querySelectorAll('script:not([src])')];
+  const hashes = await Promise.all(inline.map((s) => sha256Base64(s.textContent)));
+  // No remote images, so a link cannot be used as a tracking pixel
+  const csp = [
+    "default-src 'none'",
+    `script-src ${hashes.map((h) => `'sha256-${h}'`).join(' ')} 'wasm-unsafe-eval' ${RENDERER_SOURCES.script.join(' ')}`,
+    'worker-src blob:',
+    `connect-src ${RENDERER_SOURCES.connect.join(' ')}`,
+    `font-src data: ${RENDERER_SOURCES.font.join(' ')}`,
+    "style-src 'unsafe-inline'",
+    'img-src data: blob:',
+    "frame-src 'none'",
+    "object-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+  ].join('; ');
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">`
+    + `<meta http-equiv="Content-Security-Policy" content="${csp}">`
+    + `</head><body>${template.innerHTML}</body></html>`;
+}
+
+let frameReady = false;
+let expectingLoad = false;
+let latestRender = null;
+
+async function initFrame() {
+  frameReady = false;
+  expectingLoad = true;
+  frame.srcdoc = await rendererDocument();
+}
+
+// The renderer never navigates itself, but if it somehow does, start afresh
+frame.addEventListener('load', () => {
+  if (!expectingLoad) initFrame();
+  expectingLoad = false;
+});
+
+function postToFrame(message) {
+  if (frameReady) frame.contentWindow.postMessage(message, '*');
+}
+
+let exportCounter = 0;
+const pendingExports = new Map();
+
+// Everything from the frame is treated as untrusted
+window.addEventListener('message', (e) => {
+  const msg = e.data;
+  if (e.source !== frame.contentWindow || !msg || typeof msg !== 'object') return;
+  if (msg.type === 'ready') {
+    frameReady = true;
+    if (latestRender) postToFrame({ ...latestRender, view });
+  } else if (msg.type === 'rendered') {
+    // Empty source is handled here, so its message (a bad link, say) stays
+    if (!latestRender || msg.id !== latestRender.id || latestRender.plan.mode === 'empty') return;
+    setMessage(typeof msg.error === 'string' ? msg.error : '');
+    showWarnings(Array.isArray(msg.warnings) ? msg.warnings : []);
+  } else if (msg.type === 'height') {
+    const height = Number(msg.height);
+    if (Number.isFinite(height)) frame.style.height = Math.min(Math.max(height, 0), 1e6) + 'px';
+  } else if (msg.type === 'scroll') {
+    const top = Number(msg.top);
+    if (Number.isFinite(top)) {
+      const y = window.scrollY + frame.getBoundingClientRect().top + top - window.innerHeight / 3;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  } else if (msg.type === 'open') {
+    openExternal(msg.href);
+  } else if (msg.type === 'svg') {
+    const pending = pendingExports.get(msg.id);
+    if (!pending) return;
+    pendingExports.delete(msg.id);
+    try {
+      if (typeof msg.markup !== 'string') throw new Error(String(msg.error || 'Export failed'));
+      const clamp = (n) => Math.min(Math.max(Number(n) || 0, 1), 8000);
+      pending.resolve({ markup: sanitizeSvg(msg.markup), width: clamp(msg.width), height: clamp(msg.height) });
+    } catch (err) {
+      pending.reject(err);
+    }
+  }
+});
+
+function openExternal(href) {
+  let url;
+  try {
+    url = new URL(String(href));
+  } catch {
+    return;
+  }
+  if (url.protocol === 'http:' || url.protocol === 'https:') {
+    window.open(url.href, '_blank', 'noopener,noreferrer');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// UI state
+// ---------------------------------------------------------------------------
+const sourceEl = $('source');
+const messageEl = $('message');
+const modeChip = $('mode-chip');
+const warningsEl = $('warnings');
+const urlInput = $('url-input');
+const urlStatus = $('url-status');
+
+let view = 'edit';
+let source = '';
+let renderCounter = 0;
+let loaded = null; // { url, source } when the LaTeX came from ?url=
+let pristine = ''; // the LaTeX as last loaded, to tell whether it has been edited
+
+function setMessage(text) {
+  messageEl.textContent = text || '';
+  messageEl.hidden = !text;
+}
+
+function setUrlStatus(text, isError) {
+  urlStatus.textContent = text || '';
+  urlStatus.hidden = !text;
+  urlStatus.classList.toggle('error', Boolean(isError));
+}
+
+function showWarnings(warnings) {
+  if (!warnings.length) {
+    warningsEl.hidden = true;
+    return;
+  }
+  warningsEl.hidden = false;
+  warningsEl.querySelector('summary').textContent =
+    `${warnings.length} warning${warnings.length === 1 ? '' : 's'} from faster-latex`;
+  const ul = warningsEl.querySelector('ul');
+  ul.replaceChildren(...warnings.map((w) => {
+    const li = document.createElement('li');
+    const line = Number(w && w.line);
+    li.textContent = (line ? `Line ${line}: ` : '') + String(w && w.message).split('\n')[0];
+    return li;
+  }));
+}
+
+function updateTitle(plan) {
+  let label = '';
+  if (plan.mode === 'equation') {
+    label = plan.tex;
+  } else if (plan.mode === 'document') {
+    const t = /\\title\s*(?:\[[^\]]*\])?\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/.exec(source);
+    const sec = /\\(?:chapter|section)\*?\s*\{([^{}]*)\}/.exec(source);
+    label = t ? t[1] : sec ? sec[1] : stripComments(source).replace(/\\[a-zA-Z]+/g, ' ');
+  }
+  label = label.replace(/\s+/g, ' ').trim();
+  if (label.length > 60) label = label.slice(0, 57).trimEnd() + '…';
+  document.title = label ? `${label} · LaTeX` : 'LaTeX renderer';
+}
+
+function render() {
+  const plan = analyze(source);
+  modeChip.textContent = plan.mode === 'equation' ? 'Equation · MathJax'
+    : plan.mode === 'document' ? 'Document · faster-latex (WASM)' : '';
+  document.body.classList.toggle('has-equation', plan.mode === 'equation');
+  updateTitle(plan);
+  if (plan.mode === 'empty') {
+    setMessage('');
+    showWarnings([]);
+  }
+  latestRender = { type: 'render', id: ++renderCounter, source, plan };
+  postToFrame({ ...latestRender, view });
+}
+
+// ---------------------------------------------------------------------------
+// URL handling: "#..." is the rendered view, "?edit#..." the editor;
+// "?url=..." (plus "&edit") while showing a fetched file unchanged
+// ---------------------------------------------------------------------------
+function linkParts() {
+  if (loaded && source === loaded.source) return { query: 'url=' + encodeURIComponent(loaded.url), fragment: '' };
+  return { query: '', fragment: shortestFragment(source) };
+}
+
+function urlFor(targetView) {
+  const { query, fragment } = linkParts();
+  if (!query && !fragment) return location.pathname;
+  const params = [query, targetView === 'edit' ? 'edit' : ''].filter(Boolean).join('&');
+  return location.pathname + (params ? '?' + params : '') + (fragment ? '#' + fragment : '');
+}
+
+function shareUrl(fragment) {
+  return location.origin + location.pathname + '#' + fragment;
+}
+
+function sourceShareUrl() {
+  return loaded && source === loaded.source
+    ? location.origin + location.pathname + '?url=' + encodeURIComponent(loaded.url)
+    : null;
+}
+
+function setView(newView) {
+  view = newView;
+  document.body.classList.toggle('view-edit', view === 'edit');
+  document.body.classList.toggle('view-render', view === 'render');
+  $('edit-btn').setAttribute('aria-pressed', String(view === 'edit'));
+  $('render-btn').setAttribute('aria-pressed', String(view === 'render'));
+  postToFrame({ type: 'view', view });
+}
+
+const currentUrl = () => location.pathname + location.search + location.hash;
+let lastUrl = null; // the URL the page state currently reflects
+
+function writeUrl(push) {
+  const url = urlFor(view);
+  if (url === currentUrl()) return;
+  history[push ? 'pushState' : 'replaceState'](null, '', url);
+  lastUrl = currentUrl();
+}
+
+function readUrl() {
+  lastUrl = currentUrl();
+  const params = new URLSearchParams(location.search);
+  const remote = (params.get('url') || '').trim();
+  if (remote) {
+    loadRemote(remote, params.has('edit') ? 'edit' : 'render');
+    return;
+  }
+  loaded = null;
+  setUrlStatus('');
+  const decoded = decodeFragment(location.hash.slice(1));
+  source = pristine = decoded.source;
+  sourceEl.value = source;
+  setView(!source || params.has('edit') || decoded.error ? 'edit' : 'render');
+  render();
+  if (decoded.error) setMessage(decoded.error);
+}
+
+function switchView(newView) {
+  if (newView === view) return;
+  if (newView === 'render' && !source.trim()) {
+    toast('Type or paste some LaTeX first');
+    sourceEl.focus();
+    return;
+  }
+  setView(newView);
+  writeUrl(true);
+  if (newView === 'edit') sourceEl.focus();
+}
+
+// Back/forward, or a hand-edited fragment (which fires both of these events)
+for (const event of ['popstate', 'hashchange']) {
+  window.addEventListener(event, () => {
+    if (currentUrl() !== lastUrl) readUrl();
+  });
+}
+
+let inputTimer = null;
+sourceEl.addEventListener('input', () => {
+  source = sourceEl.value;
+  clearTimeout(inputTimer);
+  inputTimer = setTimeout(() => {
+    render();
+    writeUrl(false);
+  }, 180);
+});
+sourceEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    clearTimeout(inputTimer);
+    source = sourceEl.value;
+    render();
+    switchView('render');
+  }
+});
+
+$('edit-btn').addEventListener('click', () => switchView('edit'));
+$('render-btn').addEventListener('click', () => {
+  clearTimeout(inputTimer);
+  if (source !== sourceEl.value) {
+    source = sourceEl.value;
+    render();
+  }
+  switchView('render');
+});
+
+// ---------------------------------------------------------------------------
+// Loading LaTeX from a URL or GitHub Gist
+// ---------------------------------------------------------------------------
+const MAX_REMOTE_CHARS = 2_000_000;
+// Owner, gist id and optional revision from a gist page URL
+const GIST_RE = /^https?:\/\/gist\.github\.com\/(?:([^/?#]+)\/)?([0-9a-f]+)(?:\/([0-9a-f]+))?(?=[/?#]|$)/i;
+// A file page on github.com, which can be fetched from raw.githubusercontent.com
+const GITHUB_BLOB_RE = /^https:\/\/github\.com\/([^/?#]+)\/([^/?#]+)\/blob\/([^?#]+)/i;
+const remoteCache = new Map();
+
+async function fetchText(url) {
+  let res;
+  try {
+    res = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+  } catch {
+    throw new Error('could not fetch it (the server may not allow cross-origin requests)');
+  }
+  if (!res.ok) throw new Error(`${new URL(url).host} returned HTTP ${res.status}`);
+  if (Number(res.headers.get('content-length')) > MAX_REMOTE_CHARS * 4) throw new Error('the file is too large');
+  const text = await res.text();
+  if (text.length > MAX_REMOTE_CHARS) throw new Error('the file is too large');
+  return text;
+}
+
+async function fetchSource(rawUrl) {
+  let url;
+  try {
+    url = new URL(rawUrl.trim());
+  } catch {
+    throw new Error('that is not a valid URL');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('only http and https URLs are supported');
+  const gist = GIST_RE.exec(url.href);
+  if (gist) {
+    const [, owner, id, revision] = gist;
+    // Raw gist hosting allows CORS and avoids the API's rate limit; it returns the first file
+    if (owner) return fetchText(`https://gist.githubusercontent.com/${owner}/${id}/raw/${revision || ''}`);
+    // Without an owner, ask the API for the files and prefer a .tex one
+    const data = JSON.parse(await fetchText(`https://api.github.com/gists/${id}`));
+    const files = Object.values(data.files || {});
+    if (!files.length) throw new Error('the gist has no files');
+    const file = files.find((f) => /\.(tex|latex|ltx)$/i.test(f.filename)) || files[0];
+    return file.truncated ? fetchText(file.raw_url) : String(file.content);
+  }
+  const blob = GITHUB_BLOB_RE.exec(url.href);
+  if (blob) return fetchText(`https://raw.githubusercontent.com/${blob[1]}/${blob[2]}/${blob[3]}`);
+  return fetchText(url.href);
+}
+
+let loadCounter = 0;
+async function loadRemote(url, targetView) {
+  const id = ++loadCounter;
+  urlInput.value = url;
+  setView(targetView);
+  setMessage('');
+  setUrlStatus('Loading…');
+  let text;
+  try {
+    text = remoteCache.has(url) ? remoteCache.get(url) : await fetchSource(url);
+  } catch (e) {
+    if (id !== loadCounter) return;
+    setUrlStatus(`Could not load ${url}: ${e.message}`, true);
+    setView('edit');
+    return;
+  }
+  if (id !== loadCounter) return;
+  remoteCache.set(url, text);
+  loaded = { url, source: text };
+  source = pristine = text;
+  sourceEl.value = text;
+  setUrlStatus('');
+  render();
+}
+
+$('url-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const url = urlInput.value.trim();
+  if (!url) return;
+  clearTimeout(inputTimer);
+  // Keep the current LaTeX one Back away
+  source = sourceEl.value;
+  writeUrl(false);
+  await loadRemote(url, 'render');
+  if (loaded && loaded.url === url) writeUrl(true);
+});
+
+// ---------------------------------------------------------------------------
+// Sharing and export
+// ---------------------------------------------------------------------------
+function toast(text) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.setAttribute('role', 'status');
+  el.textContent = text;
+  document.body.append(el);
+  setTimeout(() => el.remove(), 1800);
+}
+
+async function copyText(text, what) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`Copied ${what}`);
+  } catch {
+    prompt(`Copy the ${what}:`, text);
+  }
+}
+
+$('copy-link').addEventListener('click', () => {
+  source = sourceEl.value;
+  if (!source.trim()) return toast('Nothing to link to yet');
+  copyText(sourceShareUrl() || shareUrl(shortestFragment(source)), 'link');
+});
+
+$('share-panel').addEventListener('beforetoggle', (e) => {
+  if (e.newState !== 'open') return;
+  source = sourceEl.value;
+  const readable = source ? readableFragment(source) : '';
+  const compressed = source ? compressedFragment(source) : '';
+  const sourceLink = sourceShareUrl();
+  $('source-link-row').hidden = !sourceLink;
+  $('source-link').value = sourceLink || '';
+  $('readable-link').value = readable === null ? '(not available: starts with ~)' : (readable ? shareUrl(readable) : '');
+  $('compressed-link').value = compressed ? shareUrl(compressed) : '';
+  $('readable-len').textContent = readable ? `${shareUrl(readable).length.toLocaleString()} chars` : '';
+  $('compressed-len').textContent = compressed ? `${shareUrl(compressed).length.toLocaleString()} chars` : '';
+});
+
+document.querySelectorAll('[data-copy]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const input = $(btn.dataset.copy);
+    if (input.value.startsWith('http')) copyText(input.value, 'link');
+  });
+});
+
+$('copy-latex').addEventListener('click', () => copyText(sourceEl.value, 'LaTeX'));
+$('print-btn').addEventListener('click', () => {
+  $('share-panel').hidePopover();
+  window.print();
+});
+
+// Ask the frame for the equation as SVG
+function requestSvg(pxPerEx) {
+  return new Promise((resolve, reject) => {
+    if (!frameReady) return reject(new Error('The renderer is still loading'));
+    const id = ++exportCounter;
+    pendingExports.set(id, { resolve, reject });
+    postToFrame({ type: 'export-svg', id, pxPerEx });
+    setTimeout(() => {
+      if (pendingExports.delete(id)) reject(new Error('The renderer did not respond'));
+    }, 5000);
+  });
+}
+
+// The SVG comes from the sandbox, so keep only inert SVG before saving it
+function sanitizeSvg(markup) {
+  const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+  const svg = doc.documentElement;
+  if (svg.localName !== 'svg' || doc.querySelector('parsererror')) throw new Error('The renderer sent an invalid SVG');
+  for (const el of [svg, ...svg.querySelectorAll('*')]) {
+    if (el.namespaceURI !== 'http://www.w3.org/2000/svg' || ['script', 'style', 'foreignObject'].includes(el.localName)) {
+      el.remove();
+      continue;
+    }
+    for (const attr of [...el.attributes]) {
+      const local = attr.localName.toLowerCase();
+      if (local.startsWith('on') || (local === 'href' && !attr.value.startsWith('#'))) el.removeAttributeNode(attr);
+    }
+  }
+  return new XMLSerializer().serializeToString(svg);
+}
+
+function downloadBlob(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function pngBlob() {
+  const exported = await requestSvg(8 * 4); // 4x a typical on-screen size
+  const pad = 24;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(exported.width + pad * 2);
+      canvas.height = Math.ceil(exported.height + pad * 2);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, pad, pad, exported.width, exported.height);
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('PNG encoding failed'))), 'image/png');
+    };
+    img.onerror = () => reject(new Error('Could not draw the SVG'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(exported.markup);
+  });
+}
+
+$('download-svg').addEventListener('click', async () => {
+  try {
+    const exported = await requestSvg(8);
+    downloadBlob(new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + exported.markup], { type: 'image/svg+xml' }), 'equation.svg');
+  } catch (e) {
+    toast(e.message);
+  }
+});
+
+$('download-png').addEventListener('click', async () => {
+  try {
+    downloadBlob(await pngBlob(), 'equation.png');
+  } catch (e) {
+    toast(e.message);
+  }
+});
+
+$('copy-png').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob() })]);
+    toast('Copied image');
+  } catch (e) {
+    toast('Copying images is not supported here; use Download PNG');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Examples
+// ---------------------------------------------------------------------------
+const EXAMPLES = {
+  'Quadratic formula': String.raw`x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}`,
+  'Gaussian integral': String.raw`\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}`,
+  'Maxwell': String.raw`\begin{aligned}
+\nabla \cdot \mathbf{E} &= \frac{\rho}{\varepsilon_0} &
+\nabla \times \mathbf{E} &= -\frac{\partial \mathbf{B}}{\partial t} \\
+\nabla \cdot \mathbf{B} &= 0 &
+\nabla \times \mathbf{B} &= \mu_0 \mathbf{J} + \mu_0 \varepsilon_0 \frac{\partial \mathbf{E}}{\partial t}
+\end{aligned}`,
+  'Attention': String.raw`\operatorname{Attention}(Q, K, V) = \operatorname{softmax}\left(\frac{QK^{\mathsf{T}}}{\sqrt{d_k}}\right) V`,
+  'Matrix': String.raw`\begin{pmatrix} a & b \\ c & d \end{pmatrix}^{-1}
+= \frac{1}{ad - bc} \begin{pmatrix} d & -b \\ -c & a \end{pmatrix}`,
+  'Chemistry': String.raw`\ce{CO2 + 6 H2O ->[h\nu] C6H12O6 + 6 O2}`,
+  'Prose': String.raw`The \emph{Pythagorean theorem} says that a right triangle with legs $a$ and $b$
+and hypotenuse $c$ satisfies
+\[ a^2 + b^2 = c^2 . \]
+For example $3^2 + 4^2 = 9 + 16 = 25 = 5^2$, so a triangle with sides 3, 4 and 5
+has a right angle.`,
+  'TikZ': String.raw`\begin{center}
+\begin{tikzpicture}
+  \draw[thick, fill=blue!10] (0,0) -- (4,0) -- (4,3) -- cycle;
+  \draw (3.7,0) -- (3.7,0.3) -- (4,0.3);
+  \node[below] at (2,0) {$a$};
+  \node[right] at (4,1.5) {$b$};
+  \node[above left] at (2,1.5) {$c$};
+\end{tikzpicture}
+\end{center}`,
+  'Document': String.raw`\documentclass{article}
+\usepackage{amsmath}
+\newtheorem{theorem}{Theorem}[section]
+\title{Sums of Odd Numbers}
+\author{A. Student}
+
+\begin{document}
+\maketitle
+
+\section{The claim}
+The first $n$ odd numbers always add up to a perfect square.
+
+\begin{theorem}\label{thm:odd}
+For every integer $n \geq 1$,
+\begin{equation}\label{eq:odd}
+  \sum_{k=1}^{n} (2k - 1) = n^2 .
+\end{equation}
+\end{theorem}
+
+\section{Proof}
+We split the sum and use $\sum_{k=1}^{n} k = \frac{n(n+1)}{2}$:
+\begin{align}
+  \sum_{k=1}^{n} (2k - 1) &= 2 \sum_{k=1}^{n} k - n \\
+                          &= n(n+1) - n = n^2 .
+\end{align}
+This proves Theorem~\ref{thm:odd}. Some small cases of \eqref{eq:odd}:
+\begin{itemize}
+  \item $1 = 1^2$
+  \item $1 + 3 = 2^2$
+  \item $1 + 3 + 5 = 3^2$
+\end{itemize}
+\end{document}`,
+};
+for (const [name, tex] of Object.entries(EXAMPLES)) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = name;
+  btn.addEventListener('click', () => {
+    const current = sourceEl.value;
+    const edited = current.trim() && current !== pristine;
+    if (edited && !confirm('Replace your LaTeX with this example? (Back will bring it back.)')) return;
+    clearTimeout(inputTimer);
+    // Write the draft's URL first, then push the example as a new history
+    // entry, so the browser's Back button restores the draft
+    source = current;
+    if (current.trim()) writeUrl(false);
+    sourceEl.value = source = pristine = tex;
+    render();
+    writeUrl(Boolean(current.trim()));
+  });
+  $('examples').append(btn);
+}
+
+// For scripting from the console: latexTool.link('E=mc^2')
+window.latexTool = {
+  readableFragment,
+  compressedFragment,
+  decodeFragment,
+  analyze,
+  link: (tex) => shareUrl(shortestFragment(tex)),
+  dictionary: DICTIONARY,
+};
+
+initFrame();
+readUrl();
+</script>
+</body>
+</html>
