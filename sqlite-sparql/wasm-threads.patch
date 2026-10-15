@@ -1,0 +1,36 @@
+diff --git a/sqlite-sparql-rust/crates/sq-api/src/query.rs b/sqlite-sparql-rust/crates/sq-api/src/query.rs
+index 993a0c7..d8af4c5 100644
+--- a/sqlite-sparql-rust/crates/sq-api/src/query.rs
++++ b/sqlite-sparql-rust/crates/sq-api/src/query.rs
+@@ -290,7 +290,9 @@ impl BaselineRun {
+             if Instant::now() >= deadline {
+                 return Err(Error::Timeout);
+             }
+-            if self.watchdog.is_none() {
++            // WebAssembly builds have no threads, so no watchdog: the deadline is only
++            // checked between batches, as above.
++            if self.watchdog.is_none() && !cfg!(target_family = "wasm") {
+                 self.watchdog = Some(Watchdog::start(self.db, deadline)?);
+             }
+         }
+diff --git a/sqlite-sparql-rust/crates/sq-sqlite/src/loader.rs b/sqlite-sparql-rust/crates/sq-sqlite/src/loader.rs
+index 0f5c38b..4ff6c4d 100644
+--- a/sqlite-sparql-rust/crates/sq-sqlite/src/loader.rs
++++ b/sqlite-sparql-rust/crates/sq-sqlite/src/loader.rs
+@@ -168,10 +168,12 @@ type Batch = Result<Vec<oxrdf::Quad>>;
+ 
+ /// Feeds every parsed quad to the encoder, through a parser thread for large inputs.
+ fn parse_into(enc: &mut Encoder<'_>, parser: oxrdfio::RdfParser, src: LoadSource<'_>) -> Result<()> {
+-    let pipelined = match &src {
+-        LoadSource::Bytes(b) => b.len() >= PIPELINE_MIN_BYTES,
+-        LoadSource::File(p) => std::fs::metadata(p).is_ok_and(|m| m.len() >= PIPELINE_MIN_BYTES as u64),
+-    };
++    // WebAssembly builds have no threads: always parse on the calling thread.
++    let pipelined = !cfg!(target_family = "wasm")
++        && match &src {
++            LoadSource::Bytes(b) => b.len() >= PIPELINE_MIN_BYTES,
++            LoadSource::File(p) => std::fs::metadata(p).is_ok_and(|m| m.len() >= PIPELINE_MIN_BYTES as u64),
++        };
+     if !pipelined {
+         return match src {
+             LoadSource::Bytes(bytes) => parser.for_slice(bytes).try_for_each(|q| enc.push(&q.map_err(parse_error)?)),

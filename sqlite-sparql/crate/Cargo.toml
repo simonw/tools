@@ -1,0 +1,24 @@
+# Copied to sqlite-sparql-rust/wasm/ by ../build_wasm.sh. Builds sparqlite as a static
+# library for wasm32-unknown-emscripten, to be linked into SQLite's own sqlite3.wasm.
+[package]
+name = "sparqlite-wasm"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "sparqlite_wasm"
+crate-type = ["staticlib"]
+
+[workspace]
+
+[dependencies]
+sq-api = { path = "../crates/sq-api" }
+# No "loadable_extension" feature: the extension is linked into the same WASM module as
+# SQLite and calls the sqlite3_* functions directly.
+rusqlite = { version = "=0.40.2", default-features = false, features = ["functions", "vtab"] }
+
+[profile.release]
+panic = "unwind"   # sq-api catches panics at every FFI boundary (WASM exception handling)
+lto = "fat"
+codegen-units = 1
+opt-level = "s"    # same speed as opt-level 3 in benchmarks, 300 KB smaller gzipped
