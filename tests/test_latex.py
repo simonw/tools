@@ -223,3 +223,95 @@ def test_mode_detection(page: Page, latex_url, source, mode):
     page.goto(latex_url)
     page.wait_for_function("!!window.latexTool")
     assert page.evaluate("s => latexTool.analyze(s).mode", source) == mode
+
+
+def test_load_example_keeps_draft_recoverable(page: Page, latex_url):
+    page.goto(latex_url)
+    expect(page.get_by_text("Load an example:")).to_be_visible()
+    # Loading onto an empty editor needs no confirmation
+    page.get_by_role("button", name="Quadratic formula").click()
+    expect(page.locator("#source")).to_have_value(re.compile(r"\\frac\{-b \\pm"))
+    # Switching between unmodified examples needs no confirmation either
+    page.get_by_role("button", name="Matrix").click()
+    expect(page.locator("#source")).to_have_value(re.compile(r"pmatrix"))
+    # A draft asks first; dismissing keeps it
+    page.locator("#source").fill("my draft x^2")
+    dialogs = []
+    page.once("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
+    page.get_by_role("button", name="Maxwell").click()
+    expect(page.locator("#source")).to_have_value("my draft x^2")
+    assert dialogs and "Replace" in dialogs[0]
+    # Accepting replaces it, and Back brings the draft back
+    page.once("dialog", lambda d: d.accept())
+    page.get_by_role("button", name="Maxwell").click()
+    expect(page.locator("#source")).to_have_value(re.compile(r"\\nabla"))
+    page.go_back()
+    expect(page.locator("#source")).to_have_value("my draft x^2")
+
+
+@pytest.mark.parametrize(
+    "name,selector",
+    [
+        ("Chemistry", "#output .eq mjx-container"),
+        ("Prose", "#output .fl-article mjx-container"),
+        ("TikZ", "#output .fl-tikz svg"),
+        ("Document", "#output .fl-title"),
+    ],
+)
+def test_examples_render(page: Page, latex_url, name, selector):
+    page.goto(latex_url)
+    page.get_by_role("button", name=name, exact=True).click()
+    expect(page.locator(selector).first).to_be_visible()
+    expect(page.locator("#message")).to_be_hidden()
+
+
+# Links are attacker-controlled, and other tools on this origin keep API keys
+# in localStorage, so nothing in a fragment may run script.
+XSS_PAYLOADS = [
+    r"\href{javascript:alert(1)}{a} \href{ JaVaScRiPt:alert(1)}{b} \href{data:text/html,x}{c}",
+    r"\style{position:fixed;inset:0;background:url(https://example.com/x)}{a} \bbox[background:url(x)]{b}",
+    r"\mmlToken{mi}[href='javascript:alert(1)']{x} \cssId{source}{y} \class{topbar}{z}",
+    r"\text{<img src=x onerror=alert(1)>} \texttip{b}{<img src=x onerror=alert(1)>}",
+    r"\def\x{\href{javascript:alert(1)}{q}}\x \require{../../evil}",
+    "\\section{<svg onload=alert(1)>}\n<img src=x onerror=alert(1)> <script>alert(1)</script>",
+    "\\section{L}\n\\href{javascript:alert(1)}{a} \\url{javascript:alert(1)} \\includegraphics{x\" onerror=\"alert(1)}",
+    "\\section{C}\n\\textcolor{red;position:fixed;inset:0}{a} \\colorbox{red;position:fixed}{b} \\label{x\" onmouseover=\"alert(1)}",
+    "\\begin{verbatim}<script>alert(1)</script>\\end{verbatim} \\verb|<img src=x onerror=alert(1)>|",
+    "\\begin{tikzpicture}\\node[fill=red\" onload=\"alert(1)] at (0,0) {<script>alert(1)</script>};\\end{tikzpicture}",
+    "\\title{</title><script>alert(1)</script>}\\begin{document}\\maketitle $\\href{javascript:alert(2)}{m}$\\end{document}",
+]
+
+
+@pytest.mark.parametrize("payload", XSS_PAYLOADS)
+def test_xss_payloads_are_inert(page: Page, latex_url, payload):
+    dialogs = []
+    page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
+    page.goto(latex_url + "#" + quote(payload, safe=""))
+    expect(page.locator("#output mjx-container, #output .fl-article, #output .eq").first).to_be_attached()
+    page.wait_for_timeout(500)
+    for el in page.locator("#output a, #output [data-mjx-href], #output img").all():
+        el.click(timeout=1000, no_wait_after=True, force=True)
+    page.wait_for_timeout(300)
+    assert dialogs == []
+    assert page.url.startswith(latex_url)
+    problems = page.evaluate(
+        """() => {
+          const problems = [];
+          for (const el of document.querySelectorAll('#output *')) {
+            if (['script', 'iframe', 'object', 'embed', 'foreignobject', 'base', 'form'].includes(el.localName)) {
+              problems.push('element ' + el.localName);
+            }
+            for (const { name, value } of el.attributes) {
+              const v = value.replace(/[\\s\\u0000-\\u001f]/g, '').toLowerCase();
+              if (name.startsWith('on')) problems.push('handler ' + name);
+              if (/^(javascript|data|vbscript):/.test(v)) problems.push('url ' + name + '=' + value);
+              if (name === 'id' && document.getElementById(value) !== el && /^(source|output|message|eq-probe)$/.test(value)) {
+                problems.push('id ' + value);
+              }
+            }
+            if (getComputedStyle(el).position === 'fixed') problems.push('fixed ' + el.localName);
+          }
+          return problems;
+        }"""
+    )
+    assert problems == []

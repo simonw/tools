@@ -177,6 +177,10 @@ code, kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 #output.mode-document .fl-display-math > :not(.fl-eqnum) { grid-column: 2; margin: 0; }
 #output.mode-document .fl-display-math > .fl-eqnum { grid-column: 3; justify-self: end; margin: 0; }
 #output.mode-document .fl-eqnum { font-style: normal; }
+/* TikZ labels are positioned absolutely, so stop them wrapping at the edge
+   (including at MathJax's inline line-break points) */
+#output.mode-document .fl-tikz-node,
+#output.mode-document .fl-tikz-node mjx-break { white-space: nowrap !important; }
 
 /* Rendered view: just the output, centred, with a slim floating toolbar */
 body.view-render .editor-pane { display: none; }
@@ -335,7 +339,7 @@ window.mathJaxReady = new Promise((resolve, reject) => {
     </div>
     <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"
       placeholder="Paste or type LaTeX here, for example:&#10;&#10;\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}"></textarea>
-    <div class="examples" id="examples">Examples:</div>
+    <div class="examples" id="examples">Load an example:</div>
     <details id="warnings" hidden><summary></summary><ul></ul></details>
     <p class="help">
       A bare formula renders as a display equation with MathJax. Prose with <code>$…$</code> math,
@@ -746,13 +750,19 @@ function todayString() {
 async function renderDocument(source, target) {
   const fl = await loadFasterLatex();
   const result = fl.render(source, { today: todayString() });
-  const html = DOMPurify.sanitize(result.html, { USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true } });
+  // faster-latex escapes its output, but this LaTeX arrives from arbitrary
+  // links, so sanitize as well. Taking the DOM fragment (not a string) avoids
+  // re-parsing the sanitized markup, which is where mutation XSS lives.
+  const fragment = DOMPurify.sanitize(result.html, {
+    USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
+    RETURN_DOM_FRAGMENT: true,
+  });
   // Typeset off-screen (but in the document, at the same width, so MathJax
   // can measure it) to avoid flashing raw MathML while typing
   const node = document.createElement('div');
   node.setAttribute('aria-hidden', 'true');
   node.style.cssText = `position:absolute;visibility:hidden;left:-10000px;top:0;width:${target.clientWidth}px`;
-  node.innerHTML = html;
+  node.append(fragment);
   document.body.append(node);
   let mathError = null;
   try {
@@ -1155,6 +1165,20 @@ const EXAMPLES = {
   'Matrix': String.raw`\begin{pmatrix} a & b \\ c & d \end{pmatrix}^{-1}
 = \frac{1}{ad - bc} \begin{pmatrix} d & -b \\ -c & a \end{pmatrix}`,
   'Chemistry': String.raw`\ce{CO2 + 6 H2O ->[h\nu] C6H12O6 + 6 O2}`,
+  'Prose': String.raw`The \emph{Pythagorean theorem} says that a right triangle with legs $a$ and $b$
+and hypotenuse $c$ satisfies
+\[ a^2 + b^2 = c^2 . \]
+For example $3^2 + 4^2 = 9 + 16 = 25 = 5^2$, so a triangle with sides 3, 4 and 5
+has a right angle.`,
+  'TikZ': String.raw`\begin{center}
+\begin{tikzpicture}
+  \draw[thick, fill=blue!10] (0,0) -- (4,0) -- (4,3) -- cycle;
+  \draw (3.7,0) -- (3.7,0.3) -- (4,0.3);
+  \node[below] at (2,0) {$a$};
+  \node[right] at (4,1.5) {$b$};
+  \node[above left] at (2,1.5) {$c$};
+\end{tikzpicture}
+\end{center}`,
   'Document': String.raw`\documentclass{article}
 \usepackage{amsmath}
 \newtheorem{theorem}{Theorem}[section]
@@ -1188,14 +1212,23 @@ This proves Theorem~\ref{thm:odd}. Some small cases of \eqref{eq:odd}:
 \end{itemize}
 \end{document}`,
 };
+const exampleTexts = new Set(Object.values(EXAMPLES));
 for (const [name, tex] of Object.entries(EXAMPLES)) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.textContent = name;
   btn.addEventListener('click', () => {
+    const current = sourceEl.value;
+    const isDraft = current.trim() && !exampleTexts.has(current);
+    if (isDraft && !confirm('Replace your LaTeX with this example? (Back will bring it back.)')) return;
+    clearTimeout(inputTimer);
+    // Write the draft's URL first, then push the example as a new history
+    // entry, so the browser's Back button restores the draft
+    source = current;
+    if (current.trim()) writeUrl(false);
     sourceEl.value = source = tex;
     render();
-    writeUrl(false);
+    writeUrl(Boolean(current.trim()));
   });
   $('examples').append(btn);
 }
