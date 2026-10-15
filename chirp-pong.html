@@ -1,0 +1,2929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#07051a">
+<title>Chirp Pong</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --p1: #26e3ff;
+  --p2: #ff3d9a;
+  --bg: #07051a;
+  --ink: #eef1ff;
+  --dim: #a3a8d4;
+  --panel: rgba(18, 13, 50, 0.9);
+  --display: Orbitron, ui-rounded, system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  overflow: hidden;
+  overscroll-behavior: none;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#court {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: block;
+  touch-action: none;
+}
+#safe-probe {
+  position: fixed;
+  visibility: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+#btn-menu {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(10, 8, 30, 0.55);
+  color: var(--ink);
+  font-size: 18px;
+  display: none;
+  z-index: 5;
+  cursor: pointer;
+}
+body.playing #btn-menu { display: block; }
+.screen {
+  position: fixed;
+  inset: 0;
+  display: none;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: calc(env(safe-area-inset-top, 0px) + 28px) 18px calc(env(safe-area-inset-bottom, 0px) + 28px);
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(38, 227, 255, 0.16), transparent 60%),
+    radial-gradient(120% 60% at 50% 100%, rgba(255, 61, 154, 0.16), transparent 60%),
+    var(--bg);
+  z-index: 10;
+}
+.screen.overlay { background: rgba(5, 4, 18, 0.82); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.screen.active { display: block; }
+.wrap {
+  max-width: 440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.logo {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(44px, 15vw, 66px);
+  line-height: 0.95;
+  margin: 18px 0 2px;
+  text-align: center;
+  letter-spacing: 2px;
+}
+.logo span { display: block; }
+.logo .c1 { color: var(--p1); text-shadow: 0 0 18px rgba(38, 227, 255, 0.75), 0 0 2px #fff; }
+.logo .c2 { color: var(--p2); text-shadow: 0 0 18px rgba(255, 61, 154, 0.75), 0 0 2px #fff; }
+.tag { text-align: center; color: var(--dim); margin: 4px 0 14px; font-size: 17px; line-height: 1.4; }
+h2 {
+  font-family: var(--display);
+  font-size: 24px;
+  margin: 6px 0;
+  text-align: center;
+  letter-spacing: 1px;
+}
+h3 { font-family: var(--display); font-size: 15px; letter-spacing: 1px; margin: 14px 0 4px; color: var(--p1); }
+.btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font: 600 16px system-ui, -apple-system, sans-serif;
+  padding: 13px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.btn:active { transform: scale(0.98); }
+.btn.big { font-family: var(--display); font-weight: 700; font-size: 17px; padding: 17px 16px; letter-spacing: 0.5px; }
+.btn.p1 { border-color: var(--p1); background: rgba(38, 227, 255, 0.13); box-shadow: 0 0 18px rgba(38, 227, 255, 0.25), inset 0 0 12px rgba(38, 227, 255, 0.15); }
+.btn.p2 { border-color: var(--p2); background: rgba(255, 61, 154, 0.13); box-shadow: 0 0 18px rgba(255, 61, 154, 0.25), inset 0 0 12px rgba(255, 61, 154, 0.15); }
+.btn.ghost { background: transparent; border-color: rgba(255, 255, 255, 0.12); color: var(--dim); }
+.btn[disabled] { opacity: 0.45; }
+.setting { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--dim); margin-top: 6px; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px; overflow: hidden; }
+.seg button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font: 700 15px var(--display);
+  padding: 9px 15px;
+  cursor: pointer;
+}
+.seg button.on { background: rgba(38, 227, 255, 0.2); color: #fff; }
+.fine { color: var(--dim); font-size: 13px; text-align: center; line-height: 1.5; margin: 8px 0 0; }
+.fine a { color: var(--dim); }
+.steps { margin: 0; padding-left: 22px; line-height: 1.5; color: #d9dcf5; }
+.steps li { margin: 4px 0; }
+.phones { width: 104px; height: auto; margin: 0 auto; display: block; }
+.phones.demo { width: 120px; margin-top: 10px; opacity: 0.9; }
+#meter { width: 100%; height: 86px; border-radius: 12px; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.08); }
+.status {
+  text-align: center;
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: #fff;
+  min-height: 1.4em;
+}
+.status.warn { color: #ffcf4d; }
+.status.good { color: #7dffb0; }
+.trick-list { display: grid; grid-template-columns: 34px 1fr; gap: 8px 10px; align-items: center; margin: 4px 0; }
+.trick-list .ic { font-size: 24px; text-align: center; }
+.trick-list b { font-family: var(--display); font-size: 13px; letter-spacing: 0.5px; }
+.howto p, .howto li { color: #d9dcf5; line-height: 1.5; }
+.howto ul { padding-left: 20px; margin: 4px 0; }
+#over-title { font-size: 34px; margin-top: 30px; }
+#over-score { font-family: var(--display); font-weight: 900; font-size: 54px; text-align: center; }
+#over-stats { color: var(--dim); text-align: center; line-height: 1.7; }
+.err { color: #ff8a8a; text-align: center; }
+#link-stats { font-family: ui-monospace, monospace; font-size: 12px; color: var(--dim); text-align: center; }
+body.sim #court { display: none; }
+#sim-root { display: none; }
+body.sim #sim-root {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  gap: 18px;
+  align-items: center;
+  justify-content: center;
+  background: #030210;
+}
+.sim-phones { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.sim-phones canvas { border-radius: 14px; border: 2px solid #26213f; display: block; }
+.sim-phones canvas.flip { transform: rotate(180deg); }
+#sim-stats { font: 12px/1.6 ui-monospace, monospace; color: #b8bce0; white-space: pre; min-width: 260px; }
+</style>
+</head>
+<body>
+<canvas id="court"></canvas>
+<div id="safe-probe"></div>
+<button id="btn-menu" aria-label="Menu">☰</button>
+<div id="sim-root"></div>
+
+<section class="screen active" id="scr-title">
+  <div class="wrap">
+    <h1 class="logo"><span class="c1">CHIRP</span><span class="c2">PONG</span></h1>
+    <p class="tag">Two phones. One ball.<br>Carried between them by sound.</p>
+    <button class="btn big p1" id="btn-duel">📱📱 Play on two phones</button>
+    <button class="btn big p2" id="btn-practice">🤖 Practice vs CPU</button>
+    <button class="btn" id="btn-howto">How to play</button>
+    <div class="setting">First to
+      <div class="seg" id="seg-target">
+        <button data-v="7">7</button><button data-v="11" class="on">11</button><button data-v="15">15</button>
+      </div>
+    </div>
+    <p class="fine">No Wi-Fi, Bluetooth or accounts. The two phones talk to each other by chirping, using the speaker and microphone.</p>
+    <svg class="phones demo" viewBox="0 0 160 226" aria-hidden="true">
+      <rect x="44" y="3" width="72" height="100" rx="13" fill="#120c34" stroke="#ff3d9a" stroke-width="2.5"/>
+      <rect x="44" y="123" width="72" height="100" rx="13" fill="#120c34" stroke="#26e3ff" stroke-width="2.5"/>
+      <rect y="13" width="34" height="4.5" rx="2.2" fill="#ff3d9a">
+        <animate attributeName="x" dur="3.2s" repeatCount="indefinite" values="60;72;65;56;60" keyTimes="0;0.3;0.515;0.8;1"/>
+      </rect>
+      <rect y="208.5" width="34" height="4.5" rx="2.2" fill="#26e3ff">
+        <animate attributeName="x" dur="3.2s" repeatCount="indefinite" values="61;56;68;61" keyTimes="0;0.25;0.6;1"/>
+      </rect>
+      <g fill="#ffe14d" font-size="11" font-family="system-ui" opacity="0">
+        <text x="70" y="117">♪</text><text x="100" y="115">♫</text>
+        <animate attributeName="opacity" dur="3.2s" repeatCount="indefinite" calcMode="discrete" keyTimes="0;0.2;0.29;0.7;0.79" values="0;1;0;1;0"/>
+      </g>
+      <circle r="4.2" fill="#fff">
+        <animateMotion dur="3.2s" repeatCount="indefinite" path="M78 204 L 108 160 L 92 126 L 92 100 L 54 52 L 82 22 L 104 66 L 92 100 L 92 126 L 58 170 Z"/>
+        <animate attributeName="opacity" dur="3.2s" repeatCount="indefinite" calcMode="discrete" keyTimes="0;0.214;0.275;0.716;0.777" values="1;0;1;0;1"/>
+      </circle>
+    </svg>
+  </div>
+</section>
+
+<section class="screen" id="scr-lobby">
+  <div class="wrap">
+    <h2>Pair the phones</h2>
+    <svg class="phones" viewBox="0 0 160 226" aria-label="Two phones placed top to top">
+      <rect x="44" y="3" width="72" height="100" rx="13" fill="#120c34" stroke="#ff3d9a" stroke-width="2.5"/>
+      <rect x="61" y="13" width="38" height="4.5" rx="2.2" fill="#ff3d9a"/>
+      <rect x="44" y="123" width="72" height="100" rx="13" fill="#120c34" stroke="#26e3ff" stroke-width="2.5"/>
+      <rect x="61" y="208.5" width="38" height="4.5" rx="2.2" fill="#26e3ff"/>
+      <path d="M86 204 C 104 150, 96 80, 70 26" stroke="#fff" stroke-width="1.6" stroke-dasharray="3 4" fill="none" opacity="0.8"/>
+      <circle cx="70" cy="26" r="4.5" fill="#fff"/>
+      <path d="M58 108 q 22 7 44 0" stroke="#ffe14d" stroke-width="2" fill="none"/>
+      <path d="M58 118 q 22 -7 44 0" stroke="#ffe14d" stroke-width="2" fill="none"/>
+      <text x="125" y="117" fill="#ffe14d" font-size="11" font-family="system-ui">♪</text>
+      <text x="26" y="114" fill="#ffe14d" font-size="11" font-family="system-ui">♫</text>
+    </svg>
+    <ol class="steps">
+      <li>Open this page on <b>both</b> phones and tap <b>Play on two phones</b>.</li>
+      <li>Turn the volume <b>all the way up</b> (and switch off silent mode).</li>
+      <li>Lay the phones on a table <b>top-to-top</b>, a few centimetres apart.</li>
+      <li>Tap <b>Call</b> on one phone. The other one answers by itself.</li>
+    </ol>
+    <canvas id="meter" width="440" height="86"></canvas>
+    <div class="status" id="lobby-status">Starting microphone…</div>
+    <button class="btn big p1" id="btn-call">📣 Call the other phone</button>
+    <button class="btn" id="btn-selftest">🔊 Test this phone's speaker + mic</button>
+    <button class="btn ghost" id="btn-lobby-back">Back</button>
+  </div>
+</section>
+
+<section class="screen" id="scr-howto">
+  <div class="wrap howto">
+    <h2>How to play</h2>
+    <p>Each phone is one half of the court. The top edge of your screen is a <b>portal</b>: the ball flies through it, the phone chirps it across, and it bursts out of the top of the other phone. You'll hear it go.</p>
+    <h3>CONTROLS</h3>
+    <ul>
+      <li><b>Drag</b> anywhere to move your paddle. It floats just above your finger.</li>
+      <li>Hit with the paddle's <b>edge</b> to angle your shot.</li>
+      <li><b>Swipe sideways</b> as you hit to add spin. The ball <b>curves</b>, and keeps curving on their screen.</li>
+      <li><b>Flick up</b> into the ball to <b>SMASH</b> it.</li>
+    </ul>
+    <h3>TRICK GEMS</h3>
+    <p>Knock the ball through a gem to load a trick. It goes off on <b>their</b> screen when the ball arrives:</p>
+    <div class="trick-list" id="trick-list"></div>
+    <h3>HEAT</h3>
+    <p>Long rallies heat up the court. 6+ hits and the point is worth <b>×2</b>, 12+ and it's worth <b>×3</b>.</p>
+    <h3>BOMBS</h3>
+    <p>Every return charges your bomb meter. When it's full, <b>tap</b> while the ball is on their side to drop a bomb onto their screen, lined up with where you tapped. If it hits their paddle, the paddle is stunned.</p>
+    <h3>WINNING</h3>
+    <p>Miss the ball and they score. Whoever misses serves next.</p>
+    <button class="btn big p1" id="btn-howto-back">Got it</button>
+  </div>
+</section>
+
+<section class="screen overlay" id="scr-pause">
+  <div class="wrap">
+    <h2 id="pause-title">Menu</h2>
+    <button class="btn big p1" id="btn-resume">Resume</button>
+    <button class="btn" id="btn-sfx">Sound effects: on</button>
+    <button class="btn" id="btn-chirps">Chirps in practice: on</button>
+    <button class="btn ghost" id="btn-quit">Quit to title</button>
+    <div id="link-stats"></div>
+  </div>
+</section>
+
+<section class="screen overlay" id="scr-over">
+  <div class="wrap">
+    <h2 id="over-title">YOU WIN</h2>
+    <div id="over-score">11 – 7</div>
+    <div id="over-stats"></div>
+    <button class="btn big p1" id="btn-rematch">Rematch</button>
+    <button class="btn ghost" id="btn-over-menu">Quit to title</button>
+  </div>
+</section>
+
+<script id="chirp-core">
+// ============================================================================
+// Chirp modem core: tone plan, frame codec and demodulator. No DOM in here so
+// it can be exercised on its own (window.ChirpCore).
+//
+// Each player "sings" in their own band of 18 sine tones: 17 data tones plus a
+// sync tone. Data is 16-ary FSK (4 bits per 50 ms symbol). Symbols are coded
+// differentially so consecutive tones always differ, which lets the receiver
+// find symbol boundaries without sharing a clock. Every frame starts with a
+// 100 ms sync tone and ends with a CRC-8.
+// ============================================================================
+const ChirpCore = (() => {
+  'use strict';
+  const RES = 46.875;          // Hz per analysis bin (48000 / 1024)
+  const TONES = 18;
+  const DATA_TONES = 17;
+  const SYNC = 17;
+  const BAND_BASE = [30, 72];  // band 0: 1406–3000 Hz, band 1: 3375–4969 Hz
+  const T_SYM = 0.05;
+  const PRE_SYMS = 2;
+  const MIN_AMP = 0.0004;
+
+  const toneFreq = (band, k) => (BAND_BASE[band] + 2 * k) * RES;
+  const bandFreqs = (band) => Array.from({ length: TONES }, (_, k) => toneFreq(band, k));
+
+  const TYPES = { HELLO: 0, WELCOME: 1, BALL: 2, MISS: 3, ACK: 4, BOMB: 5, REMATCH: 6, TAUNT: 7 };
+  const TYPE_NAMES = Object.keys(TYPES);
+  // Frame = type (3 bits) + sequence bit + fields + zero padding + CRC-8.
+  const LAYOUT = [
+    [['nonce', 8], ['target', 4]],                                    // HELLO
+    [['nonce', 8], ['target', 4]],                                    // WELCOME
+    [['x', 6], ['ang', 5], ['spd', 3], ['spin', 3], ['trick', 3], ['rally', 5], ['smash', 1]], // BALL
+    [['sa', 4], ['sb', 4]],                                           // MISS (absolute scores)
+    [['of', 3]],                                                      // ACK
+    [['x', 6]],                                                       // BOMB
+    [['nonce', 8]],                                                   // REMATCH
+    [['emote', 4]],                                                   // TAUNT
+  ];
+  const CRC_BITS = 8;
+
+  function frameSymbols(type) {
+    const bits = 4 + LAYOUT[type].reduce((sum, f) => sum + f[1], 0) + CRC_BITS;
+    return Math.ceil(bits / 4);
+  }
+  const airtime = (type) => (PRE_SYMS + frameSymbols(type)) * T_SYM;
+
+  function crc8(bits) {
+    let c = 0x5a;
+    for (const b of bits) {
+      const top = ((c >> 7) & 1) ^ b;
+      c = (c << 1) & 0xff;
+      if (top) c ^= 0x07;
+    }
+    return c;
+  }
+
+  function pushBits(bits, value, n) {
+    for (let i = n - 1; i >= 0; i--) bits.push((value >> i) & 1);
+  }
+
+  function encodeFrame(type, seq, fields = {}) {
+    const bits = [];
+    pushBits(bits, type, 3);
+    pushBits(bits, seq & 1, 1);
+    for (const [name, n] of LAYOUT[type]) {
+      const v = Math.max(0, Math.min((1 << n) - 1, Math.round(fields[name] || 0)));
+      pushBits(bits, v, n);
+    }
+    const total = frameSymbols(type) * 4;
+    while (bits.length < total - CRC_BITS) bits.push(0);
+    pushBits(bits, crc8(bits), CRC_BITS);
+    const vals = [];
+    for (let i = 0; i < bits.length; i += 4) {
+      vals.push((bits[i] << 3) | (bits[i + 1] << 2) | (bits[i + 2] << 1) | bits[i + 3]);
+    }
+    return vals;
+  }
+
+  function decodeFrame(vals) {
+    if (!vals.length) return null;
+    const type = vals[0] >> 1;
+    if (vals.length !== frameSymbols(type)) return null;
+    const bits = [];
+    for (const v of vals) pushBits(bits, v, 4);
+    const bodyLen = bits.length - CRC_BITS;
+    let crc = 0;
+    for (let i = bodyLen; i < bits.length; i++) crc = (crc << 1) | bits[i];
+    if (crc8(bits.slice(0, bodyLen)) !== crc) return null;
+    let p = 4;
+    const fields = {};
+    for (const [name, n] of LAYOUT[type]) {
+      let v = 0;
+      for (let i = 0; i < n; i++) v = (v << 1) | bits[p++];
+      fields[name] = v;
+    }
+    for (; p < bodyLen; p++) if (bits[p]) return null;
+    return { type, name: TYPE_NAMES[type], seq: vals[0] & 1, fields };
+  }
+
+  // Read the first field (x for BALL and BOMB) before the frame is complete,
+  // so the receiving screen can start materialising the ball in the right spot.
+  function peekX(vals) {
+    if (vals.length < 3) return null;
+    return ((vals[1] << 2) | (vals[2] >> 2)) & 63;
+  }
+
+  function valuesToTones(vals) {
+    let prev = DATA_TONES - 1;
+    return vals.map((v) => (prev = (prev + 1 + v) % DATA_TONES));
+  }
+
+  // Render a frame to samples in plain JS (used by the tests).
+  function synthFrame(band, vals, sampleRate, { amp = 0.3, lead = 0.1, tail = 0.2 } = {}) {
+    const freqs = bandFreqs(band);
+    const seq = [];
+    for (let i = 0; i < PRE_SYMS; i++) seq.push(SYNC);
+    seq.push(...valuesToTones(vals));
+    const dur = seq.length * T_SYM;
+    const n = Math.ceil((lead + dur + tail) * sampleRate);
+    const out = new Float32Array(n);
+    let phase = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / sampleRate - lead;
+      if (t < 0 || t >= dur) continue;
+      const f = freqs[seq[Math.min(seq.length - 1, Math.floor(t / T_SYM))]];
+      phase += 2 * Math.PI * f / sampleRate;
+      const env = Math.min(1, t / 0.005, (dur - t) / 0.005);
+      out[i] = amp * env * Math.sin(phase);
+    }
+    return out;
+  }
+
+  class Demodulator {
+    constructor(sampleRate) {
+      this.sr = sampleRate;
+      const N = this.N = Math.round(sampleRate / RES);
+      this.W = N / sampleRate;                 // analysis window length (s)
+      this.hop = Math.round(N / 4);
+      this.hopDur = this.hop / sampleRate;
+      this.ring = new Float32Array(N);
+      this.x = new Float32Array(N);
+      this.win = new Float32Array(N);
+      for (let i = 0; i < N; i++) this.win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+      this.wpos = 0;
+      this.toHop = this.hop;
+      this.coef = [0, 1].map((b) => Float64Array.from(bandFreqs(b), (f) => 2 * Math.cos(2 * Math.PI * f / sampleRate)));
+      this.amp = [new Float32Array(TONES), new Float32Array(TONES)];
+      this.scratch = new Float32Array(TONES);
+      this.energy = new Float64Array(DATA_TONES);
+      this.rx = [0, 1].map(() => this.freshRx());
+      this.hist = [[], []];                     // recent hops per band, for symbol timing
+      this.lastActive = [-1e9, -1e9];
+      this.level = [0, 0];
+      this.rms = 0;
+      this.time = 0;
+      this.tx = null;
+      this.deaf = [false, false];
+      this.selfHear = false;
+      this.syncHops = Math.max(4, Math.round(0.048 / this.hopDur));
+      this.stats = { syncs: 0, frames: 0, crcFail: 0, retimed: 0 };
+      this.onFrame = this.onSync = this.onProgress = this.onAbort = null;
+    }
+
+    freshRx() {
+      // state 0: idle, 1: hearing the sync tone, 2: recording data symbols
+      return { state: 0, bits: 0, plateau: 0, prevAmp: 0, prevT: 0, syncStart: 0, taus: [], tau: 0, vals: [], expect: 0 };
+    }
+
+    // samples: Float32Array of mono audio; t0: audio-clock time of samples[0]
+    process(samples, t0) {
+      const { ring, N } = this;
+      let sumsq = 0;
+      for (let i = 0; i < samples.length; i++) {
+        const s = samples[i];
+        sumsq += s * s;
+        ring[this.wpos] = s;
+        if (++this.wpos === N) this.wpos = 0;
+        if (--this.toHop === 0) {
+          this.toHop = this.hop;
+          this.time = t0 + (i + 1) / this.sr;
+          this.analyze();
+        }
+      }
+      this.rms = Math.max(Math.sqrt(sumsq / Math.max(1, samples.length)), this.rms * 0.85);
+    }
+
+    analyze() {
+      const { N, ring, x, win } = this;
+      let p = this.wpos;
+      for (let i = 0; i < N; i++) {
+        x[i] = ring[p] * win[i];
+        if (++p === N) p = 0;
+      }
+      const scale = 4 / N;
+      const dom = [-1, -1];
+      const loose = [false, false];
+      const peaks = [0, 0];
+      const syncish = [false, false];
+      for (let b = 0; b < 2; b++) {
+        const coef = this.coef[b];
+        const amp = this.amp[b];
+        let best = -1, e1 = 0, e2 = 0;
+        for (let k = 0; k < TONES; k++) {
+          const c = coef[k];
+          let s1 = 0, s2 = 0;
+          for (let i = 0; i < N; i++) {
+            const s0 = x[i] + c * s1 - s2;
+            s2 = s1;
+            s1 = s0;
+          }
+          const a = Math.sqrt(Math.max(0, s1 * s1 + s2 * s2 - c * s1 * s2)) * scale;
+          amp[k] = a;
+          if (a > e1) { e2 = e1; e1 = a; best = k; } else if (a > e2) e2 = a;
+        }
+        const sc = this.scratch;
+        sc.set(amp);
+        sc.sort();
+        const med = 0.5 * (sc[8] + sc[9]);
+        this.level[b] = Math.max(e1, this.level[b] * 0.92);
+        peaks[b] = e1;
+        loose[b] = e1 > MIN_AMP && e1 > 4 * med;
+        if (e1 > MIN_AMP && e1 > 5 * med && e1 > 1.25 * e2) dom[b] = best;
+        if (dom[b] >= 0) this.lastActive[b] = this.time;
+        syncish[b] = best === SYNC && e1 > MIN_AMP && e1 > 3 * med;
+      }
+      this.updateDeaf(loose, peaks);
+      for (let b = 0; b < 2; b++) {
+        const hist = this.hist[b];
+        hist.push({ t: this.time, a: this.amp[b].slice() });
+        if (hist.length > 140) hist.shift();
+        if (this.deaf[b]) this.rx[b] = this.freshRx();
+        else this.receive(b, syncish[b]);
+      }
+    }
+
+    // Called when we start transmitting. We stop listening while we can hear
+    // ourselves (the low band's harmonics land in the high band, so a low-band
+    // transmission deafens both bands).
+    noteTx(band, t0, t1) {
+      const tx = this.tx;
+      if (tx && t0 <= tx.t1 + 0.3) {
+        tx.t1 = Math.max(tx.t1, t1);
+        tx.band = band;
+      } else {
+        this.tx = { band, t0, t1, saw: false, quiet: 0, peak: 0 };
+      }
+    }
+
+    // While we sing we can't hear the other phone: our own band is ignored
+    // until our chirp (delayed by speaker and microphone latency, plus room
+    // echo) has died away. The low band's harmonics land in the high band, so
+    // a low-band chirp also mutes the high band, but only while it plays: the
+    // other phone never answers until our whole frame has reached it.
+    updateDeaf(loose, peaks) {
+      const tx = this.tx;
+      const t = this.time;
+      this.deaf[0] = this.deaf[1] = false;
+      if (!tx || this.selfHear || t < tx.t0) return;
+      const own = tx.band;
+      tx.peak = Math.max(tx.peak, peaks[own]);
+      if (loose[own] && peaks[own] > 0.12 * tx.peak) { tx.saw = true; tx.quiet = 0; } else tx.quiet++;
+      let deafOwn;
+      if (t <= tx.t1) deafOwn = true;
+      else if (t > tx.t1 + 0.4) deafOwn = false;
+      else deafOwn = tx.saw ? tx.quiet < 4 : t < tx.t1 + 0.1;
+      this.deaf[own] = deafOwn;
+      if (own === 0) this.deaf[1] = t <= tx.t1 + 0.03;
+      if (!deafOwn && t > tx.t1) this.tx = null;
+    }
+
+    receive(b, syncish) {
+      const rx = this.rx[b];
+      const t = this.time;
+      const syncAmp = this.amp[b][SYNC];
+      if (rx.state === 2) {
+        this.progress(b, rx);
+        const lastTau = rx.taus[rx.taus.length - 1];
+        if (t > Math.max(rx.tau, lastTau) + rx.expect * T_SYM + 0.032) this.finish(b, rx);
+        return;
+      }
+      // The sync tone must win at least 7 of the last 10 hops (~50 ms).
+      rx.bits = ((rx.bits << 1) | (syncish ? 1 : 0)) & 1023;
+      if (rx.state === 0) {
+        let count = 0, oldest = 0;
+        for (let j = 0; j < 10; j++) if (rx.bits & (1 << j)) { count++; oldest = j; }
+        if (count >= 7) {
+          rx.state = 1;
+          rx.syncStart = t - oldest * this.hopDur;
+          rx.plateau = this.syncPlateau(b, rx.syncStart, t);
+          this.stats.syncs++;
+          if (this.onSync) this.onSync(b, t);
+        }
+      } else if (syncish) {
+        rx.plateau = this.syncPlateau(b, rx.syncStart, t);
+      } else if (syncAmp < 0.5 * rx.plateau) {
+        this.startData(b, rx, syncAmp);
+      } else if (t - rx.syncStart > 0.3) {
+        this.rx[b] = this.freshRx();  // a steady tone, not a frame
+        return;
+      }
+      rx.prevAmp = syncAmp;
+      rx.prevT = t;
+    }
+
+    // Typical sync amplitude once the tone is fully inside the window. A high
+    // percentile skips the ramp-up hops and ignores the odd reverb spike.
+    syncPlateau(b, from, to) {
+      const amps = this.hist[b].filter((h) => h.t >= from && h.t <= to).map((h) => h.a[SYNC]).sort((p, q) => p - q);
+      return amps.length ? amps[Math.floor(amps.length * 0.8)] : 0;
+    }
+
+    // The sync tone has ended. Work out when the first data symbol started.
+    // A sliding window reads half-amplitude when it straddles an edge, so each
+    // edge is half a window before its half-amplitude crossing. Reverb smears
+    // the falling edge, so the rising edge of the sync tone is tried first.
+    startData(b, rx, syncAmp) {
+      const t = this.time;
+      const half = 0.5 * rx.plateau;
+      const frac = rx.prevAmp > syncAmp ? (rx.prevAmp - half) / (rx.prevAmp - syncAmp) : 1;
+      const fall = rx.prevT + Math.max(0, Math.min(1, frac)) * (t - rx.prevT) - this.W / 2;
+      let rise = null;
+      const hist = this.hist[b];
+      for (let i = 1; i < hist.length; i++) {
+        const h = hist[i], p = hist[i - 1];
+        if (h.t < rx.syncStart - 0.06) continue;
+        if (h.t > rx.syncStart + 0.06) break;
+        if (h.a[SYNC] >= half && p.a[SYNC] < half) {
+          const f = (half - p.a[SYNC]) / (h.a[SYNC] - p.a[SYNC]);
+          rise = p.t + f * (h.t - p.t) - this.W / 2 + PRE_SYMS * T_SYM;
+          break;
+        }
+      }
+      rx.state = 2;
+      rx.taus = rise === null ? [fall] : [rise, fall];
+      rx.tau = rx.taus[0];
+      rx.expect = 4;
+      rx.vals = [];
+    }
+
+    // Pick the strongest tone in the middle of each symbol. The previous tone
+    // is never a candidate (differential coding forbids repeats), which keeps
+    // its reverb tail from being mistaken for the next symbol. The returned
+    // array carries a "clarity" score: how much each winner dominated, which
+    // peaks when the symbol windows line up with the real symbol boundaries.
+    symbols(hops, tau, count) {
+      const vals = [];
+      const e = this.energy;
+      let prev = DATA_TONES - 1;
+      let clarity = 0;
+      for (let i = 0; i < count; i++) {
+        const a = tau + i * T_SYM + this.W + 0.0025;
+        const z = tau + (i + 1) * T_SYM - 0.0025;
+        e.fill(0);
+        let n = 0;
+        for (const h of hops) {
+          if (h.t < a || h.t > z) continue;
+          for (let k = 0; k < DATA_TONES; k++) e[k] += h.a[k] * h.a[k];
+          n++;
+        }
+        if (!n) {
+          const c = tau + (i + 0.5) * T_SYM + this.W / 2;
+          let near = null;
+          for (const h of hops) if (!near || Math.abs(h.t - c) < Math.abs(near.t - c)) near = h;
+          if (!near || Math.abs(near.t - c) > T_SYM / 2) break;
+          for (let k = 0; k < DATA_TONES; k++) e[k] = near.a[k] * near.a[k];
+        }
+        let best = -1, be = -1, total = 0;
+        for (let k = 0; k < DATA_TONES; k++) {
+          if (k === prev) continue;
+          total += e[k];
+          if (e[k] > be) { be = e[k]; best = k; }
+        }
+        clarity += total > 0 ? be / total : 0;
+        vals.push((best - prev - 1 + 2 * DATA_TONES) % DATA_TONES);
+        prev = best;
+      }
+      vals.clarity = vals.length ? clarity / vals.length : 0;
+      return vals;
+    }
+
+    progress(b, rx) {
+      const done = Math.floor((this.time - rx.tau + 0.0025) / T_SYM);
+      if (done <= rx.vals.length) return;
+      rx.vals = this.symbols(this.hist[b], rx.tau, Math.min(done, rx.expect));
+      if (rx.vals.length) rx.expect = frameSymbols(rx.vals[0] >> 1);
+      if (rx.vals.length && this.onProgress) this.onProgress(b, rx.vals, rx.expect);
+    }
+
+    // Try symbol timings around the edge estimates, best-aligned first, and
+    // keep the first that passes the CRC. Only a handful are checked, so a
+    // burst of noise has little chance of slipping a bogus frame through.
+    finish(b, rx) {
+      this.rx[b] = this.freshRx();
+      const hops = this.hist[b];
+      const last = hops[hops.length - 1].t;
+      const cands = [];
+      for (const base of rx.taus) {
+        for (let off = -0.015; off <= 0.0151; off += 0.0025) {
+          const tau = base + off;
+          if (cands.some((c) => Math.abs(c.tau - tau) < 0.001)) continue;
+          const head = this.symbols(hops, tau, 1);
+          if (!head.length) continue;
+          const n = frameSymbols(head[0] >> 1);
+          if (tau + n * T_SYM - 0.0025 > last) continue;
+          const vals = this.symbols(hops, tau, n);
+          if (vals.length === n) cands.push({ tau, vals, nominal: off === 0 && base === rx.taus[0] });
+        }
+      }
+      cands.sort((p, q) => q.vals.clarity - p.vals.clarity);
+      for (let i = 0; i < Math.min(5, cands.length); i++) {
+        const frame = decodeFrame(cands[i].vals);
+        if (!frame) continue;
+        if (!cands[i].nominal) this.stats.retimed++;
+        frame.band = b;
+        frame.time = this.time;
+        this.stats.frames++;
+        if (this.onFrame) this.onFrame(frame);
+        return;
+      }
+      this.stats.crcFail++;
+      if (this.onAbort) this.onAbort(b, 'crc');
+    }
+
+    // Carrier sense: is anyone mid-transmission in this band?
+    busy(b) {
+      return this.rx[b].state !== 0 || this.time - this.lastActive[b] < 0.1;
+    }
+  }
+
+  return {
+    RES, TONES, DATA_TONES, SYNC, BAND_BASE, T_SYM, PRE_SYMS, TYPES, TYPE_NAMES, LAYOUT,
+    toneFreq, bandFreqs, frameSymbols, airtime, crc8, encodeFrame, decodeFrame, peekX,
+    valuesToTones, synthFrame, Demodulator,
+  };
+})();
+window.ChirpCore = ChirpCore;
+</script>
+
+<script>
+'use strict';
+const { TYPES, T_SYM, PRE_SYMS, SYNC, TONES } = ChirpCore;
+
+// ---------------------------------------------------------------------------
+// Small helpers
+// ---------------------------------------------------------------------------
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
+const wallClock = () => performance.now() / 1000;
+const $ = (sel) => document.querySelector(sel);
+
+function hexRgb(h) {
+  const n = parseInt(h.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function rgba(h, a) {
+  const [r, g, b] = hexRgb(h);
+  return `rgba(${r},${g},${b},${a})`;
+}
+function mix(h1, h2, t) {
+  const a = hexRgb(h1), b = hexRgb(h2);
+  return '#' + a.map((v, i) => Math.round(lerp(v, b[i], clamp(t, 0, 1))).toString(16).padStart(2, '0')).join('');
+}
+const glowCache = new Map();
+function glow(color) {
+  let c = glowCache.get(color);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, rgba(color, 1));
+  gr.addColorStop(0.25, rgba(color, 0.5));
+  gr.addColorStop(1, rgba(color, 0));
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  glowCache.set(color, c);
+  return c;
+}
+function rrect(g, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+const DISPLAY_FONT = 'Orbitron, ui-rounded, system-ui, sans-serif';
+// Orbitron's zero is slashed, which reads like a ⊘ at large sizes.
+const digits = (n) => String(n).replace(/0/g, 'O');
+function text(g, s, x, y, size, color, o = {}) {
+  const { align = 'center', weight = 900, alpha = 1, stroke = true, font = DISPLAY_FONT } = o;
+  g.globalAlpha = alpha;
+  g.font = `${weight} ${size}px ${font}`;
+  g.textAlign = align;
+  g.textBaseline = 'middle';
+  if (stroke) {
+    g.lineWidth = Math.min(size * 0.2, 1.4);
+    g.lineJoin = 'round';
+    g.strokeStyle = 'rgba(5,3,20,0.85)';
+    g.strokeText(s, x, y);
+  }
+  g.fillStyle = color;
+  g.fillText(s, x, y);
+  g.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Game constants
+// ---------------------------------------------------------------------------
+const PLAYER_COLORS = ['#26e3ff', '#ff3d9a'];
+const HOT = '#ff8a1f';
+const SPEEDS = [100, 118, 136, 156, 178, 202, 230, 262];  // court widths are 100 units
+const BALL_R = 2.6;
+const PADDLE_W = 24;
+const PADDLE_H = 3.6;
+const SPIN_ACC = 15;
+const MAX_ANG = 70 * Math.PI / 180;
+const CHARGE_MAX = 4;
+const VORTEX_G = 50000;
+const TRICKS = [
+  null,
+  { name: 'BLAZE', icon: '🔥', color: '#ff7a1a', desc: 'Arrives 45% faster, trailing fire.' },
+  { name: 'PHANTOM', icon: '👻', color: '#c3ccff', desc: 'Turns invisible across the middle of their court.' },
+  { name: 'MIRAGE', icon: '🔱', color: '#7dffb0', desc: 'Splits into three. Only one is real.' },
+  { name: 'BOMB', icon: '💣', color: '#ff4d4d', desc: 'A bomb falls alongside. If it touches their paddle, the paddle is stunned.' },
+  { name: 'VORTEX', icon: '🌀', color: '#9b6bff', desc: 'A black hole opens on their side and bends the ball.' },
+  { name: 'MIRROR', icon: '🔄', color: '#ffe14d', desc: 'Their controls flip left and right.' },
+  { name: 'SHRINK', icon: '🐜', color: '#4dffea', desc: 'Their paddle shrinks to half size.' },
+];
+const RELIABLE = new Set([TYPES.BALL, TYPES.MISS, TYPES.BOMB, TYPES.REMATCH, TYPES.TAUNT]);
+const NULL_SFX = new Proxy({}, { get: () => () => {} });
+const rallyValue = (r) => 1 + (r >= 6 ? 1 : 0) + (r >= 12 ? 1 : 0);
+const baseSpeed = (r) => Math.min(102 + r * 6, 215);
+function speedLevel(speed) {
+  let best = 0;
+  for (let i = 1; i < SPEEDS.length; i++) if (Math.abs(SPEEDS[i] - speed) < Math.abs(SPEEDS[best] - speed)) best = i;
+  return best;
+}
+
+// ---------------------------------------------------------------------------
+// Audio: tone synth (the "voice"), microphone capture and the modem
+// ---------------------------------------------------------------------------
+const CAPTURE_WORKLET = `
+class ChirpCapture extends AudioWorkletProcessor {
+  constructor() { super(); this.size = 512; this.buf = new Float32Array(this.size); this.n = 0; this.t = 0; }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (ch && ch.length) {
+      let i = 0;
+      while (i < ch.length) {
+        if (this.n === 0) this.t = currentTime + i / sampleRate;
+        const take = Math.min(ch.length - i, this.size - this.n);
+        this.buf.set(ch.subarray(i, i + take), this.n);
+        this.n += take;
+        i += take;
+        if (this.n === this.size) {
+          this.port.postMessage({ t: this.t, s: this.buf }, [this.buf.buffer]);
+          this.buf = new Float32Array(this.size);
+          this.n = 0;
+        }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('chirp-capture', ChirpCapture);
+`;
+
+class ToneSynth {
+  constructor(ctx, output, volume = 0.6) {
+    this.ctx = ctx;
+    this.out = output;
+    this.volume = volume;
+    this.enabled = true;
+    this.busyUntil = 0;
+  }
+
+  // Phase-continuous FSK: one oscillator retuned on each symbol boundary.
+  play(band, vals, delay = 0.05) {
+    const ctx = this.ctx;
+    const t0 = Math.max(ctx.currentTime + delay, this.busyUntil + 0.02);
+    const freqs = ChirpCore.bandFreqs(band);
+    const tones = ChirpCore.valuesToTones(vals);
+    const t1 = t0 + (PRE_SYMS + tones.length) * T_SYM;
+    this.busyUntil = t1;
+    if (this.enabled && this.volume > 0) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      osc.frequency.setValueAtTime(freqs[SYNC], t0);
+      tones.forEach((k, i) => osc.frequency.setValueAtTime(freqs[k], t0 + (PRE_SYMS + i) * T_SYM));
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(this.volume, t0 + 0.004);
+      g.gain.setValueAtTime(this.volume, t1 - 0.004);
+      g.gain.linearRampToValueAtTime(0, t1);
+      osc.connect(g);
+      g.connect(this.out);
+      osc.start(t0);
+      osc.stop(t1 + 0.01);
+      osc.onended = () => { osc.disconnect(); g.disconnect(); };
+    }
+    return { t0, t1, tones, lead: t0 - ctx.currentTime, airtime: t1 - ctx.currentTime };
+  }
+}
+
+class AudioModem {
+  constructor(ctx, { input, output, volume = 0.6 }) {
+    this.ctx = ctx;
+    this.input = input;
+    this.synth = new ToneSynth(ctx, output, volume);
+    this.demod = new ChirpCore.Demodulator(ctx.sampleRate);
+    this.node = null;
+  }
+
+  async start() {
+    const ctx = this.ctx;
+    const sink = ctx.createGain();
+    sink.gain.value = 0;
+    sink.connect(ctx.destination);
+    try {
+      if (!ctx.audioWorklet) throw new Error('AudioWorklet unavailable');
+      if (!AudioModem.modules.has(ctx)) {
+        const url = URL.createObjectURL(new Blob([CAPTURE_WORKLET], { type: 'application/javascript' }));
+        AudioModem.modules.set(ctx, ctx.audioWorklet.addModule(url));
+      }
+      await AudioModem.modules.get(ctx);
+      this.node = new AudioWorkletNode(ctx, 'chirp-capture', {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], channelCount: 1, channelCountMode: 'explicit',
+      });
+      this.node.port.onmessage = (e) => this.demod.process(e.data.s, e.data.t);
+    } catch (err) {
+      this.node = ctx.createScriptProcessor(1024, 1, 1);
+      this.node.onaudioprocess = (e) => this.demod.process(e.inputBuffer.getChannelData(0), e.playbackTime);
+    }
+    this.input.connect(this.node);
+    this.node.connect(sink);
+  }
+
+  transmit(band, vals) {
+    const r = this.synth.play(band, vals);
+    this.demod.noteTx(band, r.t0, r.t1);
+    return r;
+  }
+
+  stop() {
+    try { this.input.disconnect(this.node); } catch (e) { /* already gone */ }
+    try { this.node.disconnect(); } catch (e) { /* already gone */ }
+    if (this.node.port) this.node.port.onmessage = null;
+    this.node.onaudioprocess = null;
+  }
+}
+AudioModem.modules = new WeakMap();
+
+// A transport moves frames between two players. AudioTransport goes through
+// the speaker and microphone; VirtualTransport is an in-memory stand-in with
+// the same timing, used for practice against the CPU.
+class AudioTransport {
+  constructor(modem) {
+    this.modem = modem;
+    this.onFrame = this.onSync = this.onProgress = this.onAbort = null;
+    const d = modem.demod;
+    d.onFrame = (f) => this.onFrame && this.onFrame(f);
+    d.onSync = (b) => this.onSync && this.onSync(b);
+    d.onProgress = (b, vals, expect) => this.onProgress && this.onProgress(b, vals, expect);
+    d.onAbort = (b, why) => this.onAbort && this.onAbort(b, why);
+  }
+  send(band, type, seq, fields) {
+    return this.modem.transmit(band, ChirpCore.encodeFrame(type, seq, fields));
+  }
+  busy(band) {
+    const { demod, synth, ctx } = this.modem;
+    if (synth.busyUntil > ctx.currentTime) return true;
+    return ctx.currentTime - demod.time < 0.5 && demod.busy(band);
+  }
+}
+
+class VirtualAir {
+  constructor(clock, synths = null) {
+    this.clock = clock;
+    this.synths = synths;
+    this.events = [];
+    this.endpoints = [];
+    this.txEnd = [0, 0];
+  }
+  endpoint() {
+    const ep = new VirtualTransport(this);
+    this.endpoints.push(ep);
+    return ep;
+  }
+  transmit(from, band, vals) {
+    const now = this.clock();
+    const lead = Math.max(0.05, this.txEnd[band] - now + 0.02);
+    const start = now + lead;
+    const dur = (PRE_SYMS + vals.length) * T_SYM;
+    this.txEnd[band] = start + dur;
+    if (this.synths) this.synths[band].play(band, vals, lead);
+    const frame = ChirpCore.decodeFrame(vals);
+    frame.band = band;
+    for (const ep of this.endpoints) {
+      if (ep === from) continue;
+      this.events.push({ at: start + 0.06, fn: () => ep.onSync && ep.onSync(band) });
+      for (let i = 1; i <= vals.length; i++) {
+        const part = vals.slice(0, i);
+        this.events.push({ at: start + (PRE_SYMS + i) * T_SYM + 0.03, fn: () => ep.onProgress && ep.onProgress(band, part, vals.length) });
+      }
+      this.events.push({ at: start + dur + 0.05, fn: () => ep.onFrame && ep.onFrame(frame) });
+    }
+    this.events.sort((a, b) => a.at - b.at);
+    return { lead, airtime: lead + dur, tones: ChirpCore.valuesToTones(vals) };
+  }
+  update() {
+    const now = this.clock();
+    while (this.events.length && this.events[0].at <= now) this.events.shift().fn();
+  }
+}
+
+class VirtualTransport {
+  constructor(air) {
+    this.air = air;
+    this.onFrame = this.onSync = this.onProgress = this.onAbort = null;
+  }
+  send(band, type, seq, fields) {
+    return this.air.transmit(this, band, ChirpCore.encodeFrame(type, seq, fields));
+  }
+  busy(band) {
+    return this.air.clock() < this.air.txEnd[band];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Link: stop-and-wait ARQ with an alternating sequence bit. Game messages are
+// queued and resent until the other side acknowledges them.
+// ---------------------------------------------------------------------------
+const ACK_DELAY = 0.14;
+class Link {
+  constructor(transport, side, clock) {
+    this.t = transport;
+    this.side = side;
+    this.peer = 1 - side;
+    this.clock = clock;
+    this.queue = [];
+    this.out = null;
+    this.txSeq = 0;
+    this.rxSeq = 0;
+    this.ack = null;
+    this.busyUntil = 0;
+    this.onMessage = null;
+    this.onTransmit = null;
+    this.stats = { sent: 0, retries: 0, received: 0, dups: 0, acks: 0 };
+  }
+
+  send(type, fields) {
+    this.queue.push({ type, fields });
+  }
+
+  get trouble() {
+    return this.out ? this.out.tries : 0;
+  }
+
+  update() {
+    const now = this.clock();
+    if (now < this.busyUntil || this.channelBusy(now)) return;
+    if (this.ack) {
+      if (now >= this.ack.at) {
+        this.transmit(TYPES.ACK, this.ack.seq, { of: this.ack.of });
+        this.ack = null;
+      }
+      return;
+    }
+    if (!this.out && this.queue.length) {
+      this.out = { ...this.queue.shift(), seq: this.txSeq, tries: 0, due: now };
+    }
+    if (this.out && now >= this.out.due) {
+      const air = this.transmit(this.out.type, this.out.seq, this.out.fields);
+      this.out.tries++;
+      if (this.out.tries > 1) this.stats.retries++;
+      else this.stats.sent++;
+      this.out.due = now + air + 0.95 + Math.random() * 0.5;
+    }
+  }
+
+  // Listen before talking, but don't let a whistle or music in their band
+  // hold us off for long.
+  channelBusy(now) {
+    if (!this.t.busy(this.peer)) {
+      this.blockedSince = 0;
+      return false;
+    }
+    if (!this.blockedSince) this.blockedSince = now;
+    return now - this.blockedSince < 0.8;
+  }
+
+  transmit(type, seq, fields) {
+    const r = this.t.send(this.side, type, seq, fields);
+    this.busyUntil = this.clock() + r.airtime + 0.03;
+    if (this.onTransmit) this.onTransmit(type, r);
+    return r.airtime;
+  }
+
+  handleFrame(f) {
+    if (f.band !== this.peer) return;
+    if (f.type === TYPES.ACK) {
+      if (this.out && f.seq === this.out.seq && f.fields.of === this.out.type) {
+        this.stats.acks++;
+        this.complete();
+      }
+      return;
+    }
+    if (!RELIABLE.has(f.type)) {
+      if (this.onMessage) this.onMessage(f);
+      return;
+    }
+    this.ack = { seq: f.seq, of: f.type, at: this.clock() + ACK_DELAY };
+    if (f.seq !== this.rxSeq) {
+      this.stats.dups++;
+      return;
+    }
+    this.rxSeq ^= 1;
+    this.stats.received++;
+    // The ball can only come back if our ball got there: count it as an ack.
+    if (this.out && this.out.type === TYPES.BALL && (f.type === TYPES.BALL || f.type === TYPES.MISS)) this.complete();
+    if (this.onMessage) this.onMessage(f);
+  }
+
+  complete() {
+    this.out = null;
+    this.txSeq ^= 1;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Lobby: pairing handshake. The caller sings HELLO in the low band until the
+// other phone answers WELCOME in the high band. If both call at once, the
+// lower nonce gives way.
+// ---------------------------------------------------------------------------
+class Lobby {
+  constructor(transport, clock) {
+    this.t = transport;
+    this.clock = clock;
+    this.mode = 'listen';
+    this.role = -1;
+    this.nonce = 0;
+    this.peerNonce = -1;
+    this.target = 11;
+    this.calls = 0;
+    this.nextCall = 0;
+    this.pending = null;
+    this.blockedSince = 0;
+    this.onPaired = null;
+  }
+  call(target) {
+    this.mode = 'call';
+    this.target = target;
+    this.nonce = 1 + Math.floor(Math.random() * 254);
+    this.calls = 0;
+    this.nextCall = this.clock();
+  }
+  update() {
+    const now = this.clock();
+    const busy = this.t.busy(0) || this.t.busy(1);
+    if (!busy) this.blockedSince = 0;
+    else if (!this.blockedSince) this.blockedSince = now;
+    const clear = !busy || now - this.blockedSince > 0.8;
+    if (this.pending && now >= this.pending.at && clear) {
+      this.t.send(1, TYPES.WELCOME, 0, this.pending.fields);
+      this.pending = null;
+    }
+    if (this.mode === 'call' && now >= this.nextCall && clear) {
+      const r = this.t.send(0, TYPES.HELLO, 0, { nonce: this.nonce, target: this.target });
+      this.calls++;
+      this.nextCall = now + r.airtime + 1.0 + Math.random() * 0.9;
+    }
+  }
+  handleFrame(f) {
+    if (f.type === TYPES.HELLO && f.band === 0) {
+      const n = f.fields.nonce;
+      if (this.mode === 'call' && n <= this.nonce) return;
+      if (this.mode === 'paired' && this.role === 1 && n === this.peerNonce) {
+        // They missed our answer: answer again.
+        this.pending = { at: this.clock() + 0.15, fields: { nonce: n, target: f.fields.target } };
+        return;
+      }
+      // Otherwise this is a new call, perhaps from a phone that reloaded mid-game.
+      this.mode = 'paired';
+      this.role = 1;
+      this.peerNonce = n;
+      this.pending = { at: this.clock() + 0.15, fields: { nonce: n, target: f.fields.target } };
+      if (this.onPaired) this.onPaired(1, f.fields.target || 11);
+    } else if (f.type === TYPES.WELCOME && f.band === 1 && this.mode === 'call' && f.fields.nonce === this.nonce) {
+      this.mode = 'paired';
+      this.role = 0;
+      if (this.onPaired) this.onPaired(0, this.target);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sound effects. Everything goes through a steep low-pass so effects never
+// land in the 1.4–5 kHz bands the modem uses.
+// ---------------------------------------------------------------------------
+class Sfx {
+  constructor(ctx) {
+    this.ctx = ctx;
+    this.enabled = true;
+    this.bus = ctx.createGain();
+    this.bus.gain.value = 0.6;
+    const lp1 = ctx.createBiquadFilter();
+    const lp2 = ctx.createBiquadFilter();
+    lp1.type = lp2.type = 'lowpass';
+    lp1.frequency.value = lp2.frequency.value = 1100;
+    this.bus.connect(lp1);
+    lp1.connect(lp2);
+    lp2.connect(ctx.destination);
+    this.noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = this.noise.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  tone(f0, f1, dur, vol = 0.4, delay = 0, type = 'sine') {
+    if (!this.enabled) return;
+    const t = this.ctx.currentTime + delay;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);
+    g.connect(this.bus);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  noiseHit(dur, vol, cutoff, delay = 0) {
+    if (!this.enabled) return;
+    const t = this.ctx.currentTime + delay;
+    const s = this.ctx.createBufferSource();
+    s.buffer = this.noise;
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = cutoff;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f);
+    f.connect(g);
+    g.connect(this.bus);
+    s.start(t, Math.random() * 0.5);
+    s.stop(t + dur + 0.02);
+  }
+  hit() { this.tone(340, 120, 0.12, 0.5); this.noiseHit(0.05, 0.25, 900); }
+  wall() { this.tone(560, 470, 0.05, 0.16); }
+  smash() { this.tone(230, 55, 0.35, 0.8); this.noiseHit(0.3, 0.6, 700); }
+  serve() { this.tone(260, 520, 0.12, 0.35); }
+  gem() { [392, 494, 587, 784].forEach((f, i) => this.tone(f, f * 1.01, 0.1, 0.3, i * 0.055)); }
+  arrive() { this.tone(900, 260, 0.2, 0.3); }
+  send() { this.tone(260, 900, 0.18, 0.22); }
+  miss() { this.tone(420, 90, 0.6, 0.5); }
+  score() { [330, 440, 554, 660, 880].forEach((f, i) => this.tone(f, f, 0.14, 0.32, i * 0.07)); }
+  boom() { this.noiseHit(0.5, 0.9, 500); this.tone(120, 40, 0.5, 0.7); }
+  fizz() { this.noiseHit(0.25, 0.3, 800); }
+  stun() { this.tone(180, 140, 0.4, 0.4, 0, 'triangle'); this.tone(190, 150, 0.4, 0.3, 0.05, 'triangle'); }
+  tick() { this.tone(660, 660, 0.08, 0.3); }
+  go() { this.tone(880, 880, 0.25, 0.35); }
+  pop() { this.tone(700, 1000, 0.07, 0.2); }
+  trick() { this.tone(200, 800, 0.3, 0.35); }
+  win() { [523, 659, 784, 1046].forEach((f, i) => this.tone(f, f, 0.25, 0.35, i * 0.12)); }
+  lose() { [392, 330, 262, 196].forEach((f, i) => this.tone(f, f * 0.98, 0.3, 0.35, i * 0.15)); }
+}
+
+// ---------------------------------------------------------------------------
+// Controllers drive a game's paddle: a person's finger or the CPU.
+// ---------------------------------------------------------------------------
+class HumanController {
+  constructor() {
+    this.pointers = new Map();
+    this.primary = null;
+    this.taps = [];
+    this.aim = null;
+    this.offset = 13;
+    this.keys = new Set();
+  }
+  down(id, x, y, type) {
+    this.pointers.set(id, { x, y, sx: x, sy: y, t: wallClock() });
+    if (this.primary === null || !this.pointers.has(this.primary)) this.primary = id;
+    this.offset = type === 'mouse' ? 0 : 13;
+    if (id === this.primary) this.aim = { x, y };
+  }
+  move(id, x, y, type) {
+    const p = this.pointers.get(id);
+    if (p) { p.x = x; p.y = y; }
+    if (type === 'mouse') {
+      this.offset = 0;
+      this.aim = { x, y };
+    } else if (id === this.primary) {
+      this.aim = { x, y };
+    }
+  }
+  up(id, x, y) {
+    const p = this.pointers.get(id);
+    if (!p) return;
+    this.pointers.delete(id);
+    if (wallClock() - p.t < 0.35 && Math.hypot(x - p.sx, y - p.sy) < 6) this.taps.push({ x, y });
+    if (id === this.primary) {
+      this.primary = this.pointers.size ? this.pointers.keys().next().value : null;
+      if (this.primary !== null) {
+        const q = this.pointers.get(this.primary);
+        this.aim = { x: q.x, y: q.y };
+      }
+    }
+  }
+  update(g, dt) {
+    const k = this.keys;
+    if (k.size) {
+      const a = this.aim || (this.aim = { x: g.paddle.x, y: g.H });
+      this.offset = 0;
+      if (k.has('ArrowLeft') || k.has('a')) a.x -= 150 * dt;
+      if (k.has('ArrowRight') || k.has('d')) a.x += 150 * dt;
+      a.x = clamp(a.x, 0, g.W);
+      a.y = k.has('ArrowUp') || k.has('w') ? g.H - 40 : g.H - 12;
+    }
+    if (this.aim) g.setTarget(this.aim.x, this.aim.y - this.offset);
+    for (const t of this.taps) g.tap(t.x, t.y);
+    this.taps.length = 0;
+  }
+  key(e, down) {
+    if (down) this.keys.add(e.key); else this.keys.delete(e.key);
+    if (down && (e.key === ' ' || e.key === 'Enter')) this.taps.push({ x: this.aim ? this.aim.x : 50, y: 0 });
+  }
+}
+
+class AIController {
+  constructor(skill = 0.7) {
+    this.skill = skill;
+    this.x = 50;
+    this.aimX = 50;
+    this.offset = 0;
+    this.focus = null;
+    this.react = 0;
+    this.wait = rand(0.6, 1.4);
+    this.smash = false;
+    this.compensate = false;
+  }
+  update(g, dt) {
+    const p = g.paddle;
+    let tx = 50, ty = g.H - 15;
+    if (g.state === 'serve') {
+      tx = 50 + Math.sin(g.time * 1.7) * 22;
+      this.wait -= dt;
+      if (this.wait <= 0) { g.tap(tx, g.H / 2); this.wait = rand(0.6, 1.4); }
+    } else if (g.state === 'have') {
+      const incoming = g.balls.filter((b) => b.vy > 0 && b.y < p.y);
+      if (!incoming.includes(this.focus)) {
+        const real = incoming.find((b) => !b.decoy);
+        this.focus = real && Math.random() < 0.35 + 0.5 * this.skill ? real : incoming[Math.floor(Math.random() * incoming.length)] || null;
+        this.offset = rand(-0.75, 0.75);
+        this.smash = Math.random() < 0.3 * this.skill;
+        this.compensate = Math.random() < 0.65;
+        this.react = 0;
+      }
+      const b = this.focus;
+      if (b) {
+        this.react -= dt;
+        if (this.react <= 0 && g.ballAlpha(b) > 0.3) {
+          this.react = 0.1 + (1 - this.skill) * 0.22;
+          const err = (1 - this.skill) * 22 * (b.speed / 120) * (Math.random() + Math.random() - 1);
+          this.aimX = this.predict(b, p.y, g) + err;
+        }
+        tx = this.aimX - this.offset * p.w * 0.45;
+        if (this.smash && b.y > p.y - 22) ty = g.H - 40;
+      }
+    } else if (g.state === 'away' && g.charge >= CHARGE_MAX) {
+      this.wait -= dt;
+      if (this.wait <= 0) { g.tap(rand(10, 90), g.H / 2); this.wait = rand(1, 3); }
+    }
+    if (g.fx.mirror && this.compensate) tx = g.W - tx;
+    const maxV = 120 + this.skill * 190;
+    this.x += clamp(tx - this.x, -maxV * dt, maxV * dt);
+    g.setTarget(this.x, ty);
+  }
+  // Where will the ball cross the paddle line? Straight lines and wall
+  // bounces only: curve and vortexes are what make tricks work on the CPU.
+  predict(b, y, g) {
+    if (b.vy <= 0) return b.x;
+    const lo = BALL_R, hi = g.W - BALL_R, span = hi - lo;
+    let x = b.x + b.vx * ((y - b.y) / b.vy) - lo;
+    x = ((x % (2 * span)) + 2 * span) % (2 * span);
+    return lo + (x > span ? 2 * span - x : x);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Game: one player's half of the court
+// ---------------------------------------------------------------------------
+class Game {
+  constructor(o) {
+    this.side = o.side;
+    this.peer = 1 - o.side;
+    this.link = o.link;
+    this.controller = o.controller;
+    this.sfx = o.sfx || NULL_SFX;
+    this.canvas = o.canvas || null;
+    this.g = this.canvas ? this.canvas.getContext('2d') : null;
+    this.labels = o.labels || ['YOU', 'THEM'];
+    this.target = o.target || 11;
+    this.haptics = !!o.haptics && 'vibrate' in navigator;
+    this.W = 100;
+    this.H = o.H || 190;
+    this.view = { ox: 0, oy: 0, scale: 4, dpr: 1, safeTop: 0, safeBottom: 0 };
+    this.time = 0;
+    this.particles = [];
+    this.popups = [];
+    this.shake = 0;
+    this.flash = 0;
+    this.flashColor = '#fff';
+    this.heatVis = 0;
+    this.gridPhase = 0;
+    this.outgoing = null;
+    this.incoming = null;
+    this.input = { x: 50, y: this.H - 16 };
+    this.paddle = { x: 50, y: this.H - 16, w: PADDLE_W, h: PADDLE_H, vx: 0, vy: 0, prevY: this.H - 16, stun: 0, swipe: 0, flick: 0 };
+    this.onGameOver = null;
+    this.onRematch = null;
+    this.totals = { hits: 0, crossings: 0, received: 0 };
+    this.link.onMessage = (f) => this.onMessage(f);
+    this.link.onTransmit = (type, info) => this.onTransmit(type, info);
+    this.resetMatch(!!o.serving);
+  }
+
+  resetMatch(serving) {
+    this.score = [0, 0];
+    this.rally = 0;
+    this.charge = 0;
+    this.chargeAnnounced = false;
+    this.balls = [];
+    this.bombs = [];
+    this.gem = null;
+    this.vortex = null;
+    this.fx = { mirror: false, shrink: false };
+    this.stats = { longest: 0, smashes: 0, tricks: 0, bombsHit: 0, curves: 0 };
+    this.winner = -1;
+    this.serving = serving;
+    this.state = 'countdown';
+    this.stateT = 3;
+    this.firstServe = true;
+  }
+
+  setHeight(H) {
+    const old = this.H;
+    this.H = clamp(H, 120, 260);
+    const dy = this.H - old;
+    this.paddle.y += dy;
+    this.paddle.prevY += dy;
+    this.input.y += dy;
+  }
+
+  setTarget(x, y) {
+    this.input.x = x;
+    this.input.y = y;
+  }
+
+  setState(s) {
+    this.state = s;
+  }
+
+  vibrate(p) {
+    if (this.haptics) try { navigator.vibrate(p); } catch (e) { /* not supported */ }
+  }
+
+  // -------------------------------------------------------------- update ---
+  update(dt) {
+    this.time += dt;
+    if (this.controller) this.controller.update(this, dt);
+    this.updatePaddle(dt);
+    switch (this.state) {
+      case 'countdown': {
+        const before = Math.ceil(this.stateT);
+        this.stateT -= dt;
+        if (Math.ceil(this.stateT) !== before && this.stateT > 0) this.sfx.tick();
+        if (this.stateT <= 0) {
+          this.sfx.go();
+          this.popup('GO!', 50, this.H * 0.45, '#fff', 14, 0.8);
+          if (this.serving) this.beginServe(); else this.setState('away');
+        }
+        break;
+      }
+      case 'serve': this.updateServe(dt); break;
+      case 'have': this.updateBalls(dt); break;
+      case 'scored':
+        this.stateT -= dt;
+        this.updateBalls(dt);
+        if (this.stateT <= 0) this.beginServe();
+        break;
+      default: break;
+    }
+    this.updateBombs(dt);
+    this.updateGem(dt);
+    this.updateVortex(dt);
+    this.updateParticles(dt);
+    this.shake *= Math.exp(-dt * 9);
+    this.flash = Math.max(0, this.flash - dt * 2.2);
+    const heat = clamp(this.rally / 12, 0, 1.2);
+    this.heatVis += (heat - this.heatVis) * Math.min(1, dt * 2);
+    this.gridPhase = (this.gridPhase + dt * (0.5 + this.heatVis * 1.6)) % 1;
+    if (this.incoming && this.time - this.incoming.t > 1.6) this.incoming = null;
+  }
+
+  updatePaddle(dt) {
+    const p = this.paddle;
+    p.w += ((this.fx.shrink ? PADDLE_W * 0.55 : PADDLE_W) - p.w) * Math.min(1, dt * 8);
+    let tx = this.input.x;
+    if (this.fx.mirror) tx = this.W - tx;
+    tx = clamp(tx, p.w / 2, this.W - p.w / 2);
+    const ty = clamp(this.input.y, this.H - 36, this.H - 10);
+    const ox = p.x, oy = p.y;
+    p.prevY = p.y;
+    if (p.stun > 0) {
+      p.stun -= dt;
+    } else {
+      const k = Math.min(1, dt * 30);
+      p.x += (tx - p.x) * k;
+      p.y += (ty - p.y) * k;
+    }
+    p.x = clamp(p.x, p.w / 2, this.W - p.w / 2);
+    const s = Math.max(dt, 1e-3);
+    const k2 = Math.min(1, dt * 20);
+    p.vx += ((p.x - ox) / s - p.vx) * k2;
+    p.vy += ((p.y - oy) / s - p.vy) * k2;
+    // Remember the strongest recent swipe and upward flick for ~0.1 s, so a
+    // curve or smash still counts if the finger moved just before contact.
+    const fade = Math.exp(-dt / 0.1);
+    p.swipe = Math.abs(p.vx) > Math.abs(p.swipe * fade) ? p.vx : p.swipe * fade;
+    p.flick = Math.min(p.vy, p.flick * fade);
+  }
+
+  makeBall(x, y, vx, vy, extra = {}) {
+    return {
+      x, y, vx, vy, speed: Math.hypot(vx, vy) || 90, spin: 0, trick: 0, decoy: false, phantom: false,
+      blaze: false, smash: false, trail: [], color: PLAYER_COLORS[this.side], ...extra,
+    };
+  }
+
+  beginServe() {
+    this.setState('serve');
+    this.stateT = 8;
+    this.rally = 0;
+    this.balls = [this.makeBall(this.paddle.x, this.paddle.y - 6, 0, 0)];
+    this.maybeSpawnGem(0.75);
+  }
+
+  updateServe(dt) {
+    const b = this.balls[0];
+    const p = this.paddle;
+    b.x = p.x;
+    b.y = p.y - p.h / 2 - BALL_R - 0.6 + Math.sin(this.time * 6) * 0.6;
+    b.trail.length = 0;
+    this.stateT -= dt;
+    if (this.stateT <= 0) this.launchServe();
+  }
+
+  launchServe() {
+    const b = this.balls[0];
+    const ang = clamp(this.paddle.vx / 300, -0.35, 0.35) + rand(-0.15, 0.15);
+    b.speed = 100;
+    b.vx = Math.sin(ang) * b.speed;
+    b.vy = -Math.cos(ang) * b.speed;
+    this.firstServe = false;
+    this.setState('have');
+    this.sfx.serve();
+    this.ring(b.x, b.y, PLAYER_COLORS[this.side], 2, 12, 0.35);
+  }
+
+  tap(x) {
+    if (this.state === 'serve') this.launchServe();
+    else if (this.state === 'away' && this.charge >= CHARGE_MAX) this.dropBomb(x);
+  }
+
+  updateBalls(dt) {
+    for (const b of [...this.balls]) {
+      const steps = Math.max(1, Math.ceil((b.speed * dt) / 1.2));
+      const h = dt / steps;
+      for (let s = 0; s < steps && this.balls.includes(b); s++) this.stepBall(b, h);
+      if (!this.balls.includes(b)) continue;
+      b.spin *= Math.exp(-dt / 2.4);
+      b.trail.push(b.x, b.y);
+      if (b.trail.length > 28) b.trail.splice(0, 2);
+      if (b.blaze && Math.random() < 0.8) this.spark(b.x, b.y, Math.random() < 0.5 ? '#ff7a1a' : '#ffd24d', 1, 10, 0.4, 1.2);
+    }
+  }
+
+  stepBall(b, h) {
+    if (b.spin) b.vx += b.spin * SPIN_ACC * h;
+    const v = this.vortex;
+    if (v && v.power > 0) {
+      const dx = v.x - b.x, dy = v.y - b.y;
+      const d2 = Math.max(dx * dx + dy * dy, 80);
+      const d = Math.sqrt(d2);
+      const a = Math.min(VORTEX_G / d2, 420) * v.power;
+      b.vx += (dx / d) * a * h;
+      b.vy += (dy / d) * a * h;
+    }
+    const sp = Math.hypot(b.vx, b.vy) || 1;
+    b.vx *= b.speed / sp;
+    b.vy *= b.speed / sp;
+    const minVy = b.speed * 0.28;
+    if (Math.abs(b.vy) < minVy) {
+      b.vy = (b.vy >= 0 ? 1 : -1) * minVy;
+      b.vx = (b.vx >= 0 ? 1 : -1) * Math.sqrt(b.speed * b.speed - minVy * minVy);
+    }
+    b.x += b.vx * h;
+    b.y += b.vy * h;
+    if (b.x < BALL_R) { b.x = BALL_R; b.vx = Math.abs(b.vx); this.onWall(b); }
+    else if (b.x > this.W - BALL_R) { b.x = this.W - BALL_R; b.vx = -Math.abs(b.vx); this.onWall(b); }
+    if (b.vy > 0) this.checkPaddle(b);
+    const m = this.gem;
+    if (m && !b.decoy && (b.x - m.x) ** 2 + (b.y - m.y) ** 2 < (BALL_R + 5.5) ** 2) this.collectGem(b);
+    if (b.y < -BALL_R && b.vy < 0) this.exitTop(b);
+    else if (b.y > this.H + BALL_R + 2) this.exitBottom(b);
+  }
+
+  onWall(b) {
+    b.spin = -b.spin * 0.6;
+    this.sfx.wall();
+    this.spark(b.x, b.y, b.color, 4, 25, 0.25);
+  }
+
+  checkPaddle(b) {
+    const p = this.paddle;
+    const half = Math.max(0, p.w / 2 - p.h / 2);
+    const cx = clamp(b.x, p.x - half, p.x + half);
+    const dx = b.x - cx;
+    const rr = BALL_R + p.h / 2;
+    const dy = b.y - p.y;
+    const touching = dx * dx + dy * dy <= rr * rr && dy < 0.5;
+    // A paddle flicked upward can jump past the ball within one frame.
+    const swept = p.prevY > p.y && b.y >= p.y && b.y <= p.prevY + rr && Math.abs(dx) < rr;
+    if (touching || swept) this.hitBall(b);
+  }
+
+  hitBall(b) {
+    const p = this.paddle;
+    if (b.decoy) {
+      this.popDecoy(b, true);
+      return;
+    }
+    const off = clamp((b.x - p.x) / (p.w / 2), -1, 1);
+    const ang = off * 1.05;
+    const smash = p.flick < -75 && p.stun <= 0;
+    this.rally++;
+    this.totals.hits++;
+    this.stats.longest = Math.max(this.stats.longest, this.rally);
+    const speed = baseSpeed(this.rally) * (smash ? 1.35 : 1);
+    b.speed = speed;
+    b.vx = Math.sin(ang) * speed;
+    b.vy = -Math.cos(ang) * speed;
+    b.y = Math.min(b.y, p.y - p.h / 2 - BALL_R - 0.2);
+    const avx = Math.abs(p.swipe);
+    b.spin = avx >= 50 ? Math.sign(p.swipe) * Math.min(3, Math.floor(avx / 50)) : 0;
+    b.smash = smash;
+    b.blaze = false;
+    b.phantom = false;
+    b.color = PLAYER_COLORS[this.side];
+    this.charge = Math.min(CHARGE_MAX, this.charge + 1);
+    for (const d of [...this.balls]) if (d.decoy) this.popDecoy(d, false);
+    const col = PLAYER_COLORS[this.side];
+    this.ring(b.x, p.y, col, 3, 16, 0.35, 0.8);
+    this.spark(b.x, b.y, col, smash ? 26 : 12, smash ? 70 : 40, 0.45);
+    this.vibrate(smash ? 30 : 12);
+    if (smash) {
+      this.stats.smashes++;
+      this.sfx.smash();
+      this.shake = 2.2;
+      this.flash = 0.25;
+      this.flashColor = '#ffffff';
+      this.popup('SMASH!', b.x, b.y - 8, '#fff', 7);
+    } else {
+      this.sfx.hit();
+    }
+    if (b.spin) {
+      this.stats.curves++;
+      this.popup(b.spin > 0 ? 'CURVE ↷' : '↶ CURVE', b.x, b.y - (smash ? 15 : 8), '#ffe14d', 4.2, 0.8);
+    }
+    if (this.charge === CHARGE_MAX && !this.chargeAnnounced) {
+      this.chargeAnnounced = true;
+      this.popup('💣 BOMB READY', 50, this.H * 0.64, HOT, 4.5, 1.4);
+    }
+    if (rallyValue(this.rally) > rallyValue(this.rally - 1)) {
+      this.popup(`×${rallyValue(this.rally)} POINTS`, 50, this.H * 0.42, HOT, 7, 1.3);
+      this.flash = 0.3;
+      this.flashColor = HOT;
+    }
+  }
+
+  popDecoy(d, touched) {
+    this.balls = this.balls.filter((x) => x !== d);
+    this.spark(d.x, d.y, '#7dffb0', 14, 35, 0.45);
+    this.ring(d.x, d.y, '#7dffb0', 1, 9, 0.3);
+    if (touched) {
+      this.popup('FAKE!', d.x, d.y - 6, '#7dffb0', 6);
+      this.sfx.pop();
+    }
+  }
+
+  collectGem(b) {
+    const m = this.gem;
+    const tr = TRICKS[m.trick];
+    this.gem = null;
+    b.trick = m.trick;
+    this.stats.tricks++;
+    this.sfx.gem();
+    this.spark(m.x, m.y, tr.color, 22, 45, 0.6);
+    this.ring(m.x, m.y, tr.color, 3, 18, 0.45, 0.9);
+    this.popup(`${tr.icon} ${tr.name} LOADED`, m.x, m.y - 9, tr.color, 4.6, 1.3);
+  }
+
+  maybeSpawnGem(prob) {
+    if (this.gem || Math.random() > prob) return;
+    this.gem = {
+      x: rand(16, 84), y: this.H * rand(0.24, 0.55), trick: 1 + Math.floor(Math.random() * 7), t: 0, life: 14,
+    };
+  }
+
+  updateGem(dt) {
+    const m = this.gem;
+    if (!m) return;
+    m.t += dt;
+    m.life -= dt;
+    if (m.life <= 0) this.gem = null;
+  }
+
+  exitTop(b) {
+    this.balls = this.balls.filter((x) => x !== b);
+    if (b.decoy) return;
+    for (const d of [...this.balls]) this.popDecoy(d, false);
+    const ang = Math.atan2(b.vx, -b.vy);
+    this.link.send(TYPES.BALL, {
+      x: Math.round(clamp(b.x / this.W, 0, 1) * 63),
+      ang: Math.round(((clamp(ang, -MAX_ANG, MAX_ANG) + MAX_ANG) / (2 * MAX_ANG)) * 31),
+      spd: speedLevel(b.speed),
+      spin: clamp(Math.round(b.spin), -3, 3) + 3,
+      trick: b.trick,
+      rally: Math.min(31, this.rally),
+      smash: b.smash ? 1 : 0,
+    });
+    this.totals.crossings++;
+    this.endVisit();
+    this.setState('away');
+    this.sfx.send();
+    const col = PLAYER_COLORS[this.side];
+    for (let i = 0; i < 6; i++) this.note(b.x + rand(-4, 4), 4, col);
+    this.spark(b.x, 1, col, 16, 40, 0.5);
+    if (b.trick) {
+      const tr = TRICKS[b.trick];
+      this.popup(`${tr.icon} ${tr.name} SENT!`, clamp(b.x, 25, 75), 18, tr.color, 5, 1.4);
+    }
+  }
+
+  exitBottom(b) {
+    this.balls = this.balls.filter((x) => x !== b);
+    if (b.decoy) {
+      this.spark(b.x, this.H - 2, '#7dffb0', 8, 25, 0.4);
+      return;
+    }
+    for (const d of [...this.balls]) this.popDecoy(d, false);
+    const pts = rallyValue(this.rally);
+    this.score[this.peer] += pts;
+    this.link.send(TYPES.MISS, { sa: this.score[0], sb: this.score[1] });
+    this.endVisit();
+    this.rally = 0;
+    this.sfx.miss();
+    this.shake = 3;
+    this.flash = 0.45;
+    this.flashColor = PLAYER_COLORS[this.peer];
+    this.vibrate([40, 40, 60]);
+    this.popup(`${this.labels[1]} +${pts}`, 50, this.H * 0.45, PLAYER_COLORS[this.peer], 9, 1.6);
+    if (this.score[this.peer] >= this.target) this.finish(this.peer);
+    else { this.setState('scored'); this.stateT = 1.6; }
+  }
+
+  // The ball left our side: effects that were tied to it end.
+  endVisit() {
+    this.fx.mirror = false;
+    this.fx.shrink = false;
+    if (this.vortex) this.vortex.dying = true;
+  }
+
+  dropBomb(x) {
+    this.charge = 0;
+    this.chargeAnnounced = false;
+    this.link.send(TYPES.BOMB, { x: Math.round(clamp(x / this.W, 0, 1) * 63) });
+    this.popup('💣 BOMB AWAY!', 50, this.H * 0.5, HOT, 6, 1.2);
+    this.particles.push({ kind: 3, x, y: this.H * 0.6, vx: 0, vy: -150, life: 1.2, max: 1.2, color: HOT });
+    this.sfx.send();
+  }
+
+  spawnBomb(x) {
+    this.bombs.push({ x: clamp(x, 5, this.W - 5), y: -5, vy: 46 + this.rally * 1.5, t: 0 });
+  }
+
+  updateBombs(dt) {
+    const p = this.paddle;
+    for (const m of [...this.bombs]) {
+      m.t += dt;
+      m.vy += 14 * dt;
+      m.y += m.vy * dt;
+      if (Math.random() < 0.6) this.spark(m.x + 1.8, m.y - 3.2, '#ffd24d', 1, 12, 0.25, 0.8);
+      if (Math.abs(m.x - p.x) < p.w / 2 + 2.6 && Math.abs(m.y - p.y) < p.h / 2 + 2.6) {
+        this.bombs = this.bombs.filter((q) => q !== m);
+        p.stun = 1.4;
+        this.stats.bombsHit++;
+        this.sfx.boom();
+        this.sfx.stun();
+        this.shake = 3.5;
+        this.flash = 0.4;
+        this.flashColor = '#ff4d4d';
+        this.vibrate([80, 40, 80]);
+        this.spark(m.x, m.y, '#ff4d4d', 30, 70, 0.7, 1.4);
+        this.spark(m.x, m.y, '#ffd24d', 20, 50, 0.6);
+        this.ring(m.x, m.y, '#ff4d4d', 2, 26, 0.5, 1.2);
+        this.popup('STUNNED!', p.x, p.y - 12, '#ff4d4d', 6);
+      } else if (m.y > this.H + 6) {
+        this.bombs = this.bombs.filter((q) => q !== m);
+        this.sfx.fizz();
+        this.spark(m.x, this.H - 2, '#ff9a4d', 12, 30, 0.4);
+      }
+    }
+  }
+
+  updateVortex(dt) {
+    const v = this.vortex;
+    if (!v) return;
+    v.life -= dt;
+    if (v.life <= 0) v.dying = true;
+    v.power = clamp(v.power + (v.dying ? -dt * 1.5 : dt * 1.8), 0, 1);
+    if (v.dying && v.power <= 0) this.vortex = null;
+  }
+
+  // ------------------------------------------------------------ messages ---
+  onMessage(f) {
+    switch (f.type) {
+      case TYPES.BALL: this.receiveBall(f.fields); break;
+      case TYPES.MISS: this.receiveMiss(f.fields); break;
+      case TYPES.BOMB:
+        if (this.state === 'over') break;
+        this.spawnBomb(this.W * (1 - f.fields.x / 63));
+        this.incoming = null;
+        this.ring(this.W * (1 - f.fields.x / 63), 0, '#ff4d4d', 2, 14, 0.4, 0.8);
+        break;
+      case TYPES.REMATCH:
+        if (this.state === 'over') {
+          this.restart();
+          if (this.onRematch) this.onRematch();
+        }
+        break;
+      default: break;
+    }
+  }
+
+  receiveBall(f) {
+    if (this.state === 'over') return;
+    this.totals.received++;
+    const x = clamp(this.W * (1 - f.x / 63), BALL_R, this.W - BALL_R);
+    const ang = -((f.ang / 31) * 2 - 1) * MAX_ANG;
+    let speed = SPEEDS[f.spd];
+    if (f.trick === 1) speed = Math.min(speed * 1.45, 300);
+    this.rally = f.rally;
+    const color = PLAYER_COLORS[this.peer];
+    const make = (a, extra) => this.makeBall(x, -BALL_R, Math.sin(a) * speed, Math.cos(a) * speed, {
+      speed, spin: -(f.spin - 3), smash: false, color, ...extra,
+    });
+    const b = make(ang, {});
+    this.balls = [b];
+    this.setState('have');
+    this.incoming = null;
+    this.sfx.arrive();
+    this.ring(x, 0, color, 2, 16, 0.4, 0.8);
+    this.spark(x, 1, color, 18, 45, 0.5);
+    if (f.smash) {
+      this.shake = 1.6;
+      this.popup('SMASH!', x, 14, color, 6, 0.9);
+    }
+    const trick = TRICKS[f.trick];
+    if (trick) {
+      this.flash = 0.35;
+      this.flashColor = trick.color;
+      this.sfx.trick();
+      this.popup(`${trick.icon} ${trick.name}!`, 50, this.H * 0.3, trick.color, 7, 1.5);
+    }
+    switch (f.trick) {
+      case 1: b.blaze = true; break;
+      case 2: b.phantom = true; break;
+      case 3: {
+        const real = Math.floor(Math.random() * 3);
+        this.balls = [-1, 0, 1].map((k, i) => (i === real ? Object.assign(b, { vx: Math.sin(ang + k * 0.24) * speed, vy: Math.cos(ang + k * 0.24) * speed }) : make(ang + k * 0.24, { decoy: true })));
+        break;
+      }
+      case 4: this.spawnBomb(x + (Math.random() < 0.5 ? -1 : 1) * rand(14, 24)); break;
+      case 5: this.vortex = { x: rand(28, 72), y: this.H * rand(0.36, 0.52), life: 7, power: 0, dying: false }; break;
+      case 6: this.fx.mirror = true; break;
+      case 7: this.fx.shrink = true; break;
+      default: break;
+    }
+    this.maybeSpawnGem(0.55);
+  }
+
+  receiveMiss(f) {
+    if (this.state === 'over') return;
+    const ns = [f.sa, f.sb];
+    const gained = ns[this.side] - this.score[this.side];
+    this.score = ns;
+    this.rally = 0;
+    if (gained > 0) {
+      this.sfx.score();
+      this.flash = 0.4;
+      this.flashColor = PLAYER_COLORS[this.side];
+      this.popup(`POINT! +${gained}`, 50, this.H * 0.45, PLAYER_COLORS[this.side], 9, 1.8);
+      for (let i = 0; i < 5; i++) this.spark(rand(10, 90), rand(this.H * 0.3, this.H * 0.6), PLAYER_COLORS[this.side], 10, 50, 0.8);
+    }
+    if (ns[this.side] >= this.target) this.finish(this.side);
+    else if (ns[this.peer] >= this.target) this.finish(this.peer);
+  }
+
+  finish(winner) {
+    this.winner = winner;
+    this.balls = [];
+    this.setState('over');
+    if (winner === this.side) this.sfx.win(); else this.sfx.lose();
+    if (this.onGameOver) this.onGameOver(winner);
+  }
+
+  requestRematch() {
+    if (this.state !== 'over') return;
+    this.link.send(TYPES.REMATCH, { nonce: Math.floor(Math.random() * 256) });
+    this.restart();
+  }
+
+  // The loser of the last match serves first.
+  restart() {
+    const serving = this.winner === -1 ? this.side === 0 : this.winner !== this.side;
+    this.resetMatch(serving);
+  }
+
+  onTransmit(type, info) {
+    if (type === TYPES.ACK) return;
+    this.outgoing = { start: this.time + info.lead, tones: info.tones, type };
+  }
+
+  incomingSync() {
+    this.incoming = { t: this.time, kind: null, x: null, progress: 0 };
+  }
+
+  incomingProgress(vals, expect) {
+    if (!this.incoming) this.incomingSync();
+    const inc = this.incoming;
+    inc.t = this.time;
+    const type = vals[0] >> 1;
+    if (type === TYPES.BALL) inc.kind = 'ball';
+    else if (type === TYPES.BOMB) inc.kind = 'bomb';
+    else { this.incoming = null; return; }
+    inc.progress = vals.length / expect;
+    const px = ChirpCore.peekX(vals);
+    if (px !== null) inc.x = this.W * (1 - px / 63);
+  }
+
+  incomingAbort() {
+    this.incoming = null;
+  }
+
+  currentTone() {
+    const o = this.outgoing;
+    if (!o) return null;
+    const i = Math.floor((this.time - o.start) / T_SYM);
+    if (i < 0) return null;
+    if (i >= PRE_SYMS + o.tones.length) {
+      this.outgoing = null;
+      return null;
+    }
+    return { k: i < PRE_SYMS ? SYNC : o.tones[i - PRE_SYMS], i };
+  }
+
+  ballAlpha(b) {
+    if (!b.phantom) return 1;
+    const d = Math.abs(b.y / this.H - 0.46);
+    const a = clamp((d - 0.2) / 0.06, 0, 1);
+    return Math.max(a, Math.sin(this.time * 31) > 0.97 ? 0.25 : 0);
+  }
+
+  // ----------------------------------------------------------- particles ---
+  spark(x, y, color, n = 10, speed = 40, life = 0.5, size = 1) {
+    if (!this.g) return;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = speed * (0.3 + Math.random());
+      this.particles.push({ kind: 0, x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life, max: life, color, size: size * rand(0.6, 1.4) });
+    }
+  }
+  ring(x, y, color, r0, r1, life = 0.4, width = 0.6) {
+    if (this.g) this.particles.push({ kind: 1, x, y, r0, r1, life, max: life, color, width });
+  }
+  note(x, y, color) {
+    if (this.g) this.particles.push({ kind: 2, x, y, vx: rand(-8, 8), vy: rand(-30, -14), life: 0.9, max: 0.9, color, ch: Math.random() < 0.5 ? '♪' : '♫' });
+  }
+  popup(s, x, y, color, size = 6, life = 1.1) {
+    if (!this.g) return;
+    x = clamp(x, 18, 82);
+    for (let tries = 0; tries < 5; tries++) {
+      const hit = this.popups.find((p) => p.life > 0.25 && Math.abs(p.y - y) < (p.size + size) * 0.62);
+      if (!hit) break;
+      y = hit.y - (hit.size + size) * 0.65;
+    }
+    this.popups.push({ s, x, y: Math.max(y, 8), color, size, life, max: life });
+  }
+  updateParticles(dt) {
+    for (const p of this.particles) {
+      p.life -= dt;
+      if (p.kind !== 1) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= Math.exp(-dt * 2.5);
+        p.vy *= Math.exp(-dt * 2.5);
+      }
+    }
+    this.particles = this.particles.filter((p) => p.life > 0);
+    if (this.particles.length > 450) this.particles.splice(0, this.particles.length - 450);
+    for (const p of this.popups) {
+      p.life -= dt;
+      p.y -= dt * 7;
+    }
+    this.popups = this.popups.filter((p) => p.life > 0);
+  }
+
+  // -------------------------------------------------------------- render ---
+  render() {
+    const g = this.g;
+    if (!g) return;
+    const v = this.view;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#04030c';
+    g.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    const k = v.dpr * v.scale;
+    let sx = 0, sy = 0;
+    if (this.shake > 0.05) {
+      sx = (Math.random() * 2 - 1) * this.shake;
+      sy = (Math.random() * 2 - 1) * this.shake;
+    }
+    g.setTransform(k, 0, 0, k, v.dpr * v.ox + sx * k, v.dpr * v.oy + sy * k);
+    g.save();
+    g.beginPath();
+    g.rect(0, 0, this.W, this.H);
+    g.clip();
+    this.drawBackground(g);
+    this.drawPortal(g);
+    this.drawVortex(g);
+    this.drawGem(g);
+    this.drawBombs(g);
+    this.drawBalls(g);
+    this.drawPaddle(g);
+    this.drawParticles(g);
+    this.drawPopups(g);
+    this.drawHud(g);
+    if (this.flash > 0) {
+      g.globalAlpha = Math.min(0.45, this.flash);
+      g.fillStyle = this.flashColor;
+      g.fillRect(0, 0, this.W, this.H);
+      g.globalAlpha = 1;
+    }
+    g.restore();
+  }
+
+  drawBackground(g) {
+    const { W, H } = this;
+    const h = clamp(this.heatVis, 0, 1);
+    const fever = this.heatVis > 0.98 ? 0.5 + 0.5 * Math.sin(this.time * 8) : 0;
+    const bg = g.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, mix('#0b0729', '#2b0618', h));
+    bg.addColorStop(1, mix('#140c3d', '#3d1607', h));
+    g.fillStyle = bg;
+    g.fillRect(0, 0, W, H);
+    // A perspective floor that recedes through the portal toward the other phone.
+    const vpY = -H * 0.55;
+    const gc = mix(PLAYER_COLORS[this.side], HOT, h);
+    g.strokeStyle = gc;
+    g.lineWidth = 0.3;
+    g.globalAlpha = 0.16 + 0.1 * fever;
+    g.beginPath();
+    for (let i = -6; i <= 16; i++) {
+      const xb = i * 10;
+      g.moveTo(xb, H);
+      g.lineTo(xb + (W / 2 - xb) * (H / (H - vpY)), 0);
+    }
+    g.stroke();
+    for (let n = 0; n < 40; n++) {
+      const z = n + this.gridPhase;
+      const y = vpY + (H - vpY) / (1 + z * 0.22);
+      if (y < 0) break;
+      g.globalAlpha = (0.08 + 0.3 * (y / H)) * (1 + fever * 0.6);
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(W, y);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    // side rails
+    g.fillStyle = rgba(gc, 0.5);
+    g.fillRect(0, 0, 0.6, H);
+    g.fillRect(W - 0.6, 0, 0.6, H);
+  }
+
+  drawPortal(g) {
+    const { W } = this;
+    const pc = PLAYER_COLORS[this.peer];
+    const mc = PLAYER_COLORS[this.side];
+    const inc = this.incoming;
+    const out = this.currentTone();
+    const pulse = inc ? 0.5 + 0.5 * Math.sin(this.time * 18) : 0;
+    const depth = 15 + (inc ? 10 * (0.5 + inc.progress) : 0);
+    const grad = g.createLinearGradient(0, 0, 0, depth);
+    grad.addColorStop(0, rgba(pc, 0.5 + 0.4 * pulse));
+    grad.addColorStop(1, rgba(pc, 0));
+    g.fillStyle = grad;
+    g.fillRect(0, 0, W, depth);
+    const amp = 0.6 + (out ? 1.8 : 0) + (inc ? 1.2 + pulse : 0);
+    const freq = out ? 0.2 + (out.k / TONES) * 0.5 : 0.3;
+    g.strokeStyle = out ? mc : pc;
+    g.lineWidth = 0.5;
+    g.beginPath();
+    for (let x = 0; x <= W; x += 1) {
+      const y = 2.4 + Math.sin(x * freq + this.time * 9) * amp * Math.sin((x / W) * Math.PI);
+      if (x === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.stroke();
+    if (out) {
+      // The tone being sung right now, as a beam: low notes left, high right.
+      const x = ((out.k + 0.5) / TONES) * W;
+      const bg = g.createLinearGradient(0, 0, 0, 26);
+      bg.addColorStop(0, rgba(mc, 0.95));
+      bg.addColorStop(1, rgba(mc, 0));
+      g.fillStyle = bg;
+      g.fillRect(x - 1.6, 0, 3.2, 26);
+      if (out.i !== this.lastNote) {
+        this.lastNote = out.i;
+        this.note(x, 6, mc);
+      }
+    }
+    if (inc) {
+      const label = inc.kind === 'bomb' ? '💣 INCOMING' : inc.kind === 'ball' ? 'INCOMING!' : '';
+      if (label) text(g, label, 50, depth + 3, 4.2, pc, { alpha: 0.6 + 0.4 * pulse });
+      if (inc.x !== null) {
+        const r = 2.5 + 10 * (1 - inc.progress);
+        g.globalCompositeOperation = 'lighter';
+        g.globalAlpha = 0.5 + 0.5 * inc.progress;
+        g.drawImage(glow(pc), inc.x - r * 1.6, 3 - r * 1.6, r * 3.2, r * 3.2);
+        g.globalAlpha = 1;
+        g.globalCompositeOperation = 'source-over';
+        g.strokeStyle = pc;
+        g.lineWidth = 0.6;
+        g.beginPath();
+        g.arc(inc.x, 3, r, 0, Math.PI * 2);
+        g.stroke();
+        if (Math.random() < 0.5) {
+          const a = Math.random() * Math.PI * 2;
+          this.particles.push({ kind: 0, x: inc.x + Math.cos(a) * 14, y: 3 + Math.sin(a) * 14, vx: -Math.cos(a) * 30, vy: -Math.sin(a) * 30, life: 0.4, max: 0.4, color: pc, size: 0.8 });
+        }
+      }
+    }
+  }
+
+  drawVortex(g) {
+    const v = this.vortex;
+    if (!v || v.power <= 0.01) return;
+    const R = 17 * v.power;
+    g.save();
+    g.translate(v.x, v.y);
+    g.globalAlpha = v.power;
+    g.globalCompositeOperation = 'lighter';
+    g.drawImage(glow('#9b6bff'), -R * 1.5, -R * 1.5, R * 3, R * 3);
+    g.globalCompositeOperation = 'source-over';
+    g.strokeStyle = 'rgba(205,180,255,0.75)';
+    g.lineWidth = 0.5;
+    for (let arm = 0; arm < 4; arm++) {
+      g.beginPath();
+      for (let t = 0; t <= 1; t += 0.04) {
+        const a = arm * Math.PI / 2 + t * 5 - this.time * 3.2;
+        const r = R * (1 - t * 0.9);
+        if (t === 0) g.moveTo(Math.cos(a) * r, Math.sin(a) * r); else g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      g.stroke();
+    }
+    g.fillStyle = '#05020f';
+    g.beginPath();
+    g.arc(0, 0, 2.8 * v.power, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+    g.globalAlpha = 1;
+  }
+
+  drawGem(g) {
+    const m = this.gem;
+    if (!m) return;
+    const tr = TRICKS[m.trick];
+    const y = m.y + Math.sin(this.time * 3 + m.x) * 1.2;
+    g.globalAlpha = clamp(Math.min(m.t * 3, m.life * 1.5), 0, 1) * (m.life < 3 && Math.sin(this.time * 20) > 0.6 ? 0.4 : 1);
+    g.globalCompositeOperation = 'lighter';
+    g.drawImage(glow(tr.color), m.x - 11, y - 11, 22, 22);
+    g.globalCompositeOperation = 'source-over';
+    g.save();
+    g.translate(m.x, y);
+    g.rotate(this.time * 1.3);
+    g.strokeStyle = tr.color;
+    g.lineWidth = 0.7;
+    g.beginPath();
+    for (let i = 0; i <= 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      if (i === 0) g.moveTo(Math.cos(a) * 6, Math.sin(a) * 6); else g.lineTo(Math.cos(a) * 6, Math.sin(a) * 6);
+    }
+    g.stroke();
+    g.restore();
+    g.font = '5px system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(tr.icon, m.x, y + 0.3);
+    g.globalAlpha = 1;
+  }
+
+  drawBombs(g) {
+    const p = this.paddle;
+    for (const m of this.bombs) {
+      g.strokeStyle = 'rgba(255,77,77,0.35)';
+      g.lineWidth = 0.4;
+      g.setLineDash([1.5, 1.5]);
+      g.beginPath();
+      g.moveTo(m.x, m.y + 3);
+      g.lineTo(m.x, p.y);
+      g.stroke();
+      g.setLineDash([]);
+      text(g, '✕', m.x, p.y, 3.4, '#ff4d4d', { alpha: 0.5 + 0.5 * Math.sin(this.time * 14), stroke: false });
+      g.globalCompositeOperation = 'lighter';
+      g.drawImage(glow('#ff4d4d'), m.x - 7, m.y - 7, 14, 14);
+      g.globalCompositeOperation = 'source-over';
+      g.font = '6px system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText('💣', m.x, m.y);
+    }
+  }
+
+  drawBalls(g) {
+    for (const b of this.balls) {
+      const alpha = this.state === 'serve' ? 1 : this.ballAlpha(b);
+      if (alpha <= 0.01) continue;
+      const trailCol = b.blaze ? '#ff7a1a' : b.color;
+      g.globalCompositeOperation = 'lighter';
+      g.lineCap = 'round';
+      const t = b.trail;
+      for (let i = 2; i < t.length; i += 2) {
+        const f = i / t.length;
+        g.strokeStyle = rgba(trailCol, 0.55 * f * alpha);
+        g.lineWidth = BALL_R * 1.7 * f;
+        g.beginPath();
+        g.moveTo(t[i - 2], t[i - 1]);
+        g.lineTo(t[i], t[i + 1]);
+        g.stroke();
+      }
+      const gc = b.blaze ? '#ff7a1a' : b.trick ? TRICKS[b.trick].color : b.color;
+      g.globalAlpha = alpha;
+      g.drawImage(glow(gc), b.x - 9, b.y - 9, 18, 18);
+      g.globalCompositeOperation = 'source-over';
+      g.fillStyle = '#ffffff';
+      g.beginPath();
+      g.arc(b.x, b.y, BALL_R, 0, Math.PI * 2);
+      g.fill();
+      if (b.trick) {
+        const a = this.time * 5;
+        g.font = '3.6px system-ui, sans-serif';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(TRICKS[b.trick].icon, b.x + Math.cos(a) * 5.2, b.y + Math.sin(a) * 5.2);
+      }
+      g.globalAlpha = 1;
+    }
+  }
+
+  drawPaddle(g) {
+    const p = this.paddle;
+    const stunned = p.stun > 0;
+    const col = stunned ? '#7f86a8' : PLAYER_COLORS[this.side];
+    const jx = stunned ? (Math.random() - 0.5) * 0.9 : 0;
+    const x = p.x - p.w / 2 + jx;
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = 0.85;
+    g.drawImage(glow(col), x - 6, p.y - 8, p.w + 12, 16);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = col;
+    rrect(g, x, p.y - p.h / 2, p.w, p.h, p.h / 2);
+    g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.7)';
+    rrect(g, x + 1.4, p.y - p.h / 2 + 0.5, p.w - 2.8, 0.9, 0.45);
+    g.fill();
+    if (stunned) {
+      g.strokeStyle = '#ffe14d';
+      g.lineWidth = 0.4;
+      g.beginPath();
+      for (let s = 0; s < 3; s++) {
+        let lx = x + Math.random() * p.w;
+        g.moveTo(lx, p.y - 4);
+        for (let j = 0; j < 4; j++) { lx += rand(-2, 2); g.lineTo(lx, p.y - 4 + j * 2.6); }
+      }
+      g.stroke();
+    }
+    if (this.fx.mirror) text(g, '⇄ MIRRORED', p.x, p.y + 5.6, 2.8, '#ffe14d', { alpha: 0.9 });
+    else if (this.fx.shrink) text(g, 'SHRUNK', p.x, p.y + 5.6, 2.6, '#4dffea', { alpha: 0.9 });
+  }
+
+  drawParticles(g) {
+    g.globalCompositeOperation = 'lighter';
+    for (const p of this.particles) {
+      const f = p.life / p.max;
+      if (p.kind === 0) {
+        g.globalAlpha = f;
+        g.fillStyle = p.color;
+        const s = p.size * (0.5 + f);
+        g.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+      } else if (p.kind === 1) {
+        g.globalAlpha = f;
+        g.strokeStyle = p.color;
+        g.lineWidth = p.width * f + 0.1;
+        g.beginPath();
+        g.arc(p.x, p.y, lerp(p.r1, p.r0, f), 0, Math.PI * 2);
+        g.stroke();
+      } else if (p.kind === 2) {
+        g.globalAlpha = f;
+        g.fillStyle = p.color;
+        g.font = '4px system-ui, sans-serif';
+        g.textAlign = 'center';
+        g.fillText(p.ch, p.x, p.y);
+      } else if (p.kind === 3) {
+        g.globalAlpha = Math.min(1, f * 2);
+        g.font = '6px system-ui, sans-serif';
+        g.textAlign = 'center';
+        g.fillText('💣', p.x, p.y);
+      }
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  drawPopups(g) {
+    for (const p of this.popups) {
+      const f = p.life / p.max;
+      const age = p.max - p.life;
+      const scale = age < 0.12 ? 0.6 + (age / 0.12) * 0.55 : age < 0.22 ? 1.15 - ((age - 0.12) / 0.1) * 0.15 : 1;
+      text(g, p.s, p.x, p.y, p.size * scale, p.color, { alpha: Math.min(1, f * 2.5) });
+    }
+  }
+
+  drawHud(g) {
+    const { W, H } = this;
+    const v = this.view;
+    const top = v.safeTop / v.scale;
+    const bottom = H - v.safeBottom / v.scale;
+    const mc = PLAYER_COLORS[this.side], pc = PLAYER_COLORS[this.peer];
+    const y0 = top + 15;
+    text(g, this.labels[0], 5, y0, 3, mc, { align: 'left', alpha: 0.85, weight: 700 });
+    text(g, digits(this.score[this.side]), 5, y0 + 8, 11, mc, { align: 'left' });
+    text(g, this.labels[1], W - 5, y0, 3, pc, { align: 'right', alpha: 0.85, weight: 700 });
+    text(g, digits(this.score[this.peer]), W - 5, y0 + 8, 11, pc, { align: 'right' });
+    if (this.rally > 0 && this.state !== 'over') {
+      const val = rallyValue(this.rally);
+      text(g, `RALLY ${this.rally}`, 50, y0, 3.2, val > 1 ? HOT : '#c9cdf2', { alpha: 0.9, weight: 700 });
+      if (val > 1) text(g, `×${val}`, 50, y0 + 7, 7 + Math.sin(this.time * 10) * 0.4, HOT);
+    }
+    // bomb charge
+    const full = this.charge >= CHARGE_MAX;
+    for (let i = 0; i < CHARGE_MAX; i++) {
+      const x = 50 + (i - (CHARGE_MAX - 1) / 2) * 5;
+      g.fillStyle = i < this.charge ? (full ? HOT : rgba(HOT, 0.75)) : 'rgba(255,255,255,0.13)';
+      g.beginPath();
+      g.arc(x, bottom - 3.5, full ? 1.4 + Math.sin(this.time * 8) * 0.25 : 1.2, 0, Math.PI * 2);
+      g.fill();
+    }
+    if (full) text(g, '💣', 50 + (CHARGE_MAX / 2) * 5 + 3, bottom - 3.5, 3.2, '#fff', { stroke: false });
+    // state messages
+    const L = this.link;
+    if (this.state === 'countdown') {
+      const n = Math.ceil(this.stateT);
+      const f = this.stateT - Math.floor(this.stateT);
+      text(g, digits(n), 50, H * 0.45, 22 + f * 8, '#fff', { alpha: 0.4 + f * 0.6 });
+      text(g, this.serving ? 'YOU SERVE FIRST' : 'THEY SERVE FIRST', 50, H * 0.45 + 17, 4, this.serving ? mc : pc, { weight: 700 });
+    } else if (this.state === 'serve') {
+      text(g, 'TAP TO SERVE', 50, H * 0.56, 5, mc, { alpha: 0.65 + 0.35 * Math.sin(this.time * 5) });
+      if (this.firstServe) {
+        const tips = ['Swipe sideways as you hit → curve', 'Flick up into the ball → smash', 'Hit gems to load tricks for their side'];
+        tips.forEach((s, i) => text(g, s, 50, H * 0.56 + 9 + i * 5, 2.9, '#c9cdf2', { weight: 500, alpha: 0.8, font: 'system-ui, sans-serif' }));
+      }
+    } else if (this.state === 'away') {
+      let msg = 'THEIR SIDE', col = '#8d92c0';
+      if (L.out && L.out.type === TYPES.BALL && (this.outgoing || L.out.tries > 1)) { msg = L.out.tries > 1 ? 'RESENDING…' : 'SENDING…'; col = mc; }
+      else if (full) { msg = '💣 TAP TO BOMB THEM'; col = HOT; }
+      text(g, msg, 50, H * 0.56, 4.4, col, { alpha: 0.55 + 0.3 * Math.sin(this.time * 4) });
+    }
+    if (L.trouble >= 3 && this.state !== 'over') {
+      text(g, "📢 CAN'T REACH THE OTHER PHONE", 50, top + 34, 3.4, '#ffcf4d', { alpha: 0.7 + 0.3 * Math.sin(this.time * 6) });
+      text(g, 'Volume up · move the phones closer', 50, top + 39, 2.8, '#ffcf4d', { weight: 500, font: 'system-ui, sans-serif' });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// App: menus, modes and the main loop
+// ---------------------------------------------------------------------------
+class App {
+  constructor() {
+    this.canvas = $('#court');
+    this.ctx = null;
+    this.sfx = NULL_SFX;
+    this.mode = 'menu';
+    this.games = [];
+    this.links = [];
+    this.lobby = null;
+    this.air = null;
+    this.mainGame = null;
+    this.human = null;
+    this.paused = false;
+    this.clockT = 0;
+    this.target = 11;
+    this.sfxOn = true;
+    this.chirpsOn = true;
+    this.last = performance.now();
+    this.safe = { top: 0, bottom: 0 };
+    this.bindUi();
+    this.layout();
+    window.addEventListener('resize', () => this.layout());
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        if (this.ctx) this.ctx.resume();
+        if (this.mode === 'duel' || this.mode === 'practice') this.keepAwake();
+      }
+    });
+    requestAnimationFrame((t) => this.loop(t));
+    if (location.hash.startsWith('#sim')) this.startSim();
+    else if (location.hash === '#practice') $('#btn-practice').click();
+  }
+
+  clock() {
+    return this.clockT;
+  }
+
+  show(id) {
+    for (const s of document.querySelectorAll('.screen')) s.classList.toggle('active', s.id === id);
+  }
+
+  status(msg, cls = '', hold = 0) {
+    if (!hold && wallClock() < (this.statusHold || 0)) return;
+    if (hold) this.statusHold = wallClock() + hold;
+    const el = $('#lobby-status');
+    el.textContent = msg;
+    el.className = 'status ' + cls;
+  }
+
+  bindUi() {
+    $('#trick-list').innerHTML = TRICKS.slice(1).map((t) => `<div class="ic">${t.icon}</div><div><b style="color:${t.color}">${t.name}</b><br>${t.desc}</div>`).join('');
+    for (const b of document.querySelectorAll('#seg-target button')) {
+      b.addEventListener('click', () => {
+        this.target = +b.dataset.v;
+        for (const o of document.querySelectorAll('#seg-target button')) o.classList.toggle('on', o === b);
+      });
+    }
+    $('#btn-duel').addEventListener('click', () => this.openLobby());
+    $('#btn-practice').addEventListener('click', () => this.startPractice());
+    $('#btn-howto').addEventListener('click', () => this.show('scr-howto'));
+    $('#btn-howto-back').addEventListener('click', () => this.show('scr-title'));
+    $('#btn-lobby-back').addEventListener('click', () => this.quit());
+    $('#btn-call').addEventListener('click', () => {
+      if (!this.lobby) return;
+      this.lobby.call(this.target);
+      $('#btn-call').disabled = true;
+    });
+    $('#btn-selftest').addEventListener('click', () => this.selfTest());
+    $('#btn-menu').addEventListener('click', () => this.openPause());
+    $('#btn-resume').addEventListener('click', () => { this.paused = false; this.show(null); });
+    $('#btn-quit').addEventListener('click', () => this.quit());
+    $('#btn-over-menu').addEventListener('click', () => this.quit());
+    $('#btn-rematch').addEventListener('click', () => {
+      if (!this.mainGame) return;
+      this.mainGame.requestRematch();
+      this.show(null);
+    });
+    $('#btn-sfx').addEventListener('click', () => {
+      this.sfxOn = !this.sfxOn;
+      if (this.sfx !== NULL_SFX) this.sfx.enabled = this.sfxOn;
+      $('#btn-sfx').textContent = `Sound effects: ${this.sfxOn ? 'on' : 'off'}`;
+    });
+    $('#btn-chirps').addEventListener('click', () => {
+      this.chirpsOn = !this.chirpsOn;
+      if (this.air && this.air.synths) for (const s of this.air.synths) s.enabled = this.chirpsOn;
+      $('#btn-chirps').textContent = `Chirps in practice: ${this.chirpsOn ? 'on' : 'off'}`;
+    });
+    const c = this.canvas;
+    const pos = (e) => {
+      const v = this.mainGame ? this.mainGame.view : { ox: 0, oy: 0, scale: 1 };
+      return { x: (e.clientX - v.ox) / v.scale, y: (e.clientY - v.oy) / v.scale };
+    };
+    c.addEventListener('pointerdown', (e) => {
+      if (!this.human) return;
+      e.preventDefault();
+      if (c.setPointerCapture) try { c.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      const p = pos(e);
+      this.human.down(e.pointerId, p.x, p.y, e.pointerType);
+    });
+    c.addEventListener('pointermove', (e) => {
+      if (!this.human) return;
+      const p = pos(e);
+      this.human.move(e.pointerId, p.x, p.y, e.pointerType);
+    });
+    const up = (e) => {
+      if (!this.human) return;
+      const p = pos(e);
+      this.human.up(e.pointerId, p.x, p.y);
+    };
+    c.addEventListener('pointerup', up);
+    c.addEventListener('pointercancel', up);
+    window.addEventListener('keydown', (e) => {
+      if (!this.human || e.repeat) return;
+      if (e.key === 'Escape') { this.openPause(); return; }
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', ' '].includes(e.key)) e.preventDefault();
+      this.human.key(e, true);
+    });
+    window.addEventListener('keyup', (e) => { if (this.human) this.human.key(e, false); });
+  }
+
+  ensureAudio() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AC({ latencyHint: 'interactive' });
+      this.sfx = new Sfx(this.ctx);
+      this.sfx.enabled = this.sfxOn;
+    }
+    this.ctx.resume();
+  }
+
+  layout() {
+    const s = getComputedStyle($('#safe-probe'));
+    this.safe = { top: parseFloat(s.paddingTop) || 0, bottom: parseFloat(s.paddingBottom) || 0 };
+    const cssW = window.innerWidth, cssH = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    this.canvas.width = Math.round(cssW * dpr);
+    this.canvas.height = Math.round(cssH * dpr);
+    const courtW = Math.min(cssW, cssH * 0.62);
+    const scale = courtW / 100;
+    for (const g of this.games) {
+      if (g.canvas !== this.canvas) continue;
+      g.view = { ox: (cssW - courtW) / 2, oy: 0, scale, dpr, safeTop: this.safe.top, safeBottom: this.safe.bottom };
+      g.setHeight(cssH / scale);
+    }
+    if (this.sim) this.layoutSim();
+  }
+
+  // Wire a transport's events to whichever lobby, link and game are current.
+  wire(t, ep) {
+    t.onFrame = (f) => {
+      if (f.type === TYPES.HELLO || f.type === TYPES.WELCOME) {
+        if (ep.lobby) ep.lobby.handleFrame(f);
+        return;
+      }
+      if (f.type === TYPES.TAUNT && ep.onTaunt) ep.onTaunt(f);
+      if (ep.link) ep.link.handleFrame(f);
+    };
+    t.onSync = (b) => {
+      ep.heard = wallClock();
+      if (ep.game && b === ep.game.peer) ep.game.incomingSync();
+    };
+    t.onProgress = (b, vals, expect) => { if (ep.game && b === ep.game.peer) ep.game.incomingProgress(vals, expect); };
+    t.onAbort = (b) => { if (ep.game && b === ep.game.peer) ep.game.incomingAbort(); };
+  }
+
+  // ------------------------------------------------------------- duel ---
+  async openLobby() {
+    this.show('scr-lobby');
+    $('#btn-call').disabled = false;
+    this.status('Starting microphone…');
+    try {
+      this.ensureAudio();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('this browser has no microphone access (it needs HTTPS)');
+      if (!this.modem) {
+        this.micStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+        });
+        const src = this.ctx.createMediaStreamSource(this.micStream);
+        this.modem = new AudioModem(this.ctx, { input: src, output: this.ctx.destination, volume: 0.7 });
+        await this.modem.start();
+        this.transport = new AudioTransport(this.modem);
+      }
+      await this.ctx.resume();
+    } catch (err) {
+      this.status(`Microphone unavailable: ${err.message}`, 'warn');
+      return;
+    }
+    this.ep = { transport: this.transport };
+    this.wire(this.transport, this.ep);
+    this.lobby = new Lobby(this.transport, wallClock);
+    this.ep.lobby = this.lobby;
+    this.lobby.onPaired = (side, target) => this.startDuel(side, target);
+    this.mode = 'lobby';
+    this.status('Listening for the other phone…');
+  }
+
+  selfTest() {
+    if (!this.modem) return;
+    const d = this.modem.demod;
+    d.selfHear = true;
+    let timer = 0;
+    const done = (ok) => {
+      clearTimeout(timer);
+      d.selfHear = false;
+      this.ep.onTaunt = null;
+      if (ok) this.status('✅ This phone heard its own chirp. Audio works!', 'good', 5);
+      else this.status("⚠️ Didn't hear the test chirp. Turn the volume up. (Some phones filter out their own sound: if so, just try calling.)", 'warn', 6);
+    };
+    this.ep.onTaunt = (f) => { if (f.fields.emote === 15) done(true); };
+    timer = setTimeout(() => done(false), 2500);
+    this.transport.send(0, TYPES.TAUNT, 0, { emote: 15 });
+    this.status('Chirping…');
+  }
+
+  startDuel(side, target) {
+    const link = new Link(this.transport, side, wallClock);
+    this.human = new HumanController();
+    const g = new Game({
+      side, link, controller: this.human, sfx: this.sfx, canvas: this.canvas, target,
+      serving: side === 0, labels: ['YOU', 'THEM'], haptics: true,
+    });
+    this.ep.link = link;
+    this.ep.game = g;
+    this.beginPlay('duel', [g], [link], g);
+  }
+
+  // --------------------------------------------------------- practice ---
+  startPractice() {
+    this.ensureAudio();
+    this.clockT = 0;
+    const clock = () => this.clock();
+    const synths = [0, 1].map(() => {
+      const s = new ToneSynth(this.ctx, this.ctx.destination, 0.12);
+      s.enabled = this.chirpsOn;
+      return s;
+    });
+    this.air = new VirtualAir(clock, synths);
+    const tA = this.air.endpoint();
+    const tB = this.air.endpoint();
+    const linkA = new Link(tA, 0, clock);
+    const linkB = new Link(tB, 1, clock);
+    this.human = new HumanController();
+    this.cpu = new AIController(0.5);
+    const gA = new Game({
+      side: 0, link: linkA, controller: this.human, sfx: this.sfx, canvas: this.canvas, target: this.target,
+      serving: true, labels: ['YOU', 'CPU'], haptics: true,
+    });
+    const gB = new Game({ side: 1, link: linkB, controller: this.cpu, H: 200, target: this.target, serving: false, labels: ['CPU', 'YOU'] });
+    const epA = { transport: tA, link: linkA, game: gA };
+    const epB = { transport: tB, link: linkB, game: gB };
+    this.wire(tA, epA);
+    this.wire(tB, epB);
+    this.beginPlay('practice', [gA, gB], [linkA, linkB], gA);
+  }
+
+  beginPlay(mode, games, links, main) {
+    this.mode = mode;
+    this.games = games;
+    this.links = links;
+    this.mainGame = main;
+    this.paused = false;
+    main.onGameOver = (w) => setTimeout(() => this.showOver(w), 1200);
+    main.onRematch = () => this.show(null);
+    this.show(null);
+    document.body.classList.add('playing');
+    this.layout();
+    this.keepAwake();
+  }
+
+  async keepAwake() {
+    try {
+      if ('wakeLock' in navigator && !this.wakeLock) {
+        this.wakeLock = await navigator.wakeLock.request('screen');
+        this.wakeLock.addEventListener('release', () => { this.wakeLock = null; });
+      }
+    } catch (e) { /* not allowed right now */ }
+  }
+
+  openPause() {
+    if (!this.mainGame || this.mode === 'sim') return;
+    if (this.mode === 'practice') this.paused = true;
+    $('#pause-title').textContent = this.mode === 'practice' ? 'Paused' : 'Menu';
+    $('#btn-chirps').style.display = this.mode === 'practice' ? '' : 'none';
+    const L = this.mainGame.link.stats;
+    let line = `sent ${L.sent} · resent ${L.retries} · received ${L.received}`;
+    if (this.modem && this.mode === 'duel') {
+      const s = this.modem.demod.stats;
+      line += `\nframes ${s.frames} · bad ${s.crcFail} · syncs ${s.syncs}`;
+    }
+    $('#link-stats').textContent = line;
+    this.show('scr-pause');
+  }
+
+  showOver(winner) {
+    const g = this.mainGame;
+    if (!g || g.state !== 'over') return;
+    const won = winner === g.side;
+    $('#over-title').textContent = won ? 'YOU WIN!' : g.labels[1] === 'CPU' ? 'CPU WINS' : 'THEY WIN';
+    $('#over-title').style.color = PLAYER_COLORS[won ? g.side : g.peer];
+    $('#over-score').innerHTML = `<span style="color:${PLAYER_COLORS[g.side]}">${digits(g.score[g.side])}</span> – <span style="color:${PLAYER_COLORS[g.peer]}">${digits(g.score[g.peer])}</span>`;
+    const s = g.stats;
+    $('#over-stats').innerHTML = `Longest rally: <b>${s.longest}</b><br>Smashes: <b>${s.smashes}</b> · Curve shots: <b>${s.curves}</b><br>Tricks loaded: <b>${s.tricks}</b> · Bombs that hit you: <b>${s.bombsHit}</b>`;
+    this.show('scr-over');
+  }
+
+  quit() {
+    for (const g of this.games) g.onGameOver = null;
+    this.games = [];
+    this.links = [];
+    this.mainGame = null;
+    this.human = null;
+    this.lobby = null;
+    this.air = null;
+    this.ep = null;
+    this.mode = 'menu';
+    this.paused = false;
+    document.body.classList.remove('playing');
+    if (this.modem) {
+      this.modem.stop();
+      this.modem = null;
+      this.transport = null;
+    }
+    if (this.micStream) {
+      for (const t of this.micStream.getTracks()) t.stop();
+      this.micStream = null;
+    }
+    if (this.wakeLock) {
+      this.wakeLock.release().catch(() => {});
+      this.wakeLock = null;
+    }
+    this.show('scr-title');
+  }
+
+  // -------------------------------------------------------------- sim ---
+  // #sim runs two CPU players on one screen, linked through the real modem
+  // over a simulated room (shared audio bus + noise), for testing.
+  async startSim() {
+    const params = new URLSearchParams(location.hash.slice(4).replace(/^[&?]/, ''));
+    document.body.classList.add('sim');
+    this.show(null);
+    this.mode = 'sim';
+    const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const root = $('#sim-root');
+    ctx.resume();
+    await new Promise((r) => setTimeout(r, 150));
+    if (ctx.state !== 'running') {
+      // Autoplay rules: audio can only start from a click.
+      root.innerHTML = '<button class="btn big p1" id="sim-go">▶ Start simulation</button>';
+      await new Promise((r) => { $('#sim-go').onclick = () => ctx.resume().then(r); });
+    }
+    const air = ctx.createGain();
+    air.gain.value = parseFloat(params.get('air') || '0.4');
+    const room = ctx.createDelay(1);
+    room.delayTime.value = 0.03;
+    air.connect(room);
+    const noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const nd = noise.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    const ns = ctx.createBufferSource();
+    ns.buffer = noise;
+    ns.loop = true;
+    const ng = ctx.createGain();
+    ng.gain.value = parseFloat(params.get('noise') || '0.003');
+    ns.connect(ng);
+    ng.connect(room);
+    ns.start();
+    if (params.has('listen')) {
+      const mon = ctx.createGain();
+      mon.gain.value = 0.3;
+      air.connect(mon);
+      mon.connect(ctx.destination);
+    }
+    root.innerHTML = '<div class="sim-phones"><canvas class="flip"></canvas><canvas></canvas></div><div id="sim-stats"></div>';
+    const [cB, cA] = root.querySelectorAll('canvas');
+    const skill = parseFloat(params.get('skill') || '0.8');
+    const sim = this.sim = { ctx, eps: [], canvases: [cA, cB], started: wallClock() };
+    for (let i = 0; i < 2; i++) {
+      const modem = new AudioModem(ctx, { input: room, output: air, volume: 0.5 });
+      await modem.start();
+      const transport = new AudioTransport(modem);
+      const ep = { modem, transport, lobby: new Lobby(transport, wallClock) };
+      this.wire(transport, ep);
+      ep.lobby.onPaired = (side, target) => {
+        ep.link = new Link(transport, side, wallClock);
+        ep.game = new Game({
+          side, link: ep.link, controller: new AIController(skill), canvas: sim.canvases[i], target,
+          serving: side === 0, labels: [`P${side + 1}`, `P${2 - side}`],
+        });
+        this.layoutSim();
+      };
+      sim.eps.push(ep);
+    }
+    sim.eps[0].lobby.call(+(params.get('target') || 11));
+    this.layoutSim();
+    window.chirpSim = sim;
+  }
+
+  layoutSim() {
+    const sim = this.sim;
+    const h = Math.floor((window.innerHeight - 30) / 2);
+    const w = Math.floor(h * 0.52);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    sim.eps.forEach((ep, i) => {
+      const c = sim.canvases[i];
+      c.style.width = `${w}px`;
+      c.style.height = `${h}px`;
+      c.width = Math.round(w * dpr);
+      c.height = Math.round(h * dpr);
+      if (ep.game) {
+        ep.game.view = { ox: 0, oy: 0, scale: w / 100, dpr, safeTop: 0, safeBottom: 0 };
+        ep.game.setHeight(h / (w / 100));
+      }
+    });
+  }
+
+  simStats() {
+    const sim = this.sim;
+    const lines = [`CHIRP PONG · simulated room · ${(wallClock() - sim.started).toFixed(0)} s`, ''];
+    sim.eps.forEach((ep, i) => {
+      const d = ep.modem.demod.stats;
+      lines.push(`phone ${i + 1}: ${ep.game ? `P${ep.game.side + 1} ${ep.game.state}` : ep.lobby.mode}`);
+      lines.push(`  heard: frames ${d.frames}  bad ${d.crcFail}  syncs ${d.syncs}  retimed ${d.retimed}`);
+      if (ep.link) {
+        const L = ep.link.stats;
+        lines.push(`  link:  sent ${L.sent}  resent ${L.retries}  got ${L.received}  dups ${L.dups}`);
+        const g = ep.game;
+        lines.push(`  game:  score ${g.score[g.side]}-${g.score[g.peer]}  rally ${g.rally}  crossings ${g.totals.crossings}`);
+      }
+      lines.push('');
+    });
+    $('#sim-stats').textContent = lines.join('\n');
+  }
+
+  // ------------------------------------------------------------- loop ---
+  loop(t) {
+    requestAnimationFrame((n) => this.loop(n));
+    const dt = Math.min((t - this.last) / 1000, 1 / 30);
+    this.last = t;
+    try {
+      this.tick(dt);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  tick(dt) {
+    if (this.mode === 'sim') {
+      for (const ep of this.sim.eps) {
+        ep.lobby.update();
+        if (ep.link) ep.link.update();
+        if (ep.game) { ep.game.update(dt); ep.game.render(); }
+      }
+      this.simStats();
+      return;
+    }
+    if (!this.paused) {
+      this.clockT += dt;
+      if (this.air) this.air.update();
+      if (this.lobby) this.lobby.update();
+      for (const L of this.links) L.update();
+      if (this.mode === 'practice' && this.cpu) {
+        const g = this.mainGame;
+        this.cpu.skill = clamp(0.5 + 0.06 * (g.score[g.side] - g.score[g.peer]), 0.3, 0.9);
+      }
+      for (const g of this.games) g.update(dt);
+    }
+    if (this.mainGame) this.mainGame.render();
+    else this.drawIdle(dt);
+    if (this.mode === 'lobby') this.drawMeter();
+  }
+
+  // Behind the menus: a ball bouncing between the two colours.
+  drawIdle(dt) {
+    const g = this.canvas.getContext('2d');
+    const W = this.canvas.width, H = this.canvas.height;
+    this.idleT = (this.idleT || 0) + dt;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#07051a';
+    g.fillRect(0, 0, W, H);
+  }
+
+  drawMeter() {
+    const c = $('#meter');
+    const g = c.getContext('2d');
+    const W = c.width, H = c.height;
+    g.clearRect(0, 0, W, H);
+    if (!this.modem) return;
+    const d = this.modem.demod;
+    const bw = W / 2 - 18;
+    for (let b = 0; b < 2; b++) {
+      const x0 = 12 + b * (W / 2);
+      const col = PLAYER_COLORS[b];
+      for (let k = 0; k < TONES; k++) {
+        const a = d.amp[b][k];
+        const db = clamp((20 * Math.log10(a + 1e-7) + 80) / 60, 0, 1);
+        g.fillStyle = k === SYNC ? '#ffffff' : col;
+        g.globalAlpha = 0.35 + 0.65 * db;
+        const bh = Math.max(2, db * (H - 30));
+        g.fillRect(x0 + (k * bw) / TONES, H - 18 - bh, bw / TONES - 2, bh);
+      }
+      g.globalAlpha = 1;
+      g.fillStyle = col;
+      g.font = '600 12px system-ui, sans-serif';
+      g.fillText(b === 0 ? 'low voice (caller)' : 'high voice (answer)', x0, H - 4);
+    }
+    const heardRecently = this.ep && this.ep.heard && wallClock() - this.ep.heard < 1.5;
+    if (this.lobby && this.lobby.mode === 'call') {
+      this.status(`Calling… (${this.lobby.calls})  ${heardRecently ? '· hearing chirps' : ''}`);
+    } else if (this.lobby && this.lobby.mode === 'listen') {
+      this.status(heardRecently ? 'Heard a chirp…' : 'Listening for the other phone…');
+    }
+  }
+}
+
+const app = new App();
+window.chirpPong = app;
+</script>
+</body>
+</html>
