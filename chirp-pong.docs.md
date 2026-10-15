@@ -1,0 +1,3 @@
+Chirp Pong is a two-player paddle game where two phones pair and exchange the ball over sound, using each device's speaker and microphone instead of Wi-Fi or Bluetooth. The page offers a duel mode that pairs two phones through a chirp handshake and a practice mode against a CPU opponent, with selectable match lengths of 7, 11, or 15 points. Gameplay includes curve spin, smashes, trick gems, bomb drops, and rally multipliers, all of which are relayed to the other screen through a sound-based modem with acknowledgments and retries.
+
+<!-- Generated from commit: 782d9b128623d2816482b61cac00bf39b13668cb -->
