@@ -115,6 +115,18 @@ code, kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
   white-space: nowrap;
 }
 .chip:empty { display: none; }
+.url-row { display: flex; gap: 6px; }
+.url-row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 10px;
+  background: var(--input-bg);
+  font-size: 14px;
+}
+.url-status { margin: -4px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.url-status.error { color: var(--error-fg); }
 #source {
   width: 100%;
   flex: 1;
@@ -137,8 +149,7 @@ code, kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 #warnings summary { cursor: pointer; }
 #warnings ul { margin: 6px 0 0; padding-left: 18px; max-height: 160px; overflow: auto; }
 
-.output-pane { position: relative; min-width: 0; overflow: auto; padding: 16px; --eq-size: 22px; }
-#eq-probe { position: absolute; visibility: hidden; pointer-events: none; font-size: var(--eq-size); width: 1ex; height: 1em; }
+.output-pane { position: relative; min-width: 0; padding: 16px; }
 .message {
   border-radius: 8px;
   padding: 8px 12px;
@@ -148,39 +159,16 @@ code, kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
   font-size: 14px;
   white-space: pre-wrap;
 }
-#output { min-height: 100px; }
-#output .placeholder { color: var(--muted); font-style: italic; text-align: center; padding: 40px 0; }
-
-/* Equation mode */
-#output.mode-equation {
-  display: flex;
-  align-items: center;
-  min-height: 240px;
-  overflow-x: auto;
-  font-size: var(--eq-size);
+/* All rendering happens in this sandboxed frame; its height follows its content */
+#render-frame {
+  display: block;
+  width: 100%;
+  height: 240px;
+  border: 0;
+  background: transparent;
+  color-scheme: light dark;
 }
-#output.mode-equation mjx-container[display="true"] { margin: 0; }
-/* auto margins centre without pushing overflow off the left edge */
-#output.mode-equation > .eq { margin: auto; padding: 12px 0; }
-
-/* Document mode (faster-latex article) */
-#output.mode-document .fl-article { padding-top: 0.5rem; }
-#output.mode-document mjx-container[display="true"] { margin: 0.6em 0; }
-#output.mode-document .fl-align mjx-container[display="true"] { margin: 0; }
-/* Centre each display equation on the full width, number flush right */
-#output.mode-document .fl-display-math {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0 1rem;
-}
-#output.mode-document .fl-display-math > :not(.fl-eqnum) { grid-column: 2; margin: 0; }
-#output.mode-document .fl-display-math > .fl-eqnum { grid-column: 3; justify-self: end; margin: 0; }
-#output.mode-document .fl-eqnum { font-style: normal; }
-/* TikZ labels are positioned absolutely, so stop them wrapping at the edge
-   (including at MathJax's inline line-break points) */
-#output.mode-document .fl-tikz-node,
-#output.mode-document .fl-tikz-node mjx-break { white-space: nowrap !important; }
+body.has-equation #render-frame { min-height: 240px; }
 
 /* Rendered view: just the output, centred, with a slim floating toolbar */
 body.view-render .editor-pane { display: none; }
@@ -200,8 +188,8 @@ body.view-render .topbar {
 }
 body.view-render .topbar:hover, body.view-render .topbar:focus-within { opacity: 1; }
 body.view-render .topbar h1 { display: none; }
-body.view-render .output-pane { padding: 64px 20px 40px; --eq-size: clamp(24px, 4.2vw, 46px); }
-body.view-render #output.mode-equation { min-height: calc(100vh - 140px); }
+body.view-render .output-pane { padding: 64px 20px 40px; }
+body.view-render.has-equation #render-frame { min-height: calc(100vh - 104px); }
 
 /* Share & export popover */
 #share-panel {
@@ -217,7 +205,7 @@ body.view-render #output.mode-equation { min-height: calc(100vh - 140px); }
   box-shadow: var(--shadow);
 }
 #share-panel h2 { font-size: 15px; margin: 0 0 10px; }
-#share-panel .link-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: 10px; }
+#share-panel .link-label { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); margin-top: 10px; }
 #share-panel .row { display: flex; gap: 6px; margin-top: 4px; }
 #share-panel input {
   flex: 1;
@@ -251,6 +239,7 @@ body:not(.has-equation) .eq-only { display: none; }
   .workspace { grid-template-columns: minmax(0, 1fr); }
   .editor-pane { border-right: 0; border-bottom: 1px solid var(--border); }
   #source { min-height: 200px; font-size: 16px; }
+  .url-row input { font-size: 16px; }
   .topbar { gap: 8px 10px; }
   .topbar h1 { flex-basis: 100%; font-size: 16px; }
   .actions { margin-left: auto; }
@@ -260,16 +249,131 @@ body:not(.has-equation) .eq-only { display: none; }
 @media print {
   .topbar, .editor-pane, #share-panel, .toast, .message { display: none !important; }
   body, .workspace { background: #fff; color: #000; display: block; min-height: 0; }
-  .output-pane { padding: 0 !important; overflow: visible; }
-  #output.mode-equation { min-height: 0 !important; }
+  .output-pane { padding: 0 !important; }
+  #render-frame { min-height: 0 !important; }
 }
+</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+</head>
+<body class="view-edit">
+<header class="topbar">
+  <h1>LaTeX renderer</h1>
+  <div class="view-toggle" role="group" aria-label="View">
+    <button type="button" id="edit-btn" aria-pressed="true">Edit</button>
+    <button type="button" id="render-btn" aria-pressed="false" title="Rendered view (Ctrl/⌘+Enter)">Rendered</button>
+  </div>
+  <div class="actions">
+    <button type="button" id="copy-link" class="primary">Copy link</button>
+    <button type="button" id="share-btn" popovertarget="share-panel" aria-label="Share and export">Share…</button>
+  </div>
+</header>
+
+<div id="share-panel" popover>
+  <h2>Share &amp; export</h2>
+  <div id="source-link-row" hidden>
+    <div class="link-label"><span>Link to the source URL (follows changes to it)</span></div>
+    <div class="row">
+      <input id="source-link" readonly aria-label="Link to the source URL">
+      <button type="button" data-copy="source-link">Copy</button>
+    </div>
+  </div>
+  <div class="link-label"><span>Readable link</span><span id="readable-len"></span></div>
+  <div class="row">
+    <input id="readable-link" readonly aria-label="Readable link">
+    <button type="button" data-copy="readable-link">Copy</button>
+  </div>
+  <div class="link-label"><span>Compressed link (LaTeX dictionary)</span><span id="compressed-len"></span></div>
+  <div class="row">
+    <input id="compressed-link" readonly aria-label="Compressed link">
+    <button type="button" data-copy="compressed-link">Copy</button>
+  </div>
+  <div class="exports">
+    <button type="button" id="copy-latex">Copy LaTeX</button>
+    <button type="button" id="copy-png" class="eq-only">Copy image</button>
+    <button type="button" id="download-png" class="eq-only">Download PNG</button>
+    <button type="button" id="download-svg" class="eq-only">Download SVG</button>
+    <button type="button" id="print-btn">Print / save PDF</button>
+  </div>
+  <p class="note">The readable and compressed links contain the LaTeX itself. "Copy link" in the toolbar uses the shortest link.</p>
+</div>
+
+<main class="workspace">
+  <section class="editor-pane">
+    <div class="editor-head">
+      <label for="source">LaTeX source</label>
+      <span id="mode-chip" class="chip"></span>
+    </div>
+    <form class="url-row" id="url-form">
+      <input id="url-input" type="url" inputmode="url" spellcheck="false" autocomplete="off"
+        placeholder="Load from a URL or GitHub Gist…" aria-label="URL of a LaTeX file or GitHub Gist">
+      <button type="submit">Load</button>
+    </form>
+    <p id="url-status" class="url-status" role="status" hidden></p>
+    <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"
+      placeholder="Paste or type LaTeX here, for example:&#10;&#10;\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}"></textarea>
+    <div class="examples" id="examples">Load an example:</div>
+    <details id="warnings" hidden><summary></summary><ul></ul></details>
+    <p class="help">
+      A bare formula renders as a display equation with MathJax. Prose with <code>$…$</code> math,
+      <code>\section</code>, lists or a full <code>\documentclass</code> document renders with
+      faster-latex (WebAssembly). Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> for the rendered view.
+      Links can be <code>latex#E=mc^2</code>, compressed <code>latex#~1…</code>, or
+      <code>latex?url=</code> a raw file or Gist.
+    </p>
+  </section>
+  <section class="output-pane">
+    <div id="message" class="message" role="alert" hidden></div>
+    <iframe id="render-frame" title="Rendered LaTeX" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+  </section>
+</main>
+
+<!--
+  The renderer runs in a sandboxed iframe (scripts allowed, but an opaque
+  origin), so even a rendering bug could not reach this page, its storage or
+  the API keys other tools on this domain keep in localStorage. The parent
+  turns this template into the frame's srcdoc, behind a CSP that only allows
+  these inline scripts (by hash) and the pinned CDN files they load.
+-->
+<template id="renderer-template">
+<style>
+:root { color-scheme: light dark; --fg: #1c1c1e; --muted: #6a6a70; --eq-size: 22px; }
+@media (prefers-color-scheme: dark) { :root { --fg: #ececef; --muted: #9c9ca3; } }
+html, body { margin: 0; background: transparent; color: var(--fg); overflow-y: hidden; }
+body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.5; }
+body.view-render { --eq-size: clamp(24px, 4.2vw, 46px); }
+#frame { min-height: 100vh; display: flex; flex-direction: column; }
+body.mode-equation #frame { justify-content: center; }
+#output { overflow-x: auto; }
+.placeholder { color: var(--muted); font-style: italic; text-align: center; padding: 40px 0; margin: 0; }
+#eq-probe { position: absolute; visibility: hidden; pointer-events: none; font-size: var(--eq-size); width: 1ex; height: 1em; }
+/* Equation mode; auto margins centre without pushing overflow off the left edge */
+#output.mode-equation { display: flex; font-size: var(--eq-size); }
+#output.mode-equation > .eq { margin: 0 auto; padding: 12px 0; }
+#output.mode-equation mjx-container[display="true"] { margin: 0; }
+/* Document mode (faster-latex article) */
+#output.mode-document .fl-article { padding-top: 0.5rem; }
+#output.mode-document mjx-container[display="true"] { margin: 0.6em 0; }
+#output.mode-document .fl-align mjx-container[display="true"] { margin: 0; }
+/* Centre each display equation on the full width, number flush right */
+#output.mode-document .fl-display-math {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0 1rem;
+}
+#output.mode-document .fl-display-math > :not(.fl-eqnum) { grid-column: 2; margin: 0; }
+#output.mode-document .fl-display-math > .fl-eqnum { grid-column: 3; justify-self: end; margin: 0; }
+#output.mode-document .fl-eqnum { font-style: normal; }
+/* TikZ labels are positioned absolutely, so stop them wrapping at the edge
+   (including at MathJax's inline line-break points) */
+#output.mode-document .fl-tikz-node,
+#output.mode-document .fl-tikz-node mjx-break { white-space: nowrap !important; }
+@media print { html, body { overflow: visible; } #frame { min-height: 0; } }
 </style>
 <script>
 // MathJax 4 configuration. TeX is only ever typeset explicitly (never found by
 // scanning the page), and the "safe" extension filters \href/\style/\class etc.
-// because the LaTeX comes from arbitrary links.
 window.mathJaxReady = new Promise((resolve, reject) => {
-  window.mathJaxFailed = reject;
   window.MathJax = {
     loader: { load: ['ui/safe', '[tex]/begingroup'] },
     tex: {
@@ -291,80 +395,287 @@ window.mathJaxReady = new Promise((resolve, reject) => {
       },
     },
   };
+  // The sandbox has no storage; give MathJax's menu settings somewhere to go
+  try {
+    window.localStorage;
+  } catch {
+    const items = new Map();
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key) => (items.has(key) ? items.get(key) : null),
+        setItem: (key, value) => items.set(key, String(value)),
+        removeItem: (key) => items.delete(key),
+      },
+    });
+  }
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-svg.js';
+  script.onerror = () => reject(new Error('Could not load MathJax from the CDN'));
+  document.head.append(script);
 });
 </script>
-<script defer src="https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-svg.js" onerror="mathJaxFailed(new Error('Could not load MathJax from the CDN'))"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-</head>
-<body class="view-edit">
-<header class="topbar">
-  <h1>LaTeX renderer</h1>
-  <div class="view-toggle" role="group" aria-label="View">
-    <button type="button" id="edit-btn" aria-pressed="true">Edit</button>
-    <button type="button" id="render-btn" aria-pressed="false" title="Rendered view (Ctrl/⌘+Enter)">Rendered</button>
-  </div>
-  <div class="actions">
-    <button type="button" id="copy-link" class="primary">Copy link</button>
-    <button type="button" id="share-btn" popovertarget="share-panel" aria-label="Share and export">Share…</button>
-  </div>
-</header>
-
-<div id="share-panel" popover>
-  <h2>Share &amp; export</h2>
-  <div class="link-label"><span>Readable link</span><span id="readable-len"></span></div>
-  <div class="row">
-    <input id="readable-link" readonly aria-label="Readable link">
-    <button type="button" data-copy="readable-link">Copy</button>
-  </div>
-  <div class="link-label"><span>Compressed link (LaTeX dictionary)</span><span id="compressed-len"></span></div>
-  <div class="row">
-    <input id="compressed-link" readonly aria-label="Compressed link">
-    <button type="button" data-copy="compressed-link">Copy</button>
-  </div>
-  <div class="exports">
-    <button type="button" id="copy-latex">Copy LaTeX</button>
-    <button type="button" id="copy-png" class="eq-only">Copy image</button>
-    <button type="button" id="download-png" class="eq-only">Download PNG</button>
-    <button type="button" id="download-svg" class="eq-only">Download SVG</button>
-    <button type="button" id="print-btn">Print / save PDF</button>
-  </div>
-  <p class="note">Both links render the same thing. "Copy link" in the toolbar uses whichever is shorter.</p>
-</div>
-
-<main class="workspace">
-  <section class="editor-pane">
-    <div class="editor-head">
-      <label for="source">LaTeX source</label>
-      <span id="mode-chip" class="chip"></span>
-    </div>
-    <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"
-      placeholder="Paste or type LaTeX here, for example:&#10;&#10;\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}"></textarea>
-    <div class="examples" id="examples">Load an example:</div>
-    <details id="warnings" hidden><summary></summary><ul></ul></details>
-    <p class="help">
-      A bare formula renders as a display equation with MathJax. Prose with <code>$…$</code> math,
-      <code>\section</code>, lists or a full <code>\documentclass</code> document renders with
-      faster-latex (WebAssembly). Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> for the rendered view.
-      Links can be <code>latex#E=mc^2</code> or compressed: <code>latex#~1…</code>
-    </p>
-  </section>
-  <section class="output-pane">
-    <div id="message" class="message" role="alert" hidden></div>
-    <span id="eq-probe" aria-hidden="true"></span>
-    <div id="output"><p class="placeholder">The rendered output will appear here.</p></div>
-  </section>
-</main>
-
+<div id="frame"><div id="output"><p class="placeholder">The rendered output will appear here.</p></div></div>
+<span id="eq-probe" aria-hidden="true"></span>
 <script type="module">
 const FASTER_LATEX_URL = 'https://cdn.jsdelivr.net/npm/@arena.ai/faster-latex@0.3.1/web-graphics/faster_latex.js';
 const DOMPURIFY_URL = 'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.16/purify.min.js';
+const $ = (id) => document.getElementById(id);
+const outputEl = $('output');
+const send = (message) => parent.postMessage(message, '*');
 
+function percentDecode(text) {
+  try { return decodeURIComponent(text); } catch { return text; }
+}
+
+let mathJaxQueue = Promise.resolve();
+function withMathJax(fn) {
+  // MathJax calls must not overlap, so run them one at a time
+  const run = mathJaxQueue.then(() => window.mathJaxReady).then(fn);
+  mathJaxQueue = run.catch(() => {});
+  return run;
+}
+
+async function renderEquation(plan) {
+  return withMathJax(async () => {
+    MathJax.texReset();
+    // Each render gets a fresh sandbox so \newcommand definitions from a
+    // previous version of the source do not leak into this one.
+    MathJax.tex2svg('\\begingroupSandbox');
+    // Lines may be up to 1/BREAK_SCALE times the available width, since
+    // fitEquation() can shrink them that far; beyond that MathJax breaks them
+    // (MathJax sizes SVGs in ex units of the surrounding font, so measure it)
+    const probe = $('eq-probe').getBoundingClientRect();
+    const node = await MathJax.tex2svgPromise(plan.tex, {
+      display: plan.display,
+      em: probe.height || 22,
+      ex: probe.width || 11,
+      containerWidth: Math.max(200, outputEl.clientWidth - 8) / BREAK_SCALE,
+    });
+    const wrapper = document.createElement('div');
+    wrapper.className = 'eq';
+    wrapper.append(node);
+    const err = node.querySelector('[data-mjx-error]');
+    // Unknown commands are drawn in red rather than raising an error; name them
+    const unknown = [...node.querySelectorAll('g[data-mml-node="mtext"][fill="red"]')]
+      .map((g) => [...g.querySelectorAll('[data-c]')]
+        .map((c) => String.fromCodePoint(parseInt(c.getAttribute('data-c'), 16))).join(''))
+      .filter((name) => name.startsWith('\\'));
+    const error = err ? err.getAttribute('data-mjx-error')
+      : unknown.length ? `Unknown command${unknown.length > 1 ? 's' : ''}: ${[...new Set(unknown)].join(', ')}` : null;
+    return { node: wrapper, error, warnings: [] };
+  });
+}
+
+let fasterLatexPromise = null;
+function loadFasterLatex() {
+  if (!fasterLatexPromise) {
+    fasterLatexPromise = (async () => {
+      const [mod] = await Promise.all([import(FASTER_LATEX_URL), loadScript(DOMPURIFY_URL)]);
+      await mod.default();
+      const style = document.createElement('style');
+      // MathJax replaces the MathML, so skip the 390KB Latin Modern Math font
+      // (system math fonts cover the fallback if MathJax fails)
+      style.textContent = mod.article_css().replace(/@font-face\s*\{[^}]*"Latin Modern Math"[^}]*\}/, '');
+      document.head.prepend(style);
+      return mod;
+    })();
+    fasterLatexPromise.catch(() => { fasterLatexPromise = null; });
+  }
+  return fasterLatexPromise;
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Could not load ${src}`));
+    document.head.append(script);
+  });
+}
+
+function todayString() {
+  return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+async function renderDocument(source) {
+  const fl = await loadFasterLatex();
+  const result = fl.render(source, { today: todayString() });
+  // faster-latex escapes its output; sanitizing as well costs little. Taking
+  // the DOM fragment (not a string) avoids re-parsing the sanitized markup.
+  const fragment = DOMPurify.sanitize(result.html, {
+    USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
+    RETURN_DOM_FRAGMENT: true,
+  });
+  // Typeset off-screen (but in the document, at the same width, so MathJax
+  // can measure it) to avoid flashing raw MathML while typing
+  const node = document.createElement('div');
+  node.setAttribute('aria-hidden', 'true');
+  node.style.cssText = `position:absolute;visibility:hidden;left:-10000px;top:0;width:${outputEl.clientWidth}px`;
+  node.append(fragment);
+  document.body.append(node);
+  let mathError = null;
+  try {
+    // Re-typeset faster-latex's MathML with MathJax so documents use the same
+    // fonts and quality as the equation view. Native MathML stays as a fallback.
+    await withMathJax(() => {
+      MathJax.texReset();
+      MathJax.typesetClear();
+      return MathJax.typesetPromise([node]);
+    });
+  } catch (e) {
+    mathError = e;
+  }
+  node.remove();
+  node.removeAttribute('aria-hidden');
+  node.removeAttribute('style');
+  return {
+    node,
+    error: mathError ? `MathJax could not typeset the maths (${mathError.message}); showing the browser's native MathML instead.` : null,
+    warnings: (result.warnings || []).map((w) => ({ line: Number(w.line) || 0, message: String(w.message) })),
+  };
+}
+
+let current = { id: 0, source: '', plan: { mode: 'empty' } };
+
+async function render(id, source, plan) {
+  current = { id, source, plan };
+  document.body.classList.toggle('mode-equation', plan.mode === 'equation');
+  if (plan.mode === 'empty') {
+    outputEl.className = '';
+    outputEl.innerHTML = '<p class="placeholder">The rendered output will appear here.</p>';
+    send({ type: 'rendered', id, error: null, warnings: [] });
+    return;
+  }
+  if (!outputEl.firstChild || outputEl.querySelector('.placeholder')) {
+    outputEl.innerHTML = '<p class="placeholder">Rendering…</p>';
+  }
+  let result;
+  try {
+    result = plan.mode === 'equation' ? await renderEquation(plan) : await renderDocument(source);
+  } catch (e) {
+    if (current.id === id && current.source === source) {
+      send({ type: 'rendered', id, error: `Could not render: ${e.message}`, warnings: [] });
+    }
+    return;
+  }
+  if (current.id !== id || current.source !== source) return; // superseded
+  outputEl.className = `mode-${plan.mode}`;
+  outputEl.replaceChildren(result.node);
+  fitEquation();
+  send({ type: 'rendered', id, error: result.error, warnings: result.warnings });
+}
+
+// Shrink wide equations to fit, down to MIN_SCALE, then fall back to scrolling.
+// MathJax breaks lines longer than the width at BREAK_SCALE, but a line it
+// cannot break may overshoot that a little, hence the lower MIN_SCALE.
+const BREAK_SCALE = 0.7;
+const MIN_SCALE = 0.55;
+let fittedWidth = 0;
+function fitEquation() {
+  const eq = outputEl.querySelector('.eq');
+  if (!eq) return;
+  fittedWidth = outputEl.clientWidth;
+  eq.style.fontSize = '';
+  const available = outputEl.clientWidth - 8;
+  const width = eq.scrollWidth;
+  if (width > available && available > 0) {
+    eq.style.fontSize = Math.max(MIN_SCALE, available / width) + 'em';
+  }
+}
+
+function rerender() {
+  render(current.id, current.source, current.plan);
+}
+
+// Returns whether the view changed
+function setView(view) {
+  const wasRender = document.body.classList.contains('view-render');
+  document.body.classList.toggle('view-render', view === 'render');
+  return wasRender !== (view === 'render');
+}
+
+// A standalone copy of the equation SVG, black on transparent, sized in px
+function exportSvg(pxPerEx) {
+  const svg = outputEl.querySelector('.eq mjx-container svg');
+  if (!svg) return null;
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  const rect = svg.getBoundingClientRect();
+  const exPx = $('eq-probe').getBoundingClientRect().width || 8;
+  const size = (attr, fallback) => {
+    const v = svg.getAttribute(attr) || '';
+    return /ex$/.test(v) ? parseFloat(v) * pxPerEx : (fallback / exPx) * pxPerEx;
+  };
+  const width = size('width', rect.width);
+  const height = size('height', rect.height);
+  clone.setAttribute('width', width.toFixed(2));
+  clone.setAttribute('height', height.toFixed(2));
+  clone.setAttribute('style', 'color:#000');
+  return { markup: new XMLSerializer().serializeToString(clone), width, height };
+}
+
+window.addEventListener('message', (e) => {
+  const msg = e.data;
+  if (e.source !== parent || !msg || typeof msg !== 'object') return;
+  if (msg.type === 'render') {
+    setView(msg.view);
+    render(msg.id, String(msg.source), msg.plan || { mode: 'empty' });
+  } else if (msg.type === 'view') {
+    // Equations are sized (and line-broken) for the view, so redo them
+    if (setView(msg.view) && current.plan.mode === 'equation') rerender();
+  } else if (msg.type === 'export-svg') {
+    send({ type: 'svg', id: msg.id, ...(exportSvg(Number(msg.pxPerEx) || 8) || { error: 'No equation to export' }) });
+  }
+});
+
+// Line breaks depend on the width, so re-render equations when it changes
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (current.plan.mode === 'equation' && fittedWidth && Math.abs(outputEl.clientWidth - fittedWidth) > 2) {
+      rerender();
+    }
+  }, 150);
+});
+
+// The parent sizes the frame to fit the output
+new ResizeObserver(() => {
+  send({ type: 'height', height: Math.ceil(outputEl.getBoundingClientRect().height) });
+}).observe(outputEl);
+
+// Links never navigate this frame: in-page ones (\ref, \eqref, footnotes)
+// ask the parent to scroll, others ask it to open a new tab
+document.addEventListener('click', (e) => {
+  const link = e.target.closest?.('a[href], [data-mjx-href]');
+  if (!link) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const href = link.getAttribute('href') || link.getAttribute('data-mjx-href') || '';
+  if (href.startsWith('#')) {
+    const target = document.getElementById(percentDecode(href.slice(1)));
+    if (target) send({ type: 'scroll', top: target.getBoundingClientRect().top + window.scrollY });
+  } else {
+    send({ type: 'open', href });
+  }
+}, true);
+
+window.mathJaxReady.catch((e) => send({ type: 'rendered', id: current.id, error: e.message, warnings: [] }));
+send({ type: 'ready' });
+</script>
+</template>
+
+<script type="module">
 // ---------------------------------------------------------------------------
 // Link format
 //
 //   #<latex>       the LaTeX itself, percent-encoded where needed
 //   #~1<base64url> raw DEFLATE of the UTF-8 LaTeX, compressed using the preset
 //                  dictionary below, encoded as unpadded base64url
+//   ?url=<url>     fetch the LaTeX from a raw file URL or a GitHub Gist
 //
 // The "1" is the dictionary version. Existing links depend on these exact
 // bytes, so NEVER edit LATEX_DICTIONARY_V1: add a V2 and a "~2" prefix instead.
@@ -674,136 +985,150 @@ function analyze(source) {
 }
 
 // ---------------------------------------------------------------------------
-// Renderers
+// The sandboxed renderer frame
 // ---------------------------------------------------------------------------
-let mathJaxQueue = Promise.resolve();
-function withMathJax(fn) {
-  // MathJax calls must not overlap, so run them one at a time
-  const run = mathJaxQueue.then(() => window.mathJaxReady).then(fn);
-  mathJaxQueue = run.catch(() => {});
-  return run;
+const $ = (id) => document.getElementById(id);
+const frame = $('render-frame');
+
+const RENDERER_SOURCES = {
+  script: [
+    'https://cdn.jsdelivr.net/npm/mathjax@4.1.3/',
+    'https://cdn.jsdelivr.net/npm/@mathjax/', // MathJax's own font packages
+    'https://cdn.jsdelivr.net/npm/@arena.ai/faster-latex@0.3.1/',
+    'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.16/',
+  ],
+  connect: [
+    'https://cdn.jsdelivr.net/npm/mathjax@4.1.3/sre/', // speech rules
+    'https://cdn.jsdelivr.net/npm/@arena.ai/faster-latex@0.3.1/', // .wasm
+  ],
+  font: ['https://cdn.jsdelivr.net/npm/latex.css@1.11.0/fonts/'],
+};
+
+async function sha256Base64(text) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return btoa(String.fromCharCode(...new Uint8Array(digest)));
 }
 
-async function renderEquation(plan, target) {
-  return withMathJax(async () => {
-    MathJax.texReset();
-    // Each render gets a fresh sandbox so \newcommand definitions from a
-    // previous version of the source do not leak into this one.
-    MathJax.tex2svg('\\begingroupSandbox');
-    // Lines may be up to 1/BREAK_SCALE times the available width, since
-    // fitEquation() can shrink them that far; beyond that MathJax breaks them
-    // (MathJax sizes SVGs in ex units of the surrounding font, so measure it)
-    const probe = $('eq-probe').getBoundingClientRect();
-    const node = await MathJax.tex2svgPromise(plan.tex, {
-      display: plan.display,
-      em: probe.height || 22,
-      ex: probe.width || 11,
-      containerWidth: Math.max(200, target.clientWidth - 8) / BREAK_SCALE,
-    });
-    const wrapper = document.createElement('div');
-    wrapper.className = 'eq';
-    wrapper.append(node);
-    const err = node.querySelector('[data-mjx-error]');
-    // Unknown commands are drawn in red rather than raising an error; name them
-    const unknown = [...node.querySelectorAll('g[data-mml-node="mtext"][fill="red"]')]
-      .map((g) => [...g.querySelectorAll('[data-c]')]
-        .map((c) => String.fromCodePoint(parseInt(c.getAttribute('data-c'), 16))).join(''))
-      .filter((name) => name.startsWith('\\'));
-    const error = err ? err.getAttribute('data-mjx-error')
-      : unknown.length ? `Unknown command${unknown.length > 1 ? 's' : ''}: ${[...new Set(unknown)].join(', ')}` : null;
-    return { node: wrapper, error, warnings: [] };
-  });
+async function rendererDocument() {
+  const template = $('renderer-template');
+  const inline = [...template.content.querySelectorAll('script:not([src])')];
+  const hashes = await Promise.all(inline.map((s) => sha256Base64(s.textContent)));
+  // No remote images, so a link cannot be used as a tracking pixel
+  const csp = [
+    "default-src 'none'",
+    `script-src ${hashes.map((h) => `'sha256-${h}'`).join(' ')} 'wasm-unsafe-eval' ${RENDERER_SOURCES.script.join(' ')}`,
+    'worker-src blob:',
+    `connect-src ${RENDERER_SOURCES.connect.join(' ')}`,
+    `font-src data: ${RENDERER_SOURCES.font.join(' ')}`,
+    "style-src 'unsafe-inline'",
+    'img-src data: blob:',
+    "frame-src 'none'",
+    "object-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+  ].join('; ');
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">`
+    + `<meta http-equiv="Content-Security-Policy" content="${csp}">`
+    + `</head><body>${template.innerHTML}</body></html>`;
 }
 
-let fasterLatexPromise = null;
-function loadFasterLatex() {
-  if (!fasterLatexPromise) {
-    fasterLatexPromise = (async () => {
-      const [mod] = await Promise.all([import(FASTER_LATEX_URL), loadScript(DOMPURIFY_URL)]);
-      await mod.default();
-      const style = document.createElement('style');
-      // MathJax replaces the MathML, so skip downloading the 390KB Latin Modern
-      // Math font (system math fonts cover the fallback if MathJax fails)
-      style.textContent = mod.article_css().replace(/@font-face\s*\{[^}]*"Latin Modern Math"[^}]*\}/, '');
-      document.head.prepend(style);
-      return mod;
-    })();
-    fasterLatexPromise.catch(() => { fasterLatexPromise = null; });
+let frameReady = false;
+let expectingLoad = false;
+let latestRender = null;
+
+async function initFrame() {
+  frameReady = false;
+  expectingLoad = true;
+  frame.srcdoc = await rendererDocument();
+}
+
+// The renderer never navigates itself, but if it somehow does, start afresh
+frame.addEventListener('load', () => {
+  if (!expectingLoad) initFrame();
+  expectingLoad = false;
+});
+
+function postToFrame(message) {
+  if (frameReady) frame.contentWindow.postMessage(message, '*');
+}
+
+let exportCounter = 0;
+const pendingExports = new Map();
+
+// Everything from the frame is treated as untrusted
+window.addEventListener('message', (e) => {
+  const msg = e.data;
+  if (e.source !== frame.contentWindow || !msg || typeof msg !== 'object') return;
+  if (msg.type === 'ready') {
+    frameReady = true;
+    if (latestRender) postToFrame({ ...latestRender, view });
+  } else if (msg.type === 'rendered') {
+    // Empty source is handled here, so its message (a bad link, say) stays
+    if (!latestRender || msg.id !== latestRender.id || latestRender.plan.mode === 'empty') return;
+    setMessage(typeof msg.error === 'string' ? msg.error : '');
+    showWarnings(Array.isArray(msg.warnings) ? msg.warnings : []);
+  } else if (msg.type === 'height') {
+    const height = Number(msg.height);
+    if (Number.isFinite(height)) frame.style.height = Math.min(Math.max(height, 0), 1e6) + 'px';
+  } else if (msg.type === 'scroll') {
+    const top = Number(msg.top);
+    if (Number.isFinite(top)) {
+      const y = window.scrollY + frame.getBoundingClientRect().top + top - window.innerHeight / 3;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  } else if (msg.type === 'open') {
+    openExternal(msg.href);
+  } else if (msg.type === 'svg') {
+    const pending = pendingExports.get(msg.id);
+    if (!pending) return;
+    pendingExports.delete(msg.id);
+    try {
+      if (typeof msg.markup !== 'string') throw new Error(String(msg.error || 'Export failed'));
+      const clamp = (n) => Math.min(Math.max(Number(n) || 0, 1), 8000);
+      pending.resolve({ markup: sanitizeSvg(msg.markup), width: clamp(msg.width), height: clamp(msg.height) });
+    } catch (err) {
+      pending.reject(err);
+    }
   }
-  return fasterLatexPromise;
-}
+});
 
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error(`Could not load ${src}`));
-    document.head.append(script);
-  });
-}
-
-function todayString() {
-  return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-}
-
-async function renderDocument(source, target) {
-  const fl = await loadFasterLatex();
-  const result = fl.render(source, { today: todayString() });
-  // faster-latex escapes its output, but this LaTeX arrives from arbitrary
-  // links, so sanitize as well. Taking the DOM fragment (not a string) avoids
-  // re-parsing the sanitized markup, which is where mutation XSS lives.
-  const fragment = DOMPurify.sanitize(result.html, {
-    USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
-    RETURN_DOM_FRAGMENT: true,
-  });
-  // Typeset off-screen (but in the document, at the same width, so MathJax
-  // can measure it) to avoid flashing raw MathML while typing
-  const node = document.createElement('div');
-  node.setAttribute('aria-hidden', 'true');
-  node.style.cssText = `position:absolute;visibility:hidden;left:-10000px;top:0;width:${target.clientWidth}px`;
-  node.append(fragment);
-  document.body.append(node);
-  let mathError = null;
+function openExternal(href) {
+  let url;
   try {
-    // Re-typeset faster-latex's MathML with MathJax so documents use the same
-    // fonts and quality as the equation view. Native MathML stays as a fallback.
-    await withMathJax(() => {
-      MathJax.texReset();
-      MathJax.typesetClear();
-      return MathJax.typesetPromise([node]);
-    });
-  } catch (e) {
-    mathError = e;
+    url = new URL(String(href));
+  } catch {
+    return;
   }
-  node.remove();
-  node.removeAttribute('aria-hidden');
-  node.removeAttribute('style');
-  return {
-    node,
-    error: mathError ? `MathJax could not typeset the maths (${mathError.message}); showing the browser's native MathML instead.` : null,
-    warnings: result.warnings || [],
-  };
+  if (url.protocol === 'http:' || url.protocol === 'https:') {
+    window.open(url.href, '_blank', 'noopener,noreferrer');
+  }
 }
 
 // ---------------------------------------------------------------------------
 // UI state
 // ---------------------------------------------------------------------------
-const $ = (id) => document.getElementById(id);
 const sourceEl = $('source');
-const outputEl = $('output');
 const messageEl = $('message');
 const modeChip = $('mode-chip');
 const warningsEl = $('warnings');
+const urlInput = $('url-input');
+const urlStatus = $('url-status');
 
 let view = 'edit';
 let source = '';
-let currentPlan = { mode: 'empty' };
 let renderCounter = 0;
+let loaded = null; // { url, source } when the LaTeX came from ?url=
+let pristine = ''; // the LaTeX as last loaded, to tell whether it has been edited
 
 function setMessage(text) {
   messageEl.textContent = text || '';
   messageEl.hidden = !text;
+}
+
+function setUrlStatus(text, isError) {
+  urlStatus.textContent = text || '';
+  urlStatus.hidden = !text;
+  urlStatus.classList.toggle('error', Boolean(isError));
 }
 
 function showWarnings(warnings) {
@@ -817,7 +1142,8 @@ function showWarnings(warnings) {
   const ul = warningsEl.querySelector('ul');
   ul.replaceChildren(...warnings.map((w) => {
     const li = document.createElement('li');
-    li.textContent = (w.line ? `Line ${w.line}: ` : '') + w.message.split('\n')[0];
+    const line = Number(w && w.line);
+    li.textContent = (line ? `Line ${line}: ` : '') + String(w && w.message).split('\n')[0];
     return li;
   }));
 }
@@ -836,82 +1162,44 @@ function updateTitle(plan) {
   document.title = label ? `${label} · LaTeX` : 'LaTeX renderer';
 }
 
-async function render() {
-  const id = ++renderCounter;
+function render() {
   const plan = analyze(source);
-  currentPlan = plan;
   modeChip.textContent = plan.mode === 'equation' ? 'Equation · MathJax'
     : plan.mode === 'document' ? 'Document · faster-latex (WASM)' : '';
   document.body.classList.toggle('has-equation', plan.mode === 'equation');
   updateTitle(plan);
-
   if (plan.mode === 'empty') {
-    outputEl.className = '';
-    outputEl.innerHTML = '<p class="placeholder">The rendered output will appear here.</p>';
     setMessage('');
     showWarnings([]);
-    return;
   }
-  if (!outputEl.firstChild || outputEl.querySelector('.placeholder')) {
-    outputEl.innerHTML = '<p class="placeholder">Rendering…</p>';
-  }
-  let result;
-  try {
-    result = plan.mode === 'equation'
-      ? await renderEquation(plan, outputEl)
-      : await renderDocument(source, outputEl);
-  } catch (e) {
-    if (id !== renderCounter) return;
-    console.error(e);
-    setMessage(`Could not render: ${e.message}`);
-    return;
-  }
-  if (id !== renderCounter) return; // a newer render has started
-  outputEl.className = `mode-${plan.mode}`;
-  outputEl.replaceChildren(result.node);
-  setMessage(result.error);
-  showWarnings(result.warnings);
-  fitEquation();
-}
-
-// Shrink wide equations to fit, down to MIN_SCALE, then fall back to scrolling.
-// MathJax breaks lines longer than the width at BREAK_SCALE, but a line it
-// cannot break may overshoot that a little, hence the lower MIN_SCALE.
-const BREAK_SCALE = 0.7;
-const MIN_SCALE = 0.55;
-let fittedWidth = 0;
-function fitEquation() {
-  const eq = outputEl.querySelector('.eq');
-  if (!eq) return;
-  fittedWidth = outputEl.clientWidth;
-  eq.style.fontSize = '';
-  const available = outputEl.clientWidth - 8;
-  const width = eq.scrollWidth;
-  if (width > available && available > 0) {
-    eq.style.fontSize = Math.max(MIN_SCALE, available / width) + 'em';
-  }
-}
-
-// Line breaks depend on the width, so re-render equations when it changes
-function refit() {
-  if (currentPlan.mode === 'equation' && fittedWidth && Math.abs(outputEl.clientWidth - fittedWidth) > 2) {
-    render();
-  } else {
-    fitEquation();
-  }
+  latestRender = { type: 'render', id: ++renderCounter, source, plan };
+  postToFrame({ ...latestRender, view });
 }
 
 // ---------------------------------------------------------------------------
-// URL handling: "#..." is the rendered view, "?edit#..." the editor
+// URL handling: "#..." is the rendered view, "?edit#..." the editor;
+// "?url=..." (plus "&edit") while showing a fetched file unchanged
 // ---------------------------------------------------------------------------
-function urlFor(targetView, fragment) {
-  const base = location.pathname;
-  if (!fragment) return base;
-  return (targetView === 'edit' ? base + '?edit' : base) + '#' + fragment;
+function linkParts() {
+  if (loaded && source === loaded.source) return { query: 'url=' + encodeURIComponent(loaded.url), fragment: '' };
+  return { query: '', fragment: shortestFragment(source) };
+}
+
+function urlFor(targetView) {
+  const { query, fragment } = linkParts();
+  if (!query && !fragment) return location.pathname;
+  const params = [query, targetView === 'edit' ? 'edit' : ''].filter(Boolean).join('&');
+  return location.pathname + (params ? '?' + params : '') + (fragment ? '#' + fragment : '');
 }
 
 function shareUrl(fragment) {
   return location.origin + location.pathname + '#' + fragment;
+}
+
+function sourceShareUrl() {
+  return loaded && source === loaded.source
+    ? location.origin + location.pathname + '?url=' + encodeURIComponent(loaded.url)
+    : null;
 }
 
 function setView(newView) {
@@ -920,14 +1208,14 @@ function setView(newView) {
   document.body.classList.toggle('view-render', view === 'render');
   $('edit-btn').setAttribute('aria-pressed', String(view === 'edit'));
   $('render-btn').setAttribute('aria-pressed', String(view === 'render'));
-  requestAnimationFrame(refit);
+  postToFrame({ type: 'view', view });
 }
 
 const currentUrl = () => location.pathname + location.search + location.hash;
 let lastUrl = null; // the URL the page state currently reflects
 
 function writeUrl(push) {
-  const url = urlFor(view, shortestFragment(source));
+  const url = urlFor(view);
   if (url === currentUrl()) return;
   history[push ? 'pushState' : 'replaceState'](null, '', url);
   lastUrl = currentUrl();
@@ -936,11 +1224,18 @@ function writeUrl(push) {
 function readUrl() {
   lastUrl = currentUrl();
   const params = new URLSearchParams(location.search);
+  const remote = (params.get('url') || '').trim();
+  if (remote) {
+    loadRemote(remote, params.has('edit') ? 'edit' : 'render');
+    return;
+  }
+  loaded = null;
+  setUrlStatus('');
   const decoded = decodeFragment(location.hash.slice(1));
-  source = decoded.source;
+  source = pristine = decoded.source;
   sourceEl.value = source;
   setView(!source || params.has('edit') || decoded.error ? 'edit' : 'render');
-  render().then(() => { if (decoded.error) setMessage(decoded.error); });
+  render();
   if (decoded.error) setMessage(decoded.error);
 }
 
@@ -959,28 +1254,9 @@ function switchView(newView) {
 // Back/forward, or a hand-edited fragment (which fires both of these events)
 for (const event of ['popstate', 'hashchange']) {
   window.addEventListener(event, () => {
-    if (currentUrl() === lastUrl) return;
-    // MathJax's keyboard explorer follows \eqref links by setting location.href
-    const target = document.getElementById(percentDecode(location.hash.slice(1)));
-    if (target && outputEl.contains(target)) {
-      history.replaceState(null, '', lastUrl);
-      target.scrollIntoView({ block: 'center' });
-      return;
-    }
-    readUrl();
+    if (currentUrl() !== lastUrl) readUrl();
   });
 }
-
-// In-page links (\ref, \eqref, footnotes, contents) must scroll rather than
-// change location.hash, which holds the LaTeX
-outputEl.addEventListener('click', (e) => {
-  const link = e.target.closest('a[href^="#"], [data-mjx-href^="#"]');
-  if (!link) return;
-  e.preventDefault();
-  e.stopPropagation();
-  const id = percentDecode((link.getAttribute('href') || link.getAttribute('data-mjx-href')).slice(1));
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}, true);
 
 let inputTimer = null;
 sourceEl.addEventListener('input', () => {
@@ -1011,10 +1287,90 @@ $('render-btn').addEventListener('click', () => {
   switchView('render');
 });
 
-let resizeTimer = null;
-window.addEventListener('resize', () => {
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(refit, 150);
+// ---------------------------------------------------------------------------
+// Loading LaTeX from a URL or GitHub Gist
+// ---------------------------------------------------------------------------
+const MAX_REMOTE_CHARS = 2_000_000;
+// Owner, gist id and optional revision from a gist page URL
+const GIST_RE = /^https?:\/\/gist\.github\.com\/(?:([^/?#]+)\/)?([0-9a-f]+)(?:\/([0-9a-f]+))?(?=[/?#]|$)/i;
+// A file page on github.com, which can be fetched from raw.githubusercontent.com
+const GITHUB_BLOB_RE = /^https:\/\/github\.com\/([^/?#]+)\/([^/?#]+)\/blob\/([^?#]+)/i;
+const remoteCache = new Map();
+
+async function fetchText(url) {
+  let res;
+  try {
+    res = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+  } catch {
+    throw new Error('could not fetch it (the server may not allow cross-origin requests)');
+  }
+  if (!res.ok) throw new Error(`${new URL(url).host} returned HTTP ${res.status}`);
+  if (Number(res.headers.get('content-length')) > MAX_REMOTE_CHARS * 4) throw new Error('the file is too large');
+  const text = await res.text();
+  if (text.length > MAX_REMOTE_CHARS) throw new Error('the file is too large');
+  return text;
+}
+
+async function fetchSource(rawUrl) {
+  let url;
+  try {
+    url = new URL(rawUrl.trim());
+  } catch {
+    throw new Error('that is not a valid URL');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('only http and https URLs are supported');
+  const gist = GIST_RE.exec(url.href);
+  if (gist) {
+    const [, owner, id, revision] = gist;
+    // Raw gist hosting allows CORS and avoids the API's rate limit; it returns the first file
+    if (owner) return fetchText(`https://gist.githubusercontent.com/${owner}/${id}/raw/${revision || ''}`);
+    // Without an owner, ask the API for the files and prefer a .tex one
+    const data = JSON.parse(await fetchText(`https://api.github.com/gists/${id}`));
+    const files = Object.values(data.files || {});
+    if (!files.length) throw new Error('the gist has no files');
+    const file = files.find((f) => /\.(tex|latex|ltx)$/i.test(f.filename)) || files[0];
+    return file.truncated ? fetchText(file.raw_url) : String(file.content);
+  }
+  const blob = GITHUB_BLOB_RE.exec(url.href);
+  if (blob) return fetchText(`https://raw.githubusercontent.com/${blob[1]}/${blob[2]}/${blob[3]}`);
+  return fetchText(url.href);
+}
+
+let loadCounter = 0;
+async function loadRemote(url, targetView) {
+  const id = ++loadCounter;
+  urlInput.value = url;
+  setView(targetView);
+  setMessage('');
+  setUrlStatus('Loading…');
+  let text;
+  try {
+    text = remoteCache.has(url) ? remoteCache.get(url) : await fetchSource(url);
+  } catch (e) {
+    if (id !== loadCounter) return;
+    setUrlStatus(`Could not load ${url}: ${e.message}`, true);
+    setView('edit');
+    return;
+  }
+  if (id !== loadCounter) return;
+  remoteCache.set(url, text);
+  loaded = { url, source: text };
+  source = pristine = text;
+  sourceEl.value = text;
+  setUrlStatus('');
+  render();
+}
+
+$('url-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const url = urlInput.value.trim();
+  if (!url) return;
+  clearTimeout(inputTimer);
+  // Keep the current LaTeX one Back away
+  source = sourceEl.value;
+  writeUrl(false);
+  await loadRemote(url, 'render');
+  if (loaded && loaded.url === url) writeUrl(true);
 });
 
 // ---------------------------------------------------------------------------
@@ -1041,7 +1397,7 @@ async function copyText(text, what) {
 $('copy-link').addEventListener('click', () => {
   source = sourceEl.value;
   if (!source.trim()) return toast('Nothing to link to yet');
-  copyText(shareUrl(shortestFragment(source)), 'link');
+  copyText(sourceShareUrl() || shareUrl(shortestFragment(source)), 'link');
 });
 
 $('share-panel').addEventListener('beforetoggle', (e) => {
@@ -1049,6 +1405,9 @@ $('share-panel').addEventListener('beforetoggle', (e) => {
   source = sourceEl.value;
   const readable = source ? readableFragment(source) : '';
   const compressed = source ? compressedFragment(source) : '';
+  const sourceLink = sourceShareUrl();
+  $('source-link-row').hidden = !sourceLink;
+  $('source-link').value = sourceLink || '';
   $('readable-link').value = readable === null ? '(not available: starts with ~)' : (readable ? shareUrl(readable) : '');
   $('compressed-link').value = compressed ? shareUrl(compressed) : '';
   $('readable-len').textContent = readable ? `${shareUrl(readable).length.toLocaleString()} chars` : '';
@@ -1068,31 +1427,35 @@ $('print-btn').addEventListener('click', () => {
   window.print();
 });
 
-function equationSvg() {
-  return outputEl.querySelector('.eq mjx-container svg');
+// Ask the frame for the equation as SVG
+function requestSvg(pxPerEx) {
+  return new Promise((resolve, reject) => {
+    if (!frameReady) return reject(new Error('The renderer is still loading'));
+    const id = ++exportCounter;
+    pendingExports.set(id, { resolve, reject });
+    postToFrame({ type: 'export-svg', id, pxPerEx });
+    setTimeout(() => {
+      if (pendingExports.delete(id)) reject(new Error('The renderer did not respond'));
+    }, 5000);
+  });
 }
 
-// A standalone copy of the equation SVG, black on transparent, sized in px
-function exportSvg(pxPerEx) {
-  const svg = equationSvg();
-  if (!svg) return null;
-  const clone = svg.cloneNode(true);
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-  clone.style.color = '#000';
-  const rect = svg.getBoundingClientRect();
-  const exPx = parseFloat(getComputedStyle(svg).fontSize) * 0.442 || 8;
-  const size = (attr, fallback) => {
-    const v = svg.getAttribute(attr) || '';
-    return /ex$/.test(v) ? parseFloat(v) * pxPerEx : (fallback / exPx) * pxPerEx;
-  };
-  const width = size('width', rect.width);
-  const height = size('height', rect.height);
-  clone.setAttribute('width', width.toFixed(2));
-  clone.setAttribute('height', height.toFixed(2));
-  clone.removeAttribute('style');
-  clone.setAttribute('style', 'color:#000');
-  return { markup: new XMLSerializer().serializeToString(clone), width, height };
+// The SVG comes from the sandbox, so keep only inert SVG before saving it
+function sanitizeSvg(markup) {
+  const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+  const svg = doc.documentElement;
+  if (svg.localName !== 'svg' || doc.querySelector('parsererror')) throw new Error('The renderer sent an invalid SVG');
+  for (const el of [svg, ...svg.querySelectorAll('*')]) {
+    if (el.namespaceURI !== 'http://www.w3.org/2000/svg' || ['script', 'style', 'foreignObject'].includes(el.localName)) {
+      el.remove();
+      continue;
+    }
+    for (const attr of [...el.attributes]) {
+      const local = attr.localName.toLowerCase();
+      if (local.startsWith('on') || (local === 'href' && !attr.value.startsWith('#'))) el.removeAttributeNode(attr);
+    }
+  }
+  return new XMLSerializer().serializeToString(svg);
 }
 
 function downloadBlob(blob, filename) {
@@ -1105,9 +1468,8 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-function pngBlob() {
-  const exported = exportSvg(8 * 4); // 4x a typical on-screen size
-  if (!exported) return Promise.reject(new Error('No equation to export'));
+async function pngBlob() {
+  const exported = await requestSvg(8 * 4); // 4x a typical on-screen size
   const pad = 24;
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -1126,10 +1488,13 @@ function pngBlob() {
   });
 }
 
-$('download-svg').addEventListener('click', () => {
-  const exported = exportSvg(8);
-  if (!exported) return;
-  downloadBlob(new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + exported.markup], { type: 'image/svg+xml' }), 'equation.svg');
+$('download-svg').addEventListener('click', async () => {
+  try {
+    const exported = await requestSvg(8);
+    downloadBlob(new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + exported.markup], { type: 'image/svg+xml' }), 'equation.svg');
+  } catch (e) {
+    toast(e.message);
+  }
 });
 
 $('download-png').addEventListener('click', async () => {
@@ -1212,21 +1577,20 @@ This proves Theorem~\ref{thm:odd}. Some small cases of \eqref{eq:odd}:
 \end{itemize}
 \end{document}`,
 };
-const exampleTexts = new Set(Object.values(EXAMPLES));
 for (const [name, tex] of Object.entries(EXAMPLES)) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.textContent = name;
   btn.addEventListener('click', () => {
     const current = sourceEl.value;
-    const isDraft = current.trim() && !exampleTexts.has(current);
-    if (isDraft && !confirm('Replace your LaTeX with this example? (Back will bring it back.)')) return;
+    const edited = current.trim() && current !== pristine;
+    if (edited && !confirm('Replace your LaTeX with this example? (Back will bring it back.)')) return;
     clearTimeout(inputTimer);
     // Write the draft's URL first, then push the example as a new history
     // entry, so the browser's Back button restores the draft
     source = current;
     if (current.trim()) writeUrl(false);
-    sourceEl.value = source = tex;
+    sourceEl.value = source = pristine = tex;
     render();
     writeUrl(Boolean(current.trim()));
   });
@@ -1243,8 +1607,8 @@ window.latexTool = {
   dictionary: DICTIONARY,
 };
 
+initFrame();
 readUrl();
-window.mathJaxReady.catch((e) => setMessage(e.message));
 </script>
 </body>
 </html>
