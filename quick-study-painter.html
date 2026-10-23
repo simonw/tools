@@ -1,4 +1,11 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
 <title>Quick Study</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -614,24 +621,37 @@ figcaption b { font-family: var(--f-body); font-size: 14px; font-weight: 600; co
     const base = sourceName.startsWith('a ') ? 'lakeside-sample' : sourceName.replace(/\.[^.]+$/, '');
     return (base.replace(/[^\w\-]+/g, '-').replace(/^-+|-+$/g, '') || 'photo').slice(0, 80);
   }
+  // Outside claude.ai there is no window.claude, so save with a plain download link instead.
+  const standalone = !(window.claude && typeof window.claude.use === 'function');
+  function linkDownload(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.rel = 'noopener'; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
   saveBtn.addEventListener('click', async () => {
-    if (!downloads || !W) return;
+    if ((!downloads && !standalone) || !W) return;
     saveBtn.disabled = true;
     try {
       const blob = await exportBlob();
+      if (!blob) throw { code: 'export_failed' };
       const name = `${fileBase()}-${medium() === 'water' ? 'watercolor' : medium() === 'point' ? 'pointillist' : 'oil'}-study.png`;
-      await downloads.save({ filename: name, data: blob });
+      if (downloads) await downloads.save({ filename: name, data: blob });
+      else linkDownload(blob, name);
       setStatus(`Saved ${name}`);
     } catch (e) {
       const code = e && e.code;
       if (code === 'declined') setStatus('Download cancelled.');
       else if (code === 'rate_limited') setStatus('A save prompt is already open. Finish that one, then try again.');
       else if (code === 'too_large') setStatus('That image is too large to save here.');
+      else if (code === 'export_failed') setStatus('This browser could not export the painting as a PNG.');
       else { setStatus('Downloads are not available in this view.'); saveBtn.hidden = true; }
     } finally { saveBtn.disabled = false; }
   });
-  (async () => {
-    try { downloads = await window.claude?.use?.('downloads'); } catch { downloads = null; }
+  if (standalone) saveBtn.hidden = false;
+  else (async () => {
+    try { downloads = await window.claude.use('downloads'); } catch { downloads = null; }
     if (downloads) saveBtn.hidden = false;
   })();
 
@@ -700,4 +720,5 @@ figcaption b { font-family: var(--f-body); font-size: 14px; font-weight: 600; co
 })();
 </script>
 
-</body></html>
+</body>
+</html>
