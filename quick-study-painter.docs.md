@@ -1,0 +1,3 @@
+Quick Study reports on a painting it creates from a photo, which it renders stroke by stroke in passes from coarse brushes to fine ones. Users choose a medium (oil, watercolor, or pointillist), a detail level, and a duration of 2 to 10 seconds, then can hold a button to compare against the original photo, repaint with a new random take, and download the finished study as a PNG when the Downloads service is available. The status line tracks the current pass, brush size, and stroke count, while a progress bar and caption show the source name, medium, and dimensions.
+
+<!-- Generated from commit: f49908b72fc2ba2154bf6d512a7a19b4f1fb5921 -->
