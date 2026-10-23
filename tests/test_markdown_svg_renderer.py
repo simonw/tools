@@ -2,6 +2,7 @@
 
 import pathlib
 import re
+import struct
 from urllib.parse import quote
 
 import pytest
@@ -590,6 +591,120 @@ def read_rendered_image_bytes(page, panel):
             panel,
         )
     )
+
+
+@pytest.mark.parametrize("pixel_ratio", [1, 1.5, 2])
+def test_png_export_uses_device_pixels(browser, unused_port_server, pixel_ratio):
+    unused_port_server.start(root)
+    with browser.new_context(
+        viewport={"width": 1280, "height": 800}, device_scale_factor=pixel_ratio
+    ) as context:
+        page = context.new_page()
+        page.goto(
+            f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+        )
+        svg = """<svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="100" cy="50" r="40" fill="#22c55e"/>
+</svg>"""
+        block = fill_svg_block(page, svg)
+        css_width = block.evaluate("block => block.clientWidth")
+        block.locator('button[data-tab="png"]').click()
+        panel = block.locator('.panel[data-panel="png"]')
+        expect(panel.locator(".image-actions button")).to_be_visible()
+
+        # Check the encoded file, not just the image's layout dimensions.
+        data = read_rendered_image_bytes(page, "png")
+        assert data[:8] == b"\x89PNG\r\n\x1a\n"
+        width, height = struct.unpack(">II", data[16:24])
+        assert abs(width - css_width * pixel_ratio) <= 0.5
+        assert abs(height - width / 2) <= 0.5
+        assert abs(panel.locator("img").bounding_box()["width"] - css_width) <= 0.5
+
+
+def test_png_export_refreshes_after_window_and_layout_resizes(page, unused_port_server):
+    unused_port_server.start(root)
+    page.set_viewport_size({"width": 800, "height": 800})
+    page.route(
+        "https://gist.githubusercontent.com/**",
+        lambda route: route.fulfill(
+            body=f"```svg\n{STATIC_SVG}\n```", content_type="text/plain"
+        ),
+    )
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html?url="
+        + quote("https://gist.github.com/simonw/abc123", safe="")
+    )
+    block = page.locator("svg-block")
+    expect(block).to_be_visible()
+    png_tab = block.locator('button[data-tab="png"]')
+    png_tab.click()
+    panel = block.locator('.panel[data-panel="png"]')
+    image = panel.locator("img")
+    expect(panel.locator(".image-actions button")).to_be_visible()
+    original_src = image.get_attribute("src")
+    original_width, _ = struct.unpack(">II", read_rendered_image_bytes(page, "png")[16:24])
+
+    # Reopening an unchanged export should reuse its blob.
+    block.locator('button[data-tab="render"]').click()
+    png_tab.click()
+    expect(image).to_have_attribute("src", original_src)
+
+    page.set_viewport_size({"width": 1280, "height": 800})
+    expect(image).not_to_have_attribute("src", original_src)
+    resized_src = image.get_attribute("src")
+    resized_width, _ = struct.unpack(">II", read_rendered_image_bytes(page, "png")[16:24])
+    assert resized_width > original_width
+
+    # Toggling the editor changes the preview width without a window resize.
+    page.get_by_role("button", name="Show source", exact=True).click()
+    expect(image).not_to_have_attribute("src", resized_src)
+    split_src = image.get_attribute("src")
+    split_width, _ = struct.unpack(">II", read_rendered_image_bytes(page, "png")[16:24])
+    assert split_width < resized_width
+
+    # An inactive format is refreshed lazily when reopened at its new size.
+    block.locator('button[data-tab="render"]').click()
+    page.get_by_role("button", name="Hide source", exact=True).click()
+    png_tab.click()
+    expect(image).not_to_have_attribute("src", split_src)
+    final_width, _ = struct.unpack(">II", read_rendered_image_bytes(page, "png")[16:24])
+    assert final_width == resized_width
+
+
+@pytest.mark.parametrize("old_encode_succeeds", [True, False])
+def test_resized_png_ignores_a_stale_encode(page, unused_port_server, old_encode_succeeds):
+    unused_port_server.start(root)
+    page.add_init_script("""(() => {
+      window.pendingPngEncodes = [];
+      const original = HTMLCanvasElement.prototype.toBlob;
+      HTMLCanvasElement.prototype.toBlob = function(callback, type, quality) {
+        if (type !== "image/png") return original.call(this, callback, type, quality);
+        original.call(this, blob => {
+          pendingPngEncodes.push((succeeds = true) => callback(succeeds ? blob : null));
+        }, type, quality);
+      };
+    })();""")
+    page.set_viewport_size({"width": 800, "height": 800})
+    page.goto(
+        f"http://127.0.0.1:{unused_port_server.port}/markdown-svg-renderer.html"
+    )
+    block = fill_svg_block(page, STATIC_SVG)
+    block.locator('button[data-tab="png"]').click()
+    page.wait_for_function("pendingPngEncodes.length === 1")
+
+    page.set_viewport_size({"width": 1280, "height": 800})
+    page.wait_for_function("pendingPngEncodes.length === 2")
+    page.evaluate("pendingPngEncodes[1]()")
+    panel = block.locator('.panel[data-panel="png"]')
+    expect(panel.locator(".image-actions button")).to_be_visible()
+    latest_src = panel.locator("img").get_attribute("src")
+    latest_data = read_rendered_image_bytes(page, "png")
+
+    # Deliver the older completion after the resized image is already shown.
+    page.evaluate("succeeds => pendingPngEncodes[0](succeeds)", old_encode_succeeds)
+    expect(panel.locator("img")).to_have_attribute("src", latest_src)
+    expect(panel.locator(".image-status")).to_be_hidden()
+    assert read_rendered_image_bytes(page, "png") == latest_data
 
 
 # Most browsers cannot encode AVIF from a canvas either. Force that, so the

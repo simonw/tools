@@ -947,7 +947,10 @@ function setupCopyButton(shadow, code) {
 
 class SvgBlock extends HTMLElement {
   connectedCallback() {
-    if (this.shadowRoot) return;
+    if (this.shadowRoot) {
+      this.observeImageSize();
+      return;
+    }
 
     const code = this.getAttribute("data-svg") || "";
     const shadow = this.attachShadow({ mode: "open" });
@@ -1242,6 +1245,31 @@ class SvgBlock extends HTMLElement {
     });
 
     if (this._animation) this.setupMp4Panel();
+    this.observeImageSize();
+  }
+
+  observeImageSize() {
+    this._onImageResize = this._onImageResize || (() => {
+      const width = this.clientWidth;
+      const pixelRatio = window.devicePixelRatio;
+      if (this._imageWidth === width && this._imagePixelRatio === pixelRatio) return;
+      this._imageWidth = width;
+      this._imagePixelRatio = pixelRatio;
+      const format = this.shadowRoot.querySelector(".tabs button.active").dataset.tab;
+      if (["png", "jpeg", "webp", "avif"].includes(format)) {
+        this.renderImage(format);
+      }
+    });
+    this._onImageResize();
+    this._imageResizeObserver = this._imageResizeObserver || new ResizeObserver(this._onImageResize);
+    this._imageResizeObserver.observe(this);
+    // A display's pixel ratio can change without changing the content width.
+    window.addEventListener("resize", this._onImageResize);
+  }
+
+  disconnectedCallback() {
+    this._imageResizeObserver?.disconnect();
+    window.removeEventListener("resize", this._onImageResize);
   }
 
   setupMp4Panel() {
@@ -1428,17 +1456,24 @@ class SvgBlock extends HTMLElement {
     }
   }
 
-  // Rasterize the SVG to PNG/JPEG/WebP/AVIF at the size the SVG preview is
-  // displayed, by drawing it onto a canvas via a blob URL (same approach as
-  // svg-render.html). Runs lazily on first visit to the tab. canvasToBlob
-  // loads a wasm encoder for WebP or AVIF if the browser lacks one.
+  // Rasterize at the displayed size in device pixels, keeping the CSS preview
+  // size independent of the canvas resolution. Cache each format at that size;
+  // refresh the active tab on resize and other formats when next opened.
+  // canvasToBlob loads a wasm encoder for WebP or AVIF if needed.
   renderImage(format) {
+    const code = this.getAttribute("data-svg") || "";
+    const [ratioW, ratioH] = svgAspectRatioNumbers(code);
+    const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+    const width = Math.max(1, Math.round(this.clientWidth * pixelRatio));
+    const height = Math.max(1, Math.round((width * ratioH) / ratioW));
     this._rendered = this._rendered || {};
-    if (this._rendered[format]) return;
-    this._rendered[format] = true;
+    const previous = this._rendered[format];
+    if (previous && previous.width === width && previous.height === height) return;
+    const rendering = { width, height };
+    this._rendered[format] = rendering;
+    const isCurrent = () => this._rendered[format] === rendering;
 
     const shadow = this.shadowRoot;
-    const code = this.getAttribute("data-svg") || "";
     const panel = shadow.querySelector(`.panel[data-panel="${format}"]`);
     const status = panel.querySelector(".image-status");
     const imageWrap = panel.querySelector(".image-wrap");
@@ -1451,17 +1486,12 @@ class SvgBlock extends HTMLElement {
     status.classList.remove("error");
 
     const fail = (message) => {
-      this._rendered[format] = false;
+      if (!isCurrent()) return;
+      delete this._rendered[format];
       status.hidden = false;
       status.textContent = message;
       status.classList.add("error");
     };
-
-    // Match the displayed size of the SVG preview: the iframe in .svg-wrap
-    // is width:100% of the host content box, same as the raster <img>.
-    const [ratioW, ratioH] = svgAspectRatioNumbers(code);
-    const width = Math.max(1, Math.round(this.clientWidth));
-    const height = Math.max(1, Math.round((width * ratioH) / ratioW));
 
     const RASTER_FORMATS = {
       png: { mimeType: "image/png", extension: "png" },
@@ -1475,6 +1505,8 @@ class SvgBlock extends HTMLElement {
 
     const img = new Image();
     img.onload = () => {
+      URL.revokeObjectURL(svgUrl);
+      if (!isCurrent()) return;
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -1482,10 +1514,9 @@ class SvgBlock extends HTMLElement {
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
-      URL.revokeObjectURL(svgUrl);
-
       canvasToBlob(canvas, mimeType, 0.9).then(
         (blob) => {
+          if (!isCurrent()) return;
           if (this._imageUrls && this._imageUrls[format]) {
             URL.revokeObjectURL(this._imageUrls[format]);
           }
