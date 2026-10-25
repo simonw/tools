@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seam Cutter</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+:root { padding-top: env(safe-area-inset-top, 0px); }
+[hidden] { display: none !important; }
+/* Layout: sticky header, scrolling image stage, fixed bottom tool tray (thumb reach on phones). */
+:root {
+  --bg: #e9edeb;
+  --surface: #ffffff;
+  --ink: #16201c;
+  --muted: #5b6862;
+  --line: #d2dad6;
+  --accent: #0b7a5c;
+  --accent-ink: #ffffff;
+  --seam: #ff2e63;
+  --stage: #d9dfdc;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-num: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1412; --surface: #18201c; --ink: #e5ece8; --muted: #8f9d96; --line: #2b3632;
+    --accent: #3cc497; --accent-ink: #06130e; --seam: #ff5a85; --stage: #0a0e0c; color-scheme: dark;
+  }
+}
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px;
+  padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+button { font: inherit; color: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; align-items: center; gap: 12px;
+}
+.brand { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.brand h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.brand .dims { font-family: var(--font-num); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.hbtns { display: flex; gap: 6px; }
+.ghost {
+  border: 1px solid var(--line); background: transparent; border-radius: 8px;
+  padding: 7px 11px; font-size: 14px; cursor: pointer;
+}
+.ghost:disabled { opacity: 0.4; cursor: default; }
+
+main {
+  padding-block: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+#stageWrap { width: 100%; display: flex; justify-content: center; }
+#stage { position: relative; line-height: 0; background: var(--stage); max-width: 100%; }
+#view { display: block; max-width: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#stage.placing #view { cursor: crosshair; }
+
+.seam {
+  position: absolute; pointer-events: none; background: var(--seam);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.85), 0 0 6px rgba(0,0,0,0.35);
+}
+.seam.h { left: 0; right: 0; height: 2px; margin-top: -1px; }
+.seam.v { top: 0; bottom: 0; width: 2px; margin-left: -1px; }
+.seam.cut { background: repeating-linear-gradient(90deg, var(--seam) 0 8px, #fff 8px 12px); }
+.seam.v.cut { background: repeating-linear-gradient(180deg, var(--seam) 0 8px, #fff 8px 12px); }
+
+.grip {
+  position: absolute; z-index: 2; touch-action: none; user-select: none; -webkit-user-select: none;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 22px;
+  background: var(--seam); color: #fff; border: 2px solid #fff;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  font-family: var(--font-num); font-size: 13px; line-height: 1; cursor: grab; font-variant-numeric: tabular-nums;
+}
+.grip:active { cursor: grabbing; }
+.grip svg { width: 14px; height: 14px; flex: none; }
+.grip.move { background: var(--surface); color: var(--ink); border-color: var(--seam); }
+
+.tray {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 10px;
+}
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.row .spacer { flex: 1; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; }
+.seg button {
+  border: 0; background: transparent; border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 500; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; color: var(--muted);
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.seg button:disabled { opacity: 0.4; cursor: default; }
+.seg svg { width: 16px; height: 16px; }
+.primary:disabled { opacity: 0.4; cursor: default; }
+.primary {
+  border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 10px;
+  padding: 10px 16px; font-weight: 600; font-size: 14px; cursor: pointer;
+}
+.status { font-size: 13px; color: var(--muted); min-height: 36px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.status b { color: var(--ink); font-weight: 500; }
+.nudge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-num); font-variant-numeric: tabular-nums; color: var(--ink); }
+.nudge .lbl { font-family: var(--font-ui); color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 2px; }
+.nudge button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: transparent; cursor: pointer; font-family: var(--font-num); font-size: 16px; }
+.nudge output { min-width: 4.2ch; text-align: center; }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 30;
+  bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+  background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 8px; font-size: 14px;
+}
+.empty {
+  width: 100%; max-width: 480px; min-height: 260px; border: 2px dashed var(--line); border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  text-align: center; color: var(--muted); padding: 24px;
+}
+.empty p { margin: 0; }
+.drop { outline: 3px dashed var(--accent); outline-offset: -3px; }
+@media (prefers-reduced-motion: no-preference) { .grip { transition: box-shadow .15s; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>Seam Cutter</h1>
+    <span class="dims" id="dims">–</span>
+  </div>
+  <div class="hbtns">
+    <button class="ghost" id="undoBtn" type="button" disabled>Undo</button>
+    <button class="ghost" id="openBtn" type="button">Open</button>
+  </div>
+  <input type="file" id="file" accept="image/*" hidden>
+</header>
+
+<main>
+  <div id="stageWrap">
+    <div class="empty" id="empty">
+      <p><b style="color:var(--ink)">Open an image to start</b><br>You can also paste or drop one here.</p>
+      <button class="primary" type="button" id="emptyOpen">Choose image</button>
+    </div>
+    <div id="stage" class="placing" hidden>
+      <canvas id="view"></canvas>
+      <div id="seamLine" class="seam h" hidden></div>
+      <div id="gripMove" class="grip move" hidden></div>
+      <div id="gripA" class="grip" hidden></div>
+      <div id="gripB" class="grip" hidden></div>
+    </div>
+  </div>
+</main>
+
+<div class="tray">
+  <div class="row">
+    <div class="seg" role="group" aria-label="Mode">
+      <button type="button" id="modeSeam" aria-pressed="true">Seam</button>
+      <button type="button" id="modeCut" aria-pressed="false">Cut</button>
+    </div>
+    <div class="seg" role="group" aria-label="Seam direction">
+      <button type="button" id="oriH" aria-pressed="true" aria-label="Horizontal seam" title="Horizontal seam">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 8h14"/></svg>
+      </button>
+      <button type="button" id="oriV" aria-pressed="false" aria-label="Vertical seam" title="Vertical seam">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 1v14"/></svg>
+      </button>
+    </div>
+    <span class="spacer"></span>
+    <button class="primary" id="exportBtn" type="button">Export</button>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const view = $("view"), stage = $("stage"), seamLine = $("seamLine");
+  const gripA = $("gripA"), gripB = $("gripB"), gripMove = $("gripMove");
+  const ARROW = {
+    up: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg>',
+    down: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5"/></svg>',
+    left: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 8H3M7.5 3.5 3 8l4.5 4.5"/></svg>',
+    right: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 8h10M8.5 3.5 13 8l-4.5 4.5"/></svg>',
+    ud: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 1v14M4.5 4.5 8 1l3.5 3.5M4.5 11.5 8 15l3.5-3.5"/></svg>',
+    lr: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 8h14M4.5 4.5 1 8l3.5 3.5M11.5 4.5 15 8l-3.5 3.5"/></svg>'
+  };
+
+  const st = {
+    work: null,        // canvas holding the current base image
+    hist: [],          // earlier base canvases (for Undo)
+    name: "image",
+    orient: "h",
+    s: null,           // seam position along the cut axis, in image px
+    cross: null,       // where along the seam the grips sit, in image px
+    a: 0, b: 0,        // px removed before / after the seam
+    mode: "seam",
+    scale: 1
+  };
+
+  function updateEmpty() {
+    const has = !!st.work;
+    $("empty").hidden = has;
+    stage.hidden = !has;
+    for (const id of ["exportBtn", "modeSeam", "modeCut", "oriH", "oriV"]) $(id).disabled = !has;
+    if (!has) {
+      $("dims").textContent = "No image";
+      $("status").textContent = "Open an image, then tap it to place a seam.";
+    }
+  }
+  const axisLen = () => st.orient === "h" ? st.work.height : st.work.width;
+  const crossLen = () => st.orient === "h" ? st.work.width : st.work.height;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  function setImage(img, name) {
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth || img.width;
+    c.height = img.naturalHeight || img.height;
+    c.getContext("2d").drawImage(img, 0, 0);
+    st.work = c; st.hist = []; st.name = name || "image";
+    st.s = null; st.cross = null; st.a = st.b = 0; st.mode = "seam";
+    updateEmpty();
+    render();
+  }
+
+  function loadFile(file) {
+    if (!file || !file.type.startsWith("image/")) { toast("That file isn't an image."); return; }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { setImage(img, file.name.replace(/\.[^.]+$/, "")); URL.revokeObjectURL(url); };
+    img.onerror = () => toast("Couldn't read that image.");
+    img.src = url;
+  }
+
+  function resultDims() {
+    const W = st.work.width, H = st.work.height;
+    const cut = (st.mode === "cut" && st.s != null) ? st.a + st.b : 0;
+    return st.orient === "h" ? [W, H - cut] : [W - cut, H];
+  }
+
+  function drawResult(canvas) {
+    const W = st.work.width, H = st.work.height;
+    const [rw, rh] = resultDims();
+    if (canvas.width !== rw) canvas.width = rw;
+    if (canvas.height !== rh) canvas.height = rh;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, rw, rh);
+    const cut = st.mode === "cut" && st.s != null && (st.a + st.b) > 0;
+    if (!cut) { ctx.drawImage(st.work, 0, 0); return; }
+    const s = st.s, a = st.a, b = st.b;
+    if (st.orient === "h") {
+      if (s - a > 0) ctx.drawImage(st.work, 0, 0, W, s - a, 0, 0, W, s - a);
+      if (H - s - b > 0) ctx.drawImage(st.work, 0, s + b, W, H - s - b, 0, s - a, W, H - s - b);
+    } else {
+      if (s - a > 0) ctx.drawImage(st.work, 0, 0, s - a, H, 0, 0, s - a, H);
+      if (W - s - b > 0) ctx.drawImage(st.work, s + b, 0, W - s - b, H, s - a, 0, W - s - b, H);
+    }
+  }
+
+  let raf = 0;
+  function render() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderNow(); }); }
+
+  function renderNow() {
+    if (!st.work) return;
+    const W = st.work.width;
+    const avail = $("stageWrap").clientWidth || W;
+    st.scale = Math.min(1, avail / W);
+    drawResult(view);
+    const [rw, rh] = resultDims();
+    view.style.width = (rw * st.scale) + "px";
+    view.style.height = (rh * st.scale) + "px";
+    stage.style.width = (rw * st.scale) + "px";
+    stage.classList.toggle("placing", st.mode === "seam");
+
+    const placed = st.s != null;
+    const h = st.orient === "h";
+    seamLine.hidden = !placed;
+    seamLine.className = "seam " + st.orient + (st.mode === "cut" ? " cut" : "");
+    gripMove.hidden = !(placed && st.mode === "seam");
+    gripA.hidden = gripB.hidden = !(placed && st.mode === "cut");
+
+    if (placed) {
+      const linePos = (st.s - (st.mode === "cut" ? st.a : 0)) * st.scale;
+      const crossCss = clamp(st.cross * st.scale, 50, (h ? rw : rh) * st.scale - 50);
+      if (h) { seamLine.style.top = linePos + "px"; seamLine.style.left = seamLine.style.right = ""; }
+      else { seamLine.style.left = linePos + "px"; seamLine.style.top = seamLine.style.bottom = ""; }
+
+      if (st.mode === "seam") {
+        gripMove.innerHTML = (h ? ARROW.ud : ARROW.lr) + "<span>" + Math.round(st.s) + "</span>";
+        place(gripMove, h, linePos, crossCss, "center");
+      } else {
+        gripA.innerHTML = (h ? ARROW.up : ARROW.left) + "<span>" + Math.round(st.a) + "</span>";
+        gripB.innerHTML = (h ? ARROW.up : ARROW.left) + "<span>" + Math.round(st.b) + "</span>";
+        place(gripA, h, linePos, crossCss, "before");
+        place(gripB, h, linePos, crossCss, "after");
+      }
+    }
+    updateUI();
+  }
+
+  function place(el, h, linePos, crossCss, where) {
+    const r = el.getBoundingClientRect();
+    const w = r.width || 80, ht = r.height || 44, gap = 6;
+    let x, y;
+    if (h) {
+      x = crossCss - w / 2;
+      y = where === "center" ? linePos - ht / 2 : where === "before" ? linePos - ht - gap : linePos + gap;
+    } else {
+      y = crossCss - ht / 2;
+      x = where === "center" ? linePos - w / 2 : where === "before" ? linePos - w - gap : linePos + gap;
+    }
+    el.style.left = x + "px"; el.style.top = y + "px";
+  }
+
+  function updateUI() {
+    const W = st.work.width, H = st.work.height;
+    const [rw, rh] = resultDims();
+    $("dims").textContent = (rw !== W || rh !== H) ? `${W}×${H} → ${rw}×${rh}` : `${W}×${H}`;
+    $("modeSeam").setAttribute("aria-pressed", st.mode === "seam");
+    $("modeCut").setAttribute("aria-pressed", st.mode === "cut");
+    $("modeCut").disabled = st.s == null;
+    $("oriH").setAttribute("aria-pressed", st.orient === "h");
+    $("oriV").setAttribute("aria-pressed", st.orient === "v");
+    $("undoBtn").disabled = st.hist.length === 0 && !(st.a + st.b > 0);
+    const s = $("status");
+    const h = st.orient === "h";
+    if (st.mode === "seam") {
+      s.innerHTML = st.s == null
+        ? `Tap the image to place a ${h ? "horizontal" : "vertical"} seam.`
+        : `Seam at <b>${h ? "y" : "x"} = ${Math.round(st.s)}</b>. Drag it or tap again to move, then switch to <b>Cut</b>.`;
+    } else {
+      const before = h ? "Above" : "Left", after = h ? "Below" : "Right";
+      s.innerHTML =
+        `<span class="nudge"><span class="lbl">${before}</span><button type="button" data-n="a,-1">−</button><output>${Math.round(st.a)}</output><button type="button" data-n="a,1">+</button></span>` +
+        `<span class="nudge"><span class="lbl">${after}</span><button type="button" data-n="b,-1">−</button><output>${Math.round(st.b)}</output><button type="button" data-n="b,1">+</button></span>` +
+        `<button class="ghost" type="button" id="applyBtn"${st.a + st.b ? "" : " disabled"}>Apply &amp; new seam</button>`;
+    }
+  }
+
+  // Status-row buttons (rebuilt on each render, so delegate)
+  $("status").addEventListener("click", (e) => {
+    if (!st.work) return;
+    const n = e.target.closest("[data-n]");
+    if (n) {
+      const [k, d] = n.dataset.n.split(",");
+      const L = axisLen();
+      if (k === "a") st.a = clamp(st.a + +d, 0, st.s);
+      else st.b = clamp(st.b + +d, 0, L - st.s);
+      render(); return;
+    }
+    if (e.target.id === "applyBtn") applyCut();
+  });
+
+  function applyCut() {
+    if (!(st.a + st.b)) return;
+    const c = document.createElement("canvas");
+    drawResult(c);
+    st.hist.push({ work: st.work, s: st.s, a: st.a, b: st.b, orient: st.orient, cross: st.cross });
+    st.work = c;
+    st.s = st.s - st.a; // seam lands at the join
+    st.a = st.b = 0; st.mode = "seam";
+    render(); toast("Cut applied");
+  }
+
+  $("undoBtn").addEventListener("click", () => {
+    if (st.a + st.b > 0) { st.a = st.b = 0; render(); return; }
+    const p = st.hist.pop(); if (!p) return;
+    Object.assign(st, { work: p.work, s: p.s, a: p.a, b: p.b, orient: p.orient, cross: p.cross, mode: "cut" });
+    render();
+  });
+
+  // Tap to place seam
+  view.addEventListener("click", (e) => {
+    if (st.mode !== "seam") return;
+    const r = view.getBoundingClientRect();
+    const x = (e.clientX - r.left) / st.scale, y = (e.clientY - r.top) / st.scale;
+    st.s = clamp(Math.round(st.orient === "h" ? y : x), 1, axisLen() - 1);
+    st.cross = st.orient === "h" ? x : y;
+    st.a = st.b = 0;
+    render();
+  });
+
+  // Drag helper
+  function draggable(el, onStart, onMove) {
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      const start = st.orient === "h" ? e.clientY : e.clientX;
+      const ctx = onStart();
+      const move = (ev) => {
+        const d = ((st.orient === "h" ? ev.clientY : ev.clientX) - start) / st.scale;
+        onMove(ctx, d); render();
+      };
+      const up = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up); };
+      el.addEventListener("pointermove", move);
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", up);
+    });
+  }
+  draggable(gripMove, () => st.s, (s0, d) => { st.s = clamp(Math.round(s0 + d), 1, axisLen() - 1); st.a = st.b = 0; });
+  // Both sides: drag up (or left) to cut more, down (or right) to restore.
+  draggable(gripA, () => st.a, (a0, d) => { st.a = clamp(Math.round(a0 - d), 0, st.s); });
+  draggable(gripB, () => st.b, (b0, d) => { st.b = clamp(Math.round(b0 - d), 0, axisLen() - st.s); });
+
+  // Mode + orientation
+  $("modeSeam").addEventListener("click", () => { st.mode = "seam"; render(); });
+  $("modeCut").addEventListener("click", () => { if (st.s != null) { st.mode = "cut"; render(); } });
+  function setOrient(o) {
+    if (o === st.orient) return;
+    // keep the tapped point: swap seam and cross coordinates
+    const s = st.s, c = st.cross;
+    st.orient = o; st.a = st.b = 0;
+    if (s != null) { st.s = clamp(Math.round(c), 1, axisLen() - 1); st.cross = s; }
+    st.mode = "seam";
+    render();
+  }
+  $("oriH").addEventListener("click", () => setOrient("h"));
+  $("oriV").addEventListener("click", () => setOrient("v"));
+
+  // Open, paste, drop
+  $("openBtn").addEventListener("click", () => $("file").click());
+  $("file").addEventListener("change", (e) => { loadFile(e.target.files[0]); e.target.value = ""; });
+  window.addEventListener("paste", (e) => {
+    const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
+    if (item) loadFile(item.getAsFile());
+  });
+  document.addEventListener("dragover", (e) => { e.preventDefault(); stage.classList.add("drop"); });
+  document.addEventListener("dragleave", () => stage.classList.remove("drop"));
+  document.addEventListener("drop", (e) => { e.preventDefault(); stage.classList.remove("drop"); loadFile(e.dataTransfer.files[0]); });
+
+  // Export
+  $("exportBtn").addEventListener("click", async () => {
+    if (!st.work) return;
+    const c = document.createElement("canvas");
+    drawResult(c);
+    const blob = await new Promise(r => c.toBlob(r, "image/png"));
+    if (!blob) { toast("Couldn't encode the image."); return; }
+    const filename = st.name + "-cut.png";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast("Downloaded " + filename);
+  });
+
+  let toastEl = null, toastT = 0;
+  function toast(msg) {
+    if (!toastEl) { toastEl = document.createElement("div"); toastEl.className = "toast"; toastEl.setAttribute("role", "status"); document.body.appendChild(toastEl); }
+    toastEl.textContent = msg; toastEl.hidden = false;
+    clearTimeout(toastT); toastT = setTimeout(() => { toastEl.hidden = true; }, 1800);
+  }
+
+  window.addEventListener("resize", render);
+
+  $("emptyOpen").addEventListener("click", () => $("file").click());
+  updateEmpty();
+})();
+</script>
+</body>
+</html>
