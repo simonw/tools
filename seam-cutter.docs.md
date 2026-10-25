@@ -1,0 +1,3 @@
+Seam Cutter lets you open, paste, or drop an image, then place a horizontal or vertical seam by tapping the picture and drag its grips to remove a band of pixels on either side. Once the cut is set, Apply joins the remaining pieces into a new working image so you can place another seam, Undo steps back through earlier edits, and Export downloads the result as a PNG with a "-cut" suffix. The header shows the current dimensions and how they change as pixels are removed.
+
+<!-- Generated from commit: dae8a5d59b1be16a15a583a5ab30a67d2346167f -->
