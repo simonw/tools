@@ -62,18 +62,21 @@ main {
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 #stageWrap { width: 100%; display: flex; justify-content: center; }
-#stage { position: relative; line-height: 0; background: var(--stage); max-width: 100%; }
+#stage { position: relative; line-height: 0; background: var(--stage); max-width: 100%; isolation: isolate; }
 #view { display: block; max-width: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 #stage.placing #view { cursor: crosshair; }
 
-.seam {
-  position: absolute; pointer-events: none; background: var(--seam);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.85), 0 0 6px rgba(0,0,0,0.35);
-}
-.seam.h { left: 0; right: 0; height: 2px; margin-top: -1px; }
-.seam.v { top: 0; bottom: 0; width: 2px; margin-left: -1px; }
-.seam.cut { background: repeating-linear-gradient(90deg, var(--seam) 0 8px, #fff 8px 12px); }
-.seam.v.cut { background: repeating-linear-gradient(180deg, var(--seam) 0 8px, #fff 8px 12px); }
+/* 1px white line blended with "difference": it inverts whatever pixels it covers, so it stays visible on any edge. */
+.seam { position: absolute; pointer-events: none; background: #fff; mix-blend-mode: difference; }
+.seam.h { left: 0; right: 0; height: 1px; }
+.seam.v { top: 0; bottom: 0; width: 1px; }
+.seam.cut { background: repeating-linear-gradient(90deg, #fff 0 8px, transparent 8px 12px); }
+.seam.v.cut { background: repeating-linear-gradient(180deg, #fff 0 8px, transparent 8px 12px); }
+/* Invisible grab zone around the line, so it can be dragged from any point along it. */
+.hit { position: absolute; z-index: 1; touch-action: none; --reach: 8px; }
+.hit.h { left: 0; right: 0; height: calc(var(--reach) * 2 + 1px); margin-top: calc(var(--reach) * -1); cursor: ns-resize; }
+.hit.v { top: 0; bottom: 0; width: calc(var(--reach) * 2 + 1px); margin-left: calc(var(--reach) * -1); cursor: ew-resize; }
+@media (pointer: coarse) { .hit { --reach: 14px; } }
 
 .grip {
   position: absolute; z-index: 2; touch-action: none; user-select: none; -webkit-user-select: none;
@@ -81,9 +84,12 @@ main {
   min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 22px;
   background: var(--seam); color: #fff; border: 2px solid #fff;
   box-shadow: 0 2px 10px rgba(0,0,0,0.35);
-  font-family: var(--font-num); font-size: 13px; line-height: 1; cursor: grab; font-variant-numeric: tabular-nums;
+  font-family: var(--font-num); font-size: 13px; line-height: 1; font-variant-numeric: tabular-nums;
 }
-.grip:active { cursor: grabbing; }
+#stage.h .grip { cursor: ns-resize; }
+#stage.v .grip { cursor: ew-resize; }
+.grip.active { outline: 2px solid var(--ink); outline-offset: 2px; }
+#gripA:not(.active), #gripB:not(.active) { opacity: 0.7; }
 .grip svg { width: 14px; height: 14px; flex: none; }
 .grip.move { background: var(--surface); color: var(--ink); border-color: var(--seam); }
 
@@ -116,6 +122,9 @@ main {
 .nudge .lbl { font-family: var(--font-ui); color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 2px; }
 .nudge button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: transparent; cursor: pointer; font-family: var(--font-num); font-size: 16px; }
 .nudge output { min-width: 4.2ch; text-align: center; }
+.keys { font-size: 12px; }
+.keys kbd { font-family: var(--font-num); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; color: var(--ink); }
+@media (hover: none) { .keys { display: none; } }
 
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 30;
@@ -155,6 +164,7 @@ main {
     <div id="stage" class="placing" hidden>
       <canvas id="view"></canvas>
       <div id="seamLine" class="seam h" hidden></div>
+      <div id="seamHit" class="hit h" hidden></div>
       <div id="gripMove" class="grip move" hidden></div>
       <div id="gripA" class="grip" hidden></div>
       <div id="gripB" class="grip" hidden></div>
@@ -185,7 +195,7 @@ main {
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const view = $("view"), stage = $("stage"), seamLine = $("seamLine");
+  const view = $("view"), stage = $("stage"), seamLine = $("seamLine"), seamHit = $("seamHit");
   const gripA = $("gripA"), gripB = $("gripB"), gripMove = $("gripMove");
   const ARROW = {
     up: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg>',
@@ -205,6 +215,7 @@ main {
     cross: null,       // where along the seam the grips sit, in image px
     a: 0, b: 0,        // px removed before / after the seam
     mode: "seam",
+    side: "a",         // which side the keyboard adjusts in Cut mode
     scale: 1
   };
 
@@ -281,19 +292,27 @@ main {
     view.style.height = (rh * st.scale) + "px";
     stage.style.width = (rw * st.scale) + "px";
     stage.classList.toggle("placing", st.mode === "seam");
+    stage.classList.toggle("h", st.orient === "h");
+    stage.classList.toggle("v", st.orient === "v");
 
     const placed = st.s != null;
     const h = st.orient === "h";
     seamLine.hidden = !placed;
     seamLine.className = "seam " + st.orient + (st.mode === "cut" ? " cut" : "");
+    seamHit.hidden = !placed;
+    seamHit.className = "hit " + st.orient;
+    gripA.classList.toggle("active", st.side === "a");
+    gripB.classList.toggle("active", st.side === "b");
     gripMove.hidden = !(placed && st.mode === "seam");
     gripA.hidden = gripB.hidden = !(placed && st.mode === "cut");
 
     if (placed) {
       const linePos = (st.s - (st.mode === "cut" ? st.a : 0)) * st.scale;
       const crossCss = clamp(st.cross * st.scale, 50, (h ? rw : rh) * st.scale - 50);
-      if (h) { seamLine.style.top = linePos + "px"; seamLine.style.left = seamLine.style.right = ""; }
-      else { seamLine.style.left = linePos + "px"; seamLine.style.top = seamLine.style.bottom = ""; }
+      for (const el of [seamLine, seamHit]) {
+        if (h) { el.style.top = linePos + "px"; el.style.left = ""; }
+        else { el.style.left = linePos + "px"; el.style.top = ""; }
+      }
 
       if (st.mode === "seam") {
         gripMove.innerHTML = (h ? ARROW.ud : ARROW.lr) + "<span>" + Math.round(st.s) + "</span>";
@@ -337,13 +356,17 @@ main {
     if (st.mode === "seam") {
       s.innerHTML = st.s == null
         ? `Tap the image to place a ${h ? "horizontal" : "vertical"} seam.`
-        : `Seam at <b>${h ? "y" : "x"} = ${Math.round(st.s)}</b>. Drag it or tap again to move, then switch to <b>Cut</b>.`;
+        : `Seam at <b>${h ? "y" : "x"} = ${Math.round(st.s)}</b>. Drag it or tap again to move, then switch to <b>Cut</b>.` +
+          ` <span class="keys"><kbd>${h ? "↑↓" : "←→"}</kbd> nudge · <kbd>Shift</kbd> ×10 · <kbd>Enter</kbd> cut</span>`;
     } else {
       const before = h ? "Above" : "Left", after = h ? "Below" : "Right";
       s.innerHTML =
         `<span class="nudge"><span class="lbl">${before}</span><button type="button" data-n="a,-1">−</button><output>${Math.round(st.a)}</output><button type="button" data-n="a,1">+</button></span>` +
         `<span class="nudge"><span class="lbl">${after}</span><button type="button" data-n="b,-1">−</button><output>${Math.round(st.b)}</output><button type="button" data-n="b,1">+</button></span>` +
-        `<button class="ghost" type="button" id="applyBtn"${st.a + st.b ? "" : " disabled"}>Apply &amp; new seam</button>`;
+        (st.a + st.b
+          ? `<button class="primary" type="button" id="applyBtn">Apply &amp; new seam</button>`
+          : `<button class="ghost" type="button" id="applyBtn" disabled>Apply &amp; new seam</button>`) +
+        ` <span class="keys"><kbd>Tab</kbd> side · <kbd>${h ? "↑↓" : "←→"}</kbd> cut · <kbd>Shift</kbd> ×10 · <kbd>Enter</kbd> apply</span>`;
     }
   }
 
@@ -393,10 +416,11 @@ main {
   // Drag helper
   function draggable(el, onStart, onMove) {
     el.addEventListener("pointerdown", (e) => {
+      if (e.button) return;
       e.preventDefault();
       el.setPointerCapture(e.pointerId);
       const start = st.orient === "h" ? e.clientY : e.clientX;
-      const ctx = onStart();
+      const ctx = onStart(e);
       const move = (ev) => {
         const d = ((st.orient === "h" ? ev.clientY : ev.clientX) - start) / st.scale;
         onMove(ctx, d); render();
@@ -409,8 +433,45 @@ main {
   }
   draggable(gripMove, () => st.s, (s0, d) => { st.s = clamp(Math.round(s0 + d), 1, axisLen() - 1); st.a = st.b = 0; });
   // Both sides: drag up (or left) to cut more, down (or right) to restore.
-  draggable(gripA, () => st.a, (a0, d) => { st.a = clamp(Math.round(a0 - d), 0, st.s); });
-  draggable(gripB, () => st.b, (b0, d) => { st.b = clamp(Math.round(b0 - d), 0, axisLen() - st.s); });
+  const setCut = (k, v) => {
+    if (k === "a") st.a = clamp(Math.round(v), 0, st.s);
+    else st.b = clamp(Math.round(v), 0, axisLen() - st.s);
+  };
+  draggable(gripA, () => { st.side = "a"; return st.a; }, (a0, d) => setCut("a", a0 - d));
+  draggable(gripB, () => { st.side = "b"; return st.b; }, (b0, d) => setCut("b", b0 - d));
+  // The line itself: in Seam mode it moves the seam; in Cut mode the half you grab picks the side.
+  draggable(seamHit, (e) => {
+    if (st.mode === "seam") return { k: "s", v: st.s };
+    const r = seamHit.getBoundingClientRect();
+    const mid = st.orient === "h" ? r.top + r.height / 2 : r.left + r.width / 2;
+    st.side = (st.orient === "h" ? e.clientY : e.clientX) < mid ? "a" : "b";
+    return { k: st.side, v: st[st.side] };
+  }, (c, d) => {
+    if (c.k === "s") { st.s = clamp(Math.round(c.v + d), 1, axisLen() - 1); st.a = st.b = 0; }
+    else setCut(c.k, c.v - d);
+  });
+
+  // Keyboard: arrows nudge the seam (Seam mode) or the active side's cut (Cut mode); Shift = 10px.
+  document.addEventListener("keydown", (e) => {
+    if (!st.work || st.s == null || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.target.closest && e.target.closest("input, textarea, select")) return;
+    const h = st.orient === "h";
+    if (e.key === "Tab" && st.mode === "cut") {
+      e.preventDefault(); st.side = st.side === "a" ? "b" : "a"; render(); return;
+    }
+    if (e.key === "Enter" && !(e.target.closest && e.target.closest("button"))) {
+      e.preventDefault();
+      if (st.mode === "seam") st.mode = "cut"; else applyCut();
+      render(); return;
+    }
+    const back = h ? "ArrowUp" : "ArrowLeft", fwd = h ? "ArrowDown" : "ArrowRight";
+    if (e.key !== back && e.key !== fwd) return;
+    e.preventDefault();
+    const step = (e.shiftKey ? 10 : 1) * (e.key === back ? -1 : 1);
+    if (st.mode === "seam") { st.s = clamp(st.s + step, 1, axisLen() - 1); st.a = st.b = 0; }
+    else setCut(st.side, st[st.side] - step); // up/left cuts more, matching the drag direction
+    render();
+  });
 
   // Mode + orientation
   $("modeSeam").addEventListener("click", () => { st.mode = "seam"; render(); });
