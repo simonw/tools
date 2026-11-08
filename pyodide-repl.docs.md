@@ -1,3 +1,3 @@
-Execute Python code directly in your web browser using Pyodide, a port of CPython to WebAssembly. This REPL provides an interactive Python environment with support for multiple Pyodide versions, single-line and multi-line input modes, and command history navigation. The interface is optimized for both desktop and mobile devices, with a dark theme and responsive layout that prevents content from being hidden behind on-screen keyboards.
+Pyodide REPL runs Python code in the browser using Pyodide, a WebAssembly port of CPython, and lets you pick the Pyodide version from a dropdown or the `v` URL parameter, with changes reloading the page. It provides an interactive console with single-line and multi-line input modes, Tab-to-spaces indentation, up and down arrow command history, and stdin prompts. The dark, responsive layout adds bottom padding so content stays visible above on-screen keyboards on mobile devices.
 
-<!-- Generated from commit: 16e1d75e895b23d90e56019c13b3eb892c2cc1a9 -->
+<!-- Generated from commit: 38f8b282d4be5a72784f24cadb6e5e1d716c5ebb -->
