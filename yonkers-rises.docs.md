@@ -1,0 +1,3 @@
+Yonkers Rises is an animated 3D diorama of New York City in which a giant mech, cut from the Yonkers boundary, rises from the ground and walks through Manhattan, Brooklyn, Queens, and the Bronx while a stomp counter and mech height readout track its progress. The scene plays a stand-up sequence followed by a looping stomping tour, with buildings flattened under each footfall, and the status line changes as it moves across land or wades through water. Viewers can pause, replay, orbit, and zoom the map, and the page shows a message if WebGL is unavailable.
+
+<!-- Generated from commit: ffe3233016ea2f4805e35adcfb8745ea26c755dd -->
