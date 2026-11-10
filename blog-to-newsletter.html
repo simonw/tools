@@ -563,7 +563,7 @@ with content as (
     '<h3><a href="' || 'https://simonwillison.net/' || strftime('%Y/', created)
       || substr('JanFebMarAprMayJunJulAugSepOctNovDec', (strftime('%m', created) - 1) * 3 + 1, 3)
       || '/' || cast(strftime('%d', created) as integer) || '/' || slug || '/' || '">'
-      || title || '</a> - ' || date(created) || '</h3>' || body
+      || replace(replace(replace(title, '&', '&amp;'), '<', '&lt;'), '>', '&gt;') || '</a> - ' || date(created) || '</h3>' || body
       as html,
     'null' as json,
     '' as external_url
@@ -600,7 +600,7 @@ with content as (
     replace(quotation, '
 ', '<br>') ||
     '</em></p></blockquote><p><a href="' ||
-    coalesce(source_url, '#') || '">' || source || '</a>' ||
+    coalesce(source_url, '#') || '">' || replace(replace(replace(source, '&', '&amp;'), '<', '&lt;'), '>', '&gt;') || '</a>' ||
     case
         when nullif(trim(context), '') is not null
         then ', ' || context
@@ -994,7 +994,7 @@ order by
               const entry = { ...e };
               const quotationHtml = renderMarkdown(info.quotation);
               const contextHtml = info.context ? ', ' + marked.parseInline(info.context) : '';
-              entry.html = `<p><strong>Quote</strong> ${info.created}</p><blockquote>${quotationHtml}</blockquote><p><a href="${info.source_url || '#'}">${info.source}</a>${contextHtml}</p>`;
+              entry.html = `<p><strong>Quote</strong> ${info.created}</p><blockquote>${quotationHtml}</blockquote><p><a href="${info.source_url || '#'}">${escapeHtml(info.source)}</a>${contextHtml}</p>`;
               return entry;
             }
 
@@ -1015,7 +1015,7 @@ order by
             const chapterUrl = `https://simonwillison.net/guides/${info.guide_slug}/${info.chapter_slug}/`;
             const guideUrl = `https://simonwillison.net/guides/${info.guide_slug}/`;
             const excerptHtml = renderChapterExcerpt(info.body, chapterUrl);
-            entry.html = `<p style="font-size: 0.85em; color: #999; margin: 0 0 -0.2em 0; line-height: 1.2;"><a href="${guideUrl}" style="color: #999; text-decoration: none;">${info.guide_title}</a> &gt;</p><h3 style="margin-top: 0.2em; margin-bottom: 0.5em;"><a href="${chapterUrl}">${info.title}</a> - ${info.created}</h3>${excerptHtml}`;
+            entry.html = `<p style="font-size: 0.85em; color: #999; margin: 0 0 -0.2em 0; line-height: 1.2;"><a href="${guideUrl}" style="color: #999; text-decoration: none;">${escapeHtml(info.guide_title)}</a> &gt;</p><h3 style="margin-top: 0.2em; margin-bottom: 0.5em;"><a href="${chapterUrl}">${escapeHtml(info.title)}</a> - ${info.created}</h3>${excerptHtml}`;
             return entry;
           }
           return e;
@@ -1028,7 +1028,7 @@ order by
             const entry = { ...e };
             const label = beatTypeDisplay[info.beat_type] || info.beat_type;
             const noteHtml = info.note ? renderMarkdown(info.note) : '';
-            entry.html = `<p><strong>${label}:</strong> <a href="${info.url}">${info.title}</a></p>${noteHtml}`;
+            entry.html = `<p><strong>${label}:</strong> <a href="${info.url}">${escapeHtml(info.title)}</a></p>${noteHtml}`;
             return entry;
           }
           return e;
@@ -1380,7 +1380,7 @@ order by
           });
 
           headerHtml += '<p>In this newsletter:</p><ul>';
-          headerHtml += sortedEntries.map(e => `<li>${e.title}</li>`).join('\n');
+          headerHtml += sortedEntries.map(e => `<li>${escapeHtml(e.title)}</li>`).join('\n');
           headerHtml += '</ul>';
         }
 
