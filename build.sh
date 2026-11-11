@@ -17,6 +17,9 @@ if [ "$GENERATE_LLM_DOCS" = "1" ]; then
     python write_docs.py
 fi
 
+echo "Building tags.json..."
+python build_tags.py
+
 echo "Building colophon page..."
 python build_colophon.py
 

@@ -136,6 +136,8 @@ def _render_recent_section(recently_added: Sequence[dict], recently_updated: Seq
     </ul>
   </div>
 </div>
+<div id="api-tags"></div>
+<script type="module" src="homepage-tags.js"></script>
 """
     return section_html
 
