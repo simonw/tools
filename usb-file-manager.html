@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>USB File Manager — WebUSB File Browser</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171922;
+      --ink: #f6f7fb;
+      --muted: #8e95a5;
+      --accent: #7c7cff;
+      --danger: #ff7272;
+      --ok: #65d488;
+      --border: #262938;
+      --warning: #ffb84d;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #151824, #10131c);
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    }
+    header h1 { font-size: 16px; margin: 0 10px 0 0; font-weight: 600; letter-spacing: .2px; }
+    .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    button {
+      background: #1b1e2b; color: var(--ink); border: 1px solid var(--border); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; letter-spacing: .2px; font-size: 13px;
+    }
+    button:hover { background: #202437; }
+    button.primary { background: var(--accent); border-color: #5858ff; color: #fff; }
+    button.secondary { background: #1d2030; border-color: #2d3550; }
+    button.danger { background: #2b1b1b; border-color: #3a2525; color: #ffc5c5; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .pill { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); font-size: 12px; color: var(--muted); }
+    .status { padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .status.connected { background: rgba(101, 212, 136, 0.15); color: var(--ok); border: 1px solid var(--ok); }
+    .status.disconnected { background: rgba(142, 149, 165, 0.15); color: var(--muted); border: 1px solid var(--border); }
+
+    main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px; height: calc(100vh - 80px); }
+    .sidebar { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+    .content { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+    .muted { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .hr { height: 1px; background: var(--border); margin: 6px 0; }
+    
+    .file-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: calc(100vh - 300px); }
+    .file-item {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      word-break: break-all;
+    }
+    .file-item:hover { background: #1d2030; border-color: var(--accent); }
+    .file-item.active { background: rgba(124, 124, 255, 0.15); border-color: var(--accent); }
+    .file-item.directory { font-weight: 600; }
+    .file-icon { font-size: 14px; flex-shrink: 0; }
+    .file-name { flex: 1; font-size: 13px; }
+    .file-size { font-size: 11px; color: var(--muted); }
+
+    .editor-container { flex: 1; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+    .editor-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .editor-title { font-size: 14px; font-weight: 600; }
+    .editor-actions { display: flex; gap: 8px; }
+    #fileEditor {
+      flex: 1;
+      background: #0e1017;
+      color: var(--ink);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      resize: none;
+      overflow: auto;
+    }
+    #fileEditor:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+    
+    .upload-area {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .upload-area:hover, .upload-area.dragover { border-color: var(--accent); background: rgba(124, 124, 255, 0.05); }
+    .upload-input { display: none; }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--muted);
+      text-align: center;
+      padding: 40px;
+    }
+    .empty-state-icon { font-size: 48px; opacity: 0.5; }
+    
+    .breadcrumb {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .breadcrumb-item { cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+    .breadcrumb-item:hover { background: #1d2030; color: var(--ink); }
+    .breadcrumb-separator { opacity: 0.5; }
+
+    @media (max-width: 768px) {
+      main { grid-template-columns: 1fr; }
+      .sidebar { max-height: 40vh; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>USB File Manager — WebUSB File Browser</h1>
+    <div class="controls">
+      <span id="statusIndicator" class="status disconnected">Disconnected</span>
+      <button id="connectBtn" class="primary">Connect Device</button>
+      <button id="demoBtn" class="secondary">Demo Mode</button>
+      <button id="disconnectBtn" style="display:none;">Disconnect</button>
+      <button id="refreshBtn" disabled>Refresh Files</button>
+    </div>
+  </header>
+
+  <main>
+    <aside class="sidebar">
+      <div class="breadcrumb" id="breadcrumb">
+        <span class="breadcrumb-item" data-path="/">/</span>
+      </div>
+      <div class="file-list" id="fileList">
+        <div class="empty-state">
+          <div class="empty-state-icon">📁</div>
+          <div class="muted">Connect a USB device to browse files</div>
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div class="upload-area" id="uploadArea">
+        <div>📤 Drop files here or click to upload</div>
+        <input type="file" id="uploadInput" class="upload-input" multiple />
+      </div>
+      <div class="muted">
+        Requires a Chromium-based browser with WebUSB support. The device must expose a file system interface compatible with WebUSB.
+      </div>
+    </aside>
+
+    <div class="content">
+      <div class="editor-container" id="editorContainer">
+        <div class="empty-state">
+          <div class="empty-state-icon">📄</div>
+          <div class="muted">Select a file to view or edit</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // State management
+    const state = {
+      device: null,
+      interface: null,
+      endpoint: null,
+      currentPath: '/',
+      currentFile: null,
+      files: []
+    };
+
+    // DOM elements
+    const connectBtn = document.getElementById('connectBtn');
+    const demoBtn = document.getElementById('demoBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const fileList = document.getElementById('fileList');
+    const breadcrumb = document.getElementById('breadcrumb');
+    const editorContainer = document.getElementById('editorContainer');
+    const uploadArea = document.getElementById('uploadArea');
+    const uploadInput = document.getElementById('uploadInput');
+
+    // USB Communication Protocol
+    // Note: This is a generic implementation. Actual protocol depends on the device.
+    // Common protocols include MTP (Media Transfer Protocol), MSC (Mass Storage Class),
+    // or custom vendor-specific protocols.
+
+    const USB_COMMANDS = {
+      LIST_FILES: 0x01,
+      READ_FILE: 0x02,
+      WRITE_FILE: 0x03,
+      DELETE_FILE: 0x04,
+      CREATE_DIR: 0x05
+    };
+
+    // Demo Mode: Simulate USB device connection with mock data
+    async function connectDemo() {
+      try {
+        // Simulate device connection for demo purposes
+        state.device = { demo: true };
+        updateConnectionStatus(true);
+        await listFiles(state.currentPath);
+      } catch (error) {
+        console.error('Demo mode failed:', error);
+        showError('Failed to initialize demo mode: ' + error.message);
+      }
+    }
+
+    // Connect to USB device
+    async function connectDevice() {
+      if (!('usb' in navigator)) {
+        alert('WebUSB is not supported in this browser. Please use Chrome, Edge, or another Chromium-based browser.');
+        return;
+      }
+
+      try {
+        // Request a USB device
+        // Filter for common file storage device classes
+        const device = await navigator.usb.requestDevice({
+          filters: [
+            { classCode: 0x08 }, // Mass Storage Class
+            { classCode: 0xFF }  // Vendor Specific Class (for custom protocols)
+          ]
+        });
+
+        await device.open();
+        
+        // Select configuration (usually configuration 1)
+        if (device.configuration === null) {
+          await device.selectConfiguration(1);
+        }
+
+        // Find appropriate interface
+        const interfaces = device.configuration.interfaces;
+        let targetInterface = null;
+        
+        for (const iface of interfaces) {
+          // Look for bulk transfer endpoints (common for file systems)
+          const alt = iface.alternates[0];
+          if (alt.endpoints.length >= 2) {
+            targetInterface = iface;
+            break;
+          }
+        }
+
+        if (!targetInterface) {
+          throw new Error('No suitable interface found on device');
+        }
+
+        await device.claimInterface(targetInterface.interfaceNumber);
+
+        state.device = device;
+        state.interface = targetInterface.interfaceNumber;
+
+        updateConnectionStatus(true);
+        await listFiles(state.currentPath);
+        
+      } catch (error) {
+        console.error('Failed to connect:', error);
+        alert('Failed to connect to device: ' + error.message);
+      }
+    }
+
+    // Disconnect from device
+    async function disconnectDevice() {
+      if (state.device) {
+        try {
+          await state.device.close();
+        } catch (error) {
+          console.error('Error closing device:', error);
+        }
+        state.device = null;
+        state.interface = null;
+        updateConnectionStatus(false);
+        clearFileList();
+        clearEditor();
+      }
+    }
+
+    // Update connection status UI
+    function updateConnectionStatus(connected) {
+      if (connected) {
+        statusIndicator.textContent = 'Connected';
+        statusIndicator.className = 'status connected';
+        connectBtn.style.display = 'none';
+        disconnectBtn.style.display = 'inline-block';
+        refreshBtn.disabled = false;
+        uploadArea.style.cursor = 'pointer';
+      } else {
+        statusIndicator.textContent = 'Disconnected';
+        statusIndicator.className = 'status disconnected';
+        connectBtn.style.display = 'inline-block';
+        disconnectBtn.style.display = 'none';
+        refreshBtn.disabled = true;
+        uploadArea.style.cursor = 'not-allowed';
+      }
+    }
+
+    // List files in directory
+    async function listFiles(path) {
+      if (!state.device) return;
+
+      try {
+        // This is a mock implementation since actual USB file system protocols vary
+        // In a real implementation, you would:
+        // 1. Send a command to the device requesting file list
+        // 2. Parse the response according to the device's protocol
+        // 3. Update the UI with the file list
+
+        // Example: Send list files command
+        // const command = new Uint8Array([USB_COMMANDS.LIST_FILES, ...encodeString(path)]);
+        // const result = await device.transferOut(endpointNumber, command);
+        // const response = await device.transferIn(endpointNumber, 1024);
+        // const files = parseFileList(response.data);
+
+        // Mock data for demonstration
+        state.files = [
+          { name: 'example.txt', type: 'file', size: 1024, path: '/example.txt' },
+          { name: 'data.json', type: 'file', size: 2048, path: '/data.json' },
+          { name: 'config.ini', type: 'file', size: 512, path: '/config.ini' },
+          { name: 'documents', type: 'directory', path: '/documents' },
+          { name: 'images', type: 'directory', path: '/images' }
+        ];
+
+        renderFileList();
+      } catch (error) {
+        console.error('Failed to list files:', error);
+        showError('Failed to list files: ' + error.message);
+      }
+    }
+
+    // Read file from device
+    async function readFile(filePath) {
+      if (!state.device) return null;
+
+      try {
+        // This is a mock implementation
+        // In a real implementation, you would:
+        // 1. Send a read file command with the file path
+        // 2. Receive the file content in chunks
+        // 3. Reassemble the chunks into the complete file
+
+        // Mock data for demonstration
+        const mockContent = {
+          '/example.txt': 'This is a sample text file.\nYou can edit this content and save it back to the device.\n\nWebUSB allows direct communication with USB devices from the browser.',
+          '/data.json': '{\n  "name": "USB File Manager",\n  "version": "1.0.0",\n  "description": "A WebUSB-based file browser"\n}',
+          '/config.ini': '[Settings]\ntheme=dark\nlanguage=en\nautosave=true'
+        };
+
+        return mockContent[filePath] || 'File content will be loaded from the device.';
+      } catch (error) {
+        console.error('Failed to read file:', error);
+        throw error;
+      }
+    }
+
+    // Write file to device
+    async function writeFile(filePath, content) {
+      if (!state.device) return;
+
+      try {
+        // This is a mock implementation
+        // In a real implementation, you would:
+        // 1. Send a write file command with the file path
+        // 2. Send the file content in chunks
+        // 3. Wait for confirmation from the device
+
+        console.log('Writing file:', filePath);
+        console.log('Content length:', content.length);
+        
+        alert('File saved successfully!\n\nNote: This is a demonstration. In a real implementation, the file would be written to the USB device.');
+      } catch (error) {
+        console.error('Failed to write file:', error);
+        throw error;
+      }
+    }
+
+    // Render file list
+    function renderFileList() {
+      fileList.innerHTML = '';
+      
+      if (state.files.length === 0) {
+        fileList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><div class="muted">No files found</div></div>';
+        return;
+      }
+
+      // Sort: directories first, then files
+      const sorted = [...state.files].sort((a, b) => {
+        if (a.type === 'directory' && b.type !== 'directory') return -1;
+        if (a.type !== 'directory' && b.type === 'directory') return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      for (const file of sorted) {
+        const item = document.createElement('div');
+        item.className = 'file-item' + (file.type === 'directory' ? ' directory' : '');
+        
+        const icon = document.createElement('span');
+        icon.className = 'file-icon';
+        icon.textContent = file.type === 'directory' ? '📁' : '📄';
+        
+        const name = document.createElement('span');
+        name.className = 'file-name';
+        name.textContent = file.name;
+        
+        item.appendChild(icon);
+        item.appendChild(name);
+        
+        if (file.type === 'file' && file.size) {
+          const size = document.createElement('span');
+          size.className = 'file-size';
+          size.textContent = formatFileSize(file.size);
+          item.appendChild(size);
+        }
+        
+        item.addEventListener('click', () => {
+          if (file.type === 'directory') {
+            navigateToDirectory(file.path);
+          } else {
+            openFile(file);
+          }
+        });
+        
+        fileList.appendChild(item);
+      }
+    }
+
+    // Navigate to directory
+    async function navigateToDirectory(path) {
+      state.currentPath = path;
+      updateBreadcrumb();
+      await listFiles(path);
+    }
+
+    // Update breadcrumb navigation
+    function updateBreadcrumb() {
+      breadcrumb.innerHTML = '';
+      const parts = state.currentPath.split('/').filter(p => p);
+      
+      // Root
+      const root = document.createElement('span');
+      root.className = 'breadcrumb-item';
+      root.textContent = '/';
+      root.dataset.path = '/';
+      root.addEventListener('click', () => navigateToDirectory('/'));
+      breadcrumb.appendChild(root);
+      
+      // Path parts
+      let currentPath = '';
+      for (let i = 0; i < parts.length; i++) {
+        const separator = document.createElement('span');
+        separator.className = 'breadcrumb-separator';
+        separator.textContent = '›';
+        breadcrumb.appendChild(separator);
+        
+        currentPath += '/' + parts[i];
+        const part = document.createElement('span');
+        part.className = 'breadcrumb-item';
+        part.textContent = parts[i];
+        part.dataset.path = currentPath;
+        part.addEventListener('click', () => navigateToDirectory(currentPath));
+        breadcrumb.appendChild(part);
+      }
+    }
+
+    // Open file in editor
+    async function openFile(file) {
+      try {
+        // Mark file as active
+        document.querySelectorAll('.file-item').forEach(item => item.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        
+        state.currentFile = file;
+        const content = await readFile(file.path);
+        showEditor(file, content);
+      } catch (error) {
+        showError('Failed to open file: ' + error.message);
+      }
+    }
+
+    // Show editor with file content
+    function showEditor(file, content) {
+      editorContainer.innerHTML = `
+        <div class="editor-header">
+          <span class="editor-title">📄 ${file.name}</span>
+          <div class="editor-actions">
+            <button id="downloadFileBtn">Download</button>
+            <button id="saveFileBtn" class="primary">Save</button>
+          </div>
+        </div>
+        <textarea id="fileEditor" spellcheck="false">${content}</textarea>
+      `;
+      
+      const saveBtn = document.getElementById('saveFileBtn');
+      const downloadBtn = document.getElementById('downloadFileBtn');
+      const editor = document.getElementById('fileEditor');
+      
+      saveBtn.addEventListener('click', async () => {
+        try {
+          await writeFile(file.path, editor.value);
+        } catch (error) {
+          showError('Failed to save file: ' + error.message);
+        }
+      });
+      
+      downloadBtn.addEventListener('click', () => {
+        downloadFileContent(file.name, editor.value);
+      });
+    }
+
+    // Clear editor
+    function clearEditor() {
+      editorContainer.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📄</div>
+          <div class="muted">Select a file to view or edit</div>
+        </div>
+      `;
+    }
+
+    // Clear file list
+    function clearFileList() {
+      fileList.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📁</div>
+          <div class="muted">Connect a USB device to browse files</div>
+        </div>
+      `;
+    }
+
+    // Download file content
+    function downloadFileContent(filename, content) {
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Format file size
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // Show error message
+    function showError(message) {
+      alert(message);
+    }
+
+    // File upload handling
+    uploadArea.addEventListener('click', () => {
+      if (state.device) {
+        uploadInput.click();
+      }
+    });
+
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (state.device) {
+        uploadArea.classList.add('dragover');
+      }
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      
+      if (!state.device) return;
+      
+      const files = Array.from(e.dataTransfer.files);
+      for (const file of files) {
+        const content = await file.text();
+        const targetPath = state.currentPath + '/' + file.name;
+        try {
+          await writeFile(targetPath, content);
+        } catch (error) {
+          showError('Failed to upload ' + file.name + ': ' + error.message);
+        }
+      }
+      
+      await listFiles(state.currentPath);
+    });
+
+    uploadInput.addEventListener('change', async (e) => {
+      if (!state.device) return;
+      
+      const files = Array.from(e.target.files);
+      for (const file of files) {
+        const content = await file.text();
+        const targetPath = state.currentPath + '/' + file.name;
+        try {
+          await writeFile(targetPath, content);
+        } catch (error) {
+          showError('Failed to upload ' + file.name + ': ' + error.message);
+        }
+      }
+      
+      await listFiles(state.currentPath);
+      uploadInput.value = '';
+    });
+
+    // Event listeners
+    connectBtn.addEventListener('click', connectDevice);
+    demoBtn.addEventListener('click', connectDemo);
+    disconnectBtn.addEventListener('click', disconnectDevice);
+    refreshBtn.addEventListener('click', () => listFiles(state.currentPath));
+
+    // Handle device disconnect
+    navigator.usb?.addEventListener('disconnect', (event) => {
+      if (event.device === state.device) {
+        disconnectDevice();
+        alert('USB device disconnected');
+      }
+    });
+
+    // Initialize
+    updateBreadcrumb();
+  </script>
+</body>
+</html>
