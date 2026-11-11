@@ -42,6 +42,7 @@ const addStyles = () => {
     }
     .api-tag {
       font: inherit;
+      font-size: calc(0.8em + var(--scale, 0) * 0.7em);
       line-height: 1.2;
       color: #0066cc;
       background: #f3f5fb;
@@ -67,6 +68,14 @@ const addStyles = () => {
     .api-tag-results li:last-child { border-bottom: none; }
     .api-tool-name { font-weight: 600; }
     .api-tool-meta { color: #666; font-size: 0.85em; margin-left: 0.4em; }
+    @media (max-width: 600px) {
+      /* Smaller text with less size variation, so more tags fit on each row */
+      .api-tag-cloud { gap: 0.35rem 0.4rem; }
+      .api-tag {
+        font-size: calc(0.72em + var(--scale, 0) * 0.3em);
+        padding: 0.25em 0.65em;
+      }
+    }
     .api-tool-summary { color: #444; font-size: 0.9em; margin-top: 0.25em; }
   `;
   document.head.append(style);
@@ -147,7 +156,8 @@ const render = (data) => {
         tag.label,
         el('span', { className: 'api-tag-count', textContent: tag.count }),
       ]);
-      button.style.fontSize = `${(0.8 + scale * 0.7).toFixed(2)}em`;
+      // 0 for the least used tag in this cloud, 1 for the most used
+      button.style.setProperty('--scale', scale.toFixed(2));
       button.setAttribute('aria-pressed', 'false');
       button.addEventListener('click', () => {
         const selected = button.getAttribute('aria-pressed') === 'true';
