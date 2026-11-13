@@ -127,7 +127,7 @@ def _render_recent_section(recently_added: Sequence[dict], recently_updated: Seq
     <ul class="recent-list">
       {render_list(recently_added)}
     </ul>
-    <p class="browse-all"><a href="/by-month">Browse all by month</a></p>
+    <p class="browse-all"><a href="/by-month">Browse all by month</a> · <a href="/atom.xml">Atom feed</a></p>
   </div>
   <div class="recent-column">
     <h2>Recently updated</h2>
@@ -189,6 +189,7 @@ def build_index() -> None:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>tools.simonwillison.net</title>
+    <link rel="alternate" type="application/atom+xml" title="New tools" href="/atom.xml">
     <style>
         body {{
             font-family: "Helvetica Neue", helvetica, sans-serif;
