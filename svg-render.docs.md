@@ -1,3 +1,3 @@
-Convert SVG images to JPEG or PNG format with customizable dimensions, padding, and background colors. The tool allows you to paste SVG code directly, upload SVG files via drag-and-drop, or load SVG images from URLs, then instantly previews the converted result and provides download and base64 embedding options. URL hashes preserve your work for easy sharing and recovery.
+SVG to PNG, JPEG or WebP converts pasted SVG code, dropped or opened SVG files, or an SVG loaded from a `?url=` parameter into a bitmap entirely in the browser. You can set the output format, quality for lossy formats, width, padding, and background color or transparency, then review a live preview with its dimensions and file size, download the image, or copy a base64 image tag. The SVG source is saved in the URL hash so work can be shared or restored, and a notice appears when the browser cannot export the chosen format and falls back to PNG.
 
-<!-- Generated from commit: aa44951cdb23b63465877c5f7787f09c83874276 -->
+<!-- Generated from commit: e5f9cbe1c2d379160609d4a97ff5a46cb7ba4e52 -->
