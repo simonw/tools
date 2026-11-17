@@ -563,6 +563,86 @@
             reader.readAsText(file);
         }
 
+        // ===== Encoding =====
+        // Browsers that cannot encode a format from a canvas silently hand back
+        // a PNG instead: Safari cannot do WebP. Feature-detect once, and only
+        // when the browser cannot do it natively (or ignores quality) load the
+        // jSquash wasm encoder (Squoosh's libwebp build) from jsdelivr, the
+        // first time WebP is actually requested.
+        const JSQUASH_WEBP_ENCODE_URL = 'https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/encode.js/+esm';
+
+        const nativeEncodeSupportPromises = {};
+        function canvasCanEncode(mimeType) {
+            if (!nativeEncodeSupportPromises[mimeType]) {
+                nativeEncodeSupportPromises[mimeType] = (async () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    if (!canvas.toBlob) return false;
+                    // Noise, so that a lower quality has detail to throw away
+                    const ctx = canvas.getContext('2d');
+                    const noise = ctx.createImageData(64, 64);
+                    for (let i = 0; i < noise.data.length; i++) {
+                        noise.data[i] = i % 4 === 3 ? 255 : Math.random() * 256;
+                    }
+                    ctx.putImageData(noise, 0, 0);
+                    const encodeAt = (quality) => new Promise((resolve) => {
+                        try {
+                            canvas.toBlob(resolve, mimeType, quality);
+                        } catch (err) {
+                            resolve(null);
+                        }
+                    });
+                    const [low, high] = await Promise.all([encodeAt(0.2), encodeAt(0.9)]);
+                    return Boolean(
+                        low && high &&
+                        low.type === mimeType && high.type === mimeType &&
+                        low.size !== high.size
+                    );
+                })();
+            }
+            return nativeEncodeSupportPromises[mimeType];
+        }
+
+        let jsquashWebpPromise = null;
+        function loadJsquashWebpEncoder() {
+            if (!jsquashWebpPromise) {
+                // Call init() explicitly: encode() would otherwise cache a failed
+                // wasm load for the lifetime of the page, so a flaky connection
+                // could never be retried.
+                jsquashWebpPromise = import(JSQUASH_WEBP_ENCODE_URL).then(async (mod) => {
+                    await mod.init();
+                    return mod.default;
+                });
+                jsquashWebpPromise.catch(() => { jsquashWebpPromise = null; });
+            }
+            return jsquashWebpPromise;
+        }
+
+        function blobToDataUrl(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        // Returns a data: URL of the canvas in the requested format
+        async function encodeCanvas(canvas, mimeType, quality) {
+            if (mimeType === 'image/webp' && !(await canvasCanEncode(mimeType))) {
+                const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+                const encode = await loadJsquashWebpEncoder();
+                const buffer = await encode(imageData, {quality: Math.round(quality * 100)});
+                return blobToDataUrl(new Blob([buffer], {type: 'image/webp'}));
+            }
+            const dataUrl = canvas.toDataURL(mimeType, quality);
+            if (!dataUrl.startsWith(`data:${mimeType}`)) {
+                throw new Error('the browser could not encode it - try a smaller width');
+            }
+            return dataUrl;
+        }
+
         function convertSvgToImage() {
             const thisRender = ++renderId;
             let svgContent = svgInput.value;
@@ -639,28 +719,26 @@
                 if (thisRender !== renderId) return;
                 showError('The browser could not render this SVG');
             };
-            img.onload = function() {
+            img.onload = async function() {
                 URL.revokeObjectURL(svgUrl);
                 if (thisRender !== renderId) return;
 
                 // Draw the image with padding
                 ctx.drawImage(img, padding, padding, contentWidth, contentHeight);
 
-                // Convert to selected format
-                const imageDataUrl = canvas.toDataURL(requestedFormat, quality);
-                if (imageDataUrl.length < 10) {
-                    showError(`Could not create a ${totalWidth}×${totalHeight} image - try a smaller width`);
+                // Convert to selected format, loading a wasm encoder if needed
+                let imageDataUrl;
+                try {
+                    imageDataUrl = await encodeCanvas(canvas, requestedFormat, quality);
+                } catch (err) {
+                    console.error(err);
+                    if (thisRender !== renderId) return;
+                    showError(`Could not create a ${totalWidth}×${totalHeight} ${FORMATS[requestedFormat].label}: ${err.message || err}`);
                     return;
                 }
-
-                // Browsers that cannot encode a format (WebP in some) fall back to PNG
-                const actualFormat = imageDataUrl.slice(5, imageDataUrl.indexOf(';'));
-                const info = FORMATS[actualFormat] || FORMATS['image/png'];
-                if (actualFormat !== requestedFormat) {
-                    showMessage(`This browser cannot export ${FORMATS[requestedFormat].label} images, so this is a ${info.label} instead.`, true);
-                } else {
-                    clearMessage();
-                }
+                if (thisRender !== renderId) return;
+                clearMessage();
+                const info = FORMATS[requestedFormat];
 
                 // Calculate file size from the base64 data
                 const base64 = imageDataUrl.slice(imageDataUrl.indexOf(',') + 1);
