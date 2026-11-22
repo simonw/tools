@@ -1,0 +1,3 @@
+The Select Styling Specimens page is a test sheet of 164 cards across 13 sections, each showing one CSS technique applied to a native select element along with the exact CSS used. It reports a feature-check panel that tests what the current browser supports, including base-select appearance, picker pseudo-elements, :has(), and anchor positioning, and marks the matching specimen tags as passing or failing. Toolbar buttons switch the page theme between system, light, and dark and toggle the CSS blocks, while a "show only this section" link isolates one section at a time. Some cards need an interaction such as hovering, focusing, opening the control, or autofilling before the state appears.
+
+<!-- Generated from commit: bd3418ca21a1eb597a5fd500d12de52fa20831ad -->
