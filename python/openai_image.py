@@ -14,7 +14,7 @@ Generate an image with OpenAI’s image models (Click CLI).
 - Flags are auto-derived by introspecting `OpenAI().images.generate` using
   typing.get_type_hints(include_extras=True), so Literal[...] choices appear
   in --help.
-- -m/--model defaults to gpt-image-1-mini (not restricted).
+- -m/--model defaults to gpt-image-2.6-sunburst (not restricted).
 - Prints the JSON (without "data") to stderr in yellow; saves image to OUTFILE.
 - Adds "generation_time_in_s" to the printed JSON, measuring the API call duration.
 """
@@ -200,7 +200,7 @@ def build_command() -> click.Command:
     params.append(
         click.Option(
             ["-m", "--model"],
-            default="gpt-image-1-mini",
+            default="gpt-image-2.6-sunburst",
             show_default=True,
             help=model_help,
         )
