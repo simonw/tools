@@ -42,13 +42,6 @@
       border: 0;
     }
 
-    #cropper-container { margin-top: 16px; }
-
-    #color-picker-container {
-      margin: 20px 0;
-      display: none;
-    }
-
     .format-tabs {
       margin: 20px auto 0;
       display: grid;
@@ -100,76 +93,153 @@
     }
     .image-container img.full-width { max-width: unset; }
     .image-info { margin-top: 10px; }
-    .color-picker-label { margin-right: 10px; }
+    /* ---------- Crop editor ---------- */
+    #editor { margin-top: 16px; }
+    #editor[hidden] { display: none; }
+    .crop-hint { margin: 0 0 10px; color: #555; font-size: 14px; line-height: 1.4; }
 
-    /* Cropper (no inner scrollbars) */
+    /* The stage shows the image plus spare room on every side, so that the
+       crop box can be dragged out past the edges of the image. */
+    #stage-wrap {
+      display: flex;
+      justify-content: center;
+      background: #e4e6ea;
+      border-radius: 10px;
+      overflow: hidden;
+    }
     #cropper {
       position: relative;
-      width: 100%;
-      overflow: hidden;   /* ensure no horizontal/vertical scrollbar around preview */
-      touch-action: none;
+      flex: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #crop-fill, #image-backdrop, #source-image, .crop-box { position: absolute; }
+    #crop-fill, #image-backdrop { pointer-events: none; }
+    .checker {
+      background: repeating-conic-gradient(#cfd3d8 0% 25%, #fff 0% 50%) 0 0 / 16px 16px;
     }
     #source-image {
       display: block;
-      max-width: 100%;
-      height: auto;
-      user-select: none;
+      max-width: none;
+      pointer-events: none;
       -webkit-user-drag: none;
-      touch-action: none;
     }
 
     .crop-box {
-      position: absolute;
-      border: 2px dashed var(--accent);
       box-sizing: border-box;
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+      /* Dims everything outside the crop */
+      box-shadow: 0 0 0 9999px rgba(20, 24, 31, 0.5);
+      cursor: move;
       touch-action: none;
     }
 
-    /* Edge bars */
-    .crop-bar {
+    /* Edge and corner handles: a large invisible hit area around a small grip */
+    .crop-bar, .crop-handle {
       position: absolute;
-      background: rgba(0, 170, 255, 0.7);
-        touch-action: none;
-    }
-    .crop-bar.top, .crop-bar.bottom {
-      height: var(--bar-thickness);
-      left: -8px; right: -8px;
-      cursor: ns-resize;
-    }
-    .crop-bar.left, .crop-bar.right {
-      width: var(--bar-thickness);
-      top: -8px; bottom: -8px;
-      cursor: ew-resize;
-    }
-    .crop-bar.top    { top: -8px; }
-    .crop-bar.bottom { bottom: -8px; }
-    .crop-bar.left   { left: -8px; }
-    .crop-bar.right  { right: -8px; }
-
-    /* Corner handles */
-    .crop-handle {
-      position: absolute;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: var(--accent);
-      border: 2px solid #fff;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
       touch-action: none;
     }
-    .crop-handle.tl { left: -10px; top: -10px; cursor: nwse-resize; }
-    .crop-handle.tr { right: -10px; top: -10px; cursor: nesw-resize; }
-    .crop-handle.bl { left: -10px; bottom: -10px; cursor: nesw-resize; }
-    .crop-handle.br { right: -10px; bottom: -10px; cursor: nwse-resize; }
-
-    /* Faint mask outside the crop */
-    .mask {
+    .crop-bar::after, .crop-handle::after {
+      content: "";
       position: absolute;
-      background: rgba(0,0,0,0.25);
-      pointer-events: none;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      border: 2px solid var(--accent);
+      box-sizing: border-box;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
     }
-    .mask.t, .mask.b { left: 0; right: 0; height: 0; }
-    .mask.l, .mask.r { top: 0; bottom: 0; width: 0; }
+    .crop-bar.top, .crop-bar.bottom { left: 0; right: 0; height: 28px; cursor: ns-resize; }
+    .crop-bar.left, .crop-bar.right { top: 0; bottom: 0; width: 28px; cursor: ew-resize; }
+    .crop-bar.top    { top: -14px; }
+    .crop-bar.bottom { bottom: -14px; }
+    .crop-bar.left   { left: -14px; }
+    .crop-bar.right  { right: -14px; }
+    .crop-bar.top::after, .crop-bar.bottom::after { width: 32px; height: 10px; border-radius: 5px; }
+    .crop-bar.left::after, .crop-bar.right::after { width: 10px; height: 32px; border-radius: 5px; }
+    .crop-box.narrow .crop-bar.top::after, .crop-box.narrow .crop-bar.bottom::after,
+    .crop-box.short .crop-bar.left::after, .crop-box.short .crop-bar.right::after { display: none; }
+
+    .crop-handle { width: 40px; height: 40px; }
+    .crop-handle::after { width: 18px; height: 18px; border-radius: 50%; }
+    .crop-handle.tl { left: -20px; top: -20px; cursor: nwse-resize; }
+    .crop-handle.tr { right: -20px; top: -20px; cursor: nesw-resize; }
+    .crop-handle.bl { left: -20px; bottom: -20px; cursor: nesw-resize; }
+    .crop-handle.br { right: -20px; bottom: -20px; cursor: nwse-resize; }
+
+    /* ---------- Controls under the stage ---------- */
+    .crop-controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 16px 40px;
+      margin-top: 16px;
+    }
+    .nudge {
+      display: grid;
+      grid-template-columns: auto auto auto;
+      grid-template-areas: ". top ." "left size right" ". bottom .";
+      gap: 10px 14px;
+      align-items: center;
+      justify-items: center;
+    }
+    .nudge-pad { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .nudge-label { font-size: 12px; color: #555; white-space: nowrap; }
+    .nudge-label b { color: #222; font-variant-numeric: tabular-nums; }
+    .nudge-buttons {
+      display: inline-flex;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .nudge-buttons button {
+      appearance: none;
+      border: 0;
+      background: #fff;
+      color: #222;
+      width: 42px;
+      height: 38px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    .nudge-buttons button + button { border-left: 1px solid #bbb; }
+    .nudge-buttons button:hover { background: #f0f7fc; }
+    .nudge-buttons button:active { background: var(--accent); color: #fff; }
+    .nudge-buttons button:focus-visible { outline: 2px solid #005f99; outline-offset: -2px; }
+    .nudge-buttons svg { width: 16px; height: 16px; display: block; }
+    .crop-size { grid-area: size; text-align: center; min-width: 96px; }
+    .crop-size strong { display: block; font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .crop-size span { font-size: 12px; color: #555; }
+
+    .crop-options { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+    .bg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+    .bg-row label { display: inline-flex; align-items: center; gap: 6px; }
+    #background-color { width: 44px; height: 32px; padding: 0; border: 1px solid #bbb; border-radius: 6px; background: #fff; cursor: pointer; }
+    .bg-status { font-size: 12px; color: #555; margin: -6px 0 0; }
+    .plain-button {
+      appearance: none;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      background: #fff;
+      color: #222;
+      font: inherit;
+      font-size: 14px;
+      padding: 7px 12px;
+      cursor: pointer;
+    }
+    .plain-button:hover:not(:disabled) { background: #f0f7fc; }
+    .plain-button:disabled { color: #999; cursor: default; }
+    .plain-button:focus-visible { outline: 2px solid #005f99; outline-offset: 1px; }
   </style>
 </head>
 <body>
@@ -181,13 +251,46 @@
   </label>
   <input type="file" id="file-input" accept="image/*" class="visually-hidden-file">
 
-  <!-- Cropping UI appears BELOW the upload area (no inner scrollbars) -->
-  <div id="cropper-container"></div>
+  <!-- Crop editor appears BELOW the upload area once an image is loaded -->
+  <section id="editor" hidden>
+    <p class="crop-hint">Drag the handles to crop, or drag inside the box to move it. Pull a handle past the edge of the image to add space around it.</p>
+    <div id="stage-wrap">
+      <div id="cropper">
+        <div id="crop-fill"></div>
+        <div id="image-backdrop" class="checker"></div>
+        <img id="source-image" alt="Source image for cropping">
+        <div class="crop-box" data-handle="move" aria-label="Crop region">
+          <div class="crop-bar top" data-handle="t"></div>
+          <div class="crop-bar bottom" data-handle="b"></div>
+          <div class="crop-bar left" data-handle="l"></div>
+          <div class="crop-bar right" data-handle="r"></div>
+          <div class="crop-handle tl" data-handle="tl"></div>
+          <div class="crop-handle tr" data-handle="tr"></div>
+          <div class="crop-handle bl" data-handle="bl"></div>
+          <div class="crop-handle br" data-handle="br"></div>
+        </div>
+      </div>
+    </div>
 
-  <div id="color-picker-container">
-    <label class="color-picker-label" for="background-color">Background Color:</label>
-    <input type="color" id="background-color" value="#ffffff">
-  </div>
+    <div class="crop-controls">
+      <div class="nudge" id="nudge" role="group" aria-label="Move each edge one pixel at a time">
+        <div class="crop-size" aria-live="polite">
+          <strong id="crop-size"></strong>
+          <span id="crop-size-note"></span>
+        </div>
+      </div>
+
+      <div class="crop-options">
+        <div class="bg-row">
+          <label for="background-color">Background <input type="color" id="background-color" value="#ffffff"></label>
+          <label><input type="checkbox" id="background-transparent"> Transparent</label>
+          <button type="button" class="plain-button" id="background-auto">Auto-detect</button>
+        </div>
+        <p class="bg-status" id="background-status"></p>
+        <button type="button" class="plain-button" id="crop-reset">Reset crop</button>
+      </div>
+    </div>
+  </section>
 
   <div id="format-tabs" class="format-tabs" role="tablist" aria-label="Output format"></div>
   <div id="output"></div>
@@ -195,11 +298,23 @@
   <script>
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
-    const cropperContainer = document.getElementById('cropper-container');
     const output = document.getElementById('output');
     const formatTabs = document.getElementById('format-tabs');
     const colorPicker = document.getElementById('background-color');
-    const colorPickerContainer = document.getElementById('color-picker-container');
+    const editor = document.getElementById('editor');
+    const stageWrap = document.getElementById('stage-wrap');
+    const stage = document.getElementById('cropper');
+    const cropFill = document.getElementById('crop-fill');
+    const imageBackdrop = document.getElementById('image-backdrop');
+    const sourceImage = document.getElementById('source-image');
+    const cropBox = stage.querySelector('.crop-box');
+    const nudgePanel = document.getElementById('nudge');
+    const cropSizeLabel = document.getElementById('crop-size');
+    const cropSizeNote = document.getElementById('crop-size-note');
+    const transparentCheckbox = document.getElementById('background-transparent');
+    const autoBackgroundButton = document.getElementById('background-auto');
+    const backgroundStatus = document.getElementById('background-status');
+    const resetCropButton = document.getElementById('crop-reset');
 
     const QUALITY_VALUES = [1, 0.9, 0.7, 0.5, 0.3];
     const OUTPUT_FORMATS = {
@@ -210,20 +325,25 @@
     };
 
     let currentImage = null;       // HTMLImageElement created from file
-    let cropRect = null;           // { x, y, width, height } in IMAGE (natural) pixels
+    // { x, y, width, height } in whole IMAGE (natural) pixels. It may extend
+    // past the image on any side: those areas are filled with the background.
+    let cropRect = null;
     let activeFormat = null;
     let supportedFormatKeys = [];
-    let cropHasTransparency = false;
+    let imageHasAlpha = false;
+    // Fill for areas outside the image (and under transparent pixels for
+    // formats without alpha). `auto` is what was detected from the edges.
+    let background = { color: '#ffffff', transparent: false, manual: false, auto: { color: '#ffffff', transparent: false } };
     let renderGeneration = 0;
     let renderAbortController = null;
     let outputUrls = [];
-    const MIN_CROP = 20;           // minimum crop size in image pixels
+    const MAX_EXPAND = 4096;       // how far each edge may move outside the image, in image pixels
 
     detectSupportedOutputFormats().then(keys => {
       supportedFormatKeys = keys.length ? keys : ['png'];
       activeFormat = supportedFormatKeys[0];
       renderFormatTabs();
-      updateBackgroundPickerVisibility();
+      updateBackgroundControls();
       if (currentImage) processImage(currentImage);
     });
 
@@ -236,8 +356,7 @@
     dropZone.addEventListener('drop', handleDrop);
     fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
     document.addEventListener('paste', handlePaste);
-    colorPicker.addEventListener('input', () => { if (currentImage) processImage(currentImage); });
-    window.addEventListener('resize', () => { if (currentImage) updateCropOverlayPositions(); });
+    window.addEventListener('resize', () => { if (currentImage && !dragState) layoutCropper(); });
     window.addEventListener('beforeunload', revokeOutputUrls);
 
     function renderFormatTabs() {
@@ -263,7 +382,7 @@
           const scrollState = captureScrollState();
           activeFormat = key;
           updateFormatTabsSelectedState();
-          updateBackgroundPickerVisibility();
+          updateBackgroundControls();
           if (currentImage) {
             processImage(currentImage, { preserveScroll: true, scrollState });
           } else {
@@ -477,8 +596,13 @@
         img.onload = () => {
           currentImage = img;
           cropRect = { x: 0, y: 0, width: img.width, height: img.height };
-          renderCropper(img);                  // mount cropper BELOW the drop zone
-          checkTransparencyOnArea(img, cropRect);
+          imageHasAlpha = detectImageAlpha(img);
+          const detected = detectEdgeBackground(img);
+          background = { ...detected, manual: false, auto: detected };
+          sourceImage.src = img.src;
+          editor.hidden = false;       // shown BELOW the drop zone
+          updateBackgroundControls();
+          layoutCropper();
           processImage(img);
         };
         img.src = e.target.result;
@@ -486,265 +610,313 @@
       reader.readAsDataURL(file);
     }
 
-    /* ---------- Transparency check limited to the cropped area (rounded) ---------- */
-    function checkTransparencyOnArea(img, rect) {
-      const rx = Math.round(rect.x);
-      const ry = Math.round(rect.y);
-      const rw = Math.max(1, Math.round(rect.width));
-      const rh = Math.max(1, Math.round(rect.height));
-
-      const canvas = document.createElement('canvas');
-      canvas.width = rw;
-      canvas.height = rh;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, rx, ry, rw, rh, 0, 0, rw, rh);
+    /* ---------- Background colour ---------- */
+    // The most common colour around the outside edge of the image. Colours
+    // are grouped into buckets of similar shades (so JPEG noise still counts
+    // as one colour) and the winning bucket is averaged.
+    function detectEdgeBackground(img) {
+      const fallback = { color: '#ffffff', transparent: false };
+      const w = img.width, h = img.height;
+      if (!w || !h) return fallback;
+      const strips = [[0, 0, w, 1], [0, h - 1, w, 1], [0, 0, 1, h], [w - 1, 0, 1, h]];
+      const buckets = new Map();
+      let transparentCount = 0;
       try {
-        const imageData = ctx.getImageData(0, 0, rw, rh);
-        const data = imageData.data;
-        for (let i = 3; i < data.length; i += 4) {
-          if (data[i] < 255) {
-            cropHasTransparency = true;
-            updateBackgroundPickerVisibility();
-            return;
+        for (const [sx, sy, sw, sh] of strips) {
+          const canvas = document.createElement('canvas');
+          canvas.width = sw;
+          canvas.height = sh;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+          const data = ctx.getImageData(0, 0, sw, sh).data;
+          for (let i = 0; i < data.length; i += 4) {
+            if (data[i + 3] < 16) { transparentCount++; continue; }
+            const key = (data[i] >> 3) << 10 | (data[i + 1] >> 3) << 5 | (data[i + 2] >> 3);
+            let bucket = buckets.get(key);
+            if (!bucket) buckets.set(key, bucket = [0, 0, 0, 0]);
+            bucket[0]++; bucket[1] += data[i]; bucket[2] += data[i + 1]; bucket[3] += data[i + 2];
           }
         }
-        cropHasTransparency = false;
-        updateBackgroundPickerVisibility();
       } catch (_) {
-        // Cross-origin guard; default to showing the picker for opaque-only formats.
-        cropHasTransparency = true;
-        updateBackgroundPickerVisibility();
+        return fallback;
+      }
+      let best = null;
+      for (const bucket of buckets.values()) if (!best || bucket[0] > best[0]) best = bucket;
+      if (!best || transparentCount > best[0]) return { color: '#ffffff', transparent: true };
+      const hex = n => Math.round(n / best[0]).toString(16).padStart(2, '0');
+      return { color: `#${hex(best[1])}${hex(best[2])}${hex(best[3])}`, transparent: false };
+    }
+
+    // Checked once per image, on a scaled-down copy.
+    function detectImageAlpha(img) {
+      const ratio = Math.min(1, 1024 / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * ratio));
+      canvas.height = Math.max(1, Math.round(img.height * ratio));
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      try {
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        for (let i = 3; i < data.length; i += 4) if (data[i] < 255) return true;
+        return false;
+      } catch (_) {
+        return true;
       }
     }
 
-    function updateBackgroundPickerVisibility() {
+    function backgroundIsTransparent(format) {
+      return Boolean(format && format.supportsAlpha && background.transparent);
+    }
+
+    function updateBackgroundControls() {
       const format = OUTPUT_FORMATS[activeFormat];
-      colorPickerContainer.style.display = format && cropHasTransparency && !format.supportsAlpha ? 'block' : 'none';
+      const alpha = Boolean(format && format.supportsAlpha);
+      colorPicker.value = background.color;
+      transparentCheckbox.checked = alpha && background.transparent;
+      transparentCheckbox.disabled = !alpha;
+      transparentCheckbox.parentElement.title = alpha ? '' : `${format ? format.label : 'This format'} has no transparency`;
+      autoBackgroundButton.disabled = !background.manual;
+      backgroundStatus.textContent = background.manual
+        ? 'Custom background.'
+        : 'Detected from the most common colour on the edges of the image.';
+      const transparent = backgroundIsTransparent(format);
+      cropFill.classList.toggle('checker', transparent);
+      cropFill.style.backgroundColor = transparent ? '' : background.color;
+      imageBackdrop.hidden = !(alpha && imageHasAlpha);
     }
 
-    function shouldFillBackground(format) {
-      return cropHasTransparency && !format.supportsAlpha;
+    function backgroundChanged() {
+      updateBackgroundControls();
+      scheduleProcess();
     }
 
-    /* ---------- Cropper rendering and interaction ---------- */
-    function renderCropper(img) {
-      cropperContainer.innerHTML = '';
+    colorPicker.addEventListener('input', () => {
+      background.color = colorPicker.value;
+      background.transparent = false;
+      background.manual = true;
+      backgroundChanged();
+    });
+    transparentCheckbox.addEventListener('change', () => {
+      background.transparent = transparentCheckbox.checked;
+      background.manual = true;
+      backgroundChanged();
+    });
+    autoBackgroundButton.addEventListener('click', () => {
+      background = { ...background.auto, manual: false, auto: background.auto };
+      backgroundChanged();
+    });
 
-      const cropper = document.createElement('div');
-      cropper.id = 'cropper';
+    /* ---------- Cropper layout ---------- */
+    // The stage shows `view`, a rectangle in image pixels that covers the
+    // image and the crop plus a margin to drag into, at `scale` screen pixels
+    // per image pixel. It is re-fitted whenever a drag or nudge finishes.
+    let view = null;
+    let scale = 1;
 
-      const srcImg = document.createElement('img');
-      srcImg.id = 'source-image';
-      srcImg.alt = 'Source image for cropping';
-      srcImg.src = img.src;
+    function cropEdges() {
+      return { l: cropRect.x, t: cropRect.y, r: cropRect.x + cropRect.width, b: cropRect.y + cropRect.height };
+    }
 
-      // Crop box + bars
-      const cropBox = document.createElement('div');
-      cropBox.className = 'crop-box';
-      cropBox.setAttribute('aria-label', 'Crop region');
+    function setCropEdges(e) {
+      cropRect = { x: e.l, y: e.t, width: e.r - e.l, height: e.b - e.t };
+    }
 
-      const barTop = document.createElement('div'); barTop.className = 'crop-bar top'; barTop.dataset.edge = 'top';
-      const barBottom = document.createElement('div'); barBottom.className = 'crop-bar bottom'; barBottom.dataset.edge = 'bottom';
-      const barLeft = document.createElement('div'); barLeft.className = 'crop-bar left'; barLeft.dataset.edge = 'left';
-      const barRight = document.createElement('div'); barRight.className = 'crop-bar right'; barRight.dataset.edge = 'right';
+    function layoutCropper() {
+      if (!currentImage || !cropRect || editor.hidden) return;
+      const e = cropEdges();
+      const l = Math.min(0, e.l), t = Math.min(0, e.t);
+      const r = Math.max(currentImage.width, e.r), b = Math.max(currentImage.height, e.b);
+      const margin = Math.max(16, Math.round(0.15 * Math.max(r - l, b - t)));
+      view = { x: l - margin, y: t - margin, w: r - l + 2 * margin, h: b - t + 2 * margin };
+      const availableWidth = stageWrap.clientWidth || 300;
+      const availableHeight = clamp(240, Math.round(window.innerHeight * 0.6), 640);
+      scale = Math.min(availableWidth / view.w, availableHeight / view.h, 4);
+      stage.style.width = `${view.w * scale}px`;
+      stage.style.height = `${view.h * scale}px`;
+      positionCropper();
+    }
 
-      // Corner handles
-      const hTL = document.createElement('div'); hTL.className = 'crop-handle tl'; hTL.dataset.edge = 'tl';
-      const hTR = document.createElement('div'); hTR.className = 'crop-handle tr'; hTR.dataset.edge = 'tr';
-      const hBL = document.createElement('div'); hBL.className = 'crop-handle bl'; hBL.dataset.edge = 'bl';
-      const hBR = document.createElement('div'); hBR.className = 'crop-handle br'; hBR.dataset.edge = 'br';
+    function placeBox(el, x, y, w, h) {
+      el.style.left = `${(x - view.x) * scale}px`;
+      el.style.top = `${(y - view.y) * scale}px`;
+      el.style.width = `${w * scale}px`;
+      el.style.height = `${h * scale}px`;
+    }
 
-      cropBox.appendChild(barTop);
-      cropBox.appendChild(barBottom);
-      cropBox.appendChild(barLeft);
-      cropBox.appendChild(barRight);
-      cropBox.appendChild(hTL);
-      cropBox.appendChild(hTR);
-      cropBox.appendChild(hBL);
-      cropBox.appendChild(hBR);
+    function positionCropper() {
+      if (!view) return;
+      placeBox(sourceImage, 0, 0, currentImage.width, currentImage.height);
+      placeBox(imageBackdrop, 0, 0, currentImage.width, currentImage.height);
+      placeBox(cropFill, cropRect.x, cropRect.y, cropRect.width, cropRect.height);
+      placeBox(cropBox, cropRect.x, cropRect.y, cropRect.width, cropRect.height);
+      cropBox.classList.toggle('narrow', cropRect.width * scale < 76);
+      cropBox.classList.toggle('short', cropRect.height * scale < 76);
+      updateCropReadout();
+    }
 
-      // Masks to dim outside crop
-      const maskT = document.createElement('div'); maskT.className = 'mask t';
-      const maskB = document.createElement('div'); maskB.className = 'mask b';
-      const maskL = document.createElement('div'); maskL.className = 'mask l';
-      const maskR = document.createElement('div'); maskR.className = 'mask r';
+    function signed(n) {
+      return n === 0 ? '0' : n > 0 ? `+${n}` : `−${-n}`;
+    }
 
-      cropper.appendChild(srcImg);
-      cropper.appendChild(maskT);
-      cropper.appendChild(maskB);
-      cropper.appendChild(maskL);
-      cropper.appendChild(maskR);
-      cropper.appendChild(cropBox);
-      cropperContainer.appendChild(cropper);
-
-      if (srcImg.complete) {
-        updateCropOverlayPositions();
-      } else {
-        srcImg.addEventListener('load', updateCropOverlayPositions, { once: true });
+    function updateCropReadout() {
+      const e = cropEdges();
+      const growth = { t: -e.t, l: -e.l, r: e.r - currentImage.width, b: e.b - currentImage.height };
+      for (const [edge, value] of Object.entries(growth)) {
+        nudgePanel.querySelector(`[data-growth="${edge}"]`).textContent = signed(value);
       }
-
-      // Pointer events for bars and corners (mouse + touch)
-      [barTop, barBottom, barLeft, barRight, hTL, hTR, hBL, hBR].forEach(el => {
-        el.addEventListener('pointerdown', onBarPointerDown);
-      });
+      cropSizeLabel.textContent = `${cropRect.width} × ${cropRect.height}`;
+      const unchanged = Object.values(growth).every(v => v === 0);
+      cropSizeNote.textContent = unchanged ? 'original size' : `was ${currentImage.width} × ${currentImage.height}`;
+      resetCropButton.disabled = unchanged;
     }
 
-    function getImageAndScale() {
-      const imgEl = document.getElementById('source-image');
-      const cropper = document.getElementById('cropper');
-      if (!imgEl || !cropper) return { imgEl: null, scaleX: 1, scaleY: 1, imgRect: null, cropperRect: null };
-      const imgRect = imgEl.getBoundingClientRect();
-      const cropperRect = cropper.getBoundingClientRect();
-      const scaleX = imgRect.width / imgEl.naturalWidth;
-      const scaleY = imgRect.height / imgEl.naturalHeight;
-      return { imgEl, scaleX, scaleY, imgRect, cropperRect };
-    }
+    /* ---------- Dragging the crop box, its edges and corners ---------- */
+    const SNAP_DISTANCE = 6;       // screen pixels within which an edge snaps to the image edge
+    let dragState = null;          // { mode, pointerId, startX, startY, start }
 
-    function updateCropOverlayPositions() {
-      const { imgEl, scaleX, scaleY, imgRect, cropperRect } = getImageAndScale();
-      if (!imgEl || !cropRect) return;
+    [cropBox, ...cropBox.children].forEach(el => {
+      el.addEventListener('pointerdown', onCropPointerDown);
+      el.addEventListener('pointermove', onCropPointerMove);
+      el.addEventListener('pointerup', onCropPointerEnd);
+      el.addEventListener('pointercancel', onCropPointerEnd);
+    });
 
-      const cropBox = document.querySelector('.crop-box');
-      const maskT = document.querySelector('.mask.t');
-      const maskB = document.querySelector('.mask.b');
-      const maskL = document.querySelector('.mask.l');
-      const maskR = document.querySelector('.mask.r');
-
-      // Position crop box (relative to cropper)
-      const imgLeft = imgRect.left - cropperRect.left;
-      const imgTop = imgRect.top - cropperRect.top;
-
-      const left = imgLeft + cropRect.x * scaleX;
-      const top = imgTop + cropRect.y * scaleY;
-      const width = cropRect.width * scaleX;
-      const height = cropRect.height * scaleY;
-
-      cropBox.style.left = left + 'px';
-      cropBox.style.top = top + 'px';
-      cropBox.style.width = width + 'px';
-      cropBox.style.height = height + 'px';
-
-      // Masks (dim outside)
-      maskT.style.left = imgLeft + 'px';
-      maskT.style.top = imgTop + 'px';
-      maskT.style.width = imgRect.width + 'px';
-      maskT.style.height = Math.max(0, top - imgTop) + 'px';
-
-      maskB.style.left = imgLeft + 'px';
-      maskB.style.top = (top + height) + 'px';
-      maskB.style.width = imgRect.width + 'px';
-      maskB.style.height = Math.max(0, (imgTop + imgRect.height) - (top + height)) + 'px';
-
-      maskL.style.left = imgLeft + 'px';
-      maskL.style.top = top + 'px';
-      maskL.style.width = Math.max(0, left - imgLeft) + 'px';
-      maskL.style.height = height + 'px';
-
-      maskR.style.left = (left + width) + 'px';
-      maskR.style.top = top + 'px';
-      maskR.style.width = Math.max(0, (imgLeft + imgRect.width) - (left + width)) + 'px';
-      maskR.style.height = height + 'px';
-    }
-
-    let dragState = null; // { edge, pointerId, startX, startY, startRect }
-
-    function onBarPointerDown(e) {
+    function onCropPointerDown(e) {
+      if (dragState || !currentImage || (e.pointerType === 'mouse' && e.button !== 0)) return;
       e.preventDefault();
-      const edge = e.currentTarget.dataset.edge;
+      e.stopPropagation();
       dragState = {
-        edge,
+        mode: e.currentTarget.dataset.handle,
         pointerId: e.pointerId,
         startX: e.clientX,
         startY: e.clientY,
-        startRect: { ...cropRect }
+        start: cropEdges()
       };
       e.currentTarget.setPointerCapture(e.pointerId);
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp, { once: true });
-      window.addEventListener('pointercancel', onPointerUp, { once: true });
     }
 
-    function onPointerMove(e) {
-      if (!dragState || !currentImage) return;
-      if (e.pointerId !== dragState.pointerId) return;
+    function snap(value, imageSize) {
+      if (Math.abs(value) * scale <= SNAP_DISTANCE) return 0;
+      if (Math.abs(value - imageSize) * scale <= SNAP_DISTANCE) return imageSize;
+      return value;
+    }
 
-      const { scaleX, scaleY } = getImageAndScale();
-      const dxImg = (e.clientX - dragState.startX) / (scaleX || 1);
-      const dyImg = (e.clientY - dragState.startY) / (scaleY || 1);
+    function onCropPointerMove(e) {
+      if (!dragState || e.pointerId !== dragState.pointerId) return;
+      e.stopPropagation();
+      const dx = Math.round((e.clientX - dragState.startX) / scale);
+      const dy = Math.round((e.clientY - dragState.startY) / scale);
+      const { mode, start } = dragState;
+      const imgW = currentImage.width, imgH = currentImage.height;
+      // A drag stays inside the stage; the stage grows when it is released.
+      const minX = view.x, maxX = view.x + view.w, minY = view.y, maxY = view.y + view.h;
+      const e2 = { ...start };
 
-      let { x, y, width, height } = dragState.startRect;
-
-      switch (dragState.edge) {
-        case 'left': {
-          let newX = clamp(0, x + dxImg, x + width - MIN_CROP);
-          width = x + width - newX;
-          x = newX;
-          break;
-        }
-        case 'right': {
-          let newW = clamp(MIN_CROP, width + dxImg, currentImage.width - x);
-          width = newW;
-          break;
-        }
-        case 'top': {
-          let newY = clamp(0, y + dyImg, y + height - MIN_CROP);
-          height = y + height - newY;
-          y = newY;
-          break;
-        }
-        case 'bottom': {
-          let newH = clamp(MIN_CROP, height + dyImg, currentImage.height - y);
-          height = newH;
-          break;
-        }
-        /* Corners: adjust both axes */
-        case 'tl': {
-          let newX = clamp(0, x + dxImg, x + width - MIN_CROP);
-          let newY = clamp(0, y + dyImg, y + height - MIN_CROP);
-          width = x + width - newX;
-          height = y + height - newY;
-          x = newX; y = newY;
-          break;
-        }
-        case 'tr': {
-          let newW = clamp(MIN_CROP, width + dxImg, currentImage.width - x);
-          let newY = clamp(0, y + dyImg, y + height - MIN_CROP);
-          height = y + height - newY;
-          y = newY; width = newW;
-          break;
-        }
-        case 'bl': {
-          let newX = clamp(0, x + dxImg, x + width - MIN_CROP);
-          let newH = clamp(MIN_CROP, height + dyImg, currentImage.height - y);
-          width = x + width - newX;
-          x = newX; height = newH;
-          break;
-        }
-        case 'br': {
-          let newW = clamp(MIN_CROP, width + dxImg, currentImage.width - x);
-          let newH = clamp(MIN_CROP, height + dyImg, currentImage.height - y);
-          width = newW; height = newH;
-          break;
-        }
+      if (mode === 'move') {
+        const w = start.r - start.l, h = start.b - start.t;
+        let l = start.l + dx, t = start.t + dy;
+        if (snap(l, imgW) !== l) l = snap(l, imgW);
+        else if (snap(l + w, imgW) !== l + w) l = snap(l + w, imgW) - w;
+        if (snap(t, imgH) !== t) t = snap(t, imgH);
+        else if (snap(t + h, imgH) !== t + h) t = snap(t + h, imgH) - h;
+        e2.l = clamp(minX, l, maxX - w); e2.r = e2.l + w;
+        e2.t = clamp(minY, t, maxY - h); e2.b = e2.t + h;
+      } else {
+        if (mode.includes('l')) e2.l = clamp(minX, snap(start.l + dx, imgW), start.r - 1);
+        if (mode.includes('r')) e2.r = clamp(start.l + 1, snap(start.r + dx, imgW), maxX);
+        if (mode.includes('t')) e2.t = clamp(minY, snap(start.t + dy, imgH), start.b - 1);
+        if (mode.includes('b')) e2.b = clamp(start.t + 1, snap(start.b + dy, imgH), maxY);
       }
 
-      // Clamp to image bounds
-      x = clamp(0, x, currentImage.width - MIN_CROP);
-      y = clamp(0, y, currentImage.height - MIN_CROP);
-      width = clamp(MIN_CROP, width, currentImage.width - x);
-      height = clamp(MIN_CROP, height, currentImage.height - y);
-
-      cropRect = { x, y, width, height };
-      updateCropOverlayPositions();
-
-      // Update previews live
-      checkTransparencyOnArea(currentImage, cropRect);
-      processImage(currentImage);
+      const before = cropEdges();
+      if (e2.l === before.l && e2.t === before.t && e2.r === before.r && e2.b === before.b) return;
+      setCropEdges(e2);
+      positionCropper();
+      scheduleProcess();
     }
 
-    function onPointerUp() {
-      window.removeEventListener('pointermove', onPointerMove);
+    function onCropPointerEnd(e) {
+      if (!dragState || e.pointerId !== dragState.pointerId) return;
+      e.stopPropagation();
       dragState = null;
+      layoutCropper();
+    }
+
+    /* ---------- Buttons that move one edge a pixel at a time ---------- */
+    const ARROW_ROTATION = { up: 0, right: 90, down: 180, left: 270 };
+    const NUDGE_PADS = [
+      { edge: 't', name: 'top', buttons: [['up', -1], ['down', 1]] },
+      { edge: 'l', name: 'left', buttons: [['left', -1], ['right', 1]] },
+      { edge: 'r', name: 'right', buttons: [['left', -1], ['right', 1]] },
+      { edge: 'b', name: 'bottom', buttons: [['up', -1], ['down', 1]] }
+    ];
+
+    NUDGE_PADS.forEach(({ edge, name, buttons }) => {
+      const pad = document.createElement('div');
+      pad.className = 'nudge-pad';
+      pad.style.gridArea = name;
+      const label = document.createElement('span');
+      label.className = 'nudge-label';
+      label.innerHTML = `${name[0].toUpperCase()}${name.slice(1)} <b data-growth="${edge}">0</b>`;
+      const group = document.createElement('div');
+      group.className = 'nudge-buttons';
+      buttons.forEach(([direction, delta]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('aria-label', `Move ${name} edge ${direction} 1 pixel`);
+        button.title = `Move the ${name} edge ${direction} 1px (hold to repeat, Shift for 10px)`;
+        button.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true" style="transform: rotate(${ARROW_ROTATION[direction]}deg)"><path d="M3 10.5 8 5.5l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        addRepeatingPress(button, shiftKey => nudgeEdge(edge, delta * (shiftKey ? 10 : 1)));
+        group.appendChild(button);
+      });
+      pad.append(label, group);
+      nudgePanel.appendChild(pad);
+    });
+
+    // Acts once on press, then repeats while the button is held down.
+    function addRepeatingPress(button, action) {
+      let timer = null;
+      const stop = () => { clearTimeout(timer); timer = null; };
+      button.addEventListener('pointerdown', e => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        stop();
+        action(e.shiftKey);
+        const repeat = () => { action(e.shiftKey); timer = setTimeout(repeat, 50); };
+        timer = setTimeout(repeat, 400);
+      });
+      ['pointerup', 'pointercancel', 'pointerleave', 'blur'].forEach(type => button.addEventListener(type, stop));
+      button.addEventListener('contextmenu', e => e.preventDefault());
+      // Keyboard activation arrives as a click that no pointer press caused.
+      button.addEventListener('click', e => { if (e.detail === 0) action(e.shiftKey); });
+    }
+
+    function nudgeEdge(edge, delta) {
+      if (!currentImage || dragState) return;
+      const e = cropEdges();
+      const imgW = currentImage.width, imgH = currentImage.height;
+      if (edge === 'l') e.l = clamp(-MAX_EXPAND, e.l + delta, e.r - 1);
+      if (edge === 'r') e.r = clamp(e.l + 1, e.r + delta, imgW + MAX_EXPAND);
+      if (edge === 't') e.t = clamp(-MAX_EXPAND, e.t + delta, e.b - 1);
+      if (edge === 'b') e.b = clamp(e.t + 1, e.b + delta, imgH + MAX_EXPAND);
+      setCropEdges(e);
+      layoutCropper();
+      scheduleProcess();
+    }
+
+    resetCropButton.addEventListener('click', () => {
+      if (!currentImage) return;
+      cropRect = { x: 0, y: 0, width: currentImage.width, height: currentImage.height };
+      layoutCropper();
+      scheduleProcess();
+    });
+
+    // Re-encoding every preview is slow, so wait for a pause in the changes.
+    let processTimer = null;
+    function scheduleProcess() {
+      clearTimeout(processTimer);
+      processTimer = setTimeout(() => {
+        if (currentImage) processImage(currentImage);
+      }, 120);
     }
 
     function clamp(min, val, max) {
@@ -805,18 +977,25 @@
         canvas.height = h;
         const ctx = canvas.getContext('2d');
 
-        if (shouldFillBackground(format)) {
-          ctx.fillStyle = colorPicker.value;
+        // Where the whole image lands on this canvas. Parts outside the canvas
+        // are cropped away; parts of the canvas it misses are new space.
+        const dx = Math.round(-cropRect.x * (w / roundedCropW));
+        const dy = Math.round(-cropRect.y * (h / roundedCropH));
+        const dw = Math.max(1, Math.round(img.width * (w / roundedCropW)));
+        const dh = Math.max(1, Math.round(img.height * (h / roundedCropH)));
+        const hasNewSpace = dx > 0 || dy > 0 || dx + dw < w || dy + dh < h;
+
+        if (!format.supportsAlpha || (hasNewSpace && !background.transparent)) {
+          ctx.fillStyle = background.color;
           ctx.fillRect(0, 0, w, h);
+          // Formats with alpha keep the image's own transparency.
+          if (format.supportsAlpha && imageHasAlpha) ctx.clearRect(dx, dy, dw, dh);
         }
 
-        // Draw the CROPPED region scaled to the canvas (rounded source rect).
         // Every quality level is encoded from this same, unchanging canvas.
-        const sx = Math.round(cropRect.x);
-        const sy = Math.round(cropRect.y);
         const sw = roundedCropW;
         const sh = roundedCropH;
-        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+        ctx.drawImage(img, dx, dy, dw, dh);
 
         qualities.forEach(quality => {
           const container = document.createElement('div');

@@ -283,3 +283,109 @@ def test_avif_falls_back_to_jsquash_when_native_encoder_ignores_quality(
         if line.startswith("Size:")
     ]
     assert len(set(sizes)) == 5, sizes
+
+
+def load_page_with_yellow_image(page, port):
+    """Load a 200x100 image that is yellow with a blue square in the middle."""
+    page.goto(f"http://127.0.0.1:{port}/image-resize-quality.html")
+    expect(page.locator("#format-tab-png")).to_be_visible()
+    page.locator("#format-tab-png").click()
+    page.evaluate(
+        """async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 200;
+      canvas.height = 100;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffcc00";
+      ctx.fillRect(0, 0, 200, 100);
+      ctx.fillStyle = "#0000ff";
+      ctx.fillRect(80, 30, 40, 40);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([blob], "yellow.png", { type: "image/png" }));
+      const input = document.getElementById("file-input");
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change"));
+    }"""
+    )
+    expect(page.locator("#crop-size")).to_have_text("200 × 100")
+
+
+def first_output_pixels(page, points):
+    """Size of the first preview, and its [r, g, b, a] at each (x, y) point."""
+    return page.evaluate(
+        """async (points) => {
+      const img = document.querySelector("#output .image-container img");
+      await img.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      return {
+        size: [img.naturalWidth, img.naturalHeight],
+        pixels: points.map(([x, y]) => Array.from(ctx.getImageData(x, y, 1, 1).data)),
+      };
+    }""",
+        points,
+    )
+
+
+def test_nudge_buttons_grow_the_image_with_the_detected_edge_colour(
+    page: Page, unused_port_server
+):
+    unused_port_server.start(root)
+    load_page_with_yellow_image(page, unused_port_server.port)
+    expect(page.locator("#background-color")).to_have_value("#ffcc00")
+
+    left = page.get_by_role("button", name="Move left edge left 1 pixel")
+    for _ in range(3):
+        left.click()
+    page.get_by_role("button", name="Move bottom edge down 1 pixel").click()
+    page.get_by_role("button", name="Move top edge down 1 pixel").click()
+    expect(page.locator("#crop-size")).to_have_text("203 × 100")
+    expect(page.locator("#output .image-info").first).to_contain_text("Width: 203px")
+
+    result = first_output_pixels(page, [[0, 50], [100, 99]])
+    assert result["size"] == [203, 100]
+    assert result["pixels"] == [[255, 204, 0, 255], [255, 204, 0, 255]]
+
+    # A manually chosen colour replaces the detected one.
+    page.locator("#background-color").fill("#ff0000")
+    expect(page.locator("#background-auto")).to_be_enabled()
+    page.wait_for_timeout(400)
+    expect(page.locator("#output .image-container a")).to_have_count(2)
+    result = first_output_pixels(page, [[0, 50], [10, 50], [100, 99]])
+    assert result["pixels"] == [
+        [255, 0, 0, 255],
+        [255, 204, 0, 255],
+        [255, 0, 0, 255],
+    ]
+
+    page.locator("#background-auto").click()
+    expect(page.locator("#background-color")).to_have_value("#ffcc00")
+    page.locator("#crop-reset").click()
+    expect(page.locator("#crop-size")).to_have_text("200 × 100")
+
+
+def test_dragging_a_handle_past_the_image_adds_space(page: Page, unused_port_server):
+    unused_port_server.start(root)
+    load_page_with_yellow_image(page, unused_port_server.port)
+
+    handle = page.locator(".crop-handle.br").bounding_box()
+    x = handle["x"] + handle["width"] / 2
+    y = handle["y"] + handle["height"] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 40, y + 40, steps=4)
+    page.mouse.up()
+
+    crop = page.evaluate("cropRect")
+    assert crop["x"] == 0 and crop["y"] == 0
+    assert crop["width"] > 200 and crop["height"] > 100
+    expect(page.locator("#output .image-info").first).to_contain_text(
+        f"Width: {crop['width']}px"
+    )
+    result = first_output_pixels(page, [[crop["width"] - 1, crop["height"] - 1]])
+    assert result["size"] == [crop["width"], crop["height"]]
+    assert result["pixels"] == [[255, 204, 0, 255]]
