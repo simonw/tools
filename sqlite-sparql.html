@@ -1,0 +1,1877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPARQL in SQLite playground</title>
+<style>
+:root {
+  --bg: #fbfbfa;
+  --panel: #ffffff;
+  --text: #1d1f23;
+  --muted: #646a73;
+  --border: #dcdfe3;
+  --accent: #0b6e69;
+  --accent-text: #ffffff;
+  --accent-soft: #e3f2f1;
+  --code-bg: #f3f4f2;
+  --iri: #1f55b5;
+  --tag: #8a4b00;
+  --dt: #6b4fa0;
+  --error-bg: #fdecec;
+  --error: #a3161b;
+  --ok: #1d7a35;
+  --row-alt: #f7f8f6;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a;
+    --panel: #1c1f23;
+    --text: #e7e9ec;
+    --muted: #9aa1ab;
+    --border: #343a42;
+    --accent: #3fb7ae;
+    --accent-text: #0d1513;
+    --accent-soft: #1d3634;
+    --code-bg: #24282d;
+    --iri: #8cb4ff;
+    --tag: #f0b46a;
+    --dt: #c3a6f5;
+    --error-bg: #3b1d1f;
+    --error: #ff9ea2;
+    --ok: #7fd18f;
+    --row-alt: #20242a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.45;
+}
+a { color: var(--iri); }
+code, kbd { font-family: var(--mono); font-size: 0.9em; }
+code { background: var(--code-bg); padding: 0.05em 0.3em; border-radius: 3px; }
+kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 0.3em; color: var(--muted); }
+header { padding: 18px 20px 6px; max-width: 1500px; margin: 0 auto; }
+h1 { margin: 0 0 4px; font-size: 1.6rem; }
+.lede { margin: 0 0 8px; max-width: 70em; color: var(--muted); }
+.status { margin: 0; font-size: 0.9rem; color: var(--muted); min-height: 1.4em; }
+.status.error { color: var(--error); }
+.status .ready { color: var(--ok); font-weight: 600; }
+.layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 16px;
+  padding: 8px 20px 20px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+#examples {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 0 8px;
+  align-self: start;
+  position: sticky;
+  top: 8px;
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+}
+#examples > summary {
+  font-weight: 700;
+  padding: 8px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+#examples > summary::-webkit-details-marker { display: none; }
+#examples > summary::after { content: " ▾"; color: var(--muted); }
+#examples:not([open]) > summary::after { content: " ▸"; }
+.example-group h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 12px 14px 4px;
+}
+.example-group button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 3px solid transparent;
+  padding: 4px 14px 4px 11px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.example-group button:hover { background: var(--accent-soft); }
+.example-group button.active { border-left-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.example-group button .badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 4px;
+  vertical-align: 1px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+main { min-width: 0; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 10px; flex-wrap: wrap; }
+.tabs button {
+  font: inherit;
+  font-weight: 600;
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  padding: 7px 16px;
+  cursor: pointer;
+  color: var(--muted);
+  margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] { background: var(--panel); border-color: var(--border); color: var(--text); }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+.card h3 { margin: 0 0 8px; font-size: 1rem; }
+#example-note { margin: 0 0 8px; font-size: 0.92rem; color: var(--muted); }
+#example-note:empty { display: none; }
+textarea {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  resize: vertical;
+  tab-size: 2;
+}
+#editor { min-height: 260px; }
+textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 8px; }
+.toolbar label, .row label { font-size: 0.88rem; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.spacer { flex: 1; }
+button, .button, select, input[type="text"] {
+  font: inherit;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 11px;
+  background: var(--panel);
+  color: var(--text);
+}
+button, .button { cursor: pointer; }
+button:hover, .button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; padding: 6px 18px; }
+button:disabled { opacity: 0.55; cursor: progress; }
+button.danger { color: var(--error); }
+.buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; }
+.row input[type="text"] { width: 22em; max-width: 100%; }
+.hint { font-size: 0.85rem; color: var(--muted); margin: 8px 0 0; }
+#results { margin-top: 14px; }
+.result { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.result-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.result-head code { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60em; display: inline-block; vertical-align: bottom; }
+.result-head .actions { margin-left: auto; display: flex; gap: 6px; }
+.result-head .actions button { padding: 2px 9px; font-size: 0.82rem; }
+.table-wrap { overflow: auto; max-height: 70vh; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { text-align: left; vertical-align: top; padding: 4px 10px; border-bottom: 1px solid var(--border); }
+th { position: sticky; top: 0; background: var(--panel); font-family: var(--mono); font-size: 0.82rem; z-index: 1; box-shadow: 0 1px 0 var(--border); }
+tbody tr:nth-child(even) td { background: var(--row-alt); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td .cell-pre { white-space: pre-wrap; font-family: var(--mono); font-size: 0.82rem; max-height: 22em; overflow: auto; display: block; min-width: 20em; }
+.null { color: var(--muted); font-style: italic; }
+a.iri { font-family: var(--mono); font-size: 0.84rem; text-decoration: none; color: var(--iri); }
+a.iri:hover { text-decoration: underline; }
+.bnode { font-family: var(--mono); font-size: 0.84rem; color: var(--muted); font-style: italic; }
+.lit-tag { color: var(--tag); font-size: 0.78rem; margin-left: 3px; font-family: var(--mono); }
+.lit-dt { color: var(--dt); font-size: 0.74rem; margin-left: 4px; font-family: var(--mono); }
+pre.raw {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 0.84rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 70vh;
+  overflow: auto;
+}
+.error-box { background: var(--error-bg); color: var(--error); border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; font-family: var(--mono); font-size: 0.86rem; margin-bottom: 12px; }
+.error-box .failed { margin-top: 6px; opacity: 0.85; }
+.error-box summary { cursor: pointer; margin-top: 4px; font-family: system-ui, sans-serif; font-size: 0.82rem; }
+.ask { font-size: 1.6rem; font-weight: 700; padding: 14px; font-family: var(--mono); }
+.ask.true { color: var(--ok); }
+.ask.false { color: var(--error); }
+.notice { font-size: 0.86rem; color: var(--muted); padding: 6px 12px; }
+.changes { padding: 10px 12px; font-size: 0.95rem; }
+.stats-grid { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 0.92rem; }
+.stats-grid b { font-variant-numeric: tabular-nums; }
+#rdf-input { min-height: 160px; }
+footer { max-width: 1500px; margin: 0 auto; padding: 0 20px 30px; font-size: 0.85rem; color: var(--muted); }
+.prefix-list { font-family: var(--mono); font-size: 0.82rem; white-space: pre; overflow: auto; background: var(--code-bg); padding: 8px 10px; border-radius: 6px; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 6px 10px 16px; }
+  header { padding: 12px 10px 4px; }
+  footer { padding: 0 10px 24px; }
+  #examples { position: static; max-height: 55vh; }
+  h1 { font-size: 1.3rem; }
+  #editor { min-height: 200px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>SPARQL in SQLite</h1>
+  <p class="lede">A playground for <strong>sparqlite</strong>, a SQLite extension written in Rust that stores RDF in
+    SQLite tables and runs SPARQL&nbsp;1.1 queries and updates against them from SQL. Here the extension is compiled to
+    WebAssembly and linked into SQLite's official WASM build, so everything runs in your browser. The example data is a
+    knowledge graph of 94 programming languages: pick an example, or write your own query.</p>
+  <p class="status" id="status" role="status">Loading SQLite and sparqlite (about 1.8&nbsp;MB)…</p>
+</header>
+<div class="layout">
+  <details id="examples" open>
+    <summary>Examples</summary>
+    <div id="example-list"></div>
+  </details>
+  <main>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-sparql" data-tab="sparql" aria-selected="true">SPARQL</button>
+      <button role="tab" id="tab-sql" data-tab="sql" aria-selected="false">SQL</button>
+      <button role="tab" id="tab-data" data-tab="data" aria-selected="false">Data</button>
+    </div>
+    <section id="editor-panel">
+      <p id="example-note"></p>
+      <textarea id="editor" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Query editor"></textarea>
+      <div class="toolbar">
+        <button id="run" class="primary" disabled>Run</button>
+        <kbd title="Run with Ctrl+Enter or Cmd+Enter">Ctrl+Enter</kbd>
+        <button id="stop" class="danger" hidden>Stop</button>
+        <label class="sparql-only">Output
+          <select id="format">
+            <option value="table">Table</option>
+            <option value="json">SPARQL JSON</option>
+            <option value="xml">SPARQL XML</option>
+            <option value="csv">CSV</option>
+            <option value="tsv">TSV</option>
+            <option value="turtle">Turtle</option>
+            <option value="ntriples">N-Triples</option>
+            <option value="nquads">N-Quads</option>
+          </select>
+        </label>
+        <label class="sparql-only">Explain
+          <select id="explain">
+            <option value="">…</option>
+            <option value="plan">plan</option>
+            <option value="analyze">analyze (runs it)</option>
+            <option value="logical">logical</option>
+            <option value="algebra">algebra</option>
+            <option value="sql">translated SQL</option>
+            <option value="sqlplan">SQL query plan</option>
+          </select>
+        </label>
+        <label>Engine
+          <select id="engine" title="native: sparqlite's own planner and executor. sql: translate to one SQL statement and let SQLite run it.">
+            <option value="native">native</option>
+            <option value="sql">SQL translation</option>
+          </select>
+        </label>
+        <span class="spacer"></span>
+        <button id="to-sql" class="sparql-only" title="Open the same query in the SQL tab, wrapped in a sparqlite SQL function">As SQL</button>
+        <button id="share" title="Copy a link to this query">Copy link</button>
+      </div>
+    </section>
+    <section id="data-panel" hidden>
+      <div class="card">
+        <h3>The store</h3>
+        <div id="store-stats" class="stats-grid"></div>
+        <div id="store-graphs"></div>
+        <div class="buttons">
+          <button id="reset-data">Reset to the example data</button>
+          <button id="empty-store">Start with an empty store</button>
+          <button id="download-db">Download database</button>
+          <label class="button">Open a SQLite file…
+            <input type="file" id="open-db" accept=".sqlite,.sqlite3,.db,application/vnd.sqlite3,application/x-sqlite3" hidden>
+          </label>
+        </div>
+        <p class="hint">The database is an ordinary SQLite file (RDF in the <code>rdf_quad</code> and <code>rdf_term</code>
+          tables). A downloaded copy works with the native extension too:
+          <code>sqlite3 playground.sqlite '.load ./libsparqlite' "SELECT sparql_query('ASK {?s ?p ?o}')"</code></p>
+        <div id="data-message"></div>
+      </div>
+      <div class="card">
+        <h3>Add RDF data</h3>
+        <textarea id="rdf-input" spellcheck="false" placeholder="Paste Turtle, TriG, N-Triples, N-Quads, RDF/XML, JSON-LD or N3 here…" aria-label="RDF data"></textarea>
+        <div class="row">
+          <label>Format
+            <select id="rdf-format">
+              <option value="turtle">Turtle</option>
+              <option value="trig">TriG</option>
+              <option value="ntriples">N-Triples</option>
+              <option value="nquads">N-Quads</option>
+              <option value="rdfxml">RDF/XML</option>
+              <option value="jsonld">JSON-LD</option>
+              <option value="n3">N3</option>
+            </select>
+          </label>
+          <label>Into named graph <input type="text" id="rdf-graph" placeholder="(default graph)"></label>
+          <label>Base IRI <input type="text" id="rdf-base" placeholder="(none)"></label>
+        </div>
+        <div class="buttons">
+          <button id="rdf-load" class="primary">Load</button>
+          <label class="button">Choose a file…<input type="file" id="rdf-file" hidden
+            accept=".ttl,.trig,.nt,.nq,.rdf,.owl,.xml,.jsonld,.json,.n3,text/turtle,application/n-triples,application/ld+json,application/rdf+xml"></label>
+          <button id="rdf-sample">Insert a sample</button>
+        </div>
+        <div id="rdf-message"></div>
+      </div>
+      <div class="card">
+        <h3>About the example data</h3>
+        <p>From the <a href="https://github.com/simonw/research/tree/claude/sqlite-sparql-rust/sqlite-sparql-rust">sparqlite tutorial</a>:</p>
+        <ul>
+          <li><a href="sqlite-sparql/data/languages.ttl"><code>languages.ttl</code></a> (default graph): 94 computer languages,
+            117 people and 40 organisations: first-appeared years, designers, developers, influences, paradigms (a small
+            <code>rdfs:subClassOf</code> hierarchy), typing, file extensions and some homepages. <strong>Real</strong>, checked
+            against the English Wikipedia infoboxes. Labels in English, French, German, Spanish and Japanese.</li>
+          <li><a href="sqlite-sparql/data/survey.trig"><code>survey.trig</code></a>: <strong>fictional</strong> developer surveys
+            for 2025 and 2026 and editorial reviews, each in its own named graph.</li>
+          <li><a href="sqlite-sparql/data/job_postings.sql"><code>job_postings.sql</code></a>: an ordinary SQL table of 300
+            <strong>fictional</strong> job adverts, for joining SPARQL results with relational data.</li>
+        </ul>
+        <div class="prefix-list">PREFIX ex:      &lt;http://example.org/pl/&gt;          # languages, classes, properties
+PREFIX person:  &lt;http://example.org/pl/person/&gt;   # person:guido-van-rossum
+PREFIX org:     &lt;http://example.org/pl/org/&gt;      # org:bell-labs
+PREFIX rdf:     &lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#&gt;
+PREFIX rdfs:    &lt;http://www.w3.org/2000/01/rdf-schema#&gt;
+PREFIX xsd:     &lt;http://www.w3.org/2001/XMLSchema#&gt;
+PREFIX schema:  &lt;https://schema.org/&gt;
+PREFIX dcterms: &lt;http://purl.org/dc/terms/&gt;
+PREFIX skos:    &lt;http://www.w3.org/2004/02/skos/core#&gt;</div>
+      </div>
+    </section>
+    <section id="results" aria-live="polite"></section>
+  </main>
+</div>
+<footer>
+  sparqlite source: <a href="https://github.com/simonw/research/tree/claude/sqlite-sparql-rust/sqlite-sparql-rust">simonw/research
+  (sqlite-sparql-rust)</a> · WASM build recipe: <a href="https://github.com/simonw/tools/tree/main/sqlite-sparql">sqlite-sparql/</a>
+  · SQLite WASM: <a href="https://sqlite.org/wasm">sqlite.org/wasm</a>
+</footer>
+
+<script>
+'use strict';
+
+// ---------------------------------------------------------------------------------------
+// Examples
+// ---------------------------------------------------------------------------------------
+const EXAMPLES = [
+  // ----- Start here
+  { group: 'Start here', title: 'Languages, newest first', mode: 'sparql',
+    note: 'A basic SELECT: triple patterns that share variables. Click any IRI in the results to see everything the store knows about it.',
+    text: `# 94 real computer languages (facts from Wikipedia infoboxes).
+PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?lang ?name ?year
+WHERE {
+  ?lang a ex:ProgrammingLanguage ;
+        rdfs:label ?name ;
+        ex:firstAppeared ?year .
+}
+ORDER BY DESC(?year) ?name
+LIMIT 25` },
+  { group: 'Start here', title: 'Everything about Python', mode: 'sparql',
+    note: 'A subject with variables for the predicate and the object returns every triple about it.',
+    text: `PREFIX ex: <http://example.org/pl/>
+
+SELECT ?property ?value
+WHERE { ex:Python ?property ?value }
+ORDER BY ?property ?value` },
+  { group: 'Start here', title: 'Who designed Python?', mode: 'sparql',
+    note: 'Following a link: from the language to its designer, then to the designer\'s name.',
+    text: `PREFIX ex:     <http://example.org/pl/>
+PREFIX schema: <https://schema.org/>
+
+SELECT ?designer ?name ?born
+WHERE {
+  ex:Python ex:designer ?designer .
+  ?designer schema:name ?name .
+  OPTIONAL { ?designer schema:birthDate ?born }
+}` },
+  { group: 'Start here', title: 'Which predicates are used?', mode: 'sparql',
+    note: 'A good first question for any unfamiliar dataset: its predicates and how often each one appears.',
+    text: `SELECT ?p (COUNT(*) AS ?triples)
+WHERE { ?s ?p ?o }
+GROUP BY ?p
+ORDER BY DESC(?triples) ?p` },
+  { group: 'Start here', title: 'Classes and their instances', mode: 'sparql',
+    text: `SELECT ?class (COUNT(*) AS ?instances)
+WHERE { ?thing a ?class }
+GROUP BY ?class
+ORDER BY DESC(?instances) ?class` },
+
+  // ----- Joins and filters
+  { group: 'Joins and filters', title: 'Turing Award winners and their languages', mode: 'sparql',
+    note: '<code>;</code> repeats the subject, so each group of patterns reads like a description of one thing.',
+    text: `PREFIX ex:     <http://example.org/pl/>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX schema: <https://schema.org/>
+
+SELECT ?award ?designer ?language
+WHERE {
+  ?lang   ex:designer        ?person ;
+          rdfs:label         ?language .
+  ?person ex:turingAwardYear ?award ;
+          schema:name        ?designer .
+}
+ORDER BY ?award ?language` },
+  { group: 'Joins and filters', title: 'Both functional and class-based', mode: 'sparql',
+    note: '<code>,</code> repeats the subject and the predicate.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language
+WHERE {
+  ?lang ex:paradigm ex:Functional , ex:ClassBased ;
+        rdfs:label  ?language .
+}
+ORDER BY ?language` },
+  { group: 'Joins and filters', title: 'The 1950s, plus Go', mode: 'sparql',
+    note: 'FILTER with numeric comparisons, <code>&amp;&amp;</code>, <code>||</code>, and a language-tagged literal.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language ?year
+WHERE {
+  ?lang ex:firstAppeared ?year ;
+        rdfs:label ?language .
+  FILTER ((?year >= 1950 && ?year < 1960) || ?language = "Go"@en)
+}
+ORDER BY ?year` },
+  { group: 'Joins and filters', title: 'String functions and REGEX', mode: 'sparql',
+    text: `PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX schema: <https://schema.org/>
+
+SELECT ?language ?description
+WHERE {
+  ?lang rdfs:label ?language ;
+        schema:description ?description .
+  FILTER (LANG(?description) = "en")
+  FILTER (REGEX(?description, "(web|browser)", "i")
+          || (STRSTARTS(?language, "C") && CONTAINS(?language, "#")))
+}
+ORDER BY ?language` },
+  { group: 'Joins and filters', title: 'Labels in five languages', mode: 'sparql',
+    note: 'Literals can carry a language tag; <code>LANG()</code> reads it.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?label (LANG(?label) AS ?lang)
+WHERE { ex:ProgrammingLanguage rdfs:label ?label }
+ORDER BY ?lang` },
+  { group: 'Joins and filters', title: 'LANGMATCHES vs LANG() =', mode: 'sparql',
+    note: 'One alternative label is tagged <code>@en-GB</code>: <code>LANGMATCHES</code> matches it as English, plain equality does not.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?alt (LANG(?alt) = "en" AS ?equals_en) (LANGMATCHES(LANG(?alt), "en") AS ?langmatches_en)
+WHERE { ex:ObjectOriented skos:altLabel ?alt }` },
+
+  // ----- OPTIONAL, UNION, MINUS
+  { group: 'OPTIONAL, UNION, MINUS', title: 'OPTIONAL homepages', mode: 'sparql',
+    note: 'OPTIONAL keeps the row when the inner pattern has no match, leaving the variable unbound.',
+    text: `PREFIX ex:     <http://example.org/pl/>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX schema: <https://schema.org/>
+
+SELECT ?language ?year ?homepage
+WHERE {
+  ?lang ex:firstAppeared ?year ;
+        rdfs:label ?language .
+  OPTIONAL { ?lang schema:url ?homepage }
+  FILTER (?year >= 1990 && ?year < 1996)
+}
+ORDER BY ?year ?language` },
+  { group: 'OPTIONAL, UNION, MINUS', title: 'Recent languages without a homepage', mode: 'sparql',
+    text: `PREFIX ex:     <http://example.org/pl/>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX schema: <https://schema.org/>
+
+SELECT ?language ?year
+WHERE {
+  ?lang ex:firstAppeared ?year ;
+        rdfs:label ?language .
+  OPTIONAL { ?lang schema:url ?homepage }
+  FILTER (?year >= 2010 && !BOUND(?homepage))
+}
+ORDER BY ?year` },
+  { group: 'OPTIONAL, UNION, MINUS', title: 'UNION: who made Java?', mode: 'sparql',
+    text: `PREFIX ex:     <http://example.org/pl/>
+PREFIX schema: <https://schema.org/>
+
+SELECT ?role ?name
+WHERE {
+  { ex:Java ex:designer ?who  BIND ("designer" AS ?role) }
+  UNION
+  { ex:Java ex:developer ?who BIND ("developer" AS ?role) }
+  ?who schema:name ?name .
+}
+ORDER BY ?role ?name` },
+  { group: 'OPTIONAL, UNION, MINUS', title: 'FILTER NOT EXISTS: no recorded designer', mode: 'sparql',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language
+WHERE {
+  ?lang a ex:ProgrammingLanguage ; rdfs:label ?language .
+  FILTER NOT EXISTS { ?lang ex:designer ?someone }
+}
+ORDER BY ?language` },
+  { group: 'OPTIONAL, UNION, MINUS', title: 'MINUS: roots of the influence graph', mode: 'sparql',
+    note: 'Languages that influenced others but were not influenced by anything recorded here.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?language
+WHERE {
+  ?newer ex:influencedBy ?root .
+  ?root rdfs:label ?language .
+  MINUS { ?root ex:influencedBy ?older }
+}
+ORDER BY ?language` },
+
+  // ----- Aggregates and sub-queries
+  { group: 'Aggregates and sub-queries', title: 'Paradigms: COUNT, MIN, MAX, AVG', mode: 'sparql',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?paradigm (COUNT(?lang) AS ?languages) (MIN(?year) AS ?first)
+       (MAX(?year) AS ?latest) (ROUND(AVG(?year)) AS ?average_year)
+WHERE {
+  ?lang ex:paradigm ?p ;
+        ex:firstAppeared ?year .
+  ?p rdfs:label ?paradigm .
+  FILTER (LANG(?paradigm) = "en")
+}
+GROUP BY ?paradigm
+ORDER BY DESC(?languages) ?paradigm` },
+  { group: 'Aggregates and sub-queries', title: 'Prolific designers: GROUP_CONCAT, HAVING', mode: 'sparql',
+    text: `PREFIX ex:     <http://example.org/pl/>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX schema: <https://schema.org/>
+
+SELECT ?designer (COUNT(?lang) AS ?n)
+       (GROUP_CONCAT(?language; separator=", ") AS ?languages)
+WHERE {
+  ?lang ex:designer ?person ; rdfs:label ?language .
+  ?person schema:name ?designer .
+}
+GROUP BY ?designer
+HAVING (COUNT(?lang) >= 2)
+ORDER BY DESC(?n) ?designer` },
+  { group: 'Aggregates and sub-queries', title: 'Languages per decade', mode: 'sparql',
+    note: 'GROUP BY an expression, with <code>AS</code> to name it.',
+    text: `PREFIX ex: <http://example.org/pl/>
+
+SELECT ?decade (COUNT(?lang) AS ?languages)
+WHERE { ?lang ex:firstAppeared ?year }
+GROUP BY (FLOOR(?year / 10) * 10 AS ?decade)
+ORDER BY ?decade` },
+  { group: 'Aggregates and sub-queries', title: 'Earliest language of each paradigm', mode: 'sparql',
+    note: 'A sub-query finds the first year per paradigm; the outer query finds the languages from that year.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?paradigm ?language ?first
+WHERE {
+  {
+    SELECT ?p (MIN(?year) AS ?first)
+    WHERE { ?l ex:paradigm ?p ; ex:firstAppeared ?year }
+    GROUP BY ?p
+  }
+  ?lang ex:paradigm ?p ;
+        ex:firstAppeared ?first ;
+        rdfs:label ?language .
+  ?p rdfs:label ?paradigm .
+  FILTER (LANG(?paradigm) = "en")
+}
+ORDER BY ?first ?paradigm` },
+  { group: 'Aggregates and sub-queries', title: 'Most file extensions', mode: 'sparql',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language ?n ?extensions
+WHERE {
+  {
+    SELECT ?lang (COUNT(?ext) AS ?n) (GROUP_CONCAT(?ext; separator=" ") AS ?extensions)
+    WHERE { ?lang ex:fileExtension ?ext }
+    GROUP BY ?lang
+    ORDER BY DESC(?n)
+    LIMIT 5
+  }
+  ?lang rdfs:label ?language .
+}
+ORDER BY DESC(?n) ?language` },
+
+  // ----- Expressions
+  { group: 'Expressions and functions', title: 'BIND: lifespans of designers', mode: 'sparql',
+    text: `PREFIX schema: <https://schema.org/>
+
+SELECT ?name ?born ?died ?years
+WHERE {
+  ?person schema:name ?name ;
+          schema:birthDate ?born ;
+          schema:deathDate ?died .
+  BIND (YEAR(?died) - YEAR(?born) AS ?years)
+}
+ORDER BY DESC(?years) ?name
+LIMIT 10` },
+  { group: 'Expressions and functions', title: 'IF, COALESCE, STRAFTER and VALUES', mode: 'sparql',
+    text: `PREFIX ex:     <http://example.org/pl/>
+PREFIX schema: <https://schema.org/>
+
+SELECT (STRAFTER(STR(?lang), "/pl/") AS ?id) ?year
+       (IF(?year < 1970, "classic", "modern") AS ?era)
+       (COALESCE(STR(?url), "(none recorded)") AS ?homepage)
+WHERE {
+  VALUES ?lang { ex:Lisp ex:Python ex:Gleam ex:COBOL ex:Zig }
+  ?lang ex:firstAppeared ?year .
+  OPTIONAL { ?lang schema:url ?url }
+}
+ORDER BY ?year` },
+  { group: 'Expressions and functions', title: 'String and math functions', mode: 'sparql',
+    text: `SELECT (CONCAT("Py", "thon") AS ?concat) (UCASE("go") AS ?ucase)
+       (SUBSTR("JavaScript", 5) AS ?substr) (REPLACE("JavaScript", "Script", "") AS ?replace)
+       (STRLEN("naïve") AS ?strlen) (ENCODE_FOR_URI("a b/c") AS ?uri_encoded)
+       (ROUND(2.5) AS ?round) (ABS(-3) AS ?abs) (7 / 2 AS ?division) (2 * 3.5e0 AS ?double)
+WHERE {}` },
+  { group: 'Expressions and functions', title: 'Datatypes and casts', mode: 'sparql',
+    text: `PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?value (DATATYPE(?value) AS ?type) (xsd:integer(?value) AS ?as_integer)
+WHERE {
+  VALUES ?value { 42 4.2 4.2e1 true "17" "seventeen" "2026-10-15"^^xsd:date "x"@en }
+}` },
+  { group: 'Expressions and functions', title: 'Dates, hashes, UUIDs and RAND()', mode: 'sparql',
+    text: `PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT (NOW() AS ?now) (YEAR(NOW()) AS ?year)
+       (MONTH("2026-10-15T12:30:00Z"^^xsd:dateTime) AS ?month)
+       (UUID() AS ?uuid) (STRUUID() AS ?struuid)
+       (MD5("sparqlite") AS ?md5) (SHA256("sparqlite") AS ?sha256)
+       (RAND() AS ?random)
+WHERE {}` },
+  { group: 'Expressions and functions', title: 'VALUES with UNDEF', mode: 'sparql',
+    note: 'VALUES joins an inline table into the query; UNDEF leaves a cell unbound.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language ?nickname ?year
+WHERE {
+  VALUES (?lang ?nickname) {
+    (ex:Python  "batteries included")
+    (ex:Rust    "fearless concurrency")
+    (ex:Haskell UNDEF)
+  }
+  ?lang rdfs:label ?language ;
+        ex:firstAppeared ?year .
+}
+ORDER BY ?year` },
+
+  // ----- Property paths
+  { group: 'Property paths', title: 'Everything that influenced Rust', mode: 'sparql',
+    note: '<code>+</code> follows <code>ex:influencedBy</code> one or more steps: direct and indirect influences.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?ancestor ?year
+       (EXISTS { ex:Rust ex:influencedBy ?a } AS ?direct)
+WHERE {
+  ex:Rust ex:influencedBy+ ?a .
+  ?a rdfs:label ?ancestor ;
+     ex:firstAppeared ?year .
+}
+ORDER BY ?year` },
+  { group: 'Property paths', title: 'The most influential languages', mode: 'sparql',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language (COUNT(DISTINCT ?descendant) AS ?influenced)
+WHERE {
+  ?descendant ex:influencedBy+ ?ancestor .
+  ?ancestor rdfs:label ?language .
+}
+GROUP BY ?language
+ORDER BY DESC(?influenced) ?language
+LIMIT 10` },
+  { group: 'Property paths', title: 'Inverse path: what C influenced', mode: 'sparql',
+    note: '<code>^</code> walks a predicate backwards; <code>/</code> chains steps.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language
+WHERE { ex:C ^ex:influencedBy/rdfs:label ?language }
+ORDER BY ?language` },
+  { group: 'Property paths', title: 'Alternatives: designers or developers', mode: 'sparql',
+    text: `PREFIX ex:     <http://example.org/pl/>
+PREFIX schema: <https://schema.org/>
+
+SELECT ?name
+WHERE { ex:Java (ex:designer|ex:developer)/schema:name ?name }
+ORDER BY ?name` },
+  { group: 'Property paths', title: 'The paradigm class hierarchy', mode: 'sparql',
+    note: '<code>*</code> means zero or more steps, so every class is included as its own ancestor.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?class ?ancestor
+WHERE {
+  ?class rdfs:subClassOf* ?ancestor .
+  ?ancestor rdfs:subClassOf* ex:Paradigm .
+}
+ORDER BY ?class ?ancestor` },
+  { group: 'Property paths', title: 'Declarative, directly or by subclass', mode: 'sparql',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language ?paradigm
+WHERE {
+  ?lang ex:paradigm ?p ;
+        rdfs:label ?language .
+  ?p rdfs:subClassOf* ex:Declarative ;
+     rdfs:label ?paradigm .
+  FILTER (LANG(?paradigm) = "en")
+}
+ORDER BY ?paradigm ?language` },
+  { group: 'Property paths', title: "Lisp's descendants before 1970", mode: 'sparql',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?language ?year
+WHERE {
+  ?lang ex:influencedBy+ ex:Lisp ;
+        ex:firstAppeared ?year ;
+        rdfs:label ?language .
+  FILTER (?year < 1970)
+}
+ORDER BY ?year` },
+
+  // ----- Named graphs
+  { group: 'Named graphs (fictional data)', title: 'Most used languages in the 2026 survey', mode: 'sparql',
+    note: 'The survey numbers are made up. <code>GRAPH &lt;iri&gt; { … }</code> matches inside one named graph; the labels come from the default graph.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language ?share ?loved
+WHERE {
+  GRAPH <http://example.org/graph/survey-2026> {
+    ?lang ex:usageShare ?share ;
+          ex:lovedPercent ?loved .
+  }
+  ?lang rdfs:label ?language .
+}
+ORDER BY DESC(?share)
+LIMIT 10` },
+  { group: 'Named graphs (fictional data)', title: "Rust's share, year by year", mode: 'sparql',
+    note: 'A variable in <code>GRAPH ?g</code> ranges over the named graphs; the default graph describes each survey.',
+    text: `PREFIX ex: <http://example.org/pl/>
+
+SELECT ?g ?year ?respondents ?share
+WHERE {
+  ?g ex:surveyYear ?year ;
+     ex:respondents ?respondents .
+  GRAPH ?g { ex:Rust ex:usageShare ?share }
+}
+ORDER BY ?year` },
+  { group: 'Named graphs (fictional data)', title: 'Best reviewed languages', mode: 'sparql',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language (COUNT(?review) AS ?reviews) (AVG(?rating) AS ?average)
+WHERE {
+  GRAPH <http://example.org/graph/editorial> {
+    ?review a ex:Review ;
+            ex:about ?lang ;
+            ex:rating ?rating .
+  }
+  ?lang rdfs:label ?language .
+}
+GROUP BY ?language
+ORDER BY DESC(?average) ?language
+LIMIT 10` },
+  { group: 'Named graphs (fictional data)', title: 'Shrinking from 2025 to 2026', mode: 'sparql',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?language ?s2025 ?s2026 (?s2026 - ?s2025 AS ?change)
+WHERE {
+  GRAPH <http://example.org/graph/survey-2025> { ?lang ex:usageShare ?s2025 }
+  GRAPH <http://example.org/graph/survey-2026> { ?lang ex:usageShare ?s2026 }
+  ?lang rdfs:label ?language .
+  FILTER (?s2026 < ?s2025)
+}
+ORDER BY ?change` },
+  { group: 'Named graphs (fictional data)', title: 'FROM: one graph as the default', mode: 'sparql',
+    text: `PREFIX ex: <http://example.org/pl/>
+
+SELECT ?lang ?share
+FROM <http://example.org/graph/survey-2026>
+WHERE { ?lang ex:usageShare ?share }
+ORDER BY DESC(?share)
+LIMIT 5` },
+  { group: 'Named graphs (fictional data)', title: 'Every graph and its size', mode: 'sparql',
+    text: `SELECT ?graph (COUNT(*) AS ?quads)
+WHERE {
+  { ?s ?p ?o BIND ("(default graph)" AS ?graph) }
+  UNION
+  { GRAPH ?graph { ?s ?p ?o } }
+}
+GROUP BY ?graph
+ORDER BY ?graph` },
+
+  // ----- ASK, CONSTRUCT, DESCRIBE
+  { group: 'ASK, CONSTRUCT, DESCRIBE', title: 'ASK: did ALGOL 60 influence Rust?', mode: 'sparql',
+    text: `PREFIX ex: <http://example.org/pl/>
+
+ASK { ex:Rust ex:influencedBy+ ex:ALGOL60 }` },
+  { group: 'ASK, CONSTRUCT, DESCRIBE', title: 'CONSTRUCT new triples (Turtle)', mode: 'sparql', format: 'turtle',
+    note: 'CONSTRUCT builds a new graph from a template. Output is set to Turtle: try the other formats too.',
+    text: `PREFIX ex:     <http://example.org/pl/>
+PREFIX schema: <https://schema.org/>
+
+CONSTRUCT {
+  ?person ex:designed ?lang .
+  ?lang ex:designedBy ?person .
+}
+WHERE {
+  ?lang ex:designer ?person .
+  ?person schema:name "Niklaus Wirth" .
+}` },
+  { group: 'ASK, CONSTRUCT, DESCRIBE', title: 'CONSTRUCT as a table', mode: 'sparql',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+CONSTRUCT { ?lang ex:inspiredBy ex:Smalltalk ; rdfs:label ?label }
+WHERE {
+  ?lang ex:influencedBy ex:Smalltalk ; rdfs:label ?label .
+  FILTER (LANG(?label) = "en")
+}` },
+  { group: 'ASK, CONSTRUCT, DESCRIBE', title: 'DESCRIBE a person', mode: 'sparql', format: 'turtle',
+    text: `DESCRIBE <http://example.org/pl/person/grace-hopper>` },
+
+  // ----- Updates
+  { group: 'SPARQL Update (changes the data)', title: 'INSERT DATA: a new language', mode: 'sparql',
+    note: 'Updates change the store. Use <b>Data → Reset to the example data</b> to undo them.',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+INSERT DATA {
+  ex:Toylang a ex:ProgrammingLanguage ;
+             rdfs:label "Toylang"@en ;
+             ex:firstAppeared 2026 ;
+             ex:influencedBy ex:Python , ex:SPARQL .
+}` },
+  { group: 'SPARQL Update (changes the data)', title: 'INSERT … WHERE: tag the pioneers', mode: 'sparql',
+    text: `PREFIX ex: <http://example.org/pl/>
+
+INSERT { ?lang a ex:Pioneer }
+WHERE  { ?lang ex:firstAppeared ?year . FILTER (?year < 1960) }` },
+  { group: 'SPARQL Update (changes the data)', title: 'DELETE … INSERT … WHERE: rename', mode: 'sparql',
+    text: `PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+DELETE { ?lang rdfs:label ?old }
+INSERT { ?lang rdfs:label "Toy Language"@en }
+WHERE  { ?lang rdfs:label ?old . FILTER (STR(?old) = "Toylang") }` },
+  { group: 'SPARQL Update (changes the data)', title: 'See the changes', mode: 'sparql',
+    text: `PREFIX ex:   <http://example.org/pl/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?name ?why
+WHERE {
+  { ?lang a ex:Pioneer BIND ("pioneer" AS ?why) }
+  UNION
+  { ?lang ex:firstAppeared 2026 BIND ("new" AS ?why) }
+  ?lang rdfs:label ?name .
+  FILTER (LANG(?name) = "en")
+}
+ORDER BY ?why ?name` },
+  { group: 'SPARQL Update (changes the data)', title: 'A named graph of your own', mode: 'sparql',
+    note: 'Several operations separated by <code>;</code> run as one request.',
+    text: `PREFIX ex: <http://example.org/pl/>
+
+CREATE SILENT GRAPH <http://example.org/graph/my-notes> ;
+
+INSERT DATA {
+  GRAPH <http://example.org/graph/my-notes> {
+    ex:SPARQL ex:note "Tried it in the browser" ;
+              ex:rating 5 .
+  }
+} ;
+
+INSERT {
+  GRAPH <http://example.org/graph/my-notes> { ?lang ex:note "Older than SPARQL" }
+}
+WHERE {
+  ?lang ex:firstAppeared ?y .
+  ex:SPARQL ex:firstAppeared ?s .
+  FILTER (?y < ?s && ?y > 2000)
+}` },
+  { group: 'SPARQL Update (changes the data)', title: 'DELETE WHERE: remove reviews', mode: 'sparql',
+    text: `PREFIX ex: <http://example.org/pl/>
+
+DELETE WHERE {
+  GRAPH <http://example.org/graph/editorial> {
+    ?review ex:reviewer "Jonas Berg" ; ?p ?o
+  }
+}` },
+
+  // ----- SQL
+  { group: 'SPARQL from SQL', title: 'sparql_rows(): SPARQL as a table', mode: 'sql',
+    note: '<code>sparql_rows()</code> is a table-valued function: <code>v0</code>, <code>v1</code>… hold native SQL values, <code>t0</code>… the N-Triples form of each term.',
+    text: `SELECT t0 AS term, v0 AS value, typeof(v0) AS sql_type
+FROM sparql_rows('
+  PREFIX ex:  <http://example.org/pl/>
+  PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+  SELECT ?x WHERE {
+    VALUES ?x { ex:Go "Go" "Go"@en 42 4.2 4.2e1 true
+                "2026-10-15"^^xsd:date "2026-10-15T12:30:00Z"^^xsd:dateTime
+                "99999999999999999999"^^xsd:integer UNDEF }
+  }
+');` },
+  { group: 'SPARQL from SQL', title: 'Join SPARQL results with a SQL table', mode: 'sql',
+    note: '<code>job_postings</code> is an ordinary (fictional) SQL table. Here its rows join to the paradigms of each language from the RDF graph.',
+    text: `SELECT p.v1 AS paradigm,
+       count(*) AS postings,
+       CAST(round(avg(j.salary_usd)) AS INTEGER) AS avg_salary_usd
+FROM job_postings AS j
+JOIN sparql_rows('
+  PREFIX ex:   <http://example.org/pl/>
+  PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+  SELECT ?lang ?paradigm
+  WHERE {
+    ?lang ex:paradigm ?p .
+    ?p rdfs:label ?paradigm .
+    FILTER (LANG(?paradigm) = "en")
+  }
+') AS p ON p.v0 = j.language_iri
+GROUP BY paradigm
+ORDER BY avg_salary_usd DESC;` },
+  { group: 'SPARQL from SQL', title: 'sparql_view: a virtual table', mode: 'sql',
+    note: '<code>sparql_view</code> turns a SPARQL SELECT into a virtual table with one column per variable. Equality constraints on the hidden <code>__term</code> columns are pushed down into the SPARQL query.',
+    text: `DROP TABLE IF EXISTS temp.languages;
+CREATE VIRTUAL TABLE temp.languages USING sparql_view('
+  PREFIX ex:     <http://example.org/pl/>
+  PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+  PREFIX schema: <https://schema.org/>
+  SELECT ?lang ?name ?year ?homepage
+  WHERE {
+    ?lang a/rdfs:subClassOf* ex:ComputerLanguage ;
+          rdfs:label ?name .
+    FILTER (LANG(?name) = "en")
+    OPTIONAL { ?lang ex:firstAppeared ?year }
+    OPTIONAL { ?lang schema:url ?homepage }
+  }
+');
+
+SELECT name, year, homepage FROM languages WHERE year >= 2015 ORDER BY year, name;
+
+SELECT name, year FROM languages WHERE lang__term = '<http://example.org/pl/Rust>';
+
+-- Job postings per language, with the year from the graph
+SELECT j.language, count(*) AS postings, l.year AS first_appeared
+FROM job_postings AS j
+LEFT JOIN languages AS l ON l.lang = j.language_iri
+GROUP BY j.language
+ORDER BY postings DESC, j.language
+LIMIT 8;` },
+  { group: 'SPARQL from SQL', title: 'CTEs and window functions over SPARQL', mode: 'sql',
+    text: `WITH typing AS (
+  SELECT v0 AS lang, v1 AS typing FROM sparql_rows('
+    PREFIX ex:   <http://example.org/pl/>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?lang ?typing WHERE {
+      ?lang ex:typing ?t . ?t rdfs:label ?typing FILTER (LANG(?typing) = "en")
+    }')
+),
+per_language AS (
+  SELECT t.typing, j.language, count(*) AS postings, avg(j.salary_usd) AS avg_salary
+  FROM job_postings AS j JOIN typing AS t ON t.lang = j.language_iri
+  GROUP BY t.typing, j.language
+),
+ranked AS (
+  SELECT *, rank() OVER (PARTITION BY typing ORDER BY avg_salary DESC) AS rank
+  FROM per_language
+)
+SELECT typing, rank, language, postings, CAST(avg_salary AS INTEGER) AS avg_salary_usd
+FROM ranked WHERE rank <= 3
+ORDER BY typing, rank;` },
+  { group: 'SPARQL from SQL', title: 'Single values: sparql_value, _ask, _count', mode: 'sql',
+    text: `SELECT
+  sparql_value('PREFIX ex: <http://example.org/pl/>
+                SELECT ?year WHERE { ex:Rust ex:firstAppeared ?year }') AS rust_year,
+  sparql_ask('PREFIX ex: <http://example.org/pl/>
+              ASK { ex:Rust ex:influencedBy ex:Haskell }') AS haskell_influenced_rust,
+  sparql_count('PREFIX ex: <http://example.org/pl/>
+                SELECT ?lang WHERE { ?lang ex:typing ex:StaticTyping }') AS statically_typed;` },
+  { group: 'SPARQL from SQL', title: 'sparql_query(): CSV, TSV, XML, JSON', mode: 'sql',
+    text: `SELECT sparql_query('
+  PREFIX ex:   <http://example.org/pl/>
+  PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+  SELECT ?name ?year
+  WHERE { VALUES ?lang { ex:Go ex:Rust ex:Zig } ?lang rdfs:label ?name ; ex:firstAppeared ?year }
+  ORDER BY ?year
+', 'csv') AS csv;
+
+SELECT sparql_query('
+  PREFIX ex: <http://example.org/pl/>
+  SELECT ?year WHERE { ex:Rust ex:firstAppeared ?year }
+', 'xml') AS xml;
+
+SELECT sparql_query('ASK { ?s ?p ?o }') AS json;` },
+  { group: 'SPARQL from SQL', title: 'Load Turtle into a named graph', mode: 'sql',
+    note: '<code>sparql_load(data, format, base, graph)</code> parses RDF and returns the number of new quads.',
+    text: `SELECT sparql_load('
+@prefix ex:   <http://example.org/pl/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+ex:Gleam ex:mascot "Lucy the starfish"@en .
+ex:Rust  ex:mascot "Ferris the crab"@en .
+ex:Go    ex:mascot "the Go gopher"@en .
+', 'turtle', NULL, 'http://example.org/graph/mascots') AS new_quads;
+
+SELECT v0 AS language, v1 AS mascot FROM sparql_rows('
+  PREFIX ex:   <http://example.org/pl/>
+  PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+  SELECT ?name ?mascot WHERE {
+    GRAPH <http://example.org/graph/mascots> { ?lang ex:mascot ?mascot }
+    ?lang rdfs:label ?name FILTER (LANG(?name) = "en")
+  }
+');` },
+  { group: 'SPARQL from SQL', title: 'Load JSON-LD and RDF/XML', mode: 'sql',
+    text: `SELECT sparql_load('{
+  "@context": { "ex": "http://example.org/pl/", "name": "https://schema.org/name" },
+  "@id": "ex:person/ada-lovelace",
+  "name": "Ada Lovelace",
+  "ex:notableFor": "the first published algorithm"
+}', 'jsonld') AS jsonld_quads;
+
+SELECT sparql_load('<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:ex="http://example.org/pl/">
+  <rdf:Description rdf:about="http://example.org/pl/person/ada-lovelace">
+    <ex:born>1815</ex:born>
+  </rdf:Description>
+</rdf:RDF>', 'rdfxml') AS rdfxml_quads;
+
+SELECT v0 AS property, t1 AS value FROM sparql_rows('
+  SELECT ?p ?o WHERE { <http://example.org/pl/person/ada-lovelace> ?p ?o } ORDER BY ?p
+');` },
+  { group: 'SPARQL from SQL', title: 'Updates inside a transaction', mode: 'sql',
+    note: 'sparqlite writes through SQLite, so ordinary transactions apply: this update is rolled back.',
+    text: `BEGIN;
+SELECT sparql_update('DELETE WHERE { ?s <http://www.w3.org/2000/01/rdf-schema#comment> ?c }') AS deleted;
+SELECT count(*) AS quads_inside FROM rdf_quad;
+ROLLBACK;
+SELECT count(*) AS quads_after_rollback FROM rdf_quad;` },
+  { group: 'SPARQL from SQL', title: 'Saving a SPARQL query as a SQL view', mode: 'sql',
+    text: `DROP VIEW IF EXISTS language_years;
+CREATE VIEW language_years AS
+SELECT v0 AS language, v1 AS year FROM sparql_rows('
+  PREFIX ex:   <http://example.org/pl/>
+  PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+  SELECT ?name ?year WHERE {
+    ?lang ex:firstAppeared ?year ; rdfs:label ?name FILTER (LANG(?name) = "en")
+  }
+');
+
+SELECT year / 10 * 10 AS decade, count(*) AS languages, group_concat(language, ', ') AS examples
+FROM language_years GROUP BY decade ORDER BY decade;` },
+
+  // ----- Under the hood
+  { group: 'Under the hood', title: 'How RDF is stored', mode: 'sql',
+    note: 'Quads are rows of integer ids in <code>rdf_quad</code>; terms live in <code>rdf_term</code>. Small numbers, dates and short strings are encoded inline in the id itself.',
+    text: `SELECT name, sql FROM sqlite_schema WHERE name LIKE 'rdf%' ORDER BY name;
+
+SELECT q.g, q.s, q.p, q.o,
+       sparql_term(q.s) AS subject, sparql_term(q.p) AS predicate, sparql_term(q.o) AS object
+FROM rdf_quad AS q
+WHERE q.s = sparql_term_id('<http://example.org/pl/Lua>')
+LIMIT 8;` },
+  { group: 'Under the hood', title: 'Term ids and accessors', mode: 'sql',
+    text: `SELECT id0 AS id,
+       sparql_term(id0) AS term,
+       sparql_term_kind(id0) AS kind,
+       sparql_term_lex(id0) AS lex,
+       sparql_term_lang(id0) AS lang
+FROM sparql_rows('SELECT ?label WHERE { <http://example.org/pl/Lua> ?p ?label .
+                                        FILTER (isLiteral(?label) && LANG(?label) != "") }
+                  ORDER BY ?label');
+
+SELECT sparql_term_id('<http://example.org/pl/Rust>') AS rust,
+       sparql_term_id('<http://example.org/pl/NoSuchLanguage>') AS missing,
+       sparql_term_id('2012') AS the_number_2012;` },
+  { group: 'Under the hood', title: 'Query plans: sparql_explain()', mode: 'sql',
+    note: 'The same modes are in the Explain menu of the SPARQL tab. <code>analyze</code> runs the query and adds actual row counts and timings.',
+    text: `SELECT sparql_explain('
+  PREFIX ex:     <http://example.org/pl/>
+  PREFIX schema: <https://schema.org/>
+  SELECT ?lang ?name WHERE {
+    ?lang ex:designer ?p ; ex:firstAppeared ?y .
+    ?p schema:name ?name .
+    FILTER (?y > 2000)
+  }', 'analyze') AS plan;` },
+  { group: 'Under the hood', title: 'SPARQL translated to SQL', mode: 'sql',
+    note: 'Besides its own engine, sparqlite can translate a query to a single SQL statement and let SQLite run it.',
+    text: `SELECT sparql_to_sql('
+  PREFIX ex:     <http://example.org/pl/>
+  PREFIX schema: <https://schema.org/>
+  SELECT ?name WHERE { ?lang ex:designer ?person . ?person schema:name ?name }
+') AS translated_sql;
+
+SELECT
+  sparql_count('PREFIX ex: <http://example.org/pl/>
+                SELECT * WHERE { ?a ex:influencedBy ?b . ?b ex:influencedBy ?c }') AS native_engine,
+  sparql_count_sql('PREFIX ex: <http://example.org/pl/>
+                SELECT * WHERE { ?a ex:influencedBy ?b . ?b ex:influencedBy ?c }') AS translated;` },
+  { group: 'Under the hood', title: 'Settings and status', mode: 'sql',
+    note: 'The B-tree counters show sparqlite reading SQLite\'s index pages directly, bypassing the SQL layer.',
+    text: `SELECT key, value FROM sparql_status
+WHERE key LIKE 'config.%' OR key LIKE 'btree%'
+   OR key IN ('version', 'sqlite_version', 'schema_state', 'last_op', 'rows_emitted');` },
+  { group: 'Under the hood', title: 'Statistics and integrity check', mode: 'sql',
+    text: `SELECT sparql_analyze() AS analyze_summary;
+SELECT sparql_check() AS check_result;` },
+  { group: 'Under the hood', title: 'Timeouts and memory limits', mode: 'sql', expectError: true,
+    note: 'This playground sets <code>timeout_ms</code> to 20 seconds and <code>max_memory_mb</code> to 256. This cross product of every triple with every other triple, twice, would run for hours; a per-call timeout stops it.',
+    text: `SELECT count(*) FROM sparql_rows(
+  'SELECT * WHERE { ?a ?p ?b . ?c ?q ?d . ?e ?r ?f }',
+  '{"timeout_ms": 300}'
+);` },
+  { group: 'Under the hood', title: 'Errors point at the problem', mode: 'sparql', expectError: true,
+    note: 'Errors are ordinary SQL errors whose message starts with <code>sparql:</code>. Add the missing PREFIX line to fix this one.',
+    text: `PREFIX ex: <http://example.org/pl/>
+
+SELECT ?name
+WHERE { ex:Python rdfs:label ?name }` },
+];
+
+// ---------------------------------------------------------------------------------------
+// Worker plumbing
+// ---------------------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const statusEl = $('status');
+let worker = null;
+let nextId = 1;
+const pending = new Map();
+let lastSnapshot = null;   // database bytes after the latest change, to recover from Stop
+let busy = false;
+let engine = 'native';
+let workerReady = null;
+let info = null;
+
+function startWorker(snapshot) {
+  worker = new Worker('sqlite-sparql/worker.mjs', { type: 'module' });
+  worker.onmessage = ({ data }) => {
+    const p = pending.get(data.id);
+    if (!p) return;
+    pending.delete(data.id);
+    if (data.snapshot) lastSnapshot = data.snapshot;
+    if (data.ok) p.resolve(data); else p.reject(new Error(data.error));
+  };
+  worker.onerror = (e) => {
+    const msg = e.message || 'the worker failed to start';
+    for (const p of pending.values()) p.reject(new Error(msg));
+    pending.clear();
+    setStatus('Error: ' + msg, true);
+  };
+  workerReady = call('init', { snapshot });
+  return workerReady;
+}
+
+function call(type, args = {}) {
+  const id = nextId++;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    worker.postMessage({ id, type, ...args });
+  });
+}
+
+function setStatus(html, isError = false) {
+  statusEl.innerHTML = html;
+  statusEl.classList.toggle('error', isError);
+}
+
+function fmtInt(n) { return Number(n).toLocaleString('en-US'); }
+function fmtMs(ms) { return ms < 10 ? ms.toFixed(1) + ' ms' : fmtInt(Math.round(ms)) + ' ms'; }
+function fmtBytes(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB'; }
+
+function showReady() {
+  const s = info.stats;
+  setStatus(`<span class="ready">Ready</span> · ${esc(info.version)} · ${fmtInt(s.quads)} quads in the store`);
+}
+
+async function init() {
+  try {
+    const t0 = performance.now();
+    info = await startWorker(null);
+    info.loadMs = performance.now() - t0;
+    showReady();
+    updateStats(info.stats);
+    $('run').disabled = false;
+  } catch (e) {
+    setStatus('Could not start SQLite: ' + esc(e.message), true);
+    throw e;
+  }
+}
+
+// Runs a worker request, showing a Stop button if it takes a while.
+async function busyCall(type, args) {
+  busy = true;
+  $('run').disabled = true;
+  $('run').textContent = 'Running…';
+  const stopTimer = setTimeout(() => { $('stop').hidden = false; }, 400);
+  try {
+    return await call(type, args);
+  } finally {
+    clearTimeout(stopTimer);
+    busy = false;
+    $('stop').hidden = true;
+    $('run').disabled = false;
+    $('run').textContent = 'Run';
+  }
+}
+
+async function stopWorker() {
+  worker.terminate();
+  for (const p of pending.values()) p.reject(new Error('Stopped. The database was restored to its state after your last change.'));
+  pending.clear();
+  setStatus('Restarting SQLite…');
+  const snap = lastSnapshot;
+  await startWorker(snap);
+  if (engine !== 'native') await call('query', { sql: "SELECT sparql_config('engine', ?)", bind: [engine] });
+  showReady();
+}
+
+// ---------------------------------------------------------------------------------------
+// Rendering helpers
+// ---------------------------------------------------------------------------------------
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+const DEFAULT_PREFIXES = {
+  rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+  rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
+  xsd: 'http://www.w3.org/2001/XMLSchema#',
+  owl: 'http://www.w3.org/2002/07/owl#',
+  schema: 'https://schema.org/',
+  dcterms: 'http://purl.org/dc/terms/',
+  skos: 'http://www.w3.org/2004/02/skos/core#',
+  foaf: 'http://xmlns.com/foaf/0.1/',
+  ex: 'http://example.org/pl/',
+  person: 'http://example.org/pl/person/',
+  org: 'http://example.org/pl/org/',
+};
+let prefixes = { ...DEFAULT_PREFIXES };
+
+function prefixesFrom(text) {
+  const map = { ...DEFAULT_PREFIXES };
+  for (const m of text.matchAll(/PREFIX\s+([A-Za-z][\w.-]*)?:\s*<([^>]*)>/gi)) map[m[1] || ''] = m[2];
+  return map;
+}
+
+function compact(iri) {
+  let best = null;
+  for (const [p, ns] of Object.entries(prefixes)) {
+    if (iri.startsWith(ns) && (!best || ns.length > best[1].length)) {
+      const local = iri.slice(ns.length);
+      if (/^[A-Za-z0-9_][\w.-]*$/.test(local) && !local.endsWith('.')) best = [p, ns];
+      else if (local === '') best = [p, ns];
+    }
+  }
+  return best ? best[0] + ':' + iri.slice(best[1].length) : '<' + iri + '>';
+}
+
+function renderTerm(b) {
+  if (!b) return '';
+  if (b.type === 'uri') {
+    return `<a class="iri" href="#" data-iri="${esc(b.value)}" title="${esc(b.value)} (click to explore)">${esc(compact(b.value))}</a>`;
+  }
+  if (b.type === 'bnode') return `<span class="bnode">_:${esc(b.value)}</span>`;
+  if (b.type === 'triple') {
+    const v = b.value;
+    return `&lt;&lt; ${renderTerm(v.subject)} ${renderTerm(v.predicate)} ${renderTerm(v.object)} &gt;&gt;`;
+  }
+  const dt = b.datatype || (b['xml:lang'] ? RDF_LANGSTRING : XSD + 'string');
+  let html = b.value.includes('\n') || b.value.length > 200
+    ? `<span class="cell-pre" title="${esc(compact(dt))}">${esc(b.value)}</span>`
+    : `<span title="${esc(compact(dt))}">${esc(b.value)}</span>`;
+  if (b['xml:lang']) html += `<span class="lit-tag">@${esc(b['xml:lang'])}</span>`;
+  else if (!PLAIN_DATATYPES.has(dt)) html += `<span class="lit-dt">${esc(compact(dt))}</span>`;
+  return html;
+}
+
+const XSD = 'http://www.w3.org/2001/XMLSchema#';
+const RDF_LANGSTRING = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString';
+// Datatypes with their own SPARQL syntax ("x", 42, 4.2, 4.2e1, true): no badge, just a tooltip.
+const PLAIN_DATATYPES = new Set(['string', 'integer', 'decimal', 'double', 'boolean'].map((t) => XSD + t));
+
+function isNumericTerm(b) {
+  return b && b.type === 'literal' && /XMLSchema#(integer|decimal|double|float|int|long|short|byte|nonNegativeInteger|positiveInteger)$/.test(b.datatype || '');
+}
+
+function renderSqlValue(v) {
+  if (v === null || v === undefined) return '<span class="null">NULL</span>';
+  if (v instanceof Uint8Array) return `<span class="null">&lt;blob ${fmtInt(v.length)} bytes&gt;</span>`;
+  const s = String(v);
+  if (s.includes('\n') || s.length > 200) return `<span class="cell-pre">${esc(s)}</span>`;
+  return esc(s);
+}
+
+function resultCard(headHtml, bodyHtml, actions = []) {
+  const div = document.createElement('div');
+  div.className = 'result';
+  div.innerHTML = `<div class="result-head">${headHtml}<span class="actions"></span></div>${bodyHtml}`;
+  const box = div.querySelector('.actions');
+  for (const [label, fn] of actions) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.addEventListener('click', () => fn(b));
+    box.appendChild(b);
+  }
+  return div;
+}
+
+function errorBox(message, failedSql) {
+  const div = document.createElement('div');
+  div.className = 'error-box';
+  div.setAttribute('role', 'alert');
+  const short = shortError(message);
+  if (short !== message) {
+    div.textContent = short;
+    const more = document.createElement('details');
+    more.innerHTML = '<summary>Full message</summary>';
+    more.appendChild(document.createTextNode(message));
+    div.appendChild(more);
+  } else {
+    div.textContent = message;
+  }
+  if (failedSql) {
+    const f = document.createElement('div');
+    f.className = 'failed';
+    f.textContent = 'In: ' + (failedSql.length > 400 ? failedSql.slice(0, 400) + '…' : failedSql);
+    div.appendChild(f);
+  }
+  return div;
+}
+
+// The parser's "expected one of ..." lists can run to thousands of characters: show the
+// first few alternatives, with the full message behind a disclosure.
+function shortError(message) {
+  const m = message.match(/^([\s\S]*?expected one of )([\s\S]*)$/);
+  if (m) {
+    const items = m[2].split(', ');
+    if (items.length > 6) return m[1] + items.slice(0, 5).join(', ') + ', …';
+  }
+  return message.length > 400 ? message.slice(0, 400) + '…' : message;
+}
+
+function cleanError(msg) {
+  return String(msg).replace(/^SQLITE_\w+: sqlite3 result code \d+: /, '');
+}
+
+function copyText(text, button) {
+  navigator.clipboard.writeText(text).then(() => {
+    const old = button.textContent;
+    button.textContent = 'Copied';
+    setTimeout(() => { button.textContent = old; }, 1200);
+  });
+}
+
+function download(name, data, type) {
+  const blob = new Blob([data], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+// ---------------------------------------------------------------------------------------
+// SPARQL tab
+// ---------------------------------------------------------------------------------------
+const UPDATE_WORDS = new Set(['INSERT', 'DELETE', 'LOAD', 'CLEAR', 'CREATE', 'DROP', 'COPY', 'MOVE', 'ADD', 'WITH']);
+
+// SELECT / ASK / CONSTRUCT / DESCRIBE / update, from the first keyword after the prologue.
+function queryForm(text) {
+  let s = text
+    .replace(/<[^<>"{}|^`\\\s]*>/g, '<>')
+    .replace(/"""[\s\S]*?"""|'''[\s\S]*?'''|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g, '""')
+    .replace(/#[^\n]*/g, ' ');
+  for (;;) {
+    const m = s.match(/^\s*(PREFIX\s+[^\s:]*:\s*<>|BASE\s*<>)/i);
+    if (!m) break;
+    s = s.slice(m[0].length);
+  }
+  const kw = (s.match(/^\s*([A-Za-z]+)/) || [, ''])[1].toUpperCase();
+  if (['SELECT', 'ASK', 'CONSTRUCT', 'DESCRIBE'].includes(kw)) return kw.toLowerCase();
+  if (UPDATE_WORDS.has(kw)) return 'update';
+  return 'select';
+}
+
+const GRAPH_FORMATS = new Set(['turtle', 'ntriples', 'nquads']);
+const RESULT_FORMATS = new Set(['json', 'xml', 'csv', 'tsv']);
+let lastVars = null;
+
+async function runSparql(text) {
+  const results = $('results');
+  const form = queryForm(text);
+  prefixes = prefixesFrom(text);
+  let format = $('format').value;
+  const isGraph = form === 'construct' || form === 'describe';
+  let notice = '';
+  if (form !== 'update' && format !== 'table') {
+    if (isGraph && RESULT_FORMATS.has(format)) {
+      notice = `${format.toUpperCase()} is a format for SELECT and ASK results; ${form.toUpperCase()} returns a graph, so here it is as Turtle.`;
+      format = 'turtle';
+    } else if (!isGraph && GRAPH_FORMATS.has(format)) {
+      notice = `${$('format').selectedOptions[0].textContent} is a format for graphs (CONSTRUCT and DESCRIBE); showing a table instead.`;
+      format = 'table';
+    }
+  }
+  const nodes = [];
+  if (form === 'update') {
+    const r = await busyCall('query', { sql: 'SELECT sparql_update(?1) AS changed', bind: [text], write: true });
+    const n = r.rows[0][0];
+    nodes.push(resultCard(`Update · ${fmtMs(r.ms)}`,
+      `<div class="changes">Done: <b>${fmtInt(n)}</b> quad${n === 1 ? '' : 's'} inserted or deleted. The store now holds ${fmtInt(r.stats.quads)} quads.</div>`));
+    updateStats(r.stats);
+  } else if (format === 'table') {
+    const r = await busyCall('query', { sql: 'SELECT vars, json FROM sparql_rows(?1) LIMIT 1001', bind: [text] });
+    let rows = r.rows;
+    let truncated = false;
+    if (rows.length > 1000) { rows = rows.slice(0, 1000); truncated = true; }
+    if (form === 'ask') {
+      const value = rows.length ? JSON.parse(rows[0][1]).boolean : false;
+      nodes.push(resultCard(`ASK · ${fmtMs(r.ms)}`, `<div class="ask ${value}">${value}</div>`));
+    } else {
+      let vars = rows.length ? JSON.parse(rows[0][0]) : null;
+      if (!vars) {
+        if (isGraph) vars = ['subject', 'predicate', 'object'];
+        else {
+          const h = await busyCall('query', { sql: "SELECT sparql_query(?1, 'json')", bind: [text] });
+          vars = JSON.parse(h.rows[0][0]).head.vars || [];
+        }
+      }
+      lastVars = isGraph ? null : vars;
+      let total = rows.length;
+      let countMs = 0;
+      if (truncated) {
+        const c = await busyCall('query', { sql: 'SELECT count(*) FROM sparql_rows(?1)', bind: [text] });
+        total = c.rows[0][0];
+        countMs = c.ms;
+      }
+      const label = isGraph ? 'triple' : 'row';
+      const head = `${fmtInt(total)} ${label}${total === 1 ? '' : 's'}${truncated ? ' (showing the first 1,000)' : ''} · ${fmtMs(r.ms + countMs)}`;
+      nodes.push(resultCard(head, renderBindingsTable(vars, rows.map((row) => JSON.parse(row[1])))));
+    }
+  } else {
+    const r = await busyCall('query', { sql: 'SELECT sparql_query(?1, ?2)', bind: [text, format] });
+    let out = r.rows[0][0] ?? '';
+    if (format === 'json') { try { out = JSON.stringify(JSON.parse(out), null, 2); } catch (e) { /* leave as is */ } }
+    const ext = { json: 'srj', xml: 'srx', csv: 'csv', tsv: 'tsv', turtle: 'ttl', ntriples: 'nt', nquads: 'nq' }[format];
+    const mime = { json: 'application/sparql-results+json', xml: 'application/sparql-results+xml', csv: 'text/csv',
+      tsv: 'text/tab-separated-values', turtle: 'text/turtle', ntriples: 'application/n-triples', nquads: 'application/n-quads' }[format];
+    nodes.push(resultCard(`${$('format').querySelector(`option[value="${format}"]`).textContent} · ${fmtInt(out.length)} characters · ${fmtMs(r.ms)}`,
+      `<pre class="raw">${esc(out)}</pre>`,
+      [['Copy', (b) => copyText(out, b)], ['Download', () => download('results.' + ext, out, mime)]]));
+  }
+  results.replaceChildren(...(notice ? [Object.assign(document.createElement('p'), { className: 'notice', textContent: notice })] : []), ...nodes);
+}
+
+function renderBindingsTable(vars, bindings) {
+  if (!vars.length) return '<div class="notice">(no variables)</div>';
+  const numeric = vars.map((v) => bindings.length > 0 && bindings.every((b) => !b[v] || isNumericTerm(b[v])) && bindings.some((b) => b[v]));
+  let html = '<div class="table-wrap"><table><thead><tr>';
+  vars.forEach((v, i) => { html += `<th${numeric[i] ? ' class="num"' : ''}>?${esc(v)}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (const b of bindings) {
+    html += '<tr>';
+    vars.forEach((v, i) => { html += `<td${numeric[i] ? ' class="num"' : ''}>${renderTerm(b[v])}</td>`; });
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  if (!bindings.length) html += '<div class="notice">No results.</div>';
+  return html;
+}
+
+async function runExplain(text, mode) {
+  const r = await busyCall('query', { sql: 'SELECT sparql_explain(?1, ?2)', bind: [text, mode] });
+  const out = r.rows[0][0] ?? '';
+  $('results').replaceChildren(resultCard(`sparql_explain(…, '${esc(mode)}') · ${fmtMs(r.ms)}`, `<pre class="raw">${esc(out)}</pre>`,
+    [['Copy', (b) => copyText(out, b)]]));
+}
+
+// ---------------------------------------------------------------------------------------
+// SQL tab
+// ---------------------------------------------------------------------------------------
+async function runSql(text) {
+  const r = await busyCall('script', { sql: text });
+  const nodes = [];
+  for (const res of r.results) {
+    const sqlLine = res.sql.replace(/\s+/g, ' ');
+    const head = `<code title="${esc(res.sql)}">${esc(sqlLine.length > 120 ? sqlLine.slice(0, 120) + '…' : sqlLine)}</code>`;
+    if (res.columns) {
+      let html = '<div class="table-wrap"><table><thead><tr>';
+      res.columns.forEach((c, i) => {
+        const num = res.rows.length && res.rows.every((row) => row[i] === null || typeof row[i] === 'number' || typeof row[i] === 'bigint');
+        html += `<th${num ? ' class="num"' : ''}>${esc(c)}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+      for (const row of res.rows) {
+        html += '<tr>';
+        for (const v of row) html += `<td${typeof v === 'number' || typeof v === 'bigint' ? ' class="num"' : ''}>${renderSqlValue(v)}</td>`;
+        html += '</tr>';
+      }
+      html += '</tbody></table></div>';
+      if (!res.rows.length) html += '<div class="notice">No rows.</div>';
+      const more = res.total > res.rows.length ? ` (showing the first ${fmtInt(res.rows.length)})` : '';
+      const csv = () => [res.columns, ...res.rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
+      nodes.push(resultCard(`${head} · ${fmtInt(res.total)} row${res.total === 1 ? '' : 's'}${more} · ${fmtMs(res.ms)}`, html,
+        [['Copy CSV', (b) => copyText(csv(), b)]]));
+    } else {
+      nodes.push(resultCard(`${head} · ${fmtMs(res.ms)}`,
+        res.changes ? `<div class="changes">${fmtInt(res.changes)} row${res.changes === 1 ? '' : 's'} changed</div>` : ''));
+    }
+  }
+  if (r.error) nodes.push(errorBox(cleanError(r.error), r.failedSql));
+  if (!r.results.length && !r.error) nodes.push(Object.assign(document.createElement('p'), { className: 'notice', textContent: 'Nothing to run.' }));
+  $('results').replaceChildren(...nodes);
+  updateStats(r.stats);
+  return r;
+}
+
+function csvCell(v) {
+  if (v === null || v === undefined) return '';
+  const s = v instanceof Uint8Array ? '' : String(v);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+// ---------------------------------------------------------------------------------------
+// Data tab
+// ---------------------------------------------------------------------------------------
+function updateStats(s) {
+  if (!s) return;
+  if (info) info.stats = s;
+  $('store-stats').innerHTML = `<span><b>${fmtInt(s.quads)}</b> quads</span><span><b>${fmtInt(s.terms)}</b> dictionary terms</span>
+    <span><b>${fmtInt(s.graphs.length)}</b> named graph${s.graphs.length === 1 ? '' : 's'}</span>
+    <span>SQL tables and views: ${s.tables.length ? s.tables.map((t) => `<code>${esc(t)}</code>`).join(' ') : 'none'}</span>
+    <span>database file: ${fmtBytes(s.bytes)}</span>`;
+  $('store-graphs').innerHTML = s.graphs.length
+    ? `<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>named graph</th><th>quads</th></tr></thead><tbody>${
+      s.graphs.map((g) => `<tr><td><a class="iri" href="#" data-iri="${esc(g.g)}">${esc('<' + g.g + '>')}</a></td><td class="num">${fmtInt(g.n)}</td></tr>`).join('')}</tbody></table></div>`
+    : '';
+  if (statusEl.querySelector('.ready')) showReady();
+}
+
+function dataMessage(el, text, isError) {
+  el.replaceChildren(isError ? errorBox(text) : Object.assign(document.createElement('p'), { className: 'hint', textContent: text }));
+}
+
+const FORMAT_BY_EXT = { ttl: 'turtle', turtle: 'turtle', trig: 'trig', nt: 'ntriples', nq: 'nquads', rdf: 'rdfxml',
+  owl: 'rdfxml', xml: 'rdfxml', jsonld: 'jsonld', json: 'jsonld', n3: 'n3' };
+
+const SAMPLE_TURTLE = `@prefix ex:     <http://example.org/pl/> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix schema: <https://schema.org/> .
+
+ex:Brainfuck a ex:ProgrammingLanguage ;
+    rdfs:label "Brainfuck"@en ;
+    ex:firstAppeared 1993 ;
+    ex:paradigm ex:Imperative ;
+    schema:description "An esoteric language with eight commands."@en .
+
+ex:Befunge a ex:ProgrammingLanguage ;
+    rdfs:label "Befunge"@en ;
+    ex:firstAppeared 1993 ;
+    schema:description "A two-dimensional esoteric language."@en .
+`;
+
+// ---------------------------------------------------------------------------------------
+// Tabs, examples, URL state
+// ---------------------------------------------------------------------------------------
+let tab = 'sparql';
+const drafts = { sparql: '', sql: '' };
+
+function setTab(t) {
+  if (tab !== 'data' && tab !== t) drafts[tab] = $('editor').value;
+  tab = t;
+  for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === t));
+  $('editor-panel').hidden = t === 'data';
+  $('data-panel').hidden = t !== 'data';
+  $('results').hidden = t === 'data';
+  for (const el of document.querySelectorAll('.sparql-only')) el.hidden = t !== 'sparql';
+  if (t !== 'data') {
+    $('editor').value = drafts[t];
+    $('editor').setAttribute('aria-label', t === 'sparql' ? 'SPARQL query' : 'SQL');
+  }
+}
+
+function buildExampleList() {
+  const list = $('example-list');
+  let group = null, groupEl = null;
+  EXAMPLES.forEach((ex, i) => {
+    if (ex.group !== group) {
+      group = ex.group;
+      groupEl = document.createElement('div');
+      groupEl.className = 'example-group';
+      groupEl.innerHTML = `<h3>${esc(group)}</h3>`;
+      list.appendChild(groupEl);
+    }
+    const b = document.createElement('button');
+    b.dataset.index = i;
+    b.innerHTML = esc(ex.title) + (ex.mode === 'sql' ? '<span class="badge">SQL</span>' : '');
+    b.addEventListener('click', () => {
+      loadExample(i);
+      if (window.matchMedia('(max-width: 900px)').matches) {
+        $('examples').open = false;
+        $('editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      run();
+    });
+    groupEl.appendChild(b);
+  });
+}
+
+function loadExample(i) {
+  const ex = EXAMPLES[i];
+  drafts[ex.mode] = ex.text;
+  setTab(ex.mode);
+  $('editor').value = ex.text;
+  $('format').value = ex.format || 'table';
+  $('explain').value = '';
+  $('example-note').innerHTML = ex.note || '';
+  for (const b of document.querySelectorAll('.example-group button')) b.classList.toggle('active', Number(b.dataset.index) === i);
+}
+
+function clearExampleSelection() {
+  $('example-note').innerHTML = '';
+  for (const b of document.querySelectorAll('.example-group button.active')) b.classList.remove('active');
+}
+
+function stateToHash() {
+  const params = new URLSearchParams();
+  params.set(tab === 'sql' ? 'sql' : 'sparql', $('editor').value);
+  if (tab === 'sparql' && $('format').value !== 'table') params.set('format', $('format').value);
+  if (engine !== 'native') params.set('engine', engine);
+  return '#' + params.toString();
+}
+
+function readHash() {
+  if (location.hash.length < 2) return false;
+  const params = new URLSearchParams(location.hash.slice(1));
+  if (params.has('engine')) { engine = params.get('engine') === 'sql' ? 'sql' : 'native'; $('engine').value = engine; }
+  if (params.has('sql')) {
+    drafts.sql = params.get('sql');
+    setTab('sql');
+  } else if (params.has('sparql')) {
+    drafts.sparql = params.get('sparql');
+    setTab('sparql');
+    if (params.has('format')) $('format').value = params.get('format');
+  } else {
+    return false;
+  }
+  return true;
+}
+
+async function run() {
+  if (busy || tab === 'data') return;
+  await workerReady;
+  const text = $('editor').value;
+  drafts[tab] = text;
+  history.replaceState(null, '', stateToHash());
+  try {
+    if (tab === 'sparql') await runSparql(text);
+    else await runSql(text);
+  } catch (e) {
+    $('results').replaceChildren(errorBox(cleanError(e.message)));
+  }
+}
+
+function sparqlToSql(text) {
+  const quoted = "'\n" + text.replace(/'/g, "''") + "\n'";
+  const form = queryForm(text);
+  if (form === 'update') return `SELECT sparql_update(${quoted}) AS changed;`;
+  if (form === 'ask') return `SELECT sparql_ask(${quoted}) AS answer;`;
+  if (form === 'construct' || form === 'describe') {
+    return `SELECT v0 AS subject, v1 AS predicate, t2 AS object FROM sparql_rows(${quoted});`;
+  }
+  if (lastVars && lastVars.length && lastVars.length <= 16) {
+    const cols = lastVars.map((v, i) => `v${i} AS "${v.replace(/"/g, '""')}"`).join(', ');
+    return `SELECT ${cols}\nFROM sparql_rows(${quoted});`;
+  }
+  return `SELECT n, vars, json FROM sparql_rows(${quoted});`;
+}
+
+// ---------------------------------------------------------------------------------------
+// Event wiring
+// ---------------------------------------------------------------------------------------
+for (const b of document.querySelectorAll('.tabs button')) {
+  b.addEventListener('click', () => setTab(b.dataset.tab));
+}
+$('run').addEventListener('click', run);
+$('stop').addEventListener('click', () => { stopWorker(); });
+$('editor').addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    run();
+  } else if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    document.execCommand('insertText', false, '  ');
+  }
+});
+$('editor').addEventListener('input', () => {
+  if ($('example-note').innerHTML) clearExampleSelection();
+});
+// Re-run on option changes only when that is harmless: never repeat an update or a SQL script.
+function rerunIfReadOnly() {
+  if (tab === 'sparql' && !busy && queryForm($('editor').value) !== 'update') run();
+}
+$('format').addEventListener('change', rerunIfReadOnly);
+$('explain').addEventListener('change', async () => {
+  const mode = $('explain').value;
+  $('explain').value = '';
+  if (!mode || busy) return;
+  await workerReady;
+  try { await runExplain($('editor').value, mode); } catch (e) { $('results').replaceChildren(errorBox(cleanError(e.message))); }
+});
+$('engine').addEventListener('change', async () => {
+  engine = $('engine').value;
+  await workerReady;
+  await call('query', { sql: "SELECT sparql_config('engine', ?)", bind: [engine] });
+  rerunIfReadOnly();
+});
+$('share').addEventListener('click', (e) => {
+  drafts[tab] = $('editor').value;
+  history.replaceState(null, '', stateToHash());
+  copyText(location.href, e.target);
+});
+$('to-sql').addEventListener('click', () => {
+  const sql = sparqlToSql($('editor').value);
+  drafts.sparql = $('editor').value;
+  drafts.sql = sql;
+  clearExampleSelection();
+  setTab('sql');
+  run();
+});
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a.iri');
+  if (!a) return;
+  e.preventDefault();
+  const iri = a.dataset.iri;
+  if (busy) return;
+  drafts.sparql = `# Everything about <${iri}>: links out of it and into it, in any graph
+SELECT ?direction ?property ?value ?graph
+WHERE {
+  { <${iri}> ?property ?value BIND ("→ out" AS ?direction) }
+  UNION { ?value ?property <${iri}> BIND ("← in" AS ?direction) }
+  UNION { GRAPH ?graph { <${iri}> ?property ?value } BIND ("→ out" AS ?direction) }
+  UNION { GRAPH ?graph { ?value ?property <${iri}> } BIND ("← in" AS ?direction) }
+}
+ORDER BY ?direction ?graph ?property ?value`;
+  clearExampleSelection();
+  setTab('sparql');
+  $('format').value = 'table';
+  window.scrollTo({ top: $('editor-panel').offsetTop - 10, behavior: 'smooth' });
+  run();
+});
+
+// Data tab actions
+async function dataAction(fn, msgEl) {
+  if (busy) return;
+  try {
+    await workerReady;
+    const text = await fn();
+    if (text) dataMessage(msgEl, text);
+  } catch (e) {
+    dataMessage(msgEl, cleanError(e.message), true);
+  }
+}
+$('reset-data').addEventListener('click', () => dataAction(async () => {
+  const r = await busyCall('reset', { empty: false });
+  updateStats(r.stats);
+  return `Reset: ${fmtInt(r.stats.quads)} quads loaded.`;
+}, $('data-message')));
+$('empty-store').addEventListener('click', () => dataAction(async () => {
+  const r = await busyCall('reset', { empty: true });
+  updateStats(r.stats);
+  return 'The store is empty. Add data below, or with sparql_load() / INSERT DATA.';
+}, $('data-message')));
+$('download-db').addEventListener('click', () => dataAction(async () => {
+  const r = await busyCall('export', {});
+  download('playground.sqlite', r.bytes, 'application/vnd.sqlite3');
+  return `Downloaded playground.sqlite (${fmtBytes(r.bytes.length)}).`;
+}, $('data-message')));
+$('open-db').addEventListener('change', (e) => dataAction(async () => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return '';
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const r = await busyCall('import', { bytes });
+  updateStats(r.stats);
+  return `Opened ${file.name}: ${fmtInt(r.stats.quads)} quads (store schema: ${r.schemaState}).`;
+}, $('data-message')));
+$('rdf-load').addEventListener('click', () => dataAction(async () => {
+  const data = $('rdf-input').value;
+  if (!data.trim()) throw new Error('Paste some RDF data first.');
+  const r = await busyCall('load', { data, format: $('rdf-format').value, base: $('rdf-base').value.trim(), graph: $('rdf-graph').value.trim() });
+  updateStats(r.stats);
+  return `Loaded ${fmtInt(r.added)} new quad${r.added === 1 ? '' : 's'} in ${fmtMs(r.ms)}. The store now holds ${fmtInt(r.stats.quads)} quads.`;
+}, $('rdf-message')));
+$('rdf-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (FORMAT_BY_EXT[ext]) $('rdf-format').value = FORMAT_BY_EXT[ext];
+  $('rdf-input').value = await file.text();
+  dataMessage($('rdf-message'), `Read ${file.name} (${fmtBytes(file.size)}). Check the format, then press Load.`);
+});
+$('rdf-sample').addEventListener('click', () => {
+  $('rdf-input').value = SAMPLE_TURTLE;
+  $('rdf-format').value = 'turtle';
+});
+
+// ---------------------------------------------------------------------------------------
+// Start
+// ---------------------------------------------------------------------------------------
+buildExampleList();
+if (window.matchMedia('(max-width: 900px)').matches) $('examples').open = false;
+const fromHash = readHash();
+if (!fromHash) loadExample(0);
+init().then(() => {
+  if (engine !== 'native') return call('query', { sql: "SELECT sparql_config('engine', ?)", bind: [engine] });
+}).then(() => run(), () => { /* init() has already reported the error */ });
+window.addEventListener('hashchange', () => { if (readHash()) { clearExampleSelection(); run(); } });
+</script>
+</body>
+</html>
